@@ -1,0 +1,16 @@
+{
+  "name": "pentagrid",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [],
+  "author": "Jeff Coyle",
+  "license": "ISC",
+  "description": "Pentagrid explorations",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
