@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentagrid — De Bruijn's Method</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background: #fafafa;
+        }
+        h1 { margin-bottom: 4px; }
+        h2 { color: #555; font-weight: normal; margin-top: 0; }
+        .controls {
+            display: flex;
+            gap: 24px;
+            align-items: flex-end;
+            margin: 20px 0 10px;
+            flex-wrap: wrap;
+        }
+        .dial {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 80px;
+        }
+        .dial label {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            font-family: "Times New Roman", serif;
+            font-style: italic;
+        }
+        .dial input[type="range"] {
+            writing-mode: vertical-lr;
+            direction: rtl;
+            height: 150px;
+            width: 28px;
+            cursor: pointer;
+        }
+        .dial .value {
+            font-size: 13px;
+            font-family: monospace;
+            margin-top: 4px;
+        }
+        .dial.computed input[type="range"] {
+            opacity: 0.5;
+            cursor: default;
+        }
+        .sum-display {
+            font-size: 13px;
+            font-family: monospace;
+            color: #888;
+            align-self: center;
+        }
+        .step-nav {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin: 6px 0;
+        }
+        .step-nav button {
+            padding: 6px 18px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background: #fff;
+            border-radius: 4px;
+        }
+        .step-nav button:hover:not(:disabled) {
+            background: #eee;
+        }
+        .step-nav button:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+        .step-indicator {
+            font-size: 14px;
+            color: #666;
+            font-family: monospace;
+        }
+        canvas {
+            display: block;
+            margin-top: 10px;
+            background: white;
+            cursor: grab;
+            touch-action: none;
+        }
+        .explanation {
+            max-width: 340px;
+            font-size: 15px;
+            line-height: 1.6;
+            color: #333;
+            padding-top: 20px;
+        }
+        .explanation h3 {
+            margin: 0 0 12px;
+            font-size: 18px;
+            color: #222;
+        }
+        .explanation .equation {
+            font-size: 17px;
+            text-align: center;
+            margin: 16px 0;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 4px;
+            font-family: "Times New Roman", serif;
+        }
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin: 12px 0;
+            font-size: 14px;
+        }
+        .legend-swatch {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-right: 4px;
+            border: 1px solid #aaa;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pentagrid</h1>
+    <h2>De Bruijn's Pentagrid Method</h2>
+    <div style="display: flex; gap: 30px; align-items: flex-start;">
+        <div>
+            <div class="controls" id="controls"></div>
+            <div class="step-nav" id="step-nav"></div>
+            <canvas id="pentagrid" width="800" height="800"></canvas>
+        </div>
+        <div class="explanation" id="explanation"></div>
+    </div>
+    <script type="module" src="./dist/method.js"></script>
+</body>
+</html>
