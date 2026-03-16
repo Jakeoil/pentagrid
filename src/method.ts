@@ -273,6 +273,16 @@ const contentLayer = addLayer("content", "Content", 50, () => {
     }
 });
 
+// Highlight overlay canvas (for dual vertex hover on step 4)
+const highlightCanvas = document.createElement("canvas");
+highlightCanvas.width = CANVAS_W;
+highlightCanvas.height = CANVAS_H;
+highlightCanvas.className = "layer-canvas";
+highlightCanvas.style.zIndex = "55";
+highlightCanvas.style.pointerEvents = "none";
+container.appendChild(highlightCanvas);
+const highlightCtx = highlightCanvas.getContext("2d")!;
+
 // ── Build slider controls ─────────────────────────────────────────
 
 interface Dial {
@@ -548,6 +558,7 @@ function solveIntersection(
 
 interface Rhomb {
     vertices: [number, number][]; // 4 vertices in parallelogram order
+    kTuples: number[][]; // K-tuple for each of the 4 vertices
     thick: boolean;
 }
 
@@ -555,6 +566,7 @@ function computeRhomb(
     j: number, k: number, nj: number, nk: number,
     x0: number, y0: number,
 ): Rhomb {
+    const baseK: number[] = [];
     let fx = 0, fy = 0;
     for (let i = 0; i < NUM_GRIDS; i++) {
         let Ki: number;
@@ -564,6 +576,7 @@ function computeRhomb(
             const dot = directions[i][0] * x0 + directions[i][1] * y0;
             Ki = Math.ceil(dot + gamma[i] - 1e-9);
         }
+        baseK.push(Ki);
         fx += Ki * directions[i][0];
         fy += Ki * directions[i][1];
     }
@@ -578,8 +591,16 @@ function computeRhomb(
         [fx + vkx, fy + vky],
     ];
 
+    // K-tuples for each vertex: base, base+e_j, base+e_j+e_k, base+e_k
+    const kTuples: number[][] = [
+        baseK,
+        baseK.map((v, i) => i === j ? v + 1 : v),
+        baseK.map((v, i) => (i === j || i === k) ? v + 1 : v),
+        baseK.map((v, i) => i === k ? v + 1 : v),
+    ];
+
     const d = Math.min(k - j, 5 - (k - j));
-    return { vertices, thick: d === 1 };
+    return { vertices, kTuples, thick: d === 1 };
 }
 
 function collectRhombs(vis: ViewRect): Rhomb[] {
@@ -716,7 +737,7 @@ function drawGridFamily(
     const nHi = Math.ceil(maxDot + gamma[j]) + 1;
 
     tc.strokeStyle = COLORS[j];
-    tc.lineWidth = 1;
+    tc.lineWidth = currentStep === 2 ? 2 : 1;
 
     for (let n = nLo; n <= nHi; n++) {
         const c = n - gamma[j];
@@ -785,15 +806,35 @@ function drawIntersectionDots(tc: CanvasRenderingContext2D, cx: number, cy: numb
     }
 }
 
+/** Stored dual vertices for hover hit-testing on step 4 */
+interface DualVertex {
+    sx: number; sy: number; // screen coords
+    mx: number; my: number; // math coords (dual space)
+    K: number[];            // K-tuple that produced this vertex
+}
+let dualVertices: DualVertex[] = [];
+
+/**
+ * Draw the dual vertices f(x) = Σ Kⱼ(x)·vⱼ for each rhomb corner.
+ * Deduplicates by rounding to avoid plotting the same vertex twice.
+ *
+ * @param tc - Target canvas rendering context
+ * @param rhombs - Rhombs whose corners supply the dual vertices
+ * @param cx - Screen x of the canvas center
+ * @param cy - Screen y of the canvas center
+ */
 function drawDualVertices(tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number) {
     const seen = new Set<string>();
+    dualVertices = [];
     tc.fillStyle = "#c0392b";
     for (const rhomb of rhombs) {
-        for (const [vx, vy] of rhomb.vertices) {
+        for (let vi = 0; vi < rhomb.vertices.length; vi++) {
+            const [vx, vy] = rhomb.vertices[vi];
             const key = `${Math.round(vx * 1e4)},${Math.round(vy * 1e4)}`;
             if (seen.has(key)) continue;
             seen.add(key);
             const [sx, sy] = mathToScreen(vx, vy, cx, cy);
+            dualVertices.push({ sx, sy, mx: vx, my: vy, K: rhomb.kTuples[vi] });
             tc.beginPath();
             tc.arc(sx, sy, 3, 0, 2 * Math.PI);
             tc.fill();
@@ -854,38 +895,27 @@ function computeKTuple(mx: number, my: number): number[] {
 function drawKRegions(tc: CanvasRenderingContext2D, cx: number, cy: number) {
     const w = CANVAS_W;
     const h = CANVAS_H;
-    const cellSize = 5;
     const imgData = tc.createImageData(w, h);
     const data = imgData.data;
 
-    for (let cellY = MARGIN; cellY < h - MARGIN; cellY += cellSize) {
-        for (let cellX = MARGIN; cellX < w - MARGIN; cellX += cellSize) {
-            const [mx, my] = screenToMath(
-                cellX + cellSize / 2, cellY + cellSize / 2, cx, cy,
-            );
+    for (let py = MARGIN; py < h - MARGIN; py++) {
+        for (let px = MARGIN; px < w - MARGIN; px++) {
+            const [mx, my] = screenToMath(px, py, cx, cy);
             const K = computeKTuple(mx, my);
 
-            // Hash K-tuple to a hue (only active families)
+            // Hash full K-tuple to a hue
             let hash = 0;
             for (let j = 0; j < NUM_GRIDS; j++) {
-                const layer = layers.get(`grid-${j}`);
-                if (layer && !layer.userVisible) continue;
                 hash = ((hash << 5) - hash + K[j] + 50) | 0;
             }
             const hue = (((hash * 137) % 360) + 360) % 360;
             const [r, g, b] = hslToRgb(hue, 0.45, 0.82);
 
-            const maxDy = Math.min(cellSize, h - MARGIN - cellY);
-            const maxDx = Math.min(cellSize, w - MARGIN - cellX);
-            for (let dy = 0; dy < maxDy; dy++) {
-                for (let dx = 0; dx < maxDx; dx++) {
-                    const idx = ((cellY + dy) * w + (cellX + dx)) * 4;
-                    data[idx] = r;
-                    data[idx + 1] = g;
-                    data[idx + 2] = b;
-                    data[idx + 3] = 255;
-                }
-            }
+            const idx = (py * w + px) * 4;
+            data[idx] = r;
+            data[idx + 1] = g;
+            data[idx + 2] = b;
+            data[idx + 3] = 255;
         }
     }
 
@@ -1162,33 +1192,261 @@ function buildLayerPanel() {
     layerPanelDiv.appendChild(wrapper);
 }
 
-// ── Tooltip for K-tuple on step 3 ─────────────────────────────────
+// ── Tooltip / hover highlight ──────────────────────────────────────
+
+function clearHighlight() {
+    highlightCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+}
+
+function formatKTooltip(K: number[]): string {
+    const parts = K.map((v, j) => {
+        const layer = layers.get(`grid-${j}`);
+        const active = !layer || layer.userVisible;
+        const color = active ? "#fff" : "#999";
+        return `<span style="color:${color}">${v}</span>`;
+    });
+    const index = K.reduce((a, b) => a + b, 0);
+    return `K[${index}] = {${parts.join(", ")}}`;
+}
+
+function highlightRegion(K: number[], cx: number, cy: number, dotSx: number, dotSy: number) {
+    // Draw a filled polygon for the pentagrid region matching this K-tuple.
+    // The region is the intersection of half-planes: K_j - 1 < x·v_j + γ_j ≤ K_j
+    // We find the polygon by clipping against each strip.
+    const vis = getVisibleRect();
+    let poly: [number, number][] = [
+        [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
+        [vis.xMax, vis.yMax], [vis.xMin, vis.yMax],
+    ];
+
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const [vx, vy] = directions[j];
+        const lo = K[j] - 1 + 1e-9; // x·v + γ > K_j - 1
+        const hi = K[j] + 1e-9;     // x·v + γ ≤ K_j
+        poly = clipPoly(poly, vx, vy, gamma[j] - lo, true);
+        poly = clipPoly(poly, -vx, -vy, -(gamma[j] - hi), true);
+        if (poly.length === 0) break;
+    }
+
+    if (poly.length < 3) return;
+
+    // Convert to screen and compute centroid + bounding size
+    const screenPts = poly.map(([px, py]) => mathToScreen(px, py, cx, cy));
+    let centX = 0, centY = 0;
+    let sxMin = Infinity, sxMax = -Infinity, syMin = Infinity, syMax = -Infinity;
+    for (const [sx, sy] of screenPts) {
+        centX += sx; centY += sy;
+        if (sx < sxMin) sxMin = sx;
+        if (sx > sxMax) sxMax = sx;
+        if (sy < syMin) syMin = sy;
+        if (sy > syMax) syMax = sy;
+    }
+    centX /= screenPts.length;
+    centY /= screenPts.length;
+
+    // Draw the region
+    highlightCtx.fillStyle = "rgba(255, 255, 100, 0.35)";
+    highlightCtx.strokeStyle = "rgba(255, 200, 0, 0.8)";
+    highlightCtx.lineWidth = 2;
+    highlightCtx.beginPath();
+    highlightCtx.moveTo(screenPts[0][0], screenPts[0][1]);
+    for (let i = 1; i < screenPts.length; i++) {
+        highlightCtx.lineTo(screenPts[i][0], screenPts[i][1]);
+    }
+    highlightCtx.closePath();
+    highlightCtx.fill();
+    highlightCtx.stroke();
+
+    // If the region is small, draw an arrow from the dot to its centroid
+    const regionSize = Math.max(sxMax - sxMin, syMax - syMin);
+    if (regionSize < 20) {
+        const dx = centX - dotSx;
+        const dy = centY - dotSy;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > 10) {
+            const ux = dx / dist;
+            const uy = dy / dist;
+            // Arrow line from near the dot to near the centroid
+            const startX = dotSx + ux * 8;
+            const startY = dotSy + uy * 8;
+            const endX = centX - ux * 4;
+            const endY = centY - uy * 4;
+
+            highlightCtx.strokeStyle = "rgba(255, 200, 0, 0.8)";
+            highlightCtx.lineWidth = 1.5;
+            highlightCtx.beginPath();
+            highlightCtx.moveTo(startX, startY);
+            highlightCtx.lineTo(endX, endY);
+            highlightCtx.stroke();
+
+            // Arrowhead
+            const headLen = 7;
+            const angle = Math.atan2(uy, ux);
+            highlightCtx.beginPath();
+            highlightCtx.moveTo(endX, endY);
+            highlightCtx.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
+            highlightCtx.moveTo(endX, endY);
+            highlightCtx.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
+            highlightCtx.stroke();
+        }
+    }
+}
+
+/** Clip polygon to the half-plane a*x + b*y + c ≥ 0 (or > 0 if strict, but we use ≥ for robustness) */
+function clipPoly(poly: [number, number][], a: number, b: number, c: number, _strict: boolean): [number, number][] {
+    if (poly.length === 0) return poly;
+    const out: [number, number][] = [];
+    for (let i = 0; i < poly.length; i++) {
+        const cur = poly[i];
+        const next = poly[(i + 1) % poly.length];
+        const dCur = a * cur[0] + b * cur[1] + c;
+        const dNext = a * next[0] + b * next[1] + c;
+        if (dCur >= 0) out.push(cur);
+        if ((dCur >= 0) !== (dNext >= 0)) {
+            const t = dCur / (dCur - dNext);
+            out.push([cur[0] + t * (next[0] - cur[0]), cur[1] + t * (next[1] - cur[1])]);
+        }
+    }
+    return out;
+}
 
 eventCanvas.addEventListener("mousemove", (e) => {
-    if (currentStep !== 2 || isPanning) {
+    if (isPanning) {
         tooltip.style.display = "none";
+        clearHighlight();
         return;
     }
+
     const rect = eventCanvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     if (sx < MARGIN || sx > CANVAS_W - MARGIN ||
         sy < MARGIN || sy > CANVAS_H - MARGIN) {
         tooltip.style.display = "none";
+        clearHighlight();
         return;
     }
+
     const cx = CANVAS_W / 2;
     const cy = CANVAS_H / 2;
-    const [mx, my] = screenToMath(sx, sy, cx, cy);
-    const K = computeKTuple(mx, my);
-    tooltip.textContent = `(K₀,K₁,K₂,K₃,K₄) = (${K.join(", ")})`;
-    tooltip.style.display = "block";
-    tooltip.style.left = (e.clientX + 12) + "px";
-    tooltip.style.top = (e.clientY - 28) + "px";
+
+    if (currentStep === 2) {
+        // Step 3: show K-tuple at cursor and arrow to its dual vertex
+        const [mx, my] = screenToMath(sx, sy, cx, cy);
+        const K = computeKTuple(mx, my);
+        tooltip.innerHTML = formatKTooltip(K);
+        tooltip.style.display = "block";
+        tooltip.style.left = (e.clientX + 12) + "px";
+        tooltip.style.top = (e.clientY - 28) + "px";
+
+        clearHighlight();
+
+        // Derive dark version of the region's color
+        let hash = 0;
+        for (let j = 0; j < NUM_GRIDS; j++) {
+            hash = ((hash << 5) - hash + K[j] + 50) | 0;
+        }
+        const hue = (((hash * 137) % 360) + 360) % 360;
+        const [dr, dg, db] = hslToRgb(hue, 0.7, 0.35);
+        const darkColor = `rgb(${dr},${dg},${db})`;
+
+        // Compute dual vertex f = Σ K_j · v_j
+        let fx = 0, fy = 0;
+        for (let j = 0; j < NUM_GRIDS; j++) {
+            fx += K[j] * directions[j][0];
+            fy += K[j] * directions[j][1];
+        }
+        const [dsx, dsy] = mathToScreen(fx, fy, cx, cy);
+
+        // Draw the dual point
+        highlightCtx.fillStyle = darkColor;
+        highlightCtx.beginPath();
+        highlightCtx.arc(dsx, dsy, 3, 0, 2 * Math.PI);
+        highlightCtx.fill();
+
+        // Arrow from cursor to dual vertex
+        const adx = dsx - sx;
+        const ady = dsy - sy;
+        const dist = Math.sqrt(adx * adx + ady * ady);
+        if (dist > 15) {
+            const ux = adx / dist;
+            const uy = ady / dist;
+            const startX = sx + ux * 6;
+            const startY = sy + uy * 6;
+            const endX = dsx - ux * 6;
+            const endY = dsy - uy * 6;
+
+            highlightCtx.strokeStyle = darkColor;
+            highlightCtx.lineWidth = 1.5;
+            highlightCtx.beginPath();
+            highlightCtx.moveTo(startX, startY);
+            highlightCtx.lineTo(endX, endY);
+            highlightCtx.stroke();
+
+            const headLen = 7;
+            const angle = Math.atan2(uy, ux);
+            highlightCtx.beginPath();
+            highlightCtx.moveTo(endX, endY);
+            highlightCtx.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
+            highlightCtx.moveTo(endX, endY);
+            highlightCtx.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
+            highlightCtx.stroke();
+        }
+        return;
+    }
+
+    if (currentStep === 3) {
+        // Step 4: find nearest dual vertex
+        let best: DualVertex | null = null;
+        let bestDist = 12; // pixel threshold
+        for (const dv of dualVertices) {
+            const dx = dv.sx - sx;
+            const dy = dv.sy - sy;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d < bestDist) {
+                bestDist = d;
+                best = dv;
+            }
+        }
+
+        clearHighlight();
+
+        if (best) {
+            // Equation: f = Σ K_j · v_j
+            const terms = best.K.map((v, j) => {
+                const layer = layers.get(`grid-${j}`);
+                const active = !layer || layer.userVisible;
+                const color = active ? "#fff" : "#999";
+                return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
+            });
+            tooltip.innerHTML =
+                formatKTooltip(best.K) +
+                `<br><span style="color:#fc0">f</span> = ${terms.join(" + ")}`;
+            tooltip.style.display = "block";
+            tooltip.style.left = (e.clientX + 12) + "px";
+            tooltip.style.top = (e.clientY - 28) + "px";
+
+            // Highlight the hovered dot
+            highlightCtx.fillStyle = "#fc0";
+            highlightCtx.beginPath();
+            highlightCtx.arc(best.sx, best.sy, 5, 0, 2 * Math.PI);
+            highlightCtx.fill();
+
+            // Highlight the source region in the pentagrid
+            highlightRegion(best.K, cx, cy, best.sx, best.sy);
+        } else {
+            tooltip.style.display = "none";
+        }
+        return;
+    }
+
+    tooltip.style.display = "none";
+    clearHighlight();
 });
 
 eventCanvas.addEventListener("mouseleave", () => {
     tooltip.style.display = "none";
+    clearHighlight();
 });
 
 // ── Init ──────────────────────────────────────────────────────────
