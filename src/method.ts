@@ -14,10 +14,13 @@ const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
 const THICK_FILL = "#e8c170";
 const THIN_FILL = "#7eb8da";
 
+// Unicode subscripts for K labels
+const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
+
 // State
 const gamma = [0, 0, 0, 0, 0];
 let currentStep = 0;
-const STEP_COUNT = 5;
+const STEP_COUNT = 6;
 let lockedIndex = 4;
 
 // View state
@@ -62,7 +65,26 @@ const stepContent = [
             that follows.</p>`,
     },
     {
-        title: "Step 3 &mdash; Dual Vertices",
+        title: "Step 3 &mdash; Pentagrid Regions",
+        html: `<p>The grid lines partition the plane into regions.
+            Each region has constant <em>pentagrid coordinates</em>:</p>
+            <p class="equation"><i>K<sub>j</sub></i>(<b>x</b>)&thinsp;=&thinsp;&lceil;&thinsp;<b>v</b><sub><i>j</i></sub>&thinsp;&middot;&thinsp;<b>x</b>
+            + &gamma;<sub><i>j</i></sub>&thinsp;&rceil;</p>
+            <p>At the intersection of line <i>k<sub>r</sub></i> from
+            family&nbsp;<i>r</i> and line <i>k<sub>s</sub></i> from
+            family&nbsp;<i>s</i>, four regions meet. Their
+            <i>K</i>-tuples differ only at positions <i>r</i>
+            and&nbsp;<i>s</i>:</p>
+            <p class="equation" style="font-size:15px;text-align:left;padding-left:16px;">
+            <i>K</i>(<b>x</b><sub>0</sub>)&thinsp;+&thinsp;(0,&thinsp;&hellip;,&thinsp;&epsilon;<sub><i>r</i></sub>,&thinsp;&hellip;,&thinsp;&epsilon;<sub><i>s</i></sub>,&thinsp;&hellip;,&thinsp;0)<br>
+            where &epsilon;<sub><i>r</i></sub>,&thinsp;&epsilon;<sub><i>s</i></sub>&thinsp;&isin;&thinsp;{0,&thinsp;1}</p>
+            <p>Intersection points correspond to <em>rhombs</em>.
+            Regions between grid lines correspond to <em>vertices</em>,
+            at positions
+            <i>f</i>(<b>x</b>)&thinsp;=&thinsp;&sum;&thinsp;<i>K<sub>j</sub></i>&thinsp;&middot;&thinsp;<b>v</b><sub><i>j</i></sub>.</p>`,
+    },
+    {
+        title: "Step 4 &mdash; Dual Vertices",
         html: `<p>Each point <b>x</b> receives <em>pentagrid coordinates</em>
             via the ceiling function:</p>
             <p class="equation"><i>K<sub>j</sub></i>(<b>x</b>)&thinsp;=&thinsp;&lceil;&thinsp;<b>v</b><sub><i>j</i></sub>&thinsp;&middot;&thinsp;<b>x</b>
@@ -77,7 +99,7 @@ const stepContent = [
             map to vertices one <b>v</b><sub><i>j</i></sub> apart.</p>`,
     },
     {
-        title: "Step 4 &mdash; Building Rhombs",
+        title: "Step 5 &mdash; Building Rhombs",
         html: `<p>At each intersection, four regions meet. Their
             <i>K</i>-tuples differ in exactly two coordinates
             (<i>j</i>&thinsp;and&thinsp;<i>k</i>), producing four
@@ -97,7 +119,7 @@ const stepContent = [
             thick rhombs; difference 2 yields thin.</p>`,
     },
     {
-        title: "Step 5 &mdash; Penrose Tiling",
+        title: "Step 6 &mdash; Penrose Tiling",
         html: `<p>The complete dual is a <em>Penrose rhomb tiling</em>.</p>
             <div class="legend">
                 <span><span class="legend-swatch" style="background:${THICK_FILL}"></span>
@@ -127,6 +149,11 @@ const stepNavDiv = document.getElementById("step-nav")!;
 const explanationDiv = document.getElementById("explanation")!;
 const canvas = document.getElementById("pentagrid") as HTMLCanvasElement;
 const ctx = canvas.getContext("2d")!;
+
+// Tooltip for K-tuple display
+const tooltip = document.createElement("div");
+tooltip.style.cssText = "position:fixed;padding:4px 8px;background:rgba(0,0,0,0.8);color:#fff;font:12px monospace;border-radius:3px;pointer-events:none;display:none;z-index:10;";
+document.body.appendChild(tooltip);
 
 // ── Build slider controls ─────────────────────────────────────────
 
@@ -235,6 +262,7 @@ function updateStepUI() {
     nextBtn.disabled = currentStep === STEP_COUNT - 1;
     const step = stepContent[currentStep];
     explanationDiv.innerHTML = `<h3>${step.title}</h3>${step.html}`;
+    tooltip.style.display = "none";
 }
 
 prevBtn.addEventListener("click", () => {
@@ -672,6 +700,307 @@ function drawRhombs(rhombs: Rhomb[], cx: number, cy: number, fill: boolean) {
     }
 }
 
+// ── K-region visualization ────────────────────────────────────────
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) { r = c; g = x; }
+    else if (h < 120) { r = x; g = c; }
+    else if (h < 180) { g = c; b = x; }
+    else if (h < 240) { g = x; b = c; }
+    else if (h < 300) { r = x; b = c; }
+    else { r = c; b = x; }
+    return [
+        Math.round((r + m) * 255),
+        Math.round((g + m) * 255),
+        Math.round((b + m) * 255),
+    ];
+}
+
+function computeKTuple(mx: number, my: number): number[] {
+    const K: number[] = [];
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const dot = directions[j][0] * mx + directions[j][1] * my;
+        K.push(Math.ceil(dot + gamma[j] - 1e-9));
+    }
+    return K;
+}
+
+function drawKRegions(cx: number, cy: number) {
+    const w = canvas.width;
+    const h = canvas.height;
+    const cellSize = 5;
+    const imgData = ctx.createImageData(w, h);
+    const data = imgData.data;
+
+    for (let cellY = MARGIN; cellY < h - MARGIN; cellY += cellSize) {
+        for (let cellX = MARGIN; cellX < w - MARGIN; cellX += cellSize) {
+            const [mx, my] = screenToMath(
+                cellX + cellSize / 2, cellY + cellSize / 2, cx, cy,
+            );
+            const K = computeKTuple(mx, my);
+
+            // Hash K-tuple to a hue
+            let hash = 0;
+            for (let j = 0; j < NUM_GRIDS; j++) {
+                hash = ((hash << 5) - hash + K[j] + 50) | 0;
+            }
+            const hue = (((hash * 137) % 360) + 360) % 360;
+            const [r, g, b] = hslToRgb(hue, 0.45, 0.82);
+
+            const maxDy = Math.min(cellSize, h - MARGIN - cellY);
+            const maxDx = Math.min(cellSize, w - MARGIN - cellX);
+            for (let dy = 0; dy < maxDy; dy++) {
+                for (let dx = 0; dx < maxDx; dx++) {
+                    const idx = ((cellY + dy) * w + (cellX + dx)) * 4;
+                    data[idx] = r;
+                    data[idx + 1] = g;
+                    data[idx + 2] = b;
+                    data[idx + 3] = 255;
+                }
+            }
+        }
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+}
+
+function drawKLabels(cx: number, cy: number) {
+    const w = canvas.width;
+    const h = canvas.height;
+    const spacing = 110;
+
+    ctx.font = "9px monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    for (let sy = MARGIN + spacing / 2; sy < h - MARGIN; sy += spacing) {
+        for (let sx = MARGIN + spacing / 2; sx < w - MARGIN; sx += spacing) {
+            const [mx, my] = screenToMath(sx, sy, cx, cy);
+
+            // Skip if too close to any grid line
+            let minFrac = 1;
+            for (let j = 0; j < NUM_GRIDS; j++) {
+                const dot = directions[j][0] * mx + directions[j][1] * my + gamma[j];
+                const frac = Math.abs(dot - Math.round(dot));
+                if (frac < minFrac) minFrac = frac;
+            }
+            if (minFrac < 0.15) continue;
+
+            const K = computeKTuple(mx, my);
+            const label = `(${K.join(",")})`;
+
+            // White background for readability
+            const metrics = ctx.measureText(label);
+            const pad = 2;
+            ctx.fillStyle = "rgba(255,255,255,0.8)";
+            ctx.fillRect(
+                sx - metrics.width / 2 - pad,
+                sy - 6 - pad,
+                metrics.width + pad * 2,
+                12 + pad * 2,
+            );
+
+            ctx.fillStyle = "#333";
+            ctx.fillText(label, sx, sy);
+        }
+    }
+}
+
+// ── K edge labels ─────────────────────────────────────────────────
+
+function drawKEdgeLabels(cx: number, cy: number) {
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.font = "10px sans-serif";
+
+    interface LabelInfo {
+        x: number; y: number;
+        text: string;
+        color: string;
+    }
+    const labels: LabelInfo[] = [];
+
+    // Pass 1: gradient-filled parallelograms, collect label positions
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const [vx, vy] = directions[j];
+        const [r, g, b] = hexToRgb(COLORS[j]);
+        const colorStr = `rgba(${r},${g},${b},0.2)`;
+        const clearStr = `rgba(${r},${g},${b},0)`;
+
+        // --- Top & Bottom edges ---
+        if (Math.abs(vx) > 1e-6) {
+            for (const edge of [0, 1]) { // 0=top, 1=bottom
+                const edgeSy = edge === 0 ? MARGIN : h - MARGIN;
+                const outerY = edge === 0 ? 0 : h;
+                const [, myEdge] = screenToMath(0, edgeSy, cx, cy);
+
+                const [mxL] = screenToMath(MARGIN, edgeSy, cx, cy);
+                const [mxR] = screenToMath(w - MARGIN, edgeSy, cx, cy);
+                const dotL = vx * mxL + vy * myEdge + gamma[j];
+                const dotR = vx * mxR + vy * myEdge + gamma[j];
+                const nLo = Math.floor(Math.min(dotL, dotR)) - 1;
+                const nHi = Math.ceil(Math.max(dotL, dotR)) + 1;
+
+                const xs: number[] = [MARGIN];
+                for (let n = nLo; n <= nHi; n++) {
+                    const mx = (n - gamma[j] - vy * myEdge) / vx;
+                    const sx = cx + (mx - viewX) * scale;
+                    if (sx > MARGIN + 1 && sx < w - MARGIN - 1) xs.push(sx);
+                }
+                xs.push(w - MARGIN);
+                xs.sort((a, b) => a - b);
+
+                // Screen-x shift from inner edge to outer border along grid line
+                const shift = edge === 0
+                    ? -vy * MARGIN / vx
+                    : vy * MARGIN / vx;
+
+                // Gradient perpendicular to border
+                const grad = edge === 0
+                    ? ctx.createLinearGradient(0, 0, 0, MARGIN)
+                    : ctx.createLinearGradient(0, h - MARGIN, 0, h);
+                if (edge === 0) {
+                    grad.addColorStop(0, clearStr);
+                    grad.addColorStop(0.5, colorStr);
+                    grad.addColorStop(1, colorStr);
+                } else {
+                    grad.addColorStop(0, colorStr);
+                    grad.addColorStop(0.5, colorStr);
+                    grad.addColorStop(1, clearStr);
+                }
+
+                const ly = edge === 0 ? MARGIN / 2 : h - MARGIN / 2;
+
+                for (let i = 0; i < xs.length - 1; i++) {
+                    const midX = (xs[i] + xs[i + 1]) / 2;
+                    const stripW = xs[i + 1] - xs[i];
+
+                    const probeSy = edge === 0 ? MARGIN + 2 : h - MARGIN - 2;
+                    const [pmx, pmy] = screenToMath(midX, probeSy, cx, cy);
+                    const K = Math.ceil(vx * pmx + vy * pmy + gamma[j] - 1e-9);
+
+                    if (K < -1 || K > 1) continue;
+
+                    // Fill parallelogram following grid line slope
+                    ctx.beginPath();
+                    ctx.moveTo(xs[i], edgeSy);
+                    ctx.lineTo(xs[i + 1], edgeSy);
+                    ctx.lineTo(xs[i + 1] + shift, outerY);
+                    ctx.lineTo(xs[i] + shift, outerY);
+                    ctx.closePath();
+                    ctx.fillStyle = grad;
+                    ctx.fill();
+
+                    const label = `K${SUBSCRIPTS[j]}=${K}`;
+                    const tw = ctx.measureText(label).width;
+                    if (stripW >= tw + 4) {
+                        labels.push({
+                            x: midX + shift / 2,
+                            y: ly,
+                            text: label,
+                            color: COLORS[j],
+                        });
+                    }
+                }
+            }
+        }
+
+        // --- Left & Right edges ---
+        if (Math.abs(vy) > 1e-6) {
+            for (const edge of [0, 1]) { // 0=left, 1=right
+                const edgeSx = edge === 0 ? MARGIN : w - MARGIN;
+                const outerX = edge === 0 ? 0 : w;
+                const [mxEdge] = screenToMath(edgeSx, 0, cx, cy);
+
+                const [, myT] = screenToMath(edgeSx, MARGIN, cx, cy);
+                const [, myB] = screenToMath(edgeSx, h - MARGIN, cx, cy);
+                const dotT = vx * mxEdge + vy * myT + gamma[j];
+                const dotB = vx * mxEdge + vy * myB + gamma[j];
+                const nLo = Math.floor(Math.min(dotT, dotB)) - 1;
+                const nHi = Math.ceil(Math.max(dotT, dotB)) + 1;
+
+                const ys: number[] = [MARGIN];
+                for (let n = nLo; n <= nHi; n++) {
+                    const my = (n - gamma[j] - vx * mxEdge) / vy;
+                    const sy = cy - (my - viewY) * scale;
+                    if (sy > MARGIN + 1 && sy < h - MARGIN - 1) ys.push(sy);
+                }
+                ys.push(h - MARGIN);
+                ys.sort((a, b) => a - b);
+
+                // Screen-y shift from inner edge to outer border along grid line
+                const shift = edge === 0
+                    ? -vx * MARGIN / vy
+                    : vx * MARGIN / vy;
+
+                // Gradient perpendicular to border
+                const grad = edge === 0
+                    ? ctx.createLinearGradient(0, 0, MARGIN, 0)
+                    : ctx.createLinearGradient(w - MARGIN, 0, w, 0);
+                if (edge === 0) {
+                    grad.addColorStop(0, clearStr);
+                    grad.addColorStop(0.5, colorStr);
+                    grad.addColorStop(1, colorStr);
+                } else {
+                    grad.addColorStop(0, colorStr);
+                    grad.addColorStop(0.5, colorStr);
+                    grad.addColorStop(1, clearStr);
+                }
+
+                const lx = edge === 0 ? MARGIN / 2 : w - MARGIN / 2;
+
+                for (let i = 0; i < ys.length - 1; i++) {
+                    const midY = (ys[i] + ys[i + 1]) / 2;
+                    const stripH = ys[i + 1] - ys[i];
+
+                    const probeSx = edge === 0 ? MARGIN + 2 : w - MARGIN - 2;
+                    const [pmx, pmy] = screenToMath(probeSx, midY, cx, cy);
+                    const K = Math.ceil(vx * pmx + vy * pmy + gamma[j] - 1e-9);
+
+                    if (K < -1 || K > 1) continue;
+
+                    // Fill parallelogram following grid line slope
+                    ctx.beginPath();
+                    ctx.moveTo(edgeSx, ys[i]);
+                    ctx.lineTo(edgeSx, ys[i + 1]);
+                    ctx.lineTo(outerX, ys[i + 1] + shift);
+                    ctx.lineTo(outerX, ys[i] + shift);
+                    ctx.closePath();
+                    ctx.fillStyle = grad;
+                    ctx.fill();
+
+                    const label = `K${SUBSCRIPTS[j]}=${K}`;
+                    const th = 12;
+                    if (stripH >= th + 2) {
+                        labels.push({
+                            x: lx,
+                            y: midY + shift / 2,
+                            text: label,
+                            color: COLORS[j],
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    // Pass 2: draw all text labels on top of gradient fills
+    ctx.font = "10px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (const { x, y, text, color } of labels) {
+        const tw = ctx.measureText(text).width;
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.fillRect(x - tw / 2 - 2, y - 6, tw + 4, 12);
+        ctx.fillStyle = color;
+        ctx.fillText(text, x, y);
+    }
+}
+
 // ── Main draw ─────────────────────────────────────────────────────
 
 function draw() {
@@ -681,41 +1010,83 @@ function draw() {
     const cy = h / 2;
 
     ctx.clearRect(0, 0, w, h);
-    drawAxes(w, h, cx, cy);
 
     const vis = getVisibleRect();
 
     switch (currentStep) {
         case 0:
+            drawAxes(w, h, cx, cy);
             drawPentagrid(cx, cy, 0.6);
             break;
 
         case 1:
+            drawAxes(w, h, cx, cy);
             drawPentagrid(cx, cy, 0.6);
             drawIntersectionDots(cx, cy, vis);
             break;
 
-        case 2: {
+        case 2:
+            drawKRegions(cx, cy);
+            drawAxes(w, h, cx, cy);
+            drawPentagrid(cx, cy, 0.4);
+            drawKEdgeLabels(cx, cy);
+            break;
+
+        case 3: {
+            drawAxes(w, h, cx, cy);
             drawPentagrid(cx, cy, 0.15);
             const rhombs = collectRhombs(vis);
             drawDualVertices(rhombs, cx, cy);
             break;
         }
 
-        case 3: {
+        case 4: {
+            drawAxes(w, h, cx, cy);
             drawPentagrid(cx, cy, 0.15);
             const rhombs = collectRhombs(vis);
             drawRhombs(rhombs, cx, cy, false);
             break;
         }
 
-        case 4: {
+        case 5: {
+            drawAxes(w, h, cx, cy);
             const rhombs = collectRhombs(vis);
             drawRhombs(rhombs, cx, cy, true);
             break;
         }
     }
 }
+
+// ── Init ──────────────────────────────────────────────────────────
+
+// ── Tooltip for K-tuple on step 3 ─────────────────────────────────
+
+canvas.addEventListener("mousemove", (e) => {
+    if (currentStep !== 2 || isPanning) {
+        tooltip.style.display = "none";
+        return;
+    }
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    if (sx < MARGIN || sx > canvas.width - MARGIN ||
+        sy < MARGIN || sy > canvas.height - MARGIN) {
+        tooltip.style.display = "none";
+        return;
+    }
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const [mx, my] = screenToMath(sx, sy, cx, cy);
+    const K = computeKTuple(mx, my);
+    tooltip.textContent = `(K₀,K₁,K₂,K₃,K₄) = (${K.join(", ")})`;
+    tooltip.style.display = "block";
+    tooltip.style.left = (e.clientX + 12) + "px";
+    tooltip.style.top = (e.clientY - 28) + "px";
+});
+
+canvas.addEventListener("mouseleave", () => {
+    tooltip.style.display = "none";
+});
 
 // ── Init ──────────────────────────────────────────────────────────
 
