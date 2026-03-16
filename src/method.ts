@@ -17,6 +17,10 @@ const THIN_FILL = "#7eb8da";
 // Unicode subscripts for K labels
 const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
 
+// Canvas dimensions
+const CANVAS_W = 800;
+const CANVAS_H = 800;
+
 // State
 const gamma = [0, 0, 0, 0, 0];
 let currentStep = 0;
@@ -147,13 +151,127 @@ const stepContent = [
 const controlsDiv = document.getElementById("controls")!;
 const stepNavDiv = document.getElementById("step-nav")!;
 const explanationDiv = document.getElementById("explanation")!;
-const canvas = document.getElementById("pentagrid") as HTMLCanvasElement;
-const ctx = canvas.getContext("2d")!;
+const layerPanelDiv = document.getElementById("layer-panel")!;
+const container = document.getElementById("canvas-container")!;
 
 // Tooltip for K-tuple display
 const tooltip = document.createElement("div");
 tooltip.style.cssText = "position:fixed;padding:4px 8px;background:rgba(0,0,0,0.8);color:#fff;font:12px monospace;border-radius:3px;pointer-events:none;display:none;z-index:10;";
 document.body.appendChild(tooltip);
+
+// ── Layer infrastructure ──────────────────────────────────────────
+
+interface Layer {
+    id: string;
+    label: string;
+    canvas: HTMLCanvasElement;
+    ctx: CanvasRenderingContext2D;
+    zIndex: number;
+    visible: boolean;
+    userVisible: boolean;
+    draw: () => void;
+}
+
+const layers = new Map<string, Layer>();
+
+function addLayer(id: string, label: string, zIndex: number, drawFn: () => void): Layer {
+    const c = document.createElement("canvas");
+    c.width = CANVAS_W;
+    c.height = CANVAS_H;
+    c.className = "layer-canvas";
+    c.style.zIndex = String(zIndex);
+    c.style.pointerEvents = "none";
+    container.appendChild(c);
+    const layer: Layer = {
+        id, label,
+        canvas: c,
+        ctx: c.getContext("2d")!,
+        zIndex,
+        visible: true,
+        userVisible: true,
+        draw: drawFn,
+    };
+    layers.set(id, layer);
+    return layer;
+}
+
+function drawAllLayers() {
+    for (const [, layer] of layers) {
+        if (layer.visible && layer.userVisible) {
+            layer.canvas.style.display = "block";
+            layer.draw();
+        } else {
+            layer.canvas.style.display = "none";
+        }
+    }
+}
+
+// Event-capture canvas (topmost, receives all input)
+const eventCanvas = document.createElement("canvas");
+eventCanvas.width = CANVAS_W;
+eventCanvas.height = CANVAS_H;
+eventCanvas.className = "layer-canvas";
+eventCanvas.style.zIndex = "100";
+eventCanvas.style.pointerEvents = "auto";
+eventCanvas.style.cursor = "grab";
+container.appendChild(eventCanvas);
+
+// ── Create layers ─────────────────────────────────────────────────
+
+// Background layer (K-regions pixel fill)
+const bgLayer = addLayer("background", "K-regions", 5, () => {
+    bgLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (currentStep === 2) {
+        drawKRegions(bgLayer.ctx, CANVAS_W / 2, CANVAS_H / 2);
+    }
+});
+
+// Grid layers (one per family)
+const gridLayers: Layer[] = [];
+for (let j = 0; j < NUM_GRIDS; j++) {
+    const layer = addLayer(`grid-${j}`, `Grid ${j}`, 10 + j, () => {
+        layer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+        drawGridFamily(layer.ctx, j, CANVAS_W, CANVAS_H, CANVAS_W / 2, CANVAS_H / 2);
+    });
+    gridLayers.push(layer);
+}
+
+// Axes layer
+const axesLayer = addLayer("axes", "Axes", 20, () => {
+    axesLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    drawAxes(axesLayer.ctx, CANVAS_W, CANVAS_H, CANVAS_W / 2, CANVAS_H / 2);
+});
+
+// Content layer (step-specific overlays: dots, rhombs, vertices, edge labels)
+const contentLayer = addLayer("content", "Content", 50, () => {
+    contentLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    const cx = CANVAS_W / 2;
+    const cy = CANVAS_H / 2;
+    const vis = getVisibleRect();
+    switch (currentStep) {
+        case 1:
+            drawIntersectionDots(contentLayer.ctx, cx, cy, vis);
+            break;
+        case 2:
+            drawKEdgeLabels(contentLayer.ctx, cx, cy);
+            break;
+        case 3: {
+            const rhombs = collectRhombs(vis);
+            drawDualVertices(contentLayer.ctx, rhombs, cx, cy);
+            break;
+        }
+        case 4: {
+            const rhombs = collectRhombs(vis);
+            drawRhombs(contentLayer.ctx, rhombs, cx, cy, false);
+            break;
+        }
+        case 5: {
+            const rhombs = collectRhombs(vis);
+            drawRhombs(contentLayer.ctx, rhombs, cx, cy, true);
+            break;
+        }
+    }
+});
 
 // ── Build slider controls ─────────────────────────────────────────
 
@@ -288,13 +406,13 @@ interface ViewRect {
 }
 
 function getVisibleRect(): ViewRect {
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = CANVAS_W / 2;
+    const cy = CANVAS_H / 2;
     return {
         xMin: viewX - (cx - MARGIN) / scale,
-        xMax: viewX + (canvas.width - cx - MARGIN) / scale,
+        xMax: viewX + (CANVAS_W - cx - MARGIN) / scale,
         yMin: viewY - (cy - MARGIN) / scale,
-        yMax: viewY + (canvas.height - cy - MARGIN) / scale,
+        yMax: viewY + (CANVAS_H - cy - MARGIN) / scale,
     };
 }
 
@@ -306,8 +424,8 @@ let panLastY = 0;
 let lastPinchDist = 0;
 
 function zoomAtScreen(sx: number, sy: number, factor: number) {
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = CANVAS_W / 2;
+    const cy = CANVAS_H / 2;
     const [mx, my] = screenToMath(sx, sy, cx, cy);
     scale = Math.max(10, Math.min(400, scale * factor));
     viewX = mx - (sx - cx) / scale;
@@ -316,22 +434,22 @@ function zoomAtScreen(sx: number, sy: number, factor: number) {
 }
 
 // Mouse
-canvas.addEventListener("wheel", (e) => {
+eventCanvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     const factor = Math.pow(2, -e.deltaY / 300);
     zoomAtScreen(e.offsetX, e.offsetY, factor);
 }, { passive: false });
 
-canvas.addEventListener("mousedown", (e) => {
+eventCanvas.addEventListener("mousedown", (e) => {
     if (e.button === 0) {
         isPanning = true;
         panLastX = e.offsetX;
         panLastY = e.offsetY;
-        canvas.style.cursor = "grabbing";
+        eventCanvas.style.cursor = "grabbing";
     }
 });
 
-canvas.addEventListener("mousemove", (e) => {
+eventCanvas.addEventListener("mousemove", (e) => {
     if (!isPanning) return;
     viewX -= (e.offsetX - panLastX) / scale;
     viewY += (e.offsetY - panLastY) / scale;
@@ -340,18 +458,18 @@ canvas.addEventListener("mousemove", (e) => {
     draw();
 });
 
-canvas.addEventListener("mouseup", endPan);
-canvas.addEventListener("mouseleave", endPan);
+eventCanvas.addEventListener("mouseup", endPan);
+eventCanvas.addEventListener("mouseleave", endPan);
 
 function endPan() {
     if (isPanning) {
         isPanning = false;
-        canvas.style.cursor = "grab";
+        eventCanvas.style.cursor = "grab";
     }
 }
 
 // Double-click to reset view
-canvas.addEventListener("dblclick", () => {
+eventCanvas.addEventListener("dblclick", () => {
     scale = 60;
     viewX = 0;
     viewY = 0;
@@ -365,7 +483,7 @@ function touchDist(a: Touch, b: Touch): number {
     return Math.sqrt(dx * dx + dy * dy);
 }
 
-canvas.addEventListener("touchstart", (e) => {
+eventCanvas.addEventListener("touchstart", (e) => {
     e.preventDefault();
     if (e.touches.length === 1) {
         isPanning = true;
@@ -377,7 +495,7 @@ canvas.addEventListener("touchstart", (e) => {
     }
 }, { passive: false });
 
-canvas.addEventListener("touchmove", (e) => {
+eventCanvas.addEventListener("touchmove", (e) => {
     e.preventDefault();
     if (e.touches.length === 1 && isPanning) {
         const dx = e.touches[0].clientX - panLastX;
@@ -390,7 +508,7 @@ canvas.addEventListener("touchmove", (e) => {
     } else if (e.touches.length === 2) {
         const dist = touchDist(e.touches[0], e.touches[1]);
         if (lastPinchDist > 0) {
-            const rect = canvas.getBoundingClientRect();
+            const rect = eventCanvas.getBoundingClientRect();
             const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
             const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
             zoomAtScreen(midX, midY, dist / lastPinchDist);
@@ -399,7 +517,7 @@ canvas.addEventListener("touchmove", (e) => {
     }
 }, { passive: false });
 
-canvas.addEventListener("touchend", (e) => {
+eventCanvas.addEventListener("touchend", (e) => {
     if (e.touches.length === 0) {
         isPanning = false;
         lastPinchDist = 0;
@@ -474,7 +592,11 @@ function collectRhombs(vis: ViewRect): Rhomb[] {
     const pad = 1.5;
 
     for (let j = 0; j < NUM_GRIDS; j++) {
+        const layerJ = layers.get(`grid-${j}`);
+        if (layerJ && !layerJ.userVisible) continue;
         for (let k = j + 1; k < NUM_GRIDS; k++) {
+            const layerK = layers.get(`grid-${k}`);
+            if (layerK && !layerK.userVisible) continue;
             for (let nj = -maxN; nj <= maxN; nj++) {
                 for (let nk = -maxN; nk <= maxN; nk++) {
                     const pt = solveIntersection(j, k, nj, nk);
@@ -498,8 +620,8 @@ function collectRhombs(vis: ViewRect): Rhomb[] {
 
 // ── Drawing ───────────────────────────────────────────────────────
 
-function drawAxes(w: number, h: number, cx: number, cy: number) {
-    ctx.save();
+function drawAxes(tc: CanvasRenderingContext2D, w: number, h: number, cx: number, cy: number) {
+    tc.save();
 
     const vis = getVisibleRect();
     const nxMin = Math.ceil(vis.xMin);
@@ -507,115 +629,111 @@ function drawAxes(w: number, h: number, cx: number, cy: number) {
     const nyMin = Math.ceil(vis.yMin);
     const nyMax = Math.floor(vis.yMax);
 
-    ctx.strokeStyle = "#999";
-    ctx.fillStyle = "#666";
-    ctx.lineWidth = 1;
-    ctx.font = "11px monospace";
+    tc.strokeStyle = "#999";
+    tc.fillStyle = "#666";
+    tc.lineWidth = 1;
+    tc.font = "11px monospace";
     const tickLen = 5;
 
     // X axis ticks along bottom edge
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
+    tc.textAlign = "center";
+    tc.textBaseline = "top";
     const bottomY = h - MARGIN + 10;
     for (let n = nxMin; n <= nxMax; n++) {
         const [sx] = mathToScreen(n, 0, cx, cy);
         if (sx < MARGIN || sx > w - MARGIN) continue;
-        ctx.beginPath();
-        ctx.moveTo(sx, h - MARGIN);
-        ctx.lineTo(sx, h - MARGIN + tickLen);
-        ctx.stroke();
-        ctx.fillText(`${n}`, sx, bottomY);
+        tc.beginPath();
+        tc.moveTo(sx, h - MARGIN);
+        tc.lineTo(sx, h - MARGIN + tickLen);
+        tc.stroke();
+        tc.fillText(`${n}`, sx, bottomY);
     }
-    ctx.textAlign = "right";
-    ctx.fillText("x", w - MARGIN + 20, bottomY);
+    tc.textAlign = "right";
+    tc.fillText("x", w - MARGIN + 20, bottomY);
 
     // Y axis ticks along left edge
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
+    tc.textAlign = "right";
+    tc.textBaseline = "middle";
     for (let n = nyMin; n <= nyMax; n++) {
         const [, sy] = mathToScreen(0, n, cx, cy);
         if (sy < MARGIN || sy > h - MARGIN) continue;
-        ctx.beginPath();
-        ctx.moveTo(MARGIN - tickLen, sy);
-        ctx.lineTo(MARGIN, sy);
-        ctx.stroke();
-        ctx.fillText(`${n}`, MARGIN - tickLen - 2, sy);
+        tc.beginPath();
+        tc.moveTo(MARGIN - tickLen, sy);
+        tc.lineTo(MARGIN, sy);
+        tc.stroke();
+        tc.fillText(`${n}`, MARGIN - tickLen - 2, sy);
     }
-    ctx.textBaseline = "bottom";
-    ctx.textAlign = "center";
-    ctx.fillText("y", MARGIN - tickLen - 2, MARGIN - 8);
+    tc.textBaseline = "bottom";
+    tc.textAlign = "center";
+    tc.fillText("y", MARGIN - tickLen - 2, MARGIN - 8);
 
     // Axis lines at x=0 and y=0
-    ctx.strokeStyle = "#bbb";
-    ctx.lineWidth = 0.5;
+    tc.strokeStyle = "#bbb";
+    tc.lineWidth = 0.5;
 
     const [zeroX] = mathToScreen(0, 0, cx, cy);
     const [, zeroY] = mathToScreen(0, 0, cx, cy);
 
     if (zeroY > MARGIN && zeroY < h - MARGIN) {
-        ctx.beginPath();
-        ctx.moveTo(MARGIN, zeroY);
-        ctx.lineTo(w - MARGIN, zeroY);
-        ctx.stroke();
+        tc.beginPath();
+        tc.moveTo(MARGIN, zeroY);
+        tc.lineTo(w - MARGIN, zeroY);
+        tc.stroke();
     }
     if (zeroX > MARGIN && zeroX < w - MARGIN) {
-        ctx.beginPath();
-        ctx.moveTo(zeroX, MARGIN);
-        ctx.lineTo(zeroX, h - MARGIN);
-        ctx.stroke();
+        tc.beginPath();
+        tc.moveTo(zeroX, MARGIN);
+        tc.lineTo(zeroX, h - MARGIN);
+        tc.stroke();
     }
 
-    ctx.restore();
+    tc.restore();
 }
 
-function drawPentagrid(cx: number, cy: number, alpha: number) {
-    const w = canvas.width;
-    const h = canvas.height;
+function drawGridFamily(
+    tc: CanvasRenderingContext2D,
+    j: number,
+    w: number, h: number,
+    cx: number, cy: number,
+) {
+    const [vx, vy] = directions[j];
+    const px = -vy;
+    const py = vx;
     const extent = Math.sqrt(w * w + h * h) / 2;
     const vis = getVisibleRect();
 
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const [vx, vy] = directions[j];
-        const px = -vy;
-        const py = vx;
-
-        // Compute range of n for this family in the visible area
-        const corners = [
-            [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
-            [vis.xMin, vis.yMax], [vis.xMax, vis.yMax],
-        ];
-        let minDot = Infinity, maxDot = -Infinity;
-        for (const [x, y] of corners) {
-            const d = vx * x + vy * y;
-            if (d < minDot) minDot = d;
-            if (d > maxDot) maxDot = d;
-        }
-        const nLo = Math.floor(minDot + gamma[j]) - 1;
-        const nHi = Math.ceil(maxDot + gamma[j]) + 1;
-
-        ctx.strokeStyle = COLORS[j];
-        ctx.lineWidth = 1;
-        ctx.globalAlpha = alpha;
-
-        for (let n = nLo; n <= nHi; n++) {
-            const c = n - gamma[j];
-            // Anchor at closest point on line to view center (not origin)
-            const viewDot = vx * viewX + vy * viewY;
-            const d = c - viewDot;
-            const [ox, oy] = mathToScreen(viewX + d * vx, viewY + d * vy, cx, cy);
-
-            const x1 = ox + px * extent;
-            const y1 = oy - py * extent;
-            const x2 = ox - px * extent;
-            const y2 = oy + py * extent;
-
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-        }
+    const corners = [
+        [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
+        [vis.xMin, vis.yMax], [vis.xMax, vis.yMax],
+    ];
+    let minDot = Infinity, maxDot = -Infinity;
+    for (const [x, y] of corners) {
+        const d = vx * x + vy * y;
+        if (d < minDot) minDot = d;
+        if (d > maxDot) maxDot = d;
     }
-    ctx.globalAlpha = 1.0;
+    const nLo = Math.floor(minDot + gamma[j]) - 1;
+    const nHi = Math.ceil(maxDot + gamma[j]) + 1;
+
+    tc.strokeStyle = COLORS[j];
+    tc.lineWidth = 1;
+
+    for (let n = nLo; n <= nHi; n++) {
+        const c = n - gamma[j];
+        const viewDot = vx * viewX + vy * viewY;
+        const d = c - viewDot;
+        const [ox, oy] = mathToScreen(viewX + d * vx, viewY + d * vy, cx, cy);
+
+        const x1 = ox + px * extent;
+        const y1 = oy - py * extent;
+        const x2 = ox - px * extent;
+        const y2 = oy + py * extent;
+
+        tc.beginPath();
+        tc.moveTo(x1, y1);
+        tc.lineTo(x2, y2);
+        tc.stroke();
+    }
 }
 
 // Precompute blended colors for the 10 intersection pair types
@@ -636,7 +754,7 @@ for (let j = 0; j < NUM_GRIDS; j++) {
     }
 }
 
-function drawIntersectionDots(cx: number, cy: number, vis: ViewRect) {
+function drawIntersectionDots(tc: CanvasRenderingContext2D, cx: number, cy: number, vis: ViewRect) {
     const maxCoord = Math.max(
         Math.abs(vis.xMin), Math.abs(vis.xMax),
         Math.abs(vis.yMin), Math.abs(vis.yMax),
@@ -644,8 +762,12 @@ function drawIntersectionDots(cx: number, cy: number, vis: ViewRect) {
     const maxN = Math.min(Math.ceil(maxCoord) + 3, 50);
 
     for (let j = 0; j < NUM_GRIDS; j++) {
+        const layerJ = layers.get(`grid-${j}`);
+        if (layerJ && !layerJ.userVisible) continue;
         for (let k = j + 1; k < NUM_GRIDS; k++) {
-            ctx.fillStyle = pairColors.get(`${j},${k}`)!;
+            const layerK = layers.get(`grid-${k}`);
+            if (layerK && !layerK.userVisible) continue;
+            tc.fillStyle = pairColors.get(`${j},${k}`)!;
             for (let nj = -maxN; nj <= maxN; nj++) {
                 for (let nk = -maxN; nk <= maxN; nk++) {
                     const pt = solveIntersection(j, k, nj, nk);
@@ -654,49 +776,49 @@ function drawIntersectionDots(cx: number, cy: number, vis: ViewRect) {
                     if (px < vis.xMin || px > vis.xMax ||
                         py < vis.yMin || py > vis.yMax) continue;
                     const [sx, sy] = mathToScreen(px, py, cx, cy);
-                    ctx.beginPath();
-                    ctx.arc(sx, sy, 3, 0, 2 * Math.PI);
-                    ctx.fill();
+                    tc.beginPath();
+                    tc.arc(sx, sy, 3, 0, 2 * Math.PI);
+                    tc.fill();
                 }
             }
         }
     }
 }
 
-function drawDualVertices(rhombs: Rhomb[], cx: number, cy: number) {
+function drawDualVertices(tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number) {
     const seen = new Set<string>();
-    ctx.fillStyle = "#c0392b";
+    tc.fillStyle = "#c0392b";
     for (const rhomb of rhombs) {
         for (const [vx, vy] of rhomb.vertices) {
             const key = `${Math.round(vx * 1e4)},${Math.round(vy * 1e4)}`;
             if (seen.has(key)) continue;
             seen.add(key);
             const [sx, sy] = mathToScreen(vx, vy, cx, cy);
-            ctx.beginPath();
-            ctx.arc(sx, sy, 3, 0, 2 * Math.PI);
-            ctx.fill();
+            tc.beginPath();
+            tc.arc(sx, sy, 3, 0, 2 * Math.PI);
+            tc.fill();
         }
     }
 }
 
-function drawRhombs(rhombs: Rhomb[], cx: number, cy: number, fill: boolean) {
+function drawRhombs(tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, fill: boolean) {
     for (const rhomb of rhombs) {
         const sv = rhomb.vertices.map(([vx, vy]) => mathToScreen(vx, vy, cx, cy));
 
-        ctx.beginPath();
-        ctx.moveTo(sv[0][0], sv[0][1]);
-        ctx.lineTo(sv[1][0], sv[1][1]);
-        ctx.lineTo(sv[2][0], sv[2][1]);
-        ctx.lineTo(sv[3][0], sv[3][1]);
-        ctx.closePath();
+        tc.beginPath();
+        tc.moveTo(sv[0][0], sv[0][1]);
+        tc.lineTo(sv[1][0], sv[1][1]);
+        tc.lineTo(sv[2][0], sv[2][1]);
+        tc.lineTo(sv[3][0], sv[3][1]);
+        tc.closePath();
 
         if (fill) {
-            ctx.fillStyle = rhomb.thick ? THICK_FILL : THIN_FILL;
-            ctx.fill();
+            tc.fillStyle = rhomb.thick ? THICK_FILL : THIN_FILL;
+            tc.fill();
         }
-        ctx.strokeStyle = fill ? "#555" : "#999";
-        ctx.lineWidth = fill ? 1.5 : 1;
-        ctx.stroke();
+        tc.strokeStyle = fill ? "#555" : "#999";
+        tc.lineWidth = fill ? 1.5 : 1;
+        tc.stroke();
     }
 }
 
@@ -729,11 +851,11 @@ function computeKTuple(mx: number, my: number): number[] {
     return K;
 }
 
-function drawKRegions(cx: number, cy: number) {
-    const w = canvas.width;
-    const h = canvas.height;
+function drawKRegions(tc: CanvasRenderingContext2D, cx: number, cy: number) {
+    const w = CANVAS_W;
+    const h = CANVAS_H;
     const cellSize = 5;
-    const imgData = ctx.createImageData(w, h);
+    const imgData = tc.createImageData(w, h);
     const data = imgData.data;
 
     for (let cellY = MARGIN; cellY < h - MARGIN; cellY += cellSize) {
@@ -743,9 +865,11 @@ function drawKRegions(cx: number, cy: number) {
             );
             const K = computeKTuple(mx, my);
 
-            // Hash K-tuple to a hue
+            // Hash K-tuple to a hue (only active families)
             let hash = 0;
             for (let j = 0; j < NUM_GRIDS; j++) {
+                const layer = layers.get(`grid-${j}`);
+                if (layer && !layer.userVisible) continue;
                 hash = ((hash << 5) - hash + K[j] + 50) | 0;
             }
             const hue = (((hash * 137) % 360) + 360) % 360;
@@ -765,57 +889,15 @@ function drawKRegions(cx: number, cy: number) {
         }
     }
 
-    ctx.putImageData(imgData, 0, 0);
-}
-
-function drawKLabels(cx: number, cy: number) {
-    const w = canvas.width;
-    const h = canvas.height;
-    const spacing = 110;
-
-    ctx.font = "9px monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    for (let sy = MARGIN + spacing / 2; sy < h - MARGIN; sy += spacing) {
-        for (let sx = MARGIN + spacing / 2; sx < w - MARGIN; sx += spacing) {
-            const [mx, my] = screenToMath(sx, sy, cx, cy);
-
-            // Skip if too close to any grid line
-            let minFrac = 1;
-            for (let j = 0; j < NUM_GRIDS; j++) {
-                const dot = directions[j][0] * mx + directions[j][1] * my + gamma[j];
-                const frac = Math.abs(dot - Math.round(dot));
-                if (frac < minFrac) minFrac = frac;
-            }
-            if (minFrac < 0.15) continue;
-
-            const K = computeKTuple(mx, my);
-            const label = `(${K.join(",")})`;
-
-            // White background for readability
-            const metrics = ctx.measureText(label);
-            const pad = 2;
-            ctx.fillStyle = "rgba(255,255,255,0.8)";
-            ctx.fillRect(
-                sx - metrics.width / 2 - pad,
-                sy - 6 - pad,
-                metrics.width + pad * 2,
-                12 + pad * 2,
-            );
-
-            ctx.fillStyle = "#333";
-            ctx.fillText(label, sx, sy);
-        }
-    }
+    tc.putImageData(imgData, 0, 0);
 }
 
 // ── K edge labels ─────────────────────────────────────────────────
 
-function drawKEdgeLabels(cx: number, cy: number) {
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.font = "10px sans-serif";
+function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
+    const w = CANVAS_W;
+    const h = CANVAS_H;
+    tc.font = "10px sans-serif";
 
     interface LabelInfo {
         x: number; y: number;
@@ -826,6 +908,8 @@ function drawKEdgeLabels(cx: number, cy: number) {
 
     // Pass 1: gradient-filled parallelograms, collect label positions
     for (let j = 0; j < NUM_GRIDS; j++) {
+        const layer = layers.get(`grid-${j}`);
+        if (layer && !layer.userVisible) continue;
         const [vx, vy] = directions[j];
         const [r, g, b] = hexToRgb(COLORS[j]);
         const colorStr = `rgba(${r},${g},${b},0.2)`;
@@ -861,8 +945,8 @@ function drawKEdgeLabels(cx: number, cy: number) {
 
                 // Gradient perpendicular to border
                 const grad = edge === 0
-                    ? ctx.createLinearGradient(0, 0, 0, MARGIN)
-                    : ctx.createLinearGradient(0, h - MARGIN, 0, h);
+                    ? tc.createLinearGradient(0, 0, 0, MARGIN)
+                    : tc.createLinearGradient(0, h - MARGIN, 0, h);
                 if (edge === 0) {
                     grad.addColorStop(0, clearStr);
                     grad.addColorStop(0.5, colorStr);
@@ -886,17 +970,17 @@ function drawKEdgeLabels(cx: number, cy: number) {
                     if (K < -1 || K > 1) continue;
 
                     // Fill parallelogram following grid line slope
-                    ctx.beginPath();
-                    ctx.moveTo(xs[i], edgeSy);
-                    ctx.lineTo(xs[i + 1], edgeSy);
-                    ctx.lineTo(xs[i + 1] + shift, outerY);
-                    ctx.lineTo(xs[i] + shift, outerY);
-                    ctx.closePath();
-                    ctx.fillStyle = grad;
-                    ctx.fill();
+                    tc.beginPath();
+                    tc.moveTo(xs[i], edgeSy);
+                    tc.lineTo(xs[i + 1], edgeSy);
+                    tc.lineTo(xs[i + 1] + shift, outerY);
+                    tc.lineTo(xs[i] + shift, outerY);
+                    tc.closePath();
+                    tc.fillStyle = grad;
+                    tc.fill();
 
                     const label = `K${SUBSCRIPTS[j]}=${K}`;
-                    const tw = ctx.measureText(label).width;
+                    const tw = tc.measureText(label).width;
                     if (stripW >= tw + 4) {
                         labels.push({
                             x: midX + shift / 2,
@@ -939,8 +1023,8 @@ function drawKEdgeLabels(cx: number, cy: number) {
 
                 // Gradient perpendicular to border
                 const grad = edge === 0
-                    ? ctx.createLinearGradient(0, 0, MARGIN, 0)
-                    : ctx.createLinearGradient(w - MARGIN, 0, w, 0);
+                    ? tc.createLinearGradient(0, 0, MARGIN, 0)
+                    : tc.createLinearGradient(w - MARGIN, 0, w, 0);
                 if (edge === 0) {
                     grad.addColorStop(0, clearStr);
                     grad.addColorStop(0.5, colorStr);
@@ -964,14 +1048,14 @@ function drawKEdgeLabels(cx: number, cy: number) {
                     if (K < -1 || K > 1) continue;
 
                     // Fill parallelogram following grid line slope
-                    ctx.beginPath();
-                    ctx.moveTo(edgeSx, ys[i]);
-                    ctx.lineTo(edgeSx, ys[i + 1]);
-                    ctx.lineTo(outerX, ys[i + 1] + shift);
-                    ctx.lineTo(outerX, ys[i] + shift);
-                    ctx.closePath();
-                    ctx.fillStyle = grad;
-                    ctx.fill();
+                    tc.beginPath();
+                    tc.moveTo(edgeSx, ys[i]);
+                    tc.lineTo(edgeSx, ys[i + 1]);
+                    tc.lineTo(outerX, ys[i + 1] + shift);
+                    tc.lineTo(outerX, ys[i] + shift);
+                    tc.closePath();
+                    tc.fillStyle = grad;
+                    tc.fill();
 
                     const label = `K${SUBSCRIPTS[j]}=${K}`;
                     const th = 12;
@@ -989,93 +1073,112 @@ function drawKEdgeLabels(cx: number, cy: number) {
     }
 
     // Pass 2: draw all text labels on top of gradient fills
-    ctx.font = "10px sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    tc.font = "10px sans-serif";
+    tc.textAlign = "center";
+    tc.textBaseline = "middle";
     for (const { x, y, text, color } of labels) {
-        const tw = ctx.measureText(text).width;
-        ctx.fillStyle = "rgba(255,255,255,0.7)";
-        ctx.fillRect(x - tw / 2 - 2, y - 6, tw + 4, 12);
-        ctx.fillStyle = color;
-        ctx.fillText(text, x, y);
+        const tw = tc.measureText(text).width;
+        tc.fillStyle = "rgba(255,255,255,0.7)";
+        tc.fillRect(x - tw / 2 - 2, y - 6, tw + 4, 12);
+        tc.fillStyle = color;
+        tc.fillText(text, x, y);
     }
 }
 
 // ── Main draw ─────────────────────────────────────────────────────
 
 function draw() {
-    const w = canvas.width;
-    const h = canvas.height;
-    const cx = w / 2;
-    const cy = h / 2;
+    const gridAlphas = [0.6, 0.6, 0.4, 0.15, 0.15, 0];
+    const alpha = gridAlphas[currentStep];
 
-    ctx.clearRect(0, 0, w, h);
-
-    const vis = getVisibleRect();
-
-    switch (currentStep) {
-        case 0:
-            drawAxes(w, h, cx, cy);
-            drawPentagrid(cx, cy, 0.6);
-            break;
-
-        case 1:
-            drawAxes(w, h, cx, cy);
-            drawPentagrid(cx, cy, 0.6);
-            drawIntersectionDots(cx, cy, vis);
-            break;
-
-        case 2:
-            drawKRegions(cx, cy);
-            drawAxes(w, h, cx, cy);
-            drawPentagrid(cx, cy, 0.4);
-            drawKEdgeLabels(cx, cy);
-            break;
-
-        case 3: {
-            drawAxes(w, h, cx, cy);
-            drawPentagrid(cx, cy, 0.15);
-            const rhombs = collectRhombs(vis);
-            drawDualVertices(rhombs, cx, cy);
-            break;
-        }
-
-        case 4: {
-            drawAxes(w, h, cx, cy);
-            drawPentagrid(cx, cy, 0.15);
-            const rhombs = collectRhombs(vis);
-            drawRhombs(rhombs, cx, cy, false);
-            break;
-        }
-
-        case 5: {
-            drawAxes(w, h, cx, cy);
-            const rhombs = collectRhombs(vis);
-            drawRhombs(rhombs, cx, cy, true);
-            break;
-        }
+    // Set grid layer visibility and CSS opacity
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const layer = layers.get(`grid-${j}`)!;
+        layer.visible = alpha > 0;
+        layer.canvas.style.opacity = String(alpha);
     }
+
+    // Background only on step 2
+    layers.get("background")!.visible = currentStep === 2;
+
+    // Axes always visible
+    layers.get("axes")!.visible = true;
+
+    // Content always drawn (draw function switches on step internally)
+    layers.get("content")!.visible = true;
+
+    drawAllLayers();
 }
 
-// ── Init ──────────────────────────────────────────────────────────
+// ── Layer toggle UI ───────────────────────────────────────────────
+
+function buildLayerPanel() {
+    const wrapper = document.createElement("div");
+    wrapper.style.cssText = "display:flex;gap:14px;align-items:center;margin:4px 0;flex-wrap:wrap;";
+
+    const title = document.createElement("span");
+    title.textContent = "Layers:";
+    title.style.cssText = "font-size:12px;color:#888;";
+    wrapper.appendChild(title);
+
+    // Grid family toggles
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const layer = layers.get(`grid-${j}`)!;
+        const label = document.createElement("label");
+        label.className = "layer-toggle";
+
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = true;
+        cb.addEventListener("change", () => {
+            layer.userVisible = cb.checked;
+            draw();
+        });
+
+        const swatch = document.createElement("span");
+        swatch.className = "layer-swatch";
+        swatch.style.background = COLORS[j];
+
+        label.appendChild(cb);
+        label.appendChild(swatch);
+        label.appendChild(document.createTextNode(`${j}`));
+        wrapper.appendChild(label);
+    }
+
+    // Axes toggle
+    const axesLbl = document.createElement("label");
+    axesLbl.className = "layer-toggle";
+    const axesCb = document.createElement("input");
+    axesCb.type = "checkbox";
+    axesCb.checked = true;
+    axesCb.addEventListener("change", () => {
+        axesLayer.userVisible = axesCb.checked;
+        draw();
+    });
+    axesLbl.appendChild(axesCb);
+    axesLbl.appendChild(document.createTextNode("Axes"));
+    wrapper.appendChild(axesLbl);
+
+    layerPanelDiv.appendChild(wrapper);
+}
 
 // ── Tooltip for K-tuple on step 3 ─────────────────────────────────
 
-canvas.addEventListener("mousemove", (e) => {
+eventCanvas.addEventListener("mousemove", (e) => {
     if (currentStep !== 2 || isPanning) {
         tooltip.style.display = "none";
         return;
     }
-    const rect = canvas.getBoundingClientRect();
+    const rect = eventCanvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
-    if (sx < MARGIN || sx > canvas.width - MARGIN ||
-        sy < MARGIN || sy > canvas.height - MARGIN) {
+    if (sx < MARGIN || sx > CANVAS_W - MARGIN ||
+        sy < MARGIN || sy > CANVAS_H - MARGIN) {
         tooltip.style.display = "none";
         return;
     }
-    const cx = canvas.width / 2;
-    const cy = canvas.height / 2;
+    const cx = CANVAS_W / 2;
+    const cy = CANVAS_H / 2;
     const [mx, my] = screenToMath(sx, sy, cx, cy);
     const K = computeKTuple(mx, my);
     tooltip.textContent = `(K₀,K₁,K₂,K₃,K₄) = (${K.join(", ")})`;
@@ -1084,12 +1187,13 @@ canvas.addEventListener("mousemove", (e) => {
     tooltip.style.top = (e.clientY - 28) + "px";
 });
 
-canvas.addEventListener("mouseleave", () => {
+eventCanvas.addEventListener("mouseleave", () => {
     tooltip.style.display = "none";
 });
 
 // ── Init ──────────────────────────────────────────────────────────
 
+buildLayerPanel();
 updateLockedGamma();
 updateStepUI();
 draw();

@@ -80,12 +80,34 @@
             color: #666;
             font-family: monospace;
         }
-        canvas {
-            display: block;
+        #canvas-container {
+            position: relative;
+            width: 800px;
+            height: 800px;
             margin-top: 10px;
             background: white;
-            cursor: grab;
             touch-action: none;
+        }
+        .layer-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .layer-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #444;
+        }
+        .layer-toggle input { margin: 0; }
+        .layer-swatch {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            border: 1px solid #aaa;
         }
         .explanation {
             max-width: 340px;
@@ -132,7 +154,8 @@
         <div>
             <div class="controls" id="controls"></div>
             <div class="step-nav" id="step-nav"></div>
-            <canvas id="pentagrid" width="800" height="800"></canvas>
+            <div id="layer-panel"></div>
+            <div id="canvas-container"></div>
         </div>
         <div class="explanation" id="explanation"></div>
     </div>
