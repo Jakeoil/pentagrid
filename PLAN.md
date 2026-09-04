@@ -25,44 +25,116 @@ Returning after a dormancy. The state of play:
 - The math layer is already clean. `solveIntersection` / `computeRhomb` /
   `collectRhombs` return plain data; every draw function takes its target
   context as the first argument. No rendering types leak into the geometry.
-- **The working tree is dirty.** An unfinished "enforce regularity" feature sits
-  uncommitted in `method.html` and `src/method.ts`. See item 1.
+- An unfinished "enforce regularity" feature is committed as WIP in `5a7d04d`.
+  It is **superseded** — see item 1 for what replaces it and why.
 
 ---
 
 ## Open items
 
-These come first because they are cheap, and because items 2 and 3 are
-prerequisites for the explorations below.
+These come first because they are cheap, and because items 3, 4 and 5 gate the
+explorations below.
 
-### 1. The uncommitted regularity feature — decide what it is checking
+### 1. Regularity: measure it, do not enforce it — DECIDED 2026-09-04
 
-`checkRegularity()` (`src/method.ts:361`) flags `|γⱼ − γₖ| < 1e-10` and nudges
-the offender by `5e-9`.
+**Supersedes the WIP in `5a7d04d`.** That commit's `checkRegularity()` flags
+`|γⱼ − γₖ| < 1e-10` and nudges by `5e-9`. Both the test and the response are
+wrong, for reasons worth keeping:
 
-Two questions before this gets committed:
+- **The test is a proxy, and a narrow one.** De Bruijn's singularity condition is
+  three lines concurrent — a condition on integer combinations of the γ's, not on
+  pairwise equality. Configurations with all five γ distinct are routinely
+  singular; the pairwise test catches only the symmetric coincidences.
+- **Enforcement cannot work globally.** Regularity buys *positive* triangle area,
+  never area *bounded below*. As the line indices range over ℤ the
+  near-concurrency defects equidistribute (Weyl — the direction ratios are
+  irrational), so for **every** γ the infimum of region size over the plane is
+  zero. A window-local guarantee is achievable but breaks the moment you pan, and
+  then the sliders move as a side effect of panning.
+- **The small triangle is the content.** Three nearly-concurrent lines bound a
+  genuine region with a genuine dual vertex; as γ crosses the singular value it
+  collapses through zero and the tiling rearranges. That is the phason flip
+  Step 6 already promises. Nudging γ to keep triangles fat makes the most
+  interesting phenomenon on the page unreachable.
 
-- **The test looks narrower than its name.** De Bruijn's singularity condition is
-  that three grid lines become concurrent — a condition on integer combinations
-  of the γ's, not on pairwise equality. `γⱼ = γₖ` catches the symmetric
-  coincidences (all-γ-equal, the origin-concurrent case) but plenty of singular
-  configurations have all five γ distinct. Is the caught subset the one that
-  matters for slider dragging, or should the test be the real concurrency
-  condition?
-- **The nudge is invisible.** `5e-9` is written back through `toFixed(2)`, so
-  `gamma[]` differs from both the slider and the readout while the warning
-  claims something happened. Either surface it or make the correction visible in
-  the value.
+**What to build instead — a regularity meter.** Minimum region size over the
+visible window, reported in **pixels**, live. Geometric rather than a proxy,
+continuous rather than binary, in screen units so it means what it needs to mean.
+Amber below ~3 px, red below ~1 px.
 
-Worth knowing: `fixRegularity` never targets `lockedIndex` (`target = (k !==
-lockedIndex) ? k : j`, and `j < k` always). That is what keeps it from recursing
-forever against the sum-zero constraint — not an accident, don't "simplify" it.
+Finding it cheaply. The candidate filter is exact, because the direction vectors
+are unit vectors:
 
-This item connects to E2: the sum-zero constraint is specific to the 5-fold
-symmetric case. On the discrete directions it has no special meaning, and the
-regularity story has to be restated.
+```
+for each family pair (a,b) and line indices (na,nb):
+    P = intersection                    # collectRhombs already computes this
+    for each third family c:
+        d = P·v_c + γ_c
+        h = |d − round(d)|               # ⊥ distance from P to the nearest
+                                        # line of family c, exactly
+        if h·scale < ~20 px:            # candidate
+            build the triangle from (a,na), (b,nb), (c,round(d))
+            size = 2·inradius, in pixels # "how big a target is it"
+```
 
-### 2. Rhombs should carry their provenance
+Caveat worth a comment in the code: a fourth line can cut the triangle, in which
+case the true region is smaller than reported. Rare at the sizes that matter —
+lines are one unit apart and these triangles are tiny — but the meter is
+optimistic, not conservative, when it happens.
+
+Companion control: **go to the smallest region in view.** Turns the near-singular
+configuration from a hazard into a destination, and is the entry point for a
+phason-flip page later.
+
+### 2. The loupe — DECIDED 2026-09-04
+
+Regions are hoverable at *any* size already: step 3's hover calls
+`computeKTuple(mx, my)` at the cursor point, which is exact — no threshold, no
+nearest-neighbor search. A 0.1 px triangle already returns the right K-tuple.
+**The only thing that fails is aiming.** So this is magnification and no new
+picking code at all.
+
+**Inset panel, not a fisheye.** A radial magnifier is not conformal, so inside it
+straight lines become curves and 72° stops being 72° — an unusually expensive
+distortion for a page whose whole subject is straight lines at exact angles.
+A constraint bites even before that: with `g(0)=0` and `g(R)=R`, the mean of `g′`
+over `[0,R]` is exactly 1, so `g′(0) = n > 1` forces `g′ < 1` somewhere — a
+compression annulus just inside the rim, where things are *harder* to hit than at
+1×. Avoiding it needs `g(R) > R`, which puts the discontinuity back. Compression
+ring or discontinuity; there is no third option.
+
+The inset costs none of that: lines stay straight, angles stay true, and picking
+is `screenToMath` at a different scale and center.
+
+Behavior, as settled:
+
+- **Pinned to a fixed corner** of the canvas. Not floating — it must never
+  occlude what is being studied, and travelling to it must be an unambiguous
+  gesture rather than something that happens while aiming.
+- **Opens automatically** when the smallest region within ~20 px of the cursor
+  falls below ~5 px. Same quantity as the meter at a different radius: meter =
+  min over the window, loupe = min near the cursor.
+- **Adaptive magnification**, `n = 40 / size_px`, so the target always arrives at
+  a workable size — 8× or 800× as needed. **Latched on open**, otherwise the
+  content zooms continuously as the cursor moves and the panel is unreadable.
+- **Freezes when the cursor enters it.** Entering is the commit gesture: the view
+  locks and stays locked while hovering inside, and leaving releases it. This is
+  what removes the trapping problem — whatever would re-trigger the loupe is in a
+  different panel from the thing now being hovered.
+- A **footprint rectangle** in the main view showing what the loupe covers, and a
+  **magnification label** on the loupe, since `n` is adaptive and ranges over
+  orders of magnitude.
+
+Fallback if auto-open proves twitchy: **click-to-lock** — click within a few px of
+the tight spot, loupe locks there, Esc releases. No hysteresis tuning at all.
+
+**Prerequisite:** `scale`, `viewX`, `viewY` are module-level globals read
+implicitly by every draw function, and the loupe is a second view. Either thread a
+view parameter through everything, or save/swap/restore the globals around the
+loupe's render. The latter is far less invasive and needs no change to any draw
+function.
+
+### 3. Rhombs should carry their provenance
 
 `computeRhomb(j, k, nj, nk, x0, y0)` receives everything about where the rhomb
 came from and stores none of it — the `Rhomb` interface keeps only
@@ -73,7 +145,7 @@ Store `j, k, nj, nk, x0, y0` on the `Rhomb`. It is a few lines, and it is the
 single change that unlocks **both** the transition animation and Exploration 1.
 Do this before either.
 
-### 3. Split geometry recompute from render
+### 4. Split geometry recompute from render
 
 Right now `collectRhombs` runs on every `draw()`. At default zoom that is a few
 thousand `solveIntersection` calls — fine. Zoomed out, `maxN` clamps at 50, so
@@ -87,16 +159,16 @@ view, not on any animation parameter.** Recompute them when γ or the view
 changes; at scrub time only re-render. The layer architecture already makes the
 K-region cache easy, since it is its own canvas.
 
-Nothing needs this until something animates. But nothing can animate until it is
-done.
+The regularity scan (item 1) has exactly the same dependency and should share
+whatever cache this produces.
 
-### 4. README is stale
+### 5. README is stale
 
 It describes **five** steps with the old titles. The page has **six** — "Step 3 —
 Pentagrid Regions" was inserted in `1ea38c0` and shifted everything after it. The
 README also predates the layer toggles and the hover equations entirely.
 
-### 5. `src/index.ts` is vestigial
+### 6. `src/index.ts` is vestigial
 
 Three lines that append an `<h1>`. It becomes dead the moment `index.html` is a
 real page (below). Delete it and its `dist/` output then.
