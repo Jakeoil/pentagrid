@@ -328,6 +328,56 @@ sumSpan.className = "sum-display";
 sumSpan.textContent = "Σ = 0.00";
 controlsDiv.appendChild(sumSpan);
 
+// Regularity check toggle + warning
+let enforceRegularity = true;
+
+const regDiv = document.createElement("div");
+regDiv.className = "regularity-control";
+
+const regLabel = document.createElement("label");
+regLabel.className = "layer-toggle";
+const regCb = document.createElement("input");
+regCb.type = "checkbox";
+regCb.checked = enforceRegularity;
+regCb.addEventListener("change", () => {
+    enforceRegularity = regCb.checked;
+    regWarn.style.display = "none";
+    draw();
+});
+regLabel.appendChild(regCb);
+regLabel.appendChild(document.createTextNode(" Enforce regularity"));
+regDiv.appendChild(regLabel);
+
+const regWarn = document.createElement("div");
+regWarn.className = "regularity-warning";
+regWarn.style.display = "none";
+regDiv.appendChild(regWarn);
+
+controlsDiv.appendChild(regDiv);
+
+const REGULARITY_EPS = 1e-10;
+const REGULARITY_NUDGE = 5e-9;
+
+function checkRegularity(): [boolean, number, number] | null {
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        for (let k = j + 1; k < NUM_GRIDS; k++) {
+            if (Math.abs(gamma[j] - gamma[k]) < REGULARITY_EPS) {
+                return [false, j, k];
+            }
+        }
+    }
+    return null;
+}
+
+function fixRegularity(j: number, k: number) {
+    // Nudge the non-locked one; if both are free, nudge k
+    const target = (k !== lockedIndex) ? k : j;
+    gamma[target] += REGULARITY_NUDGE;
+    dials[target].input.value = gamma[target].toFixed(2);
+    dials[target].display.textContent = gamma[target].toFixed(2);
+    updateLockedGamma();
+}
+
 // ── Build step navigation ─────────────────────────────────────────
 
 const prevBtn = document.createElement("button");
@@ -355,6 +405,18 @@ function updateLockedGamma() {
     dials[lockedIndex].display.textContent = gamma[lockedIndex].toFixed(2);
     const total = gamma.reduce((a, b) => a + b, 0);
     sumSpan.textContent = `Σ = ${total.toFixed(4)}`;
+
+    if (enforceRegularity) {
+        const violation = checkRegularity();
+        if (violation) {
+            const [, j, k] = violation;
+            regWarn.textContent = `γ${SUBSCRIPTS[j]} ≈ γ${SUBSCRIPTS[k]} — nudged to restore regularity`;
+            regWarn.style.display = "block";
+            fixRegularity(j, k);
+        } else {
+            regWarn.style.display = "none";
+        }
+    }
 }
 
 function setLockedIndex(j: number) {
