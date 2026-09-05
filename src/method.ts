@@ -9,6 +9,8 @@ import {
 import { scanRegions, singularTriples as geoSingularTriples } from "./geometry/regularity.js";
 import { regionPoly as geoRegionPoly } from "./geometry/region.js";
 import { rhombArcs } from "./geometry/decor.js";
+import { LayerStack } from "./view/layers.js";
+import type { Layer, LayerContext } from "./view/layers.js";
 
 
 // Unit vectors at 72° intervals.
@@ -319,62 +321,9 @@ const tooltip = document.createElement("div");
 tooltip.style.cssText = "position:fixed;padding:4px 8px;background:rgba(0,0,0,0.8);color:#fff;font:12px monospace;border-radius:3px;pointer-events:none;display:none;z-index:10;";
 document.body.appendChild(tooltip);
 
-// ── Layer infrastructure ──────────────────────────────────────────
+// ── Layers ────────────────────────────────────────────────────────
 
-interface Layer {
-    id: string;
-    label: string;
-    canvas: HTMLCanvasElement;
-    ctx: CanvasRenderingContext2D;
-    zIndex: number;
-    visible: boolean;
-    userVisible: boolean;
-    draw: () => void;
-}
-
-const layers = new Map<string, Layer>();
-
-function addLayer(id: string, label: string, zIndex: number, drawFn: () => void): Layer {
-    const c = document.createElement("canvas");
-    c.width = canvas.w;
-    c.height = canvas.h;
-    c.className = "layer-canvas";
-    c.style.zIndex = String(zIndex);
-    c.style.pointerEvents = "none";
-    container.appendChild(c);
-    const layer: Layer = {
-        id, label,
-        canvas: c,
-        ctx: c.getContext("2d")!,
-        zIndex,
-        visible: true,
-        userVisible: true,
-        draw: drawFn,
-    };
-    layers.set(id, layer);
-    return layer;
-}
-
-function drawAllLayers() {
-    for (const [, layer] of layers) {
-        if (layer.visible && layer.userVisible) {
-            layer.canvas.style.display = "block";
-            layer.draw();
-        } else {
-            layer.canvas.style.display = "none";
-        }
-    }
-}
-
-// Event-capture canvas (topmost, receives all input)
-const eventCanvas = document.createElement("canvas");
-eventCanvas.width = canvas.w;
-eventCanvas.height = canvas.h;
-eventCanvas.className = "layer-canvas";
-eventCanvas.style.zIndex = "100";
-eventCanvas.style.pointerEvents = "auto";
-eventCanvas.style.cursor = "grab";
-container.appendChild(eventCanvas);
+const stack = new LayerStack(container, canvas.w, canvas.h);
 
 // ── Features, and the steps as presets over them ──────────────────
 //
@@ -437,104 +386,94 @@ function currentRhombs(): Rhomb[] {
     return rhombCache;
 }
 
-// ── Create layers ─────────────────────────────────────────────────
+// ── Register the layers ───────────────────────────────────────────
+//
+// Layers declare when they want to be drawn rather than being switched on by
+// draw(). A step preset changes what the predicates read, and the right things
+// appear — nothing has to remember to update a flag. Anything with a `group`
+// gets a panel toggle for free, which is what makes registering one from an
+// exploration page worth doing.
 
-// Background layer (K-regions pixel fill)
-const bgLayer = addLayer("background", "K-regions", 5, () => {
-    bgLayer.ctx.clearRect(0, 0, canvas.w, canvas.h);
-    if (features.kRegions) {
-        withView(gridView(), () => drawKRegions(bgLayer.ctx, canvas.w / 2, canvas.h / 2));
-    }
+const gridAlphas = [0.6, 0.6, 0.4, 0.28, 0.24, 0.18];
+
+const bgLayer = stack.add({
+    id: "background", label: "K-regions", z: 5, group: "Pentagrid",
+    visible: () => features.kRegions,
+    draw: (c) => withView(gridView(), () => drawKRegions(c.ctx, c.cx, c.cy)),
 });
 
-// Grid layers (one per family)
 const gridLayers: Layer[] = [];
 for (let j = 0; j < NUM_GRIDS; j++) {
-    const layer = addLayer(`grid-${j}`, `Grid ${j}`, 10 + j, () => {
-        layer.ctx.clearRect(0, 0, canvas.w, canvas.h);
-        withView(gridView(), () =>
-            drawGridFamily(layer.ctx, j, canvas.w, canvas.h, canvas.w / 2, canvas.h / 2));
-    });
-    gridLayers.push(layer);
+    gridLayers.push(stack.add({
+        id: `grid-${j}`, label: `${j}`, z: 10 + j, group: "Pentagrid",
+        opacity: () => gridAlphas[currentStep],
+        draw: (c) => withView(gridView(), () =>
+            drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy)),
+    }));
 }
 
-// Axes layer
-const axesLayer = addLayer("axes", "Axes", 20, () => {
-    axesLayer.ctx.clearRect(0, 0, canvas.w, canvas.h);
-    drawAxes(axesLayer.ctx, canvas.w, canvas.h, canvas.w / 2, canvas.h / 2);
+const axesLayer = stack.add({
+    id: "axes", label: "Axes", z: 20, group: "Pentagrid",
+    draw: (c) => drawAxes(c.ctx, c.w, c.h, c.cx, c.cy),
 });
 
-// ── Penrose layers ────────────────────────────────────────────────
-//
-// The tiling gets its own layers rather than sharing a switch-on-step catch-all,
-// so each part can be shown alone and the whole group can sit over the pentagrid
-// or under it.
+stack.add({
+    id: "dots", label: "Dots", z: 50, group: "Pentagrid",
+    visible: () => features.intersectionDots,
+    draw: (c) => withView(gridView(), () =>
+        drawIntersectionDots(c.ctx, c.cx, c.cy, getVisibleRect())),
+});
 
+stack.add({
+    id: "klabels", label: "K-labels", z: 51, group: "Pentagrid",
+    visible: () => features.kLabels,
+    draw: (c) => withView(gridView(), () => drawKEdgeLabels(c.ctx, c.cx, c.cy)),
+});
+
+// The tiling. Its own group so the whole thing can move in front of the
+// pentagrid or behind it in one call.
 const PENROSE_Z_BACK = 6;    // above the K-regions, below the grid
-const PENROSE_Z_FRONT = 30;  // above the axes, below the overlay
+const PENROSE_Z_FRONT = 30;  // above the axes, below the overlays
 let penroseInFront = true;
 
-const penroseLayers: Layer[] = [];
-function addPenroseLayer(id: string, label: string, i: number, drawFn: (l: Layer) => void) {
-    const layer = addLayer(id, label, PENROSE_Z_FRONT + i, () => {
-        layer.ctx.clearRect(0, 0, canvas.w, canvas.h);
-        drawFn(layer);
-    });
-    penroseLayers.push(layer);
-    return layer;
-}
-
-const tilesLayer = addPenroseLayer("penrose-tiles", "Tiles", 0, (l) => {
-    if (features.penroseTiles) {
-        drawRhombs(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2, true);
-    }
+stack.add({
+    id: "penrose-tiles", label: "Tiles", z: PENROSE_Z_FRONT, group: "Penrose",
+    visible: () => features.penroseTiles,
+    draw: (c) => drawRhombs(c.ctx, currentRhombs(), c.cx, c.cy, true),
 });
-const edgesLayer = addPenroseLayer("penrose-edges", "Edges", 1, (l) => {
-    if (features.penroseEdges) {
-        drawRhombs(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2, false);
-    }
+stack.add({
+    id: "penrose-edges", label: "Edges", z: PENROSE_Z_FRONT + 1, group: "Penrose",
+    visible: () => features.penroseEdges,
+    draw: (c) => drawRhombs(c.ctx, currentRhombs(), c.cx, c.cy, false),
 });
-const decorLayer = addPenroseLayer("penrose-decor", "Arcs", 2, (l) => {
-    if (features.penroseDecor) {
-        drawPenroseDecor(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2);
-    }
+stack.add({
+    id: "penrose-decor", label: "Arcs", z: PENROSE_Z_FRONT + 2, group: "Penrose",
+    visible: () => features.penroseDecor,
+    draw: (c) => drawPenroseDecor(c.ctx, currentRhombs(), c.cx, c.cy),
 });
-const verticesLayer = addPenroseLayer("penrose-vertices", "Vertices", 3, (l) => {
-    // dualVertices is repopulated here and read by the step-4 hover, so it runs
-    // whenever the vertices are wanted for picking even if not for display.
-    if (features.penroseVertices || features.hoverVertex) {
-        drawDualVertices(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2,
-                         features.penroseVertices);
-    }
+stack.add({
+    id: "penrose-vertices", label: "Vertices", z: PENROSE_Z_FRONT + 3, group: "Penrose",
+    // Also runs when only the hover wants vertices, because it populates the
+    // pick list; `show` decides whether anything is actually painted.
+    visible: () => features.penroseVertices || features.hoverVertex,
+    draw: (c) => drawDualVertices(c.ctx, currentRhombs(), c.cx, c.cy,
+                                  features.penroseVertices),
 });
 
 function restackPenrose() {
-    const base = penroseInFront ? PENROSE_Z_FRONT : PENROSE_Z_BACK;
-    penroseLayers.forEach((l, i) => { l.canvas.style.zIndex = String(base + i); });
+    stack.setGroupZ("Penrose", penroseInFront ? PENROSE_Z_FRONT : PENROSE_Z_BACK);
 }
 
-// Overlay layer — things drawn on the pentagrid itself
-const overlayLayer = addLayer("overlay", "Overlay", 50, () => {
-    overlayLayer.ctx.clearRect(0, 0, canvas.w, canvas.h);
-    const cx = canvas.w / 2;
-    const cy = canvas.h / 2;
-    withView(gridView(), () => {
-        if (features.intersectionDots) {
-            drawIntersectionDots(overlayLayer.ctx, cx, cy, getVisibleRect());
-        }
-        if (features.kLabels) drawKEdgeLabels(overlayLayer.ctx, cx, cy);
-    });
-});
+// Overlays the stack sizes but does not draw, and the input surface.
+const highlight = stack.addRaw(55);
+const highlightCtx = highlight.ctx;
+const highlightCanvas = highlight.canvas;
+const footprint = stack.addRaw(60);
+const footprintCtx = footprint.ctx;
 
-// Highlight overlay canvas (for dual vertex hover on step 4)
-const highlightCanvas = document.createElement("canvas");
-highlightCanvas.width = canvas.w;
-highlightCanvas.height = canvas.h;
-highlightCanvas.className = "layer-canvas";
-highlightCanvas.style.zIndex = "55";
-highlightCanvas.style.pointerEvents = "none";
-container.appendChild(highlightCanvas);
-const highlightCtx = highlightCanvas.getContext("2d")!;
+const eventLayer = stack.addRaw(100, "auto");
+const eventCanvas = eventLayer.canvas;
+eventCanvas.style.cursor = "grab";
 
 // ── Build slider controls ─────────────────────────────────────────
 
@@ -1136,10 +1075,10 @@ function drawIntersectionDots(tc: CanvasRenderingContext2D, cx: number, cy: numb
     const maxN = Math.min(Math.ceil(maxCoord) + 3, 50);
 
     for (let j = 0; j < NUM_GRIDS; j++) {
-        const layerJ = layers.get(`grid-${j}`);
+        const layerJ = stack.get(`grid-${j}`);
         if (layerJ && !layerJ.userVisible) continue;
         for (let k = j + 1; k < NUM_GRIDS; k++) {
-            const layerK = layers.get(`grid-${k}`);
+            const layerK = stack.get(`grid-${k}`);
             if (layerK && !layerK.userVisible) continue;
             tc.fillStyle = pairColors.get(`${j},${k}`)!;
             for (let nj = -maxN; nj <= maxN; nj++) {
@@ -1329,7 +1268,7 @@ function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
 
     // Pass 1: gradient-filled parallelograms, collect label positions
     for (let j = 0; j < NUM_GRIDS; j++) {
-        const layer = layers.get(`grid-${j}`);
+        const layer = stack.get(`grid-${j}`);
         if (layer && !layer.userVisible) continue;
         const [vx, vy] = directions[j];
         const [r, g, b] = hexToRgb(COLORS[j]);
@@ -1509,29 +1448,8 @@ function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
 // ── Main draw ─────────────────────────────────────────────────────
 
 function draw() {
-    // Grid opacity is a step preset, floored so the grid never vanishes — the
-    // pentagrid and the tiling now share coordinates, and that is only worth
-    // anything if both are on screen.
-    const gridAlphas = [0.6, 0.6, 0.4, 0.28, 0.24, 0.18];
-    const alpha = gridAlphas[currentStep];
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const layer = layers.get(`grid-${j}`)!;
-        layer.visible = true;
-        layer.canvas.style.opacity = String(alpha);
-    }
-
-    layers.get("background")!.visible = features.kRegions;
-    layers.get("axes")!.visible = true;
-    layers.get("overlay")!.visible = true;
-
-    tilesLayer.visible = features.penroseTiles;
-    edgesLayer.visible = features.penroseEdges;
-    decorLayer.visible = features.penroseDecor;
-    // The vertex layer also populates the pick list, so it runs when the hover
-    // wants vertices even if nothing is to be drawn.
-    verticesLayer.visible = features.penroseVertices || features.hoverVertex;
-
-    drawAllLayers();
+    // Every layer decides for itself whether it is wanted; see the specs above.
+    stack.drawAll();
 
     // The scan depends on γ and the view, exactly like the rhomb set does.
     scanSmallRegions();
@@ -1592,33 +1510,31 @@ function syncPanel() {
 }
 
 function buildLayerPanel() {
-    // Grid families and axes
-    const gridRow = row(layerPanelDiv, "Pentagrid");
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const layer = gridLayers[j];
-        checkbox(gridRow, `${j}`, true, (v) => {
-            layer.userVisible = v;
-            rhombCache = null;   // the rhomb set depends on the active families
-            draw();
-        }, COLORS[j]);
+    // Generated from the stack, not hand-written: a layer registered with a
+    // group gets its switch here without anyone editing this function. That is
+    // the point of registration, and an exploration page gets the same for free.
+    for (const [group, group_layers] of stack.groups()) {
+        const r = row(layerPanelDiv, group);
+        for (const layer of group_layers) {
+            const swatch = layer.id.startsWith("grid-")
+                ? COLORS[Number(layer.id.slice(5))]
+                : undefined;
+            checkbox(r, layer.label, layer.userVisible, (v) => {
+                layer.userVisible = v;
+                // the rhomb set depends on which families are in play
+                if (layer.id.startsWith("grid-")) rhombCache = null;
+                draw();
+            }, swatch);
+        }
+        if (group === "Penrose") {
+            checkbox(r, "in front", penroseInFront, (v) => {
+                penroseInFront = v;
+                restackPenrose();
+            });
+        }
     }
-    checkbox(gridRow, "Axes", true, (v) => { axesLayer.userVisible = v; draw(); });
-    featureToggle(gridRow, "intersectionDots", "Dots");
-    featureToggle(gridRow, "kRegions", "K-regions");
-    featureToggle(gridRow, "kLabels", "K-labels");
 
-    // The tiling
-    const pRow = row(layerPanelDiv, "Penrose");
-    featureToggle(pRow, "penroseTiles", "Tiles");
-    featureToggle(pRow, "penroseEdges", "Edges");
-    featureToggle(pRow, "penroseVertices", "Vertices");
-    featureToggle(pRow, "penroseDecor", "Arcs");
-    checkbox(pRow, "in front", penroseInFront, (v) => {
-        penroseInFront = v;
-        restackPenrose();
-    });
-
-    // Hover behaviour
+    // Behaviours, which are not layers
     const hRow = row(layerPanelDiv, "On hover");
     featureToggle(hRow, "hoverVertex", "vertex from region");
     featureToggle(hRow, "hoverTile", "tile from intersection");
@@ -1691,16 +1607,6 @@ loupeCanvas.style.display = "none";
 container.appendChild(loupeCanvas);
 const loupeCtx = loupeCanvas.getContext("2d")!;
 
-// Footprint rectangle in the main view. Its own canvas because the step hover
-// handlers clear highlightCanvas freely.
-const footprintCanvas = document.createElement("canvas");
-footprintCanvas.width = canvas.w;
-footprintCanvas.height = canvas.h;
-footprintCanvas.className = "layer-canvas";
-footprintCanvas.style.zIndex = "60";
-footprintCanvas.style.pointerEvents = "none";
-container.appendChild(footprintCanvas);
-const footprintCtx = footprintCanvas.getContext("2d")!;
 
 function loupeView(): ViewState {
     return {
@@ -1816,7 +1722,7 @@ function drawLoupe() {
             }
         }
         for (let j = 0; j < NUM_GRIDS; j++) {
-            if (!layers.get(`grid-${j}`)!.userVisible) continue;
+            if (!gridLayers[j].userVisible) continue;
             drawGridFamily(loupeCtx, j, LOUPE_W, LOUPE_H, lcx, lcy);
         }
     });
@@ -1946,7 +1852,7 @@ function clearHighlight() {
 
 function formatKTooltip(K: number[]): string {
     const parts = K.map((v, j) => {
-        const layer = layers.get(`grid-${j}`);
+        const layer = stack.get(`grid-${j}`);
         const active = !layer || layer.userVisible;
         const color = active ? "#fff" : "#999";
         return `<span style="color:${color}">${v}</span>`;
@@ -2165,7 +2071,7 @@ eventCanvas.addEventListener("mousemove", (e) => {
         if (best) {
             // Equation: f = Σ K_j · v_j
             const terms = best.K.map((v, j) => {
-                const layer = layers.get(`grid-${j}`);
+                const layer = stack.get(`grid-${j}`);
                 const active = !layer || layer.userVisible;
                 const color = active ? "#fff" : "#999";
                 return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
