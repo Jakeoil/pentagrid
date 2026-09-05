@@ -1,3 +1,5 @@
+import { BUILD_ID } from "./build-id.js";
+
 const NUM_GRIDS = 5;
 
 // Unit vectors at 72° intervals
@@ -27,11 +29,27 @@ let currentStep = 0;
 const STEP_COUNT = 6;
 let lockedIndex = 4;
 
-// View state
+// View state. These are the "current view" the drawing functions read
+// implicitly. The loupe is a second view, so it swaps them via withView()
+// rather than threading a parameter through every draw function.
 const MARGIN = 40;
 let scale = 60;
 let viewX = 0;
 let viewY = 0;
+let viewW = CANVAS_W;
+let viewH = CANVAS_H;
+let viewMargin = MARGIN;
+
+// Loupe state lives here rather than in the loupe section below, because draw()
+// reads it and draw() first runs at init, before that section is evaluated.
+interface Loupe {
+    x: number; y: number;
+    scale: number; mag: number;
+    label: string;
+}
+let loupe: Loupe | null = null;
+let loupeFrozen = false;
+let loupeHoverK: number[] | null = null;
 
 // ── Step content ──────────────────────────────────────────────────
 
@@ -328,60 +346,194 @@ sumSpan.className = "sum-display";
 sumSpan.textContent = "Σ = 0.00";
 controlsDiv.appendChild(sumSpan);
 
-// Regularity check toggle + warning
-let enforceRegularity = true;
+// ── Regularity meter ──────────────────────────────────────────────
+//
+// Regularity says no three grid lines are concurrent, so every region has
+// positive area. It does NOT bound that area below: as the line indices range
+// over Z the near-concurrency defects equidistribute, so for every gamma the
+// infimum of region size over the plane is zero. Enforcing a minimum is
+// therefore impossible, and undesirable besides — a region collapsing through
+// zero is the phason flip, which is the thing worth looking at. So we measure
+// rather than enforce, in pixels, over the visible window. See PLAN.md item 1.
 
-const regDiv = document.createElement("div");
-regDiv.className = "regularity-control";
+interface SmallRegion {
+    sizePx: number;         // 2 x inradius, in screen pixels
+    x: number; y: number;   // incenter, math coords
+}
 
-const regLabel = document.createElement("label");
-regLabel.className = "layer-toggle";
-const regCb = document.createElement("input");
-regCb.type = "checkbox";
-regCb.checked = enforceRegularity;
-regCb.addEventListener("change", () => {
-    enforceRegularity = regCb.checked;
-    regWarn.style.display = "none";
-    draw();
-});
-regLabel.appendChild(regCb);
-regLabel.appendChild(document.createTextNode(" Enforce regularity"));
-regDiv.appendChild(regLabel);
+// A point where three or more lines actually meet. This is not a small region —
+// it has no interior at all — and no magnification will ever open it up. It is
+// where de Bruijn's construction is genuinely undefined, so it is reported
+// separately and far more loudly. The default γ = 0 puts one at the origin with
+// all five lines through it.
+interface Concurrency {
+    x: number; y: number;
+    lines: number;          // how many families pass through the point
+}
 
-const regWarn = document.createElement("div");
-regWarn.className = "regularity-warning";
-regWarn.style.display = "none";
-regDiv.appendChild(regWarn);
+// Only triples at least this close to concurrent are worth measuring exactly.
+const CANDIDATE_PX = 24;
+// Below this a region is too small to aim at, and the loupe takes over.
+const HOVERABLE_PX = 5;
+// Below this an inradius is not a small triangle, it is a concurrency. In math
+// units, not pixels: no zoom level makes a degenerate region hoverable.
+const CONCURRENT_TOL = 1e-9;
 
-controlsDiv.appendChild(regDiv);
+let smallRegions: SmallRegion[] = [];
+let concurrencies: Concurrency[] = [];
 
-const REGULARITY_EPS = 1e-10;
-const REGULARITY_NUDGE = 5e-9;
+const meterDiv = document.createElement("div");
+meterDiv.className = "regularity-control";
+const meterSpan = document.createElement("div");
+meterSpan.className = "regularity-meter";
+meterDiv.appendChild(meterSpan);
+controlsDiv.appendChild(meterDiv);
 
-function checkRegularity(): [boolean, number, number] | null {
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        for (let k = j + 1; k < NUM_GRIDS; k++) {
-            if (Math.abs(gamma[j] - gamma[k]) < REGULARITY_EPS) {
-                return [false, j, k];
+/** Range of line indices of family j that cross the visible rect. */
+function lineRange(j: number, vis: ViewRect): [number, number] {
+    const [vx, vy] = directions[j];
+    let lo = Infinity, hi = -Infinity;
+    const corners: [number, number][] = [
+        [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
+        [vis.xMin, vis.yMax], [vis.xMax, vis.yMax],
+    ];
+    for (const [x, y] of corners) {
+        const d = vx * x + vy * y + gamma[j];
+        if (d < lo) lo = d;
+        if (d > hi) hi = d;
+    }
+    return [Math.ceil(lo) - 1, Math.floor(hi) + 1];
+}
+
+/**
+ * Find every region small enough to be hard to hit, over the visible window.
+ *
+ * A small region means three lines close to concurrent. For each triple of
+ * families a < b < c we take the intersection P of (a,na) and (b,nb) and ask how
+ * far P is from the nearest line of family c. Because the direction vectors are
+ * unit vectors, that distance is exactly |d - round(d)| for d = P.v_c + gamma_c
+ * — no square roots, and it is an exact perpendicular distance, not an estimate.
+ * Only the candidates that survive that filter get an exact triangle measured.
+ *
+ * Caveat: a fourth line can cut the triangle, in which case the true region is
+ * smaller than what is reported here. It is rare at the sizes that matter — the
+ * lines are one unit apart and these triangles are tiny — but the meter is
+ * optimistic, not conservative, when it happens.
+ */
+function scanSmallRegions() {
+    const vis = getVisibleRect();
+    const out: SmallRegion[] = [];
+    const degenerate: [number, number][] = [];
+    const ranges: [number, number][] = [];
+    for (let j = 0; j < NUM_GRIDS; j++) ranges.push(lineRange(j, vis));
+
+    for (let a = 0; a < NUM_GRIDS; a++) {
+        for (let b = a + 1; b < NUM_GRIDS; b++) {
+            for (let c = b + 1; c < NUM_GRIDS; c++) {
+                for (let na = ranges[a][0]; na <= ranges[a][1]; na++) {
+                    for (let nb = ranges[b][0]; nb <= ranges[b][1]; nb++) {
+                        const P = solveIntersection(a, b, na, nb);
+                        if (!P) continue;
+                        if (P[0] < vis.xMin || P[0] > vis.xMax ||
+                            P[1] < vis.yMin || P[1] > vis.yMax) continue;
+
+                        const d = directions[c][0] * P[0] + directions[c][1] * P[1] + gamma[c];
+                        const nc = Math.round(d);
+                        if (Math.abs(d - nc) * scale > CANDIDATE_PX) continue;
+
+                        const Q = solveIntersection(b, c, nb, nc);
+                        const R = solveIntersection(a, c, na, nc);
+                        if (!Q || !R) continue;
+
+                        const area = Math.abs(
+                            (Q[0] - P[0]) * (R[1] - P[1]) - (Q[1] - P[1]) * (R[0] - P[0])
+                        ) / 2;
+                        const sP = Math.hypot(R[0] - Q[0], R[1] - Q[1]); // opposite P
+                        const sQ = Math.hypot(R[0] - P[0], R[1] - P[1]); // opposite Q
+                        const sR = Math.hypot(Q[0] - P[0], Q[1] - P[1]); // opposite R
+                        const perim = sP + sQ + sR;
+                        if (perim < 1e-15) { degenerate.push([P[0], P[1]]); continue; }
+
+                        // The inradius is how wide a target the region is. The
+                        // incenter, not the centroid, is where to point the loupe:
+                        // on a sliver the centroid can sit hard against an edge,
+                        // while the incenter is furthest from all three.
+                        const inradius = 2 * area / perim;
+                        if (inradius < CONCURRENT_TOL) {
+                            // The triangle has collapsed: these three lines are
+                            // concurrent, not merely close. No interior to hover.
+                            degenerate.push([P[0], P[1]]);
+                            continue;
+                        }
+                        out.push({
+                            sizePx: 2 * inradius * scale,
+                            x: (sP * P[0] + sQ * Q[0] + sR * R[0]) / perim,
+                            y: (sP * P[1] + sQ * Q[1] + sR * R[1]) / perim,
+                        });
+                    }
+                }
             }
         }
     }
-    return null;
+    smallRegions = out;
+
+    // Every triple through the same point reports it, so dedupe by position and
+    // then count how many families actually pass through — that count, not the
+    // number of triples, is the multiplicity worth reporting.
+    const CLUSTER = 1e-7;
+    const conc: Concurrency[] = [];
+    for (const [x, y] of degenerate) {
+        if (conc.some((c) => Math.hypot(c.x - x, c.y - y) < CLUSTER)) continue;
+        let lines = 0;
+        for (let j = 0; j < NUM_GRIDS; j++) {
+            const d = directions[j][0] * x + directions[j][1] * y + gamma[j];
+            if (Math.abs(d - Math.round(d)) < CLUSTER) lines++;
+        }
+        conc.push({ x, y, lines });
+    }
+    concurrencies = conc;
 }
 
-function fixRegularity(j: number, k: number) {
-    // Nudge the non-locked one; if both are free, nudge k
-    const target = (k !== lockedIndex) ? k : j;
-    gamma[target] += REGULARITY_NUDGE;
-    dials[target].input.value = gamma[target].toFixed(2);
-    dials[target].display.textContent = gamma[target].toFixed(2);
-    updateLockedGamma();
+function updateMeter() {
+    // The minimum alone is a poor readout: by equidistribution a generic window
+    // already contains regions of ~0.04 px, so a bare minimum reads red always
+    // and says nothing. The count of unhittable regions is the number that
+    // actually responds — zoom in and it falls, because fewer triples are in
+    // view and each renders larger.
+    let min = Infinity;
+    let under = 0;
+    for (const r of smallRegions) {
+        if (r.sizePx < min) min = r.sizePx;
+        if (r.sizePx < HOVERABLE_PX) under++;
+    }
+    const tail = under === 0
+        ? `all regions ≥ ${HOVERABLE_PX} px`
+        : `${under} region${under === 1 ? "" : "s"} under ${HOVERABLE_PX} px` +
+          ` · smallest ${min < 0.01 ? min.toExponential(1) : min.toFixed(2)} px`;
+
+    // A concurrency is not a small region, it is a breakdown of the construction,
+    // and it outranks anything the size count has to say.
+    if (concurrencies.length > 0) {
+        let worst = 0;
+        for (const c of concurrencies) if (c.lines > worst) worst = c.lines;
+        meterSpan.textContent =
+            `SINGULAR — ${concurrencies.length} concurrency` +
+            `${concurrencies.length === 1 ? "" : " points"} in view, up to ${worst} lines · ${tail}`;
+        meterSpan.style.color = "#e63946";
+        return;
+    }
+    meterSpan.textContent = tail;
+    meterSpan.style.color = under === 0 ? "#5a8f5a" : "#c07d00";
 }
 
 // ── Build step navigation ─────────────────────────────────────────
 
 const prevBtn = document.createElement("button");
 prevBtn.textContent = "\u2190 Previous";
+
+const buildTag = document.createElement("span");
+buildTag.className = "build-tag";
+buildTag.textContent = `build ${BUILD_ID}`;
 
 const stepIndicator = document.createElement("span");
 stepIndicator.className = "step-indicator";
@@ -392,6 +544,7 @@ nextBtn.textContent = "Next \u2192";
 stepNavDiv.appendChild(prevBtn);
 stepNavDiv.appendChild(stepIndicator);
 stepNavDiv.appendChild(nextBtn);
+stepNavDiv.appendChild(buildTag);
 
 // ── Gamma / slider logic ──────────────────────────────────────────
 
@@ -405,18 +558,6 @@ function updateLockedGamma() {
     dials[lockedIndex].display.textContent = gamma[lockedIndex].toFixed(2);
     const total = gamma.reduce((a, b) => a + b, 0);
     sumSpan.textContent = `Σ = ${total.toFixed(4)}`;
-
-    if (enforceRegularity) {
-        const violation = checkRegularity();
-        if (violation) {
-            const [, j, k] = violation;
-            regWarn.textContent = `γ${SUBSCRIPTS[j]} ≈ γ${SUBSCRIPTS[k]} — nudged to restore regularity`;
-            regWarn.style.display = "block";
-            fixRegularity(j, k);
-        } else {
-            regWarn.style.display = "none";
-        }
-    }
 }
 
 function setLockedIndex(j: number) {
@@ -478,14 +619,35 @@ interface ViewRect {
 }
 
 function getVisibleRect(): ViewRect {
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H / 2;
+    const cx = viewW / 2;
+    const cy = viewH / 2;
     return {
-        xMin: viewX - (cx - MARGIN) / scale,
-        xMax: viewX + (CANVAS_W - cx - MARGIN) / scale,
-        yMin: viewY - (cy - MARGIN) / scale,
-        yMax: viewY + (CANVAS_H - cy - MARGIN) / scale,
+        xMin: viewX - (cx - viewMargin) / scale,
+        xMax: viewX + (viewW - cx - viewMargin) / scale,
+        yMin: viewY - (cy - viewMargin) / scale,
+        yMax: viewY + (viewH - cy - viewMargin) / scale,
     };
+}
+
+interface ViewState {
+    scale: number;
+    viewX: number; viewY: number;
+    w: number; h: number;
+    margin: number;
+}
+
+/** Run fn with the view globals temporarily swapped, then restore them. */
+function withView(v: ViewState, fn: () => void) {
+    const s0 = scale, x0 = viewX, y0 = viewY;
+    const w0 = viewW, h0 = viewH, m0 = viewMargin;
+    scale = v.scale; viewX = v.viewX; viewY = v.viewY;
+    viewW = v.w; viewH = v.h; viewMargin = v.margin;
+    try {
+        fn();
+    } finally {
+        scale = s0; viewX = x0; viewY = y0;
+        viewW = w0; viewH = h0; viewMargin = m0;
+    }
 }
 
 // ── Pan & zoom ────────────────────────────────────────────────────
@@ -1200,6 +1362,11 @@ function draw() {
     layers.get("content")!.visible = true;
 
     drawAllLayers();
+
+    // The scan depends on γ and the view, exactly like the rhomb set does.
+    scanSmallRegions();
+    updateMeter();
+    if (loupe) { drawLoupe(); drawFootprint(); }
 }
 
 // ── Layer toggle UI ───────────────────────────────────────────────
@@ -1254,6 +1421,238 @@ function buildLayerPanel() {
     layerPanelDiv.appendChild(wrapper);
 }
 
+// ── Loupe ─────────────────────────────────────────────────────────
+//
+// An inset panel, not a fisheye. A radial magnifier is not conformal, so inside
+// it the straight lines would curve and 72° would stop being 72° — an expensive
+// distortion for a page whose subject is straight lines at exact angles. And
+// with g(0)=0, g(R)=R the mean of g' over [0,R] is exactly 1, so magnifying the
+// centre forces a compression annulus at the rim, where things are HARDER to hit
+// than at 1x. The inset costs none of that, and picking inside it is just
+// screenToMath at a different scale and centre.
+//
+// Regions are already hoverable at any size — computeKTuple is exact at a point,
+// with no threshold and no nearest-neighbour search. The only thing that fails
+// at 1px is aiming, so this is magnification and no new picking code.
+
+const LOUPE_W = 220;
+const LOUPE_H = 220;
+const LOUPE_TRIGGER_PX = 20;   // search radius around the cursor
+const LOUPE_TARGET_PX = 40;    // and present it at about this size
+const LOUPE_MAX_MAG = 1e5;
+// A concurrency has no size to scale from. This is enough to show plainly that
+// the lines really do meet rather than bounding a sliver.
+const CONCURRENCY_MAG = 1000;
+
+const loupeCanvas = document.createElement("canvas");
+loupeCanvas.width = LOUPE_W;
+loupeCanvas.height = LOUPE_H;
+loupeCanvas.className = "loupe";
+loupeCanvas.style.display = "none";
+container.appendChild(loupeCanvas);
+const loupeCtx = loupeCanvas.getContext("2d")!;
+
+// Footprint rectangle in the main view. Its own canvas because the step hover
+// handlers clear highlightCanvas freely.
+const footprintCanvas = document.createElement("canvas");
+footprintCanvas.width = CANVAS_W;
+footprintCanvas.height = CANVAS_H;
+footprintCanvas.className = "layer-canvas";
+footprintCanvas.style.zIndex = "60";
+footprintCanvas.style.pointerEvents = "none";
+container.appendChild(footprintCanvas);
+const footprintCtx = footprintCanvas.getContext("2d")!;
+
+function loupeView(): ViewState {
+    return {
+        scale: loupe!.scale, viewX: loupe!.x, viewY: loupe!.y,
+        w: LOUPE_W, h: LOUPE_H, margin: 0,
+    };
+}
+
+function loupeToMath(sx: number, sy: number): [number, number] {
+    return [
+        loupe!.x + (sx - LOUPE_W / 2) / loupe!.scale,
+        loupe!.y - (sy - LOUPE_H / 2) / loupe!.scale,
+    ];
+}
+
+interface LoupeTarget { x: number; y: number; mag: number; label: string; }
+
+/**
+ * The thing nearest the cursor worth magnifying: an unhittable region, or a
+ * concurrency. Concurrencies win ties — they are the more important find, and
+ * unlike a small region no magnification will ever open one up.
+ */
+function nearestLoupeTarget(sx: number, sy: number, cx: number, cy: number): LoupeTarget | null {
+    let best: LoupeTarget | null = null;
+    let bestD = LOUPE_TRIGGER_PX;
+
+    for (const c of concurrencies) {
+        const [rx, ry] = mathToScreen(c.x, c.y, cx, cy);
+        const d = Math.hypot(rx - sx, ry - sy);
+        if (d < bestD) {
+            bestD = d;
+            best = { x: c.x, y: c.y, mag: CONCURRENCY_MAG, label: `${c.lines} lines concurrent` };
+        }
+    }
+    if (best) return best;
+
+    for (const r of smallRegions) {
+        if (r.sizePx >= HOVERABLE_PX) continue;
+        const [rx, ry] = mathToScreen(r.x, r.y, cx, cy);
+        const d = Math.hypot(rx - sx, ry - sy);
+        if (d < bestD) {
+            bestD = d;
+            const mag = Math.min(LOUPE_MAX_MAG,
+                Math.max(2, LOUPE_TARGET_PX / Math.max(r.sizePx, 1e-9)));
+            best = {
+                x: r.x, y: r.y, mag,
+                label: `region ${r.sizePx < 0.01 ? r.sizePx.toExponential(1) : r.sizePx.toFixed(2)} px`,
+            };
+        }
+    }
+    return best;
+}
+
+function openLoupe(r: LoupeTarget) {
+    // Already latched onto this target: leave the magnification alone, or the
+    // panel zooms continuously as the cursor moves and becomes unreadable.
+    if (loupe && loupe.x === r.x && loupe.y === r.y) return;
+    loupe = { x: r.x, y: r.y, scale: scale * r.mag, mag: r.mag, label: r.label };
+    loupeHoverK = null;
+    loupeCanvas.style.display = "block";
+    loupeCanvas.style.pointerEvents = "auto";
+    drawLoupe();
+    drawFootprint();
+}
+
+function closeLoupe() {
+    if (!loupe) return;
+    loupe = null;
+    loupeHoverK = null;
+    loupeCanvas.style.display = "none";
+    loupeCanvas.style.pointerEvents = "none";
+    footprintCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+}
+
+function drawFootprint() {
+    footprintCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    if (!loupe) return;
+    const cx = CANVAS_W / 2, cy = CANVAS_H / 2;
+    const half = (LOUPE_W / 2) / loupe.scale;
+    const [x0, y0] = mathToScreen(loupe.x - half, loupe.y + half, cx, cy);
+    const [x1, y1] = mathToScreen(loupe.x + half, loupe.y - half, cx, cy);
+    // At high magnification the footprint is sub-pixel; show a minimum box.
+    const w = Math.max(x1 - x0, 7), h = Math.max(y1 - y0, 7);
+    const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    footprintCtx.strokeStyle = "rgba(220, 40, 70, 0.9)";
+    footprintCtx.lineWidth = 1.5;
+    footprintCtx.strokeRect(mx - w / 2, my - h / 2, w, h);
+}
+
+function drawLoupe() {
+    if (!loupe) return;
+    loupeCtx.clearRect(0, 0, LOUPE_W, LOUPE_H);
+    loupeCtx.fillStyle = "#fff";
+    loupeCtx.fillRect(0, 0, LOUPE_W, LOUPE_H);
+
+    const lcx = LOUPE_W / 2, lcy = LOUPE_H / 2;
+
+    withView(loupeView(), () => {
+        if (loupeHoverK) {
+            const poly = regionPoly(loupeHoverK);
+            if (poly.length >= 3) {
+                loupeCtx.beginPath();
+                poly.forEach(([px, py], i) => {
+                    const [sx, sy] = mathToScreen(px, py, lcx, lcy);
+                    if (i === 0) loupeCtx.moveTo(sx, sy); else loupeCtx.lineTo(sx, sy);
+                });
+                loupeCtx.closePath();
+                loupeCtx.fillStyle = "rgba(255, 255, 100, 0.45)";
+                loupeCtx.fill();
+                loupeCtx.strokeStyle = "rgba(255, 200, 0, 0.9)";
+                loupeCtx.lineWidth = 2;
+                loupeCtx.stroke();
+            }
+        }
+        for (let j = 0; j < NUM_GRIDS; j++) {
+            if (!layers.get(`grid-${j}`)!.userVisible) continue;
+            drawGridFamily(loupeCtx, j, LOUPE_W, LOUPE_H, lcx, lcy);
+        }
+    });
+
+    // Centre mark on the region that triggered the loupe
+    loupeCtx.strokeStyle = "rgba(220, 40, 70, 0.55)";
+    loupeCtx.lineWidth = 1;
+    loupeCtx.beginPath();
+    loupeCtx.moveTo(lcx - 7, lcy); loupeCtx.lineTo(lcx - 3, lcy);
+    loupeCtx.moveTo(lcx + 3, lcy); loupeCtx.lineTo(lcx + 7, lcy);
+    loupeCtx.moveTo(lcx, lcy - 7); loupeCtx.lineTo(lcx, lcy - 3);
+    loupeCtx.moveTo(lcx, lcy + 3); loupeCtx.lineTo(lcx, lcy + 7);
+    loupeCtx.stroke();
+
+    // What this is, and at what magnification — mag is adaptive and spans orders
+    // of magnitude, so it has to be stated.
+    const mag = loupe.mag;
+    const magStr = mag >= 1000
+        ? `${(mag / 1000).toFixed(mag < 10000 ? 1 : 0)}k×`
+        : `${Math.round(mag)}×`;
+    loupeCtx.font = "11px monospace";
+    loupeCtx.textAlign = "left";
+    loupeCtx.textBaseline = "bottom";
+    const foot = `${magStr}  ${loupe.label}`;
+    const tw = loupeCtx.measureText(foot).width;
+    loupeCtx.fillStyle = "rgba(255,255,255,0.88)";
+    loupeCtx.fillRect(3, LOUPE_H - 17, tw + 8, 15);
+    loupeCtx.fillStyle = "#444";
+    loupeCtx.fillText(foot, 7, LOUPE_H - 4);
+
+    // The panel is useless unless you know you can move into it.
+    if (!loupeFrozen) {
+        loupeCtx.font = "10px sans-serif";
+        loupeCtx.textAlign = "center";
+        loupeCtx.textBaseline = "top";
+        const hint = "move in to hover · esc to close";
+        const hw = loupeCtx.measureText(hint).width;
+        loupeCtx.fillStyle = "rgba(255,255,255,0.88)";
+        loupeCtx.fillRect(LOUPE_W / 2 - hw / 2 - 4, 3, hw + 8, 14);
+        loupeCtx.fillStyle = "#888";
+        loupeCtx.fillText(hint, LOUPE_W / 2, 5);
+    }
+}
+
+// Entering the loupe is the commit gesture: the view latches and stays put while
+// hovering inside, so travelling to it can never retarget or close it.
+loupeCanvas.addEventListener("mouseenter", () => { loupeFrozen = true; drawLoupe(); });
+
+loupeCanvas.addEventListener("mouseleave", () => {
+    loupeFrozen = false;
+    loupeHoverK = null;
+    tooltip.style.display = "none";
+    drawLoupe();
+});
+
+loupeCanvas.addEventListener("mousemove", (e) => {
+    if (!loupe) return;
+    const rect = loupeCanvas.getBoundingClientRect();
+    const [mx, my] = loupeToMath(e.clientX - rect.left, e.clientY - rect.top);
+    loupeHoverK = computeKTuple(mx, my);
+    tooltip.innerHTML = formatKTooltip(loupeHoverK);
+    tooltip.style.display = "block";
+    tooltip.style.left = (e.clientX + 12) + "px";
+    tooltip.style.top = (e.clientY - 28) + "px";
+    drawLoupe();
+});
+
+window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        loupeFrozen = false;
+        closeLoupe();
+        tooltip.style.display = "none";
+    }
+});
+
 // ── Tooltip / hover highlight ──────────────────────────────────────
 
 function clearHighlight() {
@@ -1271,16 +1670,17 @@ function formatKTooltip(K: number[]): string {
     return `K[${index}] = {${parts.join(", ")}}`;
 }
 
-function highlightRegion(K: number[], cx: number, cy: number, dotSx: number, dotSy: number) {
-    // Draw a filled polygon for the pentagrid region matching this K-tuple.
-    // The region is the intersection of half-planes: K_j - 1 < x·v_j + γ_j ≤ K_j
-    // We find the polygon by clipping against each strip.
+/**
+ * The pentagrid region with this K-tuple, as a polygon in math coordinates,
+ * clipped to the visible rect. The region is the intersection of half-planes
+ * K_j - 1 < x·v_j + γ_j ≤ K_j, found by clipping against each strip in turn.
+ */
+function regionPoly(K: number[]): [number, number][] {
     const vis = getVisibleRect();
     let poly: [number, number][] = [
         [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
         [vis.xMax, vis.yMax], [vis.xMin, vis.yMax],
     ];
-
     for (let j = 0; j < NUM_GRIDS; j++) {
         const [vx, vy] = directions[j];
         const lo = K[j] - 1 + 1e-9; // x·v + γ > K_j - 1
@@ -1289,7 +1689,11 @@ function highlightRegion(K: number[], cx: number, cy: number, dotSx: number, dot
         poly = clipPoly(poly, -vx, -vy, -(gamma[j] - hi), true);
         if (poly.length === 0) break;
     }
+    return poly;
+}
 
+function highlightRegion(K: number[], cx: number, cy: number, dotSx: number, dotSy: number) {
+    const poly = regionPoly(K);
     if (poly.length < 3) return;
 
     // Convert to screen and compute centroid + bounding size
@@ -1391,6 +1795,17 @@ eventCanvas.addEventListener("mousemove", (e) => {
 
     const cx = CANVAS_W / 2;
     const cy = CANVAS_H / 2;
+
+    // Loupe trigger: the meter's quantity, evaluated near the cursor instead of
+    // over the whole window. Skipped while frozen, i.e. while the cursor is
+    // inside the loupe.
+    // Retarget on approach, but never close on "nothing nearby": the cursor has
+    // to travel off the target to reach the panel, and closing on distance meant
+    // the loupe disappeared en route and could never be entered. Esc dismisses.
+    if (!loupeFrozen) {
+        const target = nearestLoupeTarget(sx, sy, cx, cy);
+        if (target) openLoupe(target);
+    }
 
     if (currentStep === 2) {
         // Step 3: show K-tuple at cursor and arrow to its dual vertex
@@ -1512,6 +1927,8 @@ eventCanvas.addEventListener("mouseleave", () => {
 });
 
 // ── Init ──────────────────────────────────────────────────────────
+
+console.log(`pentagrid build ${BUILD_ID}`);
 
 buildLayerPanel();
 updateLockedGamma();
