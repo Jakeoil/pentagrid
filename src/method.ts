@@ -33,9 +33,34 @@ const THIN_FILL = "#7eb8da";
 // Unicode subscripts for K labels
 const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
 
-// Canvas dimensions
-const CANVAS_W = 800;
-const CANVAS_H = 800;
+// ── Canvas size ───────────────────────────────────────────────────
+//
+// The one place the page's canvas is decided. Everything downstream reads it
+// through the view, so a second view (the loupe already is one) or a page that
+// wants a different size costs nothing. PLAN.md, step 1 of parameterising.
+//
+// Explicit wins: data-width / data-height / data-margin on #canvas-container.
+// Implicit otherwise: the container's own laid-out size, then 800 as a floor.
+
+interface CanvasSpec { w: number; h: number; margin: number; }
+
+function intAttr(el: Element, name: string): number | null {
+    const raw = parseInt(String(el.getAttribute(name) ?? ""), 10);
+    return Number.isFinite(raw) && raw > 0 ? raw : null;
+}
+
+function readCanvasSpec(): CanvasSpec {
+    const el = document.getElementById("canvas-container")!;
+    const rect = el.getBoundingClientRect();
+    const w = intAttr(el, "data-width") ?? (Math.round(rect.width) || 800);
+    const h = intAttr(el, "data-height") ?? (Math.round(rect.height) || 800);
+    // 40 on an 800 canvas: keep the proportion rather than the number, so the
+    // K-labels still have a gutter to live in at any size.
+    const margin = intAttr(el, "data-margin") ?? Math.round(Math.min(w, h) * 0.05);
+    return { w, h, margin };
+}
+
+const canvas = readCanvasSpec();
 
 // State.
 //
@@ -53,13 +78,12 @@ let lockedIndex = 4;
 // View state. These are the "current view" the drawing functions read
 // implicitly. The loupe is a second view, so it swaps them via withView()
 // rather than threading a parameter through every draw function.
-const MARGIN = 40;
 let scale = 60;
 let viewX = 0;
 let viewY = 0;
-let viewW = CANVAS_W;
-let viewH = CANVAS_H;
-let viewMargin = MARGIN;
+let viewW = canvas.w;
+let viewH = canvas.h;
+let viewMargin = canvas.margin;
 
 // The dual map has gain 5/2: f(x) = (5/2)x + const + bounded wobble, because
 // Sum_j v_j v_j^T = (5/2)I. So the tiling is drawn 2.5x the pentagrid that makes
@@ -229,6 +253,8 @@ const stepNavDiv = document.getElementById("step-nav")!;
 const explanationDiv = document.getElementById("explanation")!;
 const layerPanelDiv = document.getElementById("layer-panel")!;
 const container = document.getElementById("canvas-container")!;
+container.style.width = `${canvas.w}px`;
+container.style.height = `${canvas.h}px`;
 
 // Tooltip for K-tuple display
 const tooltip = document.createElement("div");
@@ -252,8 +278,8 @@ const layers = new Map<string, Layer>();
 
 function addLayer(id: string, label: string, zIndex: number, drawFn: () => void): Layer {
     const c = document.createElement("canvas");
-    c.width = CANVAS_W;
-    c.height = CANVAS_H;
+    c.width = canvas.w;
+    c.height = canvas.h;
     c.className = "layer-canvas";
     c.style.zIndex = String(zIndex);
     c.style.pointerEvents = "none";
@@ -284,8 +310,8 @@ function drawAllLayers() {
 
 // Event-capture canvas (topmost, receives all input)
 const eventCanvas = document.createElement("canvas");
-eventCanvas.width = CANVAS_W;
-eventCanvas.height = CANVAS_H;
+eventCanvas.width = canvas.w;
+eventCanvas.height = canvas.h;
 eventCanvas.className = "layer-canvas";
 eventCanvas.style.zIndex = "100";
 eventCanvas.style.pointerEvents = "auto";
@@ -357,9 +383,9 @@ function currentRhombs(): Rhomb[] {
 
 // Background layer (K-regions pixel fill)
 const bgLayer = addLayer("background", "K-regions", 5, () => {
-    bgLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    bgLayer.ctx.clearRect(0, 0, canvas.w, canvas.h);
     if (features.kRegions) {
-        withView(gridView(), () => drawKRegions(bgLayer.ctx, CANVAS_W / 2, CANVAS_H / 2));
+        withView(gridView(), () => drawKRegions(bgLayer.ctx, canvas.w / 2, canvas.h / 2));
     }
 });
 
@@ -367,17 +393,17 @@ const bgLayer = addLayer("background", "K-regions", 5, () => {
 const gridLayers: Layer[] = [];
 for (let j = 0; j < NUM_GRIDS; j++) {
     const layer = addLayer(`grid-${j}`, `Grid ${j}`, 10 + j, () => {
-        layer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+        layer.ctx.clearRect(0, 0, canvas.w, canvas.h);
         withView(gridView(), () =>
-            drawGridFamily(layer.ctx, j, CANVAS_W, CANVAS_H, CANVAS_W / 2, CANVAS_H / 2));
+            drawGridFamily(layer.ctx, j, canvas.w, canvas.h, canvas.w / 2, canvas.h / 2));
     });
     gridLayers.push(layer);
 }
 
 // Axes layer
 const axesLayer = addLayer("axes", "Axes", 20, () => {
-    axesLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    drawAxes(axesLayer.ctx, CANVAS_W, CANVAS_H, CANVAS_W / 2, CANVAS_H / 2);
+    axesLayer.ctx.clearRect(0, 0, canvas.w, canvas.h);
+    drawAxes(axesLayer.ctx, canvas.w, canvas.h, canvas.w / 2, canvas.h / 2);
 });
 
 // ── Penrose layers ────────────────────────────────────────────────
@@ -393,7 +419,7 @@ let penroseInFront = true;
 const penroseLayers: Layer[] = [];
 function addPenroseLayer(id: string, label: string, i: number, drawFn: (l: Layer) => void) {
     const layer = addLayer(id, label, PENROSE_Z_FRONT + i, () => {
-        layer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+        layer.ctx.clearRect(0, 0, canvas.w, canvas.h);
         drawFn(layer);
     });
     penroseLayers.push(layer);
@@ -402,24 +428,24 @@ function addPenroseLayer(id: string, label: string, i: number, drawFn: (l: Layer
 
 const tilesLayer = addPenroseLayer("penrose-tiles", "Tiles", 0, (l) => {
     if (features.penroseTiles) {
-        drawRhombs(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2, true);
+        drawRhombs(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2, true);
     }
 });
 const edgesLayer = addPenroseLayer("penrose-edges", "Edges", 1, (l) => {
     if (features.penroseEdges) {
-        drawRhombs(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2, false);
+        drawRhombs(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2, false);
     }
 });
 const decorLayer = addPenroseLayer("penrose-decor", "Arcs", 2, (l) => {
     if (features.penroseDecor) {
-        drawPenroseDecor(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2);
+        drawPenroseDecor(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2);
     }
 });
 const verticesLayer = addPenroseLayer("penrose-vertices", "Vertices", 3, (l) => {
     // dualVertices is repopulated here and read by the step-4 hover, so it runs
     // whenever the vertices are wanted for picking even if not for display.
     if (features.penroseVertices || features.hoverVertex) {
-        drawDualVertices(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2,
+        drawDualVertices(l.ctx, currentRhombs(), canvas.w / 2, canvas.h / 2,
                          features.penroseVertices);
     }
 });
@@ -431,9 +457,9 @@ function restackPenrose() {
 
 // Overlay layer — things drawn on the pentagrid itself
 const overlayLayer = addLayer("overlay", "Overlay", 50, () => {
-    overlayLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H / 2;
+    overlayLayer.ctx.clearRect(0, 0, canvas.w, canvas.h);
+    const cx = canvas.w / 2;
+    const cy = canvas.h / 2;
     withView(gridView(), () => {
         if (features.intersectionDots) {
             drawIntersectionDots(overlayLayer.ctx, cx, cy, getVisibleRect());
@@ -444,8 +470,8 @@ const overlayLayer = addLayer("overlay", "Overlay", 50, () => {
 
 // Highlight overlay canvas (for dual vertex hover on step 4)
 const highlightCanvas = document.createElement("canvas");
-highlightCanvas.width = CANVAS_W;
-highlightCanvas.height = CANVAS_H;
+highlightCanvas.width = canvas.w;
+highlightCanvas.height = canvas.h;
 highlightCanvas.className = "layer-canvas";
 highlightCanvas.style.zIndex = "55";
 highlightCanvas.style.pointerEvents = "none";
@@ -910,8 +936,8 @@ let panLastY = 0;
 let lastPinchDist = 0;
 
 function zoomAtScreen(sx: number, sy: number, factor: number) {
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H / 2;
+    const cx = canvas.w / 2;
+    const cy = canvas.h / 2;
     const [mx, my] = screenToMath(sx, sy, cx, cy);
     scale = Math.max(10, Math.min(400, scale * factor));
     viewX = mx - (sx - cx) / scale;
@@ -1145,34 +1171,34 @@ function drawAxes(tc: CanvasRenderingContext2D, w: number, h: number, cx: number
     // X axis ticks along bottom edge
     tc.textAlign = "center";
     tc.textBaseline = "top";
-    const bottomY = h - MARGIN + 10;
+    const bottomY = h - canvas.margin + 10;
     for (let n = nxMin; n <= nxMax; n++) {
         const [sx] = mathToScreen(n, 0, cx, cy);
-        if (sx < MARGIN || sx > w - MARGIN) continue;
+        if (sx < canvas.margin || sx > w - canvas.margin) continue;
         tc.beginPath();
-        tc.moveTo(sx, h - MARGIN);
-        tc.lineTo(sx, h - MARGIN + tickLen);
+        tc.moveTo(sx, h - canvas.margin);
+        tc.lineTo(sx, h - canvas.margin + tickLen);
         tc.stroke();
         tc.fillText(`${n}`, sx, bottomY);
     }
     tc.textAlign = "right";
-    tc.fillText("x", w - MARGIN + 20, bottomY);
+    tc.fillText("x", w - canvas.margin + 20, bottomY);
 
     // Y axis ticks along left edge
     tc.textAlign = "right";
     tc.textBaseline = "middle";
     for (let n = nyMin; n <= nyMax; n++) {
         const [, sy] = mathToScreen(0, n, cx, cy);
-        if (sy < MARGIN || sy > h - MARGIN) continue;
+        if (sy < canvas.margin || sy > h - canvas.margin) continue;
         tc.beginPath();
-        tc.moveTo(MARGIN - tickLen, sy);
-        tc.lineTo(MARGIN, sy);
+        tc.moveTo(canvas.margin - tickLen, sy);
+        tc.lineTo(canvas.margin, sy);
         tc.stroke();
-        tc.fillText(`${n}`, MARGIN - tickLen - 2, sy);
+        tc.fillText(`${n}`, canvas.margin - tickLen - 2, sy);
     }
     tc.textBaseline = "bottom";
     tc.textAlign = "center";
-    tc.fillText("y", MARGIN - tickLen - 2, MARGIN - 8);
+    tc.fillText("y", canvas.margin - tickLen - 2, canvas.margin - 8);
 
     // Axis lines at x=0 and y=0
     tc.strokeStyle = "#bbb";
@@ -1181,16 +1207,16 @@ function drawAxes(tc: CanvasRenderingContext2D, w: number, h: number, cx: number
     const [zeroX] = mathToScreen(0, 0, cx, cy);
     const [, zeroY] = mathToScreen(0, 0, cx, cy);
 
-    if (zeroY > MARGIN && zeroY < h - MARGIN) {
+    if (zeroY > canvas.margin && zeroY < h - canvas.margin) {
         tc.beginPath();
-        tc.moveTo(MARGIN, zeroY);
-        tc.lineTo(w - MARGIN, zeroY);
+        tc.moveTo(canvas.margin, zeroY);
+        tc.lineTo(w - canvas.margin, zeroY);
         tc.stroke();
     }
-    if (zeroX > MARGIN && zeroX < w - MARGIN) {
+    if (zeroX > canvas.margin && zeroX < w - canvas.margin) {
         tc.beginPath();
-        tc.moveTo(zeroX, MARGIN);
-        tc.lineTo(zeroX, h - MARGIN);
+        tc.moveTo(zeroX, canvas.margin);
+        tc.lineTo(zeroX, h - canvas.margin);
         tc.stroke();
     }
 
@@ -1433,13 +1459,13 @@ function computeKTuple(mx: number, my: number): number[] {
 }
 
 function drawKRegions(tc: CanvasRenderingContext2D, cx: number, cy: number) {
-    const w = CANVAS_W;
-    const h = CANVAS_H;
+    const w = canvas.w;
+    const h = canvas.h;
     const imgData = tc.createImageData(w, h);
     const data = imgData.data;
 
-    for (let py = MARGIN; py < h - MARGIN; py++) {
-        for (let px = MARGIN; px < w - MARGIN; px++) {
+    for (let py = canvas.margin; py < h - canvas.margin; py++) {
+        for (let px = canvas.margin; px < w - canvas.margin; px++) {
             const [mx, my] = screenToMath(px, py, cx, cy);
             const K = computeKTuple(mx, my);
 
@@ -1465,8 +1491,8 @@ function drawKRegions(tc: CanvasRenderingContext2D, cx: number, cy: number) {
 // ── K edge labels ─────────────────────────────────────────────────
 
 function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
-    const w = CANVAS_W;
-    const h = CANVAS_H;
+    const w = canvas.w;
+    const h = canvas.h;
     tc.font = "10px sans-serif";
 
     interface LabelInfo {
@@ -1488,35 +1514,35 @@ function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
         // --- Top & Bottom edges ---
         if (Math.abs(vx) > 1e-6) {
             for (const edge of [0, 1]) { // 0=top, 1=bottom
-                const edgeSy = edge === 0 ? MARGIN : h - MARGIN;
+                const edgeSy = edge === 0 ? canvas.margin : h - canvas.margin;
                 const outerY = edge === 0 ? 0 : h;
                 const [, myEdge] = screenToMath(0, edgeSy, cx, cy);
 
-                const [mxL] = screenToMath(MARGIN, edgeSy, cx, cy);
-                const [mxR] = screenToMath(w - MARGIN, edgeSy, cx, cy);
+                const [mxL] = screenToMath(canvas.margin, edgeSy, cx, cy);
+                const [mxR] = screenToMath(w - canvas.margin, edgeSy, cx, cy);
                 const dotL = vx * mxL + vy * myEdge + gamma[j];
                 const dotR = vx * mxR + vy * myEdge + gamma[j];
                 const nLo = Math.floor(Math.min(dotL, dotR)) - 1;
                 const nHi = Math.ceil(Math.max(dotL, dotR)) + 1;
 
-                const xs: number[] = [MARGIN];
+                const xs: number[] = [canvas.margin];
                 for (let n = nLo; n <= nHi; n++) {
                     const mx = (n - gamma[j] - vy * myEdge) / vx;
                     const sx = cx + (mx - viewX) * scale;
-                    if (sx > MARGIN + 1 && sx < w - MARGIN - 1) xs.push(sx);
+                    if (sx > canvas.margin + 1 && sx < w - canvas.margin - 1) xs.push(sx);
                 }
-                xs.push(w - MARGIN);
+                xs.push(w - canvas.margin);
                 xs.sort((a, b) => a - b);
 
                 // Screen-x shift from inner edge to outer border along grid line
                 const shift = edge === 0
-                    ? -vy * MARGIN / vx
-                    : vy * MARGIN / vx;
+                    ? -vy * canvas.margin / vx
+                    : vy * canvas.margin / vx;
 
                 // Gradient perpendicular to border
                 const grad = edge === 0
-                    ? tc.createLinearGradient(0, 0, 0, MARGIN)
-                    : tc.createLinearGradient(0, h - MARGIN, 0, h);
+                    ? tc.createLinearGradient(0, 0, 0, canvas.margin)
+                    : tc.createLinearGradient(0, h - canvas.margin, 0, h);
                 if (edge === 0) {
                     grad.addColorStop(0, clearStr);
                     grad.addColorStop(0.5, colorStr);
@@ -1527,13 +1553,13 @@ function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
                     grad.addColorStop(1, clearStr);
                 }
 
-                const ly = edge === 0 ? MARGIN / 2 : h - MARGIN / 2;
+                const ly = edge === 0 ? canvas.margin / 2 : h - canvas.margin / 2;
 
                 for (let i = 0; i < xs.length - 1; i++) {
                     const midX = (xs[i] + xs[i + 1]) / 2;
                     const stripW = xs[i + 1] - xs[i];
 
-                    const probeSy = edge === 0 ? MARGIN + 2 : h - MARGIN - 2;
+                    const probeSy = edge === 0 ? canvas.margin + 2 : h - canvas.margin - 2;
                     const [pmx, pmy] = screenToMath(midX, probeSy, cx, cy);
                     const K = Math.ceil(vx * pmx + vy * pmy + gamma[j] - 1e-9);
 
@@ -1566,35 +1592,35 @@ function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
         // --- Left & Right edges ---
         if (Math.abs(vy) > 1e-6) {
             for (const edge of [0, 1]) { // 0=left, 1=right
-                const edgeSx = edge === 0 ? MARGIN : w - MARGIN;
+                const edgeSx = edge === 0 ? canvas.margin : w - canvas.margin;
                 const outerX = edge === 0 ? 0 : w;
                 const [mxEdge] = screenToMath(edgeSx, 0, cx, cy);
 
-                const [, myT] = screenToMath(edgeSx, MARGIN, cx, cy);
-                const [, myB] = screenToMath(edgeSx, h - MARGIN, cx, cy);
+                const [, myT] = screenToMath(edgeSx, canvas.margin, cx, cy);
+                const [, myB] = screenToMath(edgeSx, h - canvas.margin, cx, cy);
                 const dotT = vx * mxEdge + vy * myT + gamma[j];
                 const dotB = vx * mxEdge + vy * myB + gamma[j];
                 const nLo = Math.floor(Math.min(dotT, dotB)) - 1;
                 const nHi = Math.ceil(Math.max(dotT, dotB)) + 1;
 
-                const ys: number[] = [MARGIN];
+                const ys: number[] = [canvas.margin];
                 for (let n = nLo; n <= nHi; n++) {
                     const my = (n - gamma[j] - vx * mxEdge) / vy;
                     const sy = cy - (my - viewY) * scale;
-                    if (sy > MARGIN + 1 && sy < h - MARGIN - 1) ys.push(sy);
+                    if (sy > canvas.margin + 1 && sy < h - canvas.margin - 1) ys.push(sy);
                 }
-                ys.push(h - MARGIN);
+                ys.push(h - canvas.margin);
                 ys.sort((a, b) => a - b);
 
                 // Screen-y shift from inner edge to outer border along grid line
                 const shift = edge === 0
-                    ? -vx * MARGIN / vy
-                    : vx * MARGIN / vy;
+                    ? -vx * canvas.margin / vy
+                    : vx * canvas.margin / vy;
 
                 // Gradient perpendicular to border
                 const grad = edge === 0
-                    ? tc.createLinearGradient(0, 0, MARGIN, 0)
-                    : tc.createLinearGradient(w - MARGIN, 0, w, 0);
+                    ? tc.createLinearGradient(0, 0, canvas.margin, 0)
+                    : tc.createLinearGradient(w - canvas.margin, 0, w, 0);
                 if (edge === 0) {
                     grad.addColorStop(0, clearStr);
                     grad.addColorStop(0.5, colorStr);
@@ -1605,13 +1631,13 @@ function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
                     grad.addColorStop(1, clearStr);
                 }
 
-                const lx = edge === 0 ? MARGIN / 2 : w - MARGIN / 2;
+                const lx = edge === 0 ? canvas.margin / 2 : w - canvas.margin / 2;
 
                 for (let i = 0; i < ys.length - 1; i++) {
                     const midY = (ys[i] + ys[i + 1]) / 2;
                     const stripH = ys[i + 1] - ys[i];
 
-                    const probeSx = edge === 0 ? MARGIN + 2 : w - MARGIN - 2;
+                    const probeSx = edge === 0 ? canvas.margin + 2 : w - canvas.margin - 2;
                     const [pmx, pmy] = screenToMath(probeSx, midY, cx, cy);
                     const K = Math.ceil(vx * pmx + vy * pmy + gamma[j] - 1e-9);
 
@@ -1843,8 +1869,8 @@ const loupeCtx = loupeCanvas.getContext("2d")!;
 // Footprint rectangle in the main view. Its own canvas because the step hover
 // handlers clear highlightCanvas freely.
 const footprintCanvas = document.createElement("canvas");
-footprintCanvas.width = CANVAS_W;
-footprintCanvas.height = CANVAS_H;
+footprintCanvas.width = canvas.w;
+footprintCanvas.height = canvas.h;
 footprintCanvas.className = "layer-canvas";
 footprintCanvas.style.zIndex = "60";
 footprintCanvas.style.pointerEvents = "none";
@@ -1921,13 +1947,13 @@ function closeLoupe() {
     loupeHoverK = null;
     loupeCanvas.style.display = "none";
     loupeCanvas.style.pointerEvents = "none";
-    footprintCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    footprintCtx.clearRect(0, 0, canvas.w, canvas.h);
 }
 
 function drawFootprint() {
-    footprintCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    footprintCtx.clearRect(0, 0, canvas.w, canvas.h);
     if (!loupe) return;
-    const cx = CANVAS_W / 2, cy = CANVAS_H / 2;
+    const cx = canvas.w / 2, cy = canvas.h / 2;
     const half = (LOUPE_W / 2) / loupe.scale;
     const [x0, y0] = gridToScreen(loupe.x - half, loupe.y + half, cx, cy);
     const [x1, y1] = gridToScreen(loupe.x + half, loupe.y - half, cx, cy);
@@ -2090,7 +2116,7 @@ function highlightTile(r: Rhomb, cx: number, cy: number) {
 // ── Tooltip / hover highlight ──────────────────────────────────────
 
 function clearHighlight() {
-    highlightCtx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    highlightCtx.clearRect(0, 0, canvas.w, canvas.h);
 }
 
 function formatKTooltip(K: number[]): string {
@@ -2220,15 +2246,15 @@ eventCanvas.addEventListener("mousemove", (e) => {
     const rect = eventCanvas.getBoundingClientRect();
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
-    if (sx < MARGIN || sx > CANVAS_W - MARGIN ||
-        sy < MARGIN || sy > CANVAS_H - MARGIN) {
+    if (sx < canvas.margin || sx > canvas.w - canvas.margin ||
+        sy < canvas.margin || sy > canvas.h - canvas.margin) {
         tooltip.style.display = "none";
         clearHighlight();
         return;
     }
 
-    const cx = CANVAS_W / 2;
-    const cy = CANVAS_H / 2;
+    const cx = canvas.w / 2;
+    const cy = canvas.h / 2;
 
     // Loupe trigger: the meter's quantity, evaluated near the cursor instead of
     // over the whole window. Skipped while frozen, i.e. while the cursor is

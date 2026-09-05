@@ -22,9 +22,16 @@ function makeStub(extra = {}) {
     const base = function () { return makeStub(); };
     Object.assign(base, {
         style: {}, classList: { add: noop, remove: noop },
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: SW, height: SH }),
+        getAttribute: (name) => {
+            if (!USE_ATTR) return null;
+            if (name === "data-width") return String(SW);
+            if (name === "data-height") return String(SH);
+            return null;
+        },
         appendChild: (c) => c, removeChild: noop,
         addEventListener: (type, fn) => { handlers.push({ type, fn }); },
-        setAttribute: noop, getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 800 }),
+        setAttribute: noop,
         value: "0", checked: false, textContent: "", innerHTML: "", dataset: {},
         ...extra,
     });
@@ -46,6 +53,11 @@ function ctx2d() {
 
 const inputs = [];
 const elements = new Map();
+
+// PAGECHECK_SIZE=640x480        implicit sizing, via the container's laid-out box
+// PAGECHECK_ATTR=1              explicit sizing, via data-width / data-height
+const [SW, SH] = (process.env.PAGECHECK_SIZE || "800x800").split("x").map(Number);
+const USE_ATTR = process.env.PAGECHECK_ATTR === "1";
 globalThis.document = makeStub({
     getElementById: (id) => {
         if (!elements.has(id)) elements.set(id, makeStub());
@@ -115,5 +127,6 @@ for (const { type, fn } of [...handlers]) {
     if (type === "change") run("untoggle", type, fn, 1);
 }
 
-console.log(`pagecheck: fired ${fired} handler calls, ${failed} threw`);
+console.log(`pagecheck: ${SW}x${SH} ${USE_ATTR ? "(explicit)" : "(implicit)"}` +
+            ` — fired ${fired} handler calls, ${failed} threw`);
 if (failed) process.exit(1);
