@@ -40,21 +40,156 @@ concurrent. That has a closed form: triple (a,b,c) is singular exactly when one
 particular γ is an integer *and* a particular pair sums to an integer. So if no γⱼ
 is an integer, the pentagrid is regular **everywhere** — ten integer comparisons, no
 tolerance, no window. γ is held as exact rationals so those comparisons are exact.
-The `keep γ regular` checkbox holds you off the singular set; uncheck it to sit on a
-singularity deliberately. The default γ = 0 is singular, with all five lines through
-the origin.
+The guard holds you off the singular set by default; `allow singularities` in the
+settings lets you sit on one deliberately, which is how a phason flip gets watched.
+The default γ = 0 is singular, with all five lines through the origin.
 
 **Sub-pixel regions are normal, not exceptional.** A generic γ at default zoom
 already has regions of ~0.04 px, because near-concurrent triples equidistribute. The
-meter counts how many are too small to aim at, and the **loupe** opens automatically
-as you approach one, magnifying adaptively — 8× or 8000× as needed. Move into the
-panel to hover inside it; Esc dismisses it.
+meter counts how many are too small to aim at. The **loupe** magnifies one
+adaptively — 8× or 8000× as needed — opening as you approach it; move into the panel
+to hover inside, Esc to dismiss. It is **off by default**: it is a tool for
+inspecting near-singular configurations and it gets in the way of simply looking at
+the picture. Turn it on under `settings`, or pass `loupe: true`.
 
 **The tiling is 5/2 the size of the grid that makes it.** `f(x) = (5/2)x + const +
 bounded wobble`, because `Σ vⱼvⱼᵀ = (5/2)I`. The construction projects ℤ⁵ onto a
 plane and each basis vector keeps 2/5 of its squared length there, so the gain is
-the reciprocal. The `register 5:2` toggle draws the grid at 5/2 so every rhomb lands
-on the crossing that generated it.
+the reciprocal. The grid is drawn at 5/2 always, so every rhomb lands on the
+crossing that generated it and the two pictures share one coordinate system.
+
+## API
+
+The page is a library with one caller. `method.html` loads `dist/method.js`,
+which is twenty lines handing `createPentagrid` a container and some config;
+`index.html` loads `dist/app/pair.js`, which does it twice. There is no bundler,
+so a new page is an HTML file and an entry point — nothing else.
+
+| module | holds | DOM |
+|---|---|---|
+| `geometry/pentagrid` | directions, crossings, K-tuples, dual vertices, rhombs | no |
+| `geometry/regularity` | the exact criterion, the small-region scan | no |
+| `geometry/region` | the dual map run backwards | no |
+| `geometry/decor` | arc geometry | no |
+| `view/layers` | `LayerStack` — canvases, z-order, visibility | yes |
+| `view/pentagrid` | `createPentagrid` | yes |
+| `ui/dials` | `createGammaBank` | yes |
+| `ui/loupe` | `createLoupe` | yes |
+
+### Two viewports on one pentagrid, locked together
+
+This is `src/app/pair.ts`, which drives the pair on the front page. Give both
+instances the same γ and they are the same tiling; relay the view and they move
+together.
+
+```ts
+import { createPentagrid } from "../view/pentagrid.js";
+import type { PentagridHandle, View } from "../view/pentagrid.js";
+
+const gamma = [0.23, -0.41, 0.15, 0.31, -0.28];
+
+let lines: PentagridHandle;
+let tiles: PentagridHandle;
+const relay = (to: () => PentagridHandle) => (v: View) => to().setView(v);
+
+lines = createPentagrid({
+    container: document.getElementById("grid")!,
+    gamma,
+    steps: [],                                   // no narration, no step nav
+    features: { gridLines: true, axes: false },
+    onViewChange: relay(() => tiles),
+});
+
+tiles = createPentagrid({
+    container: document.getElementById("tiles")!,
+    gamma,
+    steps: [],
+    // gridLines hides the grid. Switching a family off via its layer would also
+    // remove the rhombs that family generates, leaving nothing to draw.
+    features: { gridLines: false, axes: false, penroseTiles: true },
+    onViewChange: relay(() => lines),
+});
+```
+
+`setView` deliberately does **not** fire `onViewChange`. That is what makes the
+relay one hop rather than two instances bouncing updates off each other forever.
+
+### Config
+
+| field | meaning |
+|---|---|
+| `container` | required; where the canvases go, and the source of implicit sizing |
+| `controls`, `stepNav`, `panel`, `explanation` | optional; omit for a bare viewport |
+| `steps` | narration. `[]` for none |
+| `presets` | which features each step turns on |
+| `features` | starting feature set, for a page with no steps to impose one |
+| `gamma` | starting offsets |
+| `loupe` | the magnifier that opens on tiny regions. Off by default |
+| `buildId` | a stamp shown beside the step indicator |
+| `layers` | a callback for registering your own layers |
+
+Size comes from `data-width` / `data-height` on the container, or from the
+container's laid-out size.
+
+The handle is `{ redraw, setStep, getView, setView, setGamma, stack }`.
+
+### Registering a layer
+
+The reason the layer stack is its own module: an exploration adds to it rather
+than importing the method page. Anything with a `group` gets a panel toggle
+without the panel knowing it exists.
+
+```ts
+createPentagrid({
+    container: document.getElementById("explore")!,
+    steps: [],
+    features: { gridLines: true },
+    layers: ({ stack, currentRhombs }) => {
+        stack.add({
+            id: "ribbons", label: "Ribbons", z: 40, group: "Exploration",
+            draw: ({ ctx, cx, cy }) => {
+                for (const r of currentRhombs()) {
+                    if (r.j !== 0) continue;      // one family's ribbon
+                    // r.x0, r.y0 is the crossing that generated this tile
+                }
+            },
+        });
+    },
+});
+```
+
+`visible` and `opacity` are predicates read at draw time, not flags, so a step
+preset changes what is drawn by changing what they see.
+
+### The geometry on its own
+
+`geometry/` has no DOM in it and runs anywhere — that is what the tests use.
+
+```js
+import { collectRhombs, computeKTuple, dualVertex, makeDirections }
+    from "./dist/geometry/pentagrid.js";
+import { singularTriples } from "./dist/geometry/regularity.js";
+
+const grid = {
+    directions: makeDirections(true),            // true = v0 points up
+    gamma: [0.23, -0.41, 0.15, 0.31, -0.28],
+};
+
+const rhombs = collectRhombs(grid, { xMin: -10, xMax: 10, yMin: -10, yMax: 10 },
+                             { gain: 2.5 });
+rhombs.length;                                   // 737
+rhombs.filter((r) => r.thick).length;            // 453
+rhombs[0].x0;                                    // the crossing that made it
+
+computeKTuple(grid, 0.4, 0.2);                   // [1, 0, 0, 1, 1]
+dualVertex(grid, [1, 0, 0, 1, 1]);               // [1.5388, 0.5]
+
+// γ as exact rationals over a denominator: regularity is then decided, not tested
+singularTriples(grid.gamma.map((g) => Math.round(g * 1e4)), 1e4);   // []
+```
+
+The `gain: 2.5` is the registration factor — see the third note above. Pass `1`
+to work in raw grid coordinates.
 
 ## Development
 
@@ -63,15 +198,23 @@ npm install
 npm run build    # stamp the build id, then compile TypeScript
 npm run dev      # tsc watch mode
 npm run serve    # static server on :8001
+npm test         # geometry, layers, factory and UI clusters
+npm run check    # pagecheck: import a built page against a stub DOM
 ```
+
+`npm run check` exists because typechecking says nothing about whether a page
+renders — a throw during module evaluation leaves a blank canvas and an error
+only in the console. It stubs the DOM, imports the built page, turns every
+checkbox on, walks the steps and fires the hover paths. `PAGECHECK_SIZE=640x480`
+runs it at another canvas size; non-square ones catch code that assumed `w === h`.
 
 `npm run build` writes `src/build-id.ts` first; the page shows that stamp next to
 the step indicator and logs it to the console, so a stale script is obvious at a
 glance. Both `dist/` and `src/build-id.ts` are generated and gitignored — CI
 regenerates them, since the Pages workflow runs the same build.
 
-`src/method.ts` is essentially the whole project. Plain `tsc`, no bundler, no
-runtime dependencies.
+Plain `tsc`, no bundler, no runtime dependencies. `dist/` mirrors `src/`, and
+each page loads its own entry point.
 
 ## Notes
 

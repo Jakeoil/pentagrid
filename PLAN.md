@@ -464,9 +464,29 @@ ES modules means multiple entry points need no bundler and no configuration.
    Also worth knowing: `Math.round` of a tiny negative gives `-0`, which is
    strictly-deep-unequal to `0` but behaves as zero everywhere it matters,
    including the criterion's `% den === 0`.
-3. **Two clusters as factories** returning `{element, sync}` — the γ dial bank and
-   the loupe, which are the two most portable things in the file. Two proves the
-   pattern without committing to all five.
+3. **~~Two clusters as factories~~ — DONE 2026-09-05.**
+
+   `src/ui/dials.ts` — `createGammaBank({count, colors, onChange, onLock})`
+   returning `{element, sync}`. It is a view over a vector of numbers with one
+   index held as the dependent one: it reports which slider moved and which label
+   was clicked, and renders what it is told. **It never computes the locked
+   value** — that Σγ = 0 is the constraint is the page's business, not the bank's,
+   which is what makes it a multigrid widget rather than a pentagrid one.
+
+   One detail worth keeping: `sync` writes back to the *computed* slider only.
+   Writing to the one under the user's thumb would fight the drag.
+
+   `src/ui/loupe.ts` — `createLoupe({container, render, onHover, tooltip})`. Given
+   a point, a magnification and a label, plus a callback that paints its own
+   content at the panel's view. It has no idea what it is magnifying. What stayed
+   behind in `pentagrid.ts` is only what this page can say: what counts as a
+   target, how to paint the magnified grid, and what a point under the cursor
+   means.
+
+   **13 tests** in `tools/ui.test.mjs`, driving both with no pentagrid in sight —
+   which is the only way the reuse claim means anything. The DOM stub grew
+   per-element `children` and `on` so a test can walk what a factory built and
+   fire its handlers, rather than only checking construction did not throw.
 4. **~~Layer registration~~ — DONE 2026-09-05** (out of order; it does not depend
    on stage 3). `src/view/layers.ts` holds `LayerStack`, page-agnostic: it knows
    about canvases, z-order and visibility, and nothing about pentagrids. An
