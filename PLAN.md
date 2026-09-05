@@ -437,8 +437,33 @@ ES modules means multiple entry points need no bundler and no configuration.
    still 40 at 800) rather than its number, so the K-labels keep a gutter at any
    size. `pagecheck` now takes `PAGECHECK_SIZE` and `PAGECHECK_ATTR` and is run at
    several sizes including non-square.
-2. **Extract `geometry/`** — no DOM, no globals. Gives real tests, retires the
-   scratchpad re-derivations.
+2. **~~Extract `geometry/`~~ — DONE 2026-09-05.** Five modules, no DOM and no
+   module state: `types`, `pentagrid` (directions, crossings, K-tuples, rhombs),
+   `regularity` (the criterion and the small-region scan), `region` (the map run
+   backwards), `decor` (arc geometry; drawing stays in the page). `method.ts`
+   keeps thin adapters over a `model` built once from the two const arrays it
+   mutates in place, so the call sites did not change: −281 lines, +74.
+
+   **16 tests** in `tools/geometry.test.mjs` (`npm test`) against the real
+   modules, replacing four throwaway re-derivations. Where a test needs an oracle
+   — the brute-force concurrency search — it is written longhand in the test file
+   on purpose: an oracle that imports the code under test proves nothing.
+
+   Writing them found two real defects, which is the argument for having done it:
+
+   - **The scan was reading the wrong rectangle.** It was handed the *tiling*
+     visible rect while working in grid coordinates. Harmless when the gain was 1;
+     once registration became permanent it meant scanning 6.25× the area and
+     counting regions that are not on screen toward the meter. Now takes the grid
+     rect.
+   - **The page's γ cannot represent a 5e-9 nudge.** Over a denominator of 10⁴ it
+     rounds to zero, so in the shipped code the old nudge was not merely
+     ineffective — it did not exist. A second reason, independent of the symmetry
+     argument in item 1, that it could never have worked. Locked in as a test.
+
+   Also worth knowing: `Math.round` of a tiny negative gives `-0`, which is
+   strictly-deep-unequal to `0` but behaves as zero everywhere it matters,
+   including the criterion's `% den === 0`.
 3. **Two clusters as factories** returning `{element, sync}` — the γ dial bank and
    the loupe, which are the two most portable things in the file. Two proves the
    pattern without committing to all five.
