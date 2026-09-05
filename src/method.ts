@@ -1,6 +1,15 @@
 import { BUILD_ID } from "./build-id.js";
+import type {
+    Concurrency, Pentagrid, Rhomb, SmallRegion, Vec2, ViewRect,
+} from "./geometry/types.js";
+import {
+    NUM_GRIDS, collectRhombs as geoCollectRhombs, computeKTuple as geoComputeKTuple,
+    makeDirections, solveIntersection as geoSolveIntersection,
+} from "./geometry/pentagrid.js";
+import { scanRegions, singularTriples as geoSingularTriples } from "./geometry/regularity.js";
+import { regionPoly as geoRegionPoly } from "./geometry/region.js";
+import { rhombArcs } from "./geometry/decor.js";
 
-const NUM_GRIDS = 5;
 
 // Unit vectors at 72° intervals.
 //
@@ -12,14 +21,11 @@ const NUM_GRIDS = 5;
 let verticalSymmetry = true;
 // "Sometimes you just have to see them."
 let gridLineWidth = 1;
-const directions: [number, number][] = [];
+const directions: Vec2[] = [];
 
 function rebuildDirections() {
-    const offset = verticalSymmetry ? Math.PI / 2 : 0;
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const angle = (2 * Math.PI * j) / 5 + offset;
-        directions[j] = [Math.cos(angle), Math.sin(angle)];
-    }
+    const next = makeDirections(verticalSymmetry);
+    for (let j = 0; j < NUM_GRIDS; j++) directions[j] = next[j];
 }
 rebuildDirections();
 
@@ -71,6 +77,58 @@ const canvas = readCanvasSpec();
 const GAMMA_DEN = 10000;
 const gammaQ = [0, 0, 0, 0, 0];
 const gamma = [0, 0, 0, 0, 0];
+
+// ── Geometry adapters ─────────────────────────────────────────────
+//
+// The geometry layer takes the pentagrid explicitly, which is what makes it
+// testable; the page keeps it in module state. `model` is built once and stays
+// current because directions and gamma are const arrays mutated in place.
+
+const model: Pentagrid = { directions, gamma };
+
+function solveIntersection(j: number, k: number, nj: number, nk: number): Vec2 | null {
+    return geoSolveIntersection(model, j, k, nj, nk);
+}
+
+function computeKTuple(x: number, y: number): number[] {
+    return geoComputeKTuple(model, x, y);
+}
+
+function collectRhombs(vis: ViewRect): Rhomb[] {
+    return geoCollectRhombs(model, vis, {
+        gain: gridGain(),
+        active: gridLayers.map((l) => l.userVisible),
+    });
+}
+
+/** Clips to whatever view is active, which is how the loupe reuses it. */
+function regionPoly(K: readonly number[]): Vec2[] {
+    return geoRegionPoly(model, K, getVisibleRect());
+}
+
+function singularTriples(): string[] {
+    return geoSingularTriples(gammaQ, GAMMA_DEN);
+}
+
+/** The visible rect in GRID coordinates, whatever the current view is. */
+function gridVisibleRect(): ViewRect {
+    let r!: ViewRect;
+    withView(gridView(), () => { r = getVisibleRect(); });
+    return r;
+}
+
+function scanSmallRegions() {
+    // The scan is grid-space, so it gets the grid rect. It had been handed the
+    // tiling rect, which since registration became permanent meant scanning 6.25x
+    // the area and counting regions that are not on screen toward the meter.
+    const found = scanRegions(model, gridVisibleRect(), {
+        candidate: CANDIDATE_PX,
+        concurrentTol: CONCURRENT_TOL,
+        scale,
+    });
+    smallRegions = found.small;
+    concurrencies = found.concurrencies;
+}
 let currentStep = 0;
 const STEP_COUNT = 6;
 let lockedIndex = 4;
@@ -533,20 +591,12 @@ controlsDiv.appendChild(sumSpan);
 // zero is the phason flip, which is the thing worth looking at. So we measure
 // rather than enforce, in pixels, over the visible window. See PLAN.md item 1.
 
-interface SmallRegion {
-    sizePx: number;         // 2 x inradius, in screen pixels
-    x: number; y: number;   // incenter, math coords
-}
 
 // A point where three or more lines actually meet. This is not a small region —
 // it has no interior at all — and no magnification will ever open it up. It is
 // where de Bruijn's construction is genuinely undefined, so it is reported
 // separately and far more loudly. The default γ = 0 puts one at the origin with
 // all five lines through it.
-interface Concurrency {
-    x: number; y: number;
-    lines: number;          // how many families pass through the point
-}
 
 // ── Regularity, decided exactly ───────────────────────────────────
 //
@@ -574,22 +624,8 @@ interface Concurrency {
 // triples 014 and 023 stayed singular no matter how small the step.
 
 // [key, lone family, the other two] for each triple, read off the coefficients.
-const TRIPLES: [string, number, [number, number]][] = [
-    ["012", 1, [0, 2]], ["013", 3, [0, 1]], ["014", 0, [1, 4]], ["023", 0, [2, 3]],
-    ["024", 2, [0, 4]], ["034", 4, [0, 3]], ["123", 2, [1, 3]], ["124", 4, [1, 2]],
-    ["134", 1, [3, 4]], ["234", 3, [2, 4]],
-];
 
 /** Exactly which triples are singular. Empty means provably regular. */
-function singularTriples(): string[] {
-    const out: string[] = [];
-    for (const [key, L, [P, Q]] of TRIPLES) {
-        if (gammaQ[L] % GAMMA_DEN === 0 && (gammaQ[P] + gammaQ[Q]) % GAMMA_DEN === 0) {
-            out.push(key);
-        }
-    }
-    return out;
-}
 
 // Only triples at least this close to concurrent are worth measuring exactly.
 const CANDIDATE_PX = 24;
@@ -629,20 +665,6 @@ meterDiv.appendChild(meterSpan);
 controlsDiv.appendChild(meterDiv);
 
 /** Range of line indices of family j that cross the visible rect. */
-function lineRange(j: number, vis: ViewRect): [number, number] {
-    const [vx, vy] = directions[j];
-    let lo = Infinity, hi = -Infinity;
-    const corners: [number, number][] = [
-        [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
-        [vis.xMin, vis.yMax], [vis.xMax, vis.yMax],
-    ];
-    for (const [x, y] of corners) {
-        const d = vx * x + vy * y + gamma[j];
-        if (d < lo) lo = d;
-        if (d > hi) hi = d;
-    }
-    return [Math.ceil(lo) - 1, Math.floor(hi) + 1];
-}
 
 /**
  * Find every region small enough to be hard to hit, over the visible window.
@@ -659,79 +681,6 @@ function lineRange(j: number, vis: ViewRect): [number, number] {
  * lines are one unit apart and these triangles are tiny — but the meter is
  * optimistic, not conservative, when it happens.
  */
-function scanSmallRegions() {
-    const vis = getVisibleRect();
-    const out: SmallRegion[] = [];
-    const degenerate: [number, number][] = [];
-    const ranges: [number, number][] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) ranges.push(lineRange(j, vis));
-
-    for (let a = 0; a < NUM_GRIDS; a++) {
-        for (let b = a + 1; b < NUM_GRIDS; b++) {
-            for (let c = b + 1; c < NUM_GRIDS; c++) {
-                for (let na = ranges[a][0]; na <= ranges[a][1]; na++) {
-                    for (let nb = ranges[b][0]; nb <= ranges[b][1]; nb++) {
-                        const P = solveIntersection(a, b, na, nb);
-                        if (!P) continue;
-                        if (P[0] < vis.xMin || P[0] > vis.xMax ||
-                            P[1] < vis.yMin || P[1] > vis.yMax) continue;
-
-                        const d = directions[c][0] * P[0] + directions[c][1] * P[1] + gamma[c];
-                        const nc = Math.round(d);
-                        if (Math.abs(d - nc) * scale > CANDIDATE_PX) continue;
-
-                        const Q = solveIntersection(b, c, nb, nc);
-                        const R = solveIntersection(a, c, na, nc);
-                        if (!Q || !R) continue;
-
-                        const area = Math.abs(
-                            (Q[0] - P[0]) * (R[1] - P[1]) - (Q[1] - P[1]) * (R[0] - P[0])
-                        ) / 2;
-                        const sP = Math.hypot(R[0] - Q[0], R[1] - Q[1]); // opposite P
-                        const sQ = Math.hypot(R[0] - P[0], R[1] - P[1]); // opposite Q
-                        const sR = Math.hypot(Q[0] - P[0], Q[1] - P[1]); // opposite R
-                        const perim = sP + sQ + sR;
-                        if (perim < 1e-15) { degenerate.push([P[0], P[1]]); continue; }
-
-                        // The inradius is how wide a target the region is. The
-                        // incenter, not the centroid, is where to point the loupe:
-                        // on a sliver the centroid can sit hard against an edge,
-                        // while the incenter is furthest from all three.
-                        const inradius = 2 * area / perim;
-                        if (inradius < CONCURRENT_TOL) {
-                            // The triangle has collapsed: these three lines are
-                            // concurrent, not merely close. No interior to hover.
-                            degenerate.push([P[0], P[1]]);
-                            continue;
-                        }
-                        out.push({
-                            sizePx: 2 * inradius * scale,
-                            x: (sP * P[0] + sQ * Q[0] + sR * R[0]) / perim,
-                            y: (sP * P[1] + sQ * Q[1] + sR * R[1]) / perim,
-                        });
-                    }
-                }
-            }
-        }
-    }
-    smallRegions = out;
-
-    // Every triple through the same point reports it, so dedupe by position and
-    // then count how many families actually pass through — that count, not the
-    // number of triples, is the multiplicity worth reporting.
-    const CLUSTER = 1e-7;
-    const conc: Concurrency[] = [];
-    for (const [x, y] of degenerate) {
-        if (conc.some((c) => Math.hypot(c.x - x, c.y - y) < CLUSTER)) continue;
-        let lines = 0;
-        for (let j = 0; j < NUM_GRIDS; j++) {
-            const d = directions[j][0] * x + directions[j][1] * y + gamma[j];
-            if (Math.abs(d - Math.round(d)) < CLUSTER) lines++;
-        }
-        conc.push({ x, y, lines });
-    }
-    concurrencies = conc;
-}
 
 function updateMeter() {
     // The minimum alone is a poor readout: by equidistribution a generic window
@@ -742,8 +691,8 @@ function updateMeter() {
     let min = Infinity;
     let under = 0;
     for (const r of smallRegions) {
-        if (r.sizePx < min) min = r.sizePx;
-        if (r.sizePx < HOVERABLE_PX) under++;
+        if (r.size < min) min = r.size;
+        if (r.size < HOVERABLE_PX) under++;
     }
     const tail = under === 0
         ? `all regions ≥ ${HOVERABLE_PX} px`
@@ -891,10 +840,6 @@ function screenToMath(sx: number, sy: number, cx: number, cy: number): [number, 
     return [viewX + (sx - cx) / scale, viewY - (sy - cy) / scale];
 }
 
-interface ViewRect {
-    xMin: number; xMax: number;
-    yMin: number; yMax: number;
-}
 
 function getVisibleRect(): ViewRect {
     const cx = viewW / 2;
@@ -1043,113 +988,9 @@ eventCanvas.addEventListener("touchend", (e) => {
 
 // ── Math utilities ────────────────────────────────────────────────
 
-function solveIntersection(
-    j: number, k: number, nj: number, nk: number,
-): [number, number] | null {
-    const [cj, sj] = directions[j];
-    const [ck, sk] = directions[k];
-    const det = cj * sk - sj * ck;
-    if (Math.abs(det) < 1e-10) return null;
-    const rj = nj - gamma[j];
-    const rk = nk - gamma[k];
-    return [
-        (sk * rj - sj * rk) / det,
-        (cj * rk - ck * rj) / det,
-    ];
-}
 
-interface Rhomb {
-    vertices: [number, number][]; // 4 vertices in parallelogram order
-    kTuples: number[][]; // K-tuple for each of the 4 vertices
-    thick: boolean;
-    // Provenance: the crossing that generated this rhomb. computeRhomb has
-    // always received all of it; keeping it is what lets a hovered intersection
-    // find its tile, and what the ribbon explorations need. PLAN.md item 4.
-    j: number; k: number;    // the two families whose lines crossed
-    nj: number; nk: number;  // and which line of each
-    x0: number; y0: number;  // the intersection itself, in grid coordinates
-}
 
-function computeRhomb(
-    j: number, k: number, nj: number, nk: number,
-    x0: number, y0: number,
-): Rhomb {
-    const baseK: number[] = [];
-    let fx = 0, fy = 0;
-    for (let i = 0; i < NUM_GRIDS; i++) {
-        let Ki: number;
-        if (i === j) Ki = nj;
-        else if (i === k) Ki = nk;
-        else {
-            const dot = directions[i][0] * x0 + directions[i][1] * y0;
-            Ki = Math.ceil(dot + gamma[i] - 1e-9);
-        }
-        baseK.push(Ki);
-        fx += Ki * directions[i][0];
-        fy += Ki * directions[i][1];
-    }
 
-    const [vjx, vjy] = directions[j];
-    const [vkx, vky] = directions[k];
-
-    const vertices: [number, number][] = [
-        [fx, fy],
-        [fx + vjx, fy + vjy],
-        [fx + vjx + vkx, fy + vjy + vky],
-        [fx + vkx, fy + vky],
-    ];
-
-    // K-tuples for each vertex: base, base+e_j, base+e_j+e_k, base+e_k
-    const kTuples: number[][] = [
-        baseK,
-        baseK.map((v, i) => i === j ? v + 1 : v),
-        baseK.map((v, i) => (i === j || i === k) ? v + 1 : v),
-        baseK.map((v, i) => i === k ? v + 1 : v),
-    ];
-
-    const d = Math.min(k - j, 5 - (k - j));
-    return { vertices, kTuples, thick: d === 1, j, k, nj, nk, x0, y0 };
-}
-
-function collectRhombs(vis: ViewRect): Rhomb[] {
-    const rhombs: Rhomb[] = [];
-    // vis is in TILING coordinates, where the vertices live. The line indices are
-    // grid-space, so their range comes from vis scaled down by the registration
-    // gain — without that division the loops over-generate by gain² and most of
-    // the work is thrown away by the visibility test.
-    const maxCoord = Math.max(
-        Math.abs(vis.xMin), Math.abs(vis.xMax),
-        Math.abs(vis.yMin), Math.abs(vis.yMax),
-    ) / gridGain();
-    const maxN = Math.min(Math.ceil(maxCoord) + 5, 50);
-    const pad = 1.5;
-
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const layerJ = layers.get(`grid-${j}`);
-        if (layerJ && !layerJ.userVisible) continue;
-        for (let k = j + 1; k < NUM_GRIDS; k++) {
-            const layerK = layers.get(`grid-${k}`);
-            if (layerK && !layerK.userVisible) continue;
-            for (let nj = -maxN; nj <= maxN; nj++) {
-                for (let nk = -maxN; nk <= maxN; nk++) {
-                    const pt = solveIntersection(j, k, nj, nk);
-                    if (!pt) continue;
-                    const rhomb = computeRhomb(j, k, nj, nk, pt[0], pt[1]);
-                    let visible = false;
-                    for (const [vx, vy] of rhomb.vertices) {
-                        if (vx >= vis.xMin - pad && vx <= vis.xMax + pad &&
-                            vy >= vis.yMin - pad && vy <= vis.yMax + pad) {
-                            visible = true;
-                            break;
-                        }
-                    }
-                    if (visible) rhombs.push(rhomb);
-                }
-            }
-        }
-    }
-    return rhombs;
-}
 
 // ── Drawing ───────────────────────────────────────────────────────
 
@@ -1369,8 +1210,6 @@ function drawDualVertices(
 // at f of radius ARC_T (both its edges leave f in a + direction), and one at the
 // opposite corner of radius 1-ARC_T. The two radii sum to 1, which is what makes
 // them meet. 1/φ² and 1/φ are the golden choice.
-const PHI = (1 + Math.sqrt(5)) / 2;
-const ARC_T = 1 / (PHI * PHI);
 const ARC_COLORS = ["#c1440e", "#1b6ca8"];
 
 /** One arc in math coordinates, taking the short way round. */
@@ -1395,16 +1234,10 @@ function drawPenroseDecor(
     tc.lineWidth = 1.6;
     tc.lineCap = "round";
     for (const r of rhombs) {
-        const [vjx, vjy] = directions[r.j];
-        const [vkx, vky] = directions[r.k];
-        const aj = Math.atan2(vjy, vjx);
-        const ak = Math.atan2(vky, vkx);
-        const [fx, fy] = r.vertices[0];
-        const [gx, gy] = r.vertices[2];
-        tc.strokeStyle = ARC_COLORS[0];
-        arcBetween(tc, fx, fy, ARC_T, aj, ak, cx, cy);
-        tc.strokeStyle = ARC_COLORS[1];
-        arcBetween(tc, gx, gy, 1 - ARC_T, aj + Math.PI, ak + Math.PI, cx, cy);
+        for (const arc of rhombArcs(model, r)) {
+            tc.strokeStyle = ARC_COLORS[arc.family];
+            arcBetween(tc, arc.x, arc.y, arc.r, arc.a1, arc.a2, cx, cy);
+        }
     }
 }
 
@@ -1449,14 +1282,6 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
     ];
 }
 
-function computeKTuple(mx: number, my: number): number[] {
-    const K: number[] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const dot = directions[j][0] * mx + directions[j][1] * my;
-        K.push(Math.ceil(dot + gamma[j] - 1e-9));
-    }
-    return K;
-}
 
 function drawKRegions(tc: CanvasRenderingContext2D, cx: number, cy: number) {
     const w = canvas.w;
@@ -1913,16 +1738,16 @@ function nearestLoupeTarget(sx: number, sy: number, cx: number, cy: number): Lou
     if (best) return best;
 
     for (const r of smallRegions) {
-        if (r.sizePx >= HOVERABLE_PX) continue;
+        if (r.size >= HOVERABLE_PX) continue;
         const [rx, ry] = gridToScreen(r.x, r.y, cx, cy);
         const d = Math.hypot(rx - sx, ry - sy);
         if (d < bestD) {
             bestD = d;
             const mag = Math.min(LOUPE_MAX_MAG,
-                Math.max(2, LOUPE_TARGET_PX / Math.max(r.sizePx, 1e-9)));
+                Math.max(2, LOUPE_TARGET_PX / Math.max(r.size, 1e-9)));
             best = {
                 x: r.x, y: r.y, mag,
-                label: `region ${r.sizePx < 0.01 ? r.sizePx.toExponential(1) : r.sizePx.toFixed(2)} px`,
+                label: `region ${r.size < 0.01 ? r.size.toExponential(1) : r.size.toFixed(2)} px`,
             };
         }
     }
@@ -2135,22 +1960,6 @@ function formatKTooltip(K: number[]): string {
  * clipped to the visible rect. The region is the intersection of half-planes
  * K_j - 1 < x·v_j + γ_j ≤ K_j, found by clipping against each strip in turn.
  */
-function regionPoly(K: number[]): [number, number][] {
-    const vis = getVisibleRect();
-    let poly: [number, number][] = [
-        [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
-        [vis.xMax, vis.yMax], [vis.xMin, vis.yMax],
-    ];
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const [vx, vy] = directions[j];
-        const lo = K[j] - 1 + 1e-9; // x·v + γ > K_j - 1
-        const hi = K[j] + 1e-9;     // x·v + γ ≤ K_j
-        poly = clipPoly(poly, vx, vy, gamma[j] - lo, true);
-        poly = clipPoly(poly, -vx, -vy, -(gamma[j] - hi), true);
-        if (poly.length === 0) break;
-    }
-    return poly;
-}
 
 function highlightRegion(K: number[], cx: number, cy: number, dotSx: number, dotSy: number) {
     const poly = regionPoly(K);
@@ -2219,22 +2028,6 @@ function highlightRegion(K: number[], cx: number, cy: number, dotSx: number, dot
 }
 
 /** Clip polygon to the half-plane a*x + b*y + c ≥ 0 (or > 0 if strict, but we use ≥ for robustness) */
-function clipPoly(poly: [number, number][], a: number, b: number, c: number, _strict: boolean): [number, number][] {
-    if (poly.length === 0) return poly;
-    const out: [number, number][] = [];
-    for (let i = 0; i < poly.length; i++) {
-        const cur = poly[i];
-        const next = poly[(i + 1) % poly.length];
-        const dCur = a * cur[0] + b * cur[1] + c;
-        const dNext = a * next[0] + b * next[1] + c;
-        if (dCur >= 0) out.push(cur);
-        if ((dCur >= 0) !== (dNext >= 0)) {
-            const t = dCur / (dCur - dNext);
-            out.push([cur[0] + t * (next[0] - cur[0]), cur[1] + t * (next[1] - cur[1])]);
-        }
-    }
-    return out;
-}
 
 eventCanvas.addEventListener("mousemove", (e) => {
     if (isPanning) {

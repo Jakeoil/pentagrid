@@ -1,0 +1,171 @@
+// The construction itself: directions, crossings, K-tuples, rhombs.
+
+import type { Pentagrid, Rhomb, Vec2, ViewRect } from "./types.js";
+
+export const NUM_GRIDS = 5;
+
+/** The tie-break in the ceiling, so a point exactly on a line resolves to one
+ *  side consistently everywhere it is asked. */
+export const K_EPS = 1e-9;
+
+/**
+ * Five unit vectors at 72°.
+ *
+ * With verticalSymmetry the star is turned a quarter turn, so v0 points up and
+ * family 0's LINES are horizontal; the five directions are then mirror symmetric
+ * about the vertical axis (90, 162, 234, 306, 18 degrees). It cannot disturb
+ * regularity — that depends only on angle differences, which a common rotation
+ * preserves.
+ */
+export function makeDirections(verticalSymmetry: boolean): Vec2[] {
+    const offset = verticalSymmetry ? Math.PI / 2 : 0;
+    const out: Vec2[] = [];
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const a = (2 * Math.PI * j) / NUM_GRIDS + offset;
+        out.push([Math.cos(a), Math.sin(a)]);
+    }
+    return out;
+}
+
+/** Where line nj of family j meets line nk of family k. Null if parallel. */
+export function solveIntersection(
+    pg: Pentagrid, j: number, k: number, nj: number, nk: number,
+): Vec2 | null {
+    const [cj, sj] = pg.directions[j];
+    const [ck, sk] = pg.directions[k];
+    const det = cj * sk - sj * ck;
+    if (Math.abs(det) < 1e-10) return null;
+    const rj = nj - pg.gamma[j];
+    const rk = nk - pg.gamma[k];
+    return [(sk * rj - sj * rk) / det, (cj * rk - ck * rj) / det];
+}
+
+/** K_j(x) = ceil(x·v_j + γ_j), the pentagrid coordinates of a point. */
+export function computeKTuple(pg: Pentagrid, x: number, y: number): number[] {
+    const K: number[] = [];
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const dot = pg.directions[j][0] * x + pg.directions[j][1] * y;
+        K.push(Math.ceil(dot + pg.gamma[j] - K_EPS));
+    }
+    return K;
+}
+
+/** The dual vertex f(x) = Σ K_j·v_j for a K-tuple. */
+export function dualVertex(pg: Pentagrid, K: readonly number[]): Vec2 {
+    let fx = 0, fy = 0;
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        fx += K[j] * pg.directions[j][0];
+        fy += K[j] * pg.directions[j][1];
+    }
+    return [fx, fy];
+}
+
+/** The rhomb dual to one crossing. x0,y0 is that crossing, in grid coordinates. */
+export function computeRhomb(
+    pg: Pentagrid, j: number, k: number, nj: number, nk: number,
+    x0: number, y0: number,
+): Rhomb {
+    const baseK: number[] = [];
+    let fx = 0, fy = 0;
+    for (let i = 0; i < NUM_GRIDS; i++) {
+        let Ki: number;
+        if (i === j) Ki = nj;
+        else if (i === k) Ki = nk;
+        else {
+            const dot = pg.directions[i][0] * x0 + pg.directions[i][1] * y0;
+            Ki = Math.ceil(dot + pg.gamma[i] - K_EPS);
+        }
+        baseK.push(Ki);
+        fx += Ki * pg.directions[i][0];
+        fy += Ki * pg.directions[i][1];
+    }
+
+    const [vjx, vjy] = pg.directions[j];
+    const [vkx, vky] = pg.directions[k];
+
+    const vertices: Vec2[] = [
+        [fx, fy],
+        [fx + vjx, fy + vjy],
+        [fx + vjx + vkx, fy + vjy + vky],
+        [fx + vkx, fy + vky],
+    ];
+
+    // base, base+e_j, base+e_j+e_k, base+e_k
+    const kTuples: number[][] = [
+        baseK,
+        baseK.map((v, i) => (i === j ? v + 1 : v)),
+        baseK.map((v, i) => (i === j || i === k ? v + 1 : v)),
+        baseK.map((v, i) => (i === k ? v + 1 : v)),
+    ];
+
+    const d = Math.min(k - j, NUM_GRIDS - (k - j));
+    return { vertices, kTuples, thick: d === 1, j, k, nj, nk, x0, y0 };
+}
+
+export interface CollectOptions {
+    /** Registration gain. vis is in tiling coordinates but the line indices are
+     *  grid-space, so the search range is vis divided by this. Without it the
+     *  loops over-generate by gain² and throw the excess away. */
+    gain?: number;
+    /** Which families participate. Omitted means all of them. */
+    active?: readonly boolean[];
+    /** Hard cap on the index range, to bound the work when zoomed far out. */
+    maxNCap?: number;
+    /** How far outside vis a vertex may be and still count as visible. */
+    pad?: number;
+}
+
+/** Every rhomb with a vertex in (or near) vis. vis is in TILING coordinates. */
+export function collectRhombs(
+    pg: Pentagrid, vis: ViewRect, opts: CollectOptions = {},
+): Rhomb[] {
+    const gain = opts.gain ?? 1;
+    const cap = opts.maxNCap ?? 50;
+    const pad = opts.pad ?? 1.5;
+    const active = opts.active;
+
+    const maxCoord = Math.max(
+        Math.abs(vis.xMin), Math.abs(vis.xMax),
+        Math.abs(vis.yMin), Math.abs(vis.yMax),
+    ) / gain;
+    const maxN = Math.min(Math.ceil(maxCoord) + 5, cap);
+
+    const rhombs: Rhomb[] = [];
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        if (active && !active[j]) continue;
+        for (let k = j + 1; k < NUM_GRIDS; k++) {
+            if (active && !active[k]) continue;
+            for (let nj = -maxN; nj <= maxN; nj++) {
+                for (let nk = -maxN; nk <= maxN; nk++) {
+                    const pt = solveIntersection(pg, j, k, nj, nk);
+                    if (!pt) continue;
+                    const rhomb = computeRhomb(pg, j, k, nj, nk, pt[0], pt[1]);
+                    for (const [vx, vy] of rhomb.vertices) {
+                        if (vx >= vis.xMin - pad && vx <= vis.xMax + pad &&
+                            vy >= vis.yMin - pad && vy <= vis.yMax + pad) {
+                            rhombs.push(rhomb);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return rhombs;
+}
+
+/** Range of line indices of family j crossing vis (vis in GRID coordinates). */
+export function lineRange(pg: Pentagrid, j: number, vis: ViewRect): [number, number] {
+    const [vx, vy] = pg.directions[j];
+    let lo = Infinity, hi = -Infinity;
+    const corners: Vec2[] = [
+        [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
+        [vis.xMin, vis.yMax], [vis.xMax, vis.yMax],
+    ];
+    for (const [x, y] of corners) {
+        const d = vx * x + vy * y + pg.gamma[j];
+        if (d < lo) lo = d;
+        if (d > hi) hi = d;
+    }
+    return [Math.ceil(lo) - 1, Math.floor(hi) + 1];
+}
