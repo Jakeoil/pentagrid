@@ -23,7 +23,14 @@ const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
 const CANVAS_W = 800;
 const CANVAS_H = 800;
 
-// State
+// State.
+//
+// gamma is kept twice: as exact rationals in gammaQ (integer numerators over
+// GAMMA_DEN) and as floats in gamma for the drawing code. The exact copy is the
+// source of truth, because regularity is decidable exactly and only in exact
+// arithmetic — see singularTriples().
+const GAMMA_DEN = 10000;
+const gammaQ = [0, 0, 0, 0, 0];
 const gamma = [0, 0, 0, 0, 0];
 let currentStep = 0;
 const STEP_COUNT = 6;
@@ -39,6 +46,42 @@ let viewY = 0;
 let viewW = CANVAS_W;
 let viewH = CANVAS_H;
 let viewMargin = MARGIN;
+
+// The dual map has gain 5/2: f(x) = (5/2)x + const + bounded wobble, because
+// Sum_j v_j v_j^T = (5/2)I. So the tiling is drawn 2.5x the pentagrid that makes
+// it, and the two do not register. Displaying the grid under x -> (5/2)x puts
+// every rhomb back on the crossing that generated it. It is not a fudge: the
+// projection R^5 -> E_par sends each basis vector to length sqrt(2/5), and with
+// that normalisation the gain is exactly 1 — the 5/2 is the price of unit
+// rhombs. See PLAN.md item 3.
+const REGISTER_GAIN = 5 / 2;
+let registerScales = false;
+
+function gridGain(): number {
+    return registerScales ? REGISTER_GAIN : 1;
+}
+
+/** The view that grid-space objects (lines, K-regions, K-labels) draw under. */
+function gridView(): ViewState {
+    const g = gridGain();
+    return {
+        scale: scale * g, viewX: viewX / g, viewY: viewY / g,
+        w: viewW, h: viewH, margin: viewMargin,
+    };
+}
+
+/** Cursor position in grid coordinates, undoing the registration gain. */
+function screenToGrid(sx: number, sy: number, cx: number, cy: number): [number, number] {
+    const g = gridGain();
+    const [mx, my] = screenToMath(sx, sy, cx, cy);
+    return [mx / g, my / g];
+}
+
+/** Place a grid-space point on screen, applying the registration gain. */
+function gridToScreen(gx: number, gy: number, cx: number, cy: number): [number, number] {
+    const g = gridGain();
+    return mathToScreen(gx * g, gy * g, cx, cy);
+}
 
 // Loupe state lives here rather than in the loupe section below, because draw()
 // reads it and draw() first runs at init, before that section is evaluated.
@@ -240,7 +283,7 @@ container.appendChild(eventCanvas);
 const bgLayer = addLayer("background", "K-regions", 5, () => {
     bgLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     if (currentStep === 2) {
-        drawKRegions(bgLayer.ctx, CANVAS_W / 2, CANVAS_H / 2);
+        withView(gridView(), () => drawKRegions(bgLayer.ctx, CANVAS_W / 2, CANVAS_H / 2));
     }
 });
 
@@ -249,7 +292,8 @@ const gridLayers: Layer[] = [];
 for (let j = 0; j < NUM_GRIDS; j++) {
     const layer = addLayer(`grid-${j}`, `Grid ${j}`, 10 + j, () => {
         layer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-        drawGridFamily(layer.ctx, j, CANVAS_W, CANVAS_H, CANVAS_W / 2, CANVAS_H / 2);
+        withView(gridView(), () =>
+            drawGridFamily(layer.ctx, j, CANVAS_W, CANVAS_H, CANVAS_W / 2, CANVAS_H / 2));
     });
     gridLayers.push(layer);
 }
@@ -268,10 +312,11 @@ const contentLayer = addLayer("content", "Content", 50, () => {
     const vis = getVisibleRect();
     switch (currentStep) {
         case 1:
-            drawIntersectionDots(contentLayer.ctx, cx, cy, vis);
+            withView(gridView(), () =>
+                drawIntersectionDots(contentLayer.ctx, cx, cy, getVisibleRect()));
             break;
         case 2:
-            drawKEdgeLabels(contentLayer.ctx, cx, cy);
+            withView(gridView(), () => drawKEdgeLabels(contentLayer.ctx, cx, cy));
             break;
         case 3: {
             const rhombs = collectRhombs(vis);
@@ -371,6 +416,49 @@ interface Concurrency {
     lines: number;          // how many families pass through the point
 }
 
+// ── Regularity, decided exactly ───────────────────────────────────
+//
+// Three lines (j,n): x·v_j = n - γ_j =: c_j are concurrent iff
+//
+//     c_a·sin(θ_c-θ_b) + c_b·sin(θ_a-θ_c) + c_c·sin(θ_b-θ_a) = 0
+//
+// (the 3x3 determinant expanded along its last column). For the pentagrid the θ
+// are multiples of 72°, so dividing through by sin 144° leaves every coefficient
+// in {±1, ±φ} — and for all ten triples the split has the same shape: one c_j
+// alone on one side, the other two on the other. So each condition reads
+//
+//     u + φ·v = 0,   u and v rational
+//
+// and since φ is irrational, BOTH must vanish. The lone term gives c_L = 0, i.e.
+// γ_L ∈ Z; the pair gives c_P + c_Q = 0, i.e. γ_P + γ_Q ∈ Z. Hence
+//
+//     triple is singular  <=>  γ_L ∈ Z  AND  γ_P + γ_Q ∈ Z
+//
+// and therefore: if no γ_j is an integer, the pentagrid is regular EVERYWHERE.
+// No tolerance and no window — this decides regularity, it does not test it.
+//
+// It also explains why the old 5e-9 nudge failed. Magnitude was never the issue:
+// it left γ₀, γ₂, γ₃ at exactly 0, and being symmetric it kept γ₁ + γ₄ = 0, so
+// triples 014 and 023 stayed singular no matter how small the step.
+
+// [key, lone family, the other two] for each triple, read off the coefficients.
+const TRIPLES: [string, number, [number, number]][] = [
+    ["012", 1, [0, 2]], ["013", 3, [0, 1]], ["014", 0, [1, 4]], ["023", 0, [2, 3]],
+    ["024", 2, [0, 4]], ["034", 4, [0, 3]], ["123", 2, [1, 3]], ["124", 4, [1, 2]],
+    ["134", 1, [3, 4]], ["234", 3, [2, 4]],
+];
+
+/** Exactly which triples are singular. Empty means provably regular. */
+function singularTriples(): string[] {
+    const out: string[] = [];
+    for (const [key, L, [P, Q]] of TRIPLES) {
+        if (gammaQ[L] % GAMMA_DEN === 0 && (gammaQ[P] + gammaQ[Q]) % GAMMA_DEN === 0) {
+            out.push(key);
+        }
+    }
+    return out;
+}
+
 // Only triples at least this close to concurrent are worth measuring exactly.
 const CANDIDATE_PX = 24;
 // Below this a region is too small to aim at, and the loupe takes over.
@@ -382,8 +470,27 @@ const CONCURRENT_TOL = 1e-9;
 let smallRegions: SmallRegion[] = [];
 let concurrencies: Concurrency[] = [];
 
+let guardRegular = true;
+let guardActed = false;
+
 const meterDiv = document.createElement("div");
 meterDiv.className = "regularity-control";
+
+const guardLabel = document.createElement("label");
+guardLabel.className = "layer-toggle";
+guardLabel.title = "Keep γ off the singular set. Uncheck to sit on a singularity.";
+const guardCb = document.createElement("input");
+guardCb.type = "checkbox";
+guardCb.checked = guardRegular;
+guardCb.addEventListener("change", () => {
+    guardRegular = guardCb.checked;
+    updateLockedGamma();
+    draw();
+});
+guardLabel.appendChild(guardCb);
+guardLabel.appendChild(document.createTextNode(" keep γ regular"));
+meterDiv.appendChild(guardLabel);
+
 const meterSpan = document.createElement("div");
 meterSpan.className = "regularity-meter";
 meterDiv.appendChild(meterSpan);
@@ -511,18 +618,21 @@ function updateMeter() {
         : `${under} region${under === 1 ? "" : "s"} under ${HOVERABLE_PX} px` +
           ` · smallest ${min < 0.01 ? min.toExponential(1) : min.toFixed(2)} px`;
 
-    // A concurrency is not a small region, it is a breakdown of the construction,
-    // and it outranks anything the size count has to say.
-    if (concurrencies.length > 0) {
+    // The verdict is exact and global, so it leads. The float scan below only
+    // says how big things are and where they are, never whether they are legal.
+    const sing = singularTriples();
+    if (sing.length > 0) {
         let worst = 0;
         for (const c of concurrencies) if (c.lines > worst) worst = c.lines;
-        meterSpan.textContent =
-            `SINGULAR — ${concurrencies.length} concurrency` +
-            `${concurrencies.length === 1 ? "" : " points"} in view, up to ${worst} lines · ${tail}`;
+        const where = concurrencies.length > 0
+            ? ` — ${concurrencies.length} in view, up to ${worst} lines`
+            : "";
+        meterSpan.textContent = `SINGULAR: triples ${sing.join(" ")}${where} · ${tail}`;
         meterSpan.style.color = "#e63946";
         return;
     }
-    meterSpan.textContent = tail;
+    const nudged = guardActed ? ` · γ nudged ${(1 / GAMMA_DEN).toExponential(0)}` : "";
+    meterSpan.textContent = `regular, proved${nudged} · ${tail}`;
     meterSpan.style.color = under === 0 ? "#5a8f5a" : "#c07d00";
 }
 
@@ -548,14 +658,49 @@ stepNavDiv.appendChild(buildTag);
 
 // ── Gamma / slider logic ──────────────────────────────────────────
 
-function updateLockedGamma() {
-    let sum = 0;
-    for (let i = 0; i < NUM_GRIDS; i++) {
-        if (i !== lockedIndex) sum += gamma[i];
+/** Re-derive the locked γ from the others, then the float copy from the exact. */
+function relock() {
+    let sumQ = 0;
+    for (let i = 0; i < NUM_GRIDS; i++) if (i !== lockedIndex) sumQ += gammaQ[i];
+    gammaQ[lockedIndex] = -sumQ;
+    for (let j = 0; j < NUM_GRIDS; j++) gamma[j] = gammaQ[j] / GAMMA_DEN;
+}
+
+/**
+ * Move γ off the singular set, if it is on it.
+ *
+ * By the criterion above a triple can only be singular when its lone γ is an
+ * integer, so taking every γ off the integers is enough to make the whole
+ * pentagrid provably regular. One unit of GAMMA_DEN does it: correctness here is
+ * about rationality class, not magnitude, which is exactly what the old 5e-9
+ * nudge got wrong. The offsets differ per family so the pair sums cannot stay
+ * integral either — being symmetric is how the old nudge preserved γ₁ + γ₄ = 0.
+ */
+function guardRegularity() {
+    guardActed = false;
+    if (!guardRegular) return;
+    for (let attempt = 0; attempt < 8; attempt++) {
+        if (singularTriples().length === 0) return;
+        guardActed = true;
+        for (let j = 0; j < NUM_GRIDS; j++) {
+            if (j === lockedIndex) continue;
+            if (gammaQ[j] % GAMMA_DEN === 0) gammaQ[j] += j + 1;
+        }
+        relock();
+        if (gammaQ[lockedIndex] % GAMMA_DEN === 0) {
+            gammaQ[(lockedIndex + 1) % NUM_GRIDS] += 1;
+            relock();
+        }
     }
-    gamma[lockedIndex] = -sum;
+}
+
+function updateLockedGamma() {
+    relock();
+    guardRegularity();
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        dials[j].display.textContent = gamma[j].toFixed(2);
+    }
     dials[lockedIndex].input.value = gamma[lockedIndex].toFixed(2);
-    dials[lockedIndex].display.textContent = gamma[lockedIndex].toFixed(2);
     const total = gamma.reduce((a, b) => a + b, 0);
     sumSpan.textContent = `Σ = ${total.toFixed(4)}`;
 }
@@ -572,8 +717,7 @@ function setLockedIndex(j: number) {
 
 function onSliderChange(j: number) {
     if (j === lockedIndex) return;
-    gamma[j] = parseFloat(dials[j].input.value);
-    dials[j].display.textContent = gamma[j].toFixed(2);
+    gammaQ[j] = Math.round(parseFloat(dials[j].input.value) * GAMMA_DEN);
     updateLockedGamma();
     draw();
 }
@@ -1418,6 +1562,22 @@ function buildLayerPanel() {
     axesLbl.appendChild(document.createTextNode("Axes"));
     wrapper.appendChild(axesLbl);
 
+    // Registration. The dual map has gain 5/2, so without this the tiling is
+    // drawn 2.5x the grid that generates it and the two do not line up.
+    const regLbl = document.createElement("label");
+    regLbl.className = "layer-toggle";
+    regLbl.title = "Draw the pentagrid at 5/2 so each rhomb sits on the crossing that made it";
+    const regCb2 = document.createElement("input");
+    regCb2.type = "checkbox";
+    regCb2.checked = registerScales;
+    regCb2.addEventListener("change", () => {
+        registerScales = regCb2.checked;
+        draw();
+    });
+    regLbl.appendChild(regCb2);
+    regLbl.appendChild(document.createTextNode("register 5:2"));
+    wrapper.appendChild(regLbl);
+
     layerPanelDiv.appendChild(wrapper);
 }
 
@@ -1489,7 +1649,7 @@ function nearestLoupeTarget(sx: number, sy: number, cx: number, cy: number): Lou
     let bestD = LOUPE_TRIGGER_PX;
 
     for (const c of concurrencies) {
-        const [rx, ry] = mathToScreen(c.x, c.y, cx, cy);
+        const [rx, ry] = gridToScreen(c.x, c.y, cx, cy);
         const d = Math.hypot(rx - sx, ry - sy);
         if (d < bestD) {
             bestD = d;
@@ -1500,7 +1660,7 @@ function nearestLoupeTarget(sx: number, sy: number, cx: number, cy: number): Lou
 
     for (const r of smallRegions) {
         if (r.sizePx >= HOVERABLE_PX) continue;
-        const [rx, ry] = mathToScreen(r.x, r.y, cx, cy);
+        const [rx, ry] = gridToScreen(r.x, r.y, cx, cy);
         const d = Math.hypot(rx - sx, ry - sy);
         if (d < bestD) {
             bestD = d;
@@ -1541,8 +1701,8 @@ function drawFootprint() {
     if (!loupe) return;
     const cx = CANVAS_W / 2, cy = CANVAS_H / 2;
     const half = (LOUPE_W / 2) / loupe.scale;
-    const [x0, y0] = mathToScreen(loupe.x - half, loupe.y + half, cx, cy);
-    const [x1, y1] = mathToScreen(loupe.x + half, loupe.y - half, cx, cy);
+    const [x0, y0] = gridToScreen(loupe.x - half, loupe.y + half, cx, cy);
+    const [x1, y1] = gridToScreen(loupe.x + half, loupe.y - half, cx, cy);
     // At high magnification the footprint is sub-pixel; show a minimum box.
     const w = Math.max(x1 - x0, 7), h = Math.max(y1 - y0, 7);
     const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
@@ -1808,8 +1968,10 @@ eventCanvas.addEventListener("mousemove", (e) => {
     }
 
     if (currentStep === 2) {
-        // Step 3: show K-tuple at cursor and arrow to its dual vertex
-        const [mx, my] = screenToMath(sx, sy, cx, cy);
+        // Step 3: show K-tuple at cursor and arrow to its dual vertex. The
+        // K-tuple is a fact about the pentagrid, so it is read in grid
+        // coordinates; the dual vertex it points at stays in tiling coordinates.
+        const [mx, my] = screenToGrid(sx, sy, cx, cy);
         const K = computeKTuple(mx, my);
         tooltip.innerHTML = formatKTooltip(K);
         tooltip.style.display = "block";
@@ -1910,7 +2072,7 @@ eventCanvas.addEventListener("mousemove", (e) => {
             highlightCtx.fill();
 
             // Highlight the source region in the pentagrid
-            highlightRegion(best.K, cx, cy, best.sx, best.sy);
+            withView(gridView(), () => highlightRegion(best!.K, cx, cy, best!.sx, best!.sy));
         } else {
             tooltip.style.display = "none";
         }
