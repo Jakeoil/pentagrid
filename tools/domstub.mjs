@@ -19,7 +19,12 @@ const handler = {
 
 function makeStub(extra = {}) {
     const base = function () { return makeStub(); };
+    // `children` and `on` let a test walk what a factory built and fire its
+    // handlers, rather than only checking that construction did not throw.
+    const on = {};
+    const children = [];
     Object.assign(base, {
+        on, children,
         style: {}, classList: { add: noop, remove: noop },
         getBoundingClientRect: () => ({ left: 0, top: 0, width: SW, height: SH }),
         getAttribute: (name) => {
@@ -28,8 +33,11 @@ function makeStub(extra = {}) {
             if (name === "data-height") return String(SH);
             return null;
         },
-        appendChild: (c) => c, removeChild: noop,
-        addEventListener: (type, fn) => { handlers.push({ type, fn }); },
+        appendChild: (c) => { children.push(c); return c; }, removeChild: noop,
+        addEventListener: (type, fn) => {
+            handlers.push({ type, fn });
+            (on[type] ??= []).push(fn);
+        },
         setAttribute: noop,
         value: "0", checked: false, textContent: "", innerHTML: "", dataset: {},
         ...extra,
