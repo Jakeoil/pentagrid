@@ -57,10 +57,30 @@ wrong, for reasons worth keeping:
   Step 6 already promises. Nudging γ to keep triangles fat makes the most
   interesting phenomenon on the page unreachable.
 
-**What to build instead — a regularity meter.** Minimum region size over the
-visible window, reported in **pixels**, live. Geometric rather than a proxy,
-continuous rather than binary, in screen units so it means what it needs to mean.
-Amber below ~3 px, red below ~1 px.
+**One more reason, found by measurement.** The old nudge did not even do its one
+job. Perturbing `γ₁ += 5e-9`, `γ₄ -= 5e-9` from the singular default still leaves
+**29 exact three-line concurrencies** in view. Of course it does: a concurrency
+among families {0,2,3} is a condition on γ₀, γ₂, γ₃ alone, so moving γ₁ and γ₄
+cannot touch it. Pairwise γ nudging can never remove concurrencies.
+
+**What to build instead — a regularity meter.** Measured over the visible window,
+in **pixels**, live. Geometric rather than a proxy, continuous rather than binary,
+in screen units so it means what it needs to mean.
+
+**Report the count, not the minimum.** The minimum alone is useless: a *generic*
+sum-zero γ at default zoom already has a smallest region of **0.042 px**. Not a
+near-singular configuration — an ordinary one. With ~1000 triples in a window,
+equidistribution guarantees the minimum is tiny essentially always, so a bare
+minimum reads red permanently and says nothing. The count of regions under the
+hoverable threshold is the number that responds: zoom in and it falls, because
+fewer triples are in view and each renders larger. (Generic γ at default zoom:
+308 regions under 5 px.)
+
+This is a stronger form of the argument above. It is not merely that no γ bounds
+region size below over the plane — no γ bounds it below over a *single 800 px
+window at default zoom*. Sub-pixel regions are the normal state of the picture,
+not an exceptional one, which makes the loupe the actual answer and the meter a
+readout of how much is hiding.
 
 Finding it cheaply. The candidate filter is exact, because the direction vectors
 are unit vectors:
@@ -81,6 +101,20 @@ Caveat worth a comment in the code: a fourth line can cut the triangle, in which
 case the true region is smaller than reported. Rare at the sizes that matter —
 lines are one unit apart and these triangles are tiny — but the meter is
 optimistic, not conservative, when it happens.
+
+**Concurrencies are a separate finding and must be reported separately.** A small
+triangle has an interior and the loupe can open it up. Three or more lines
+actually meeting have no interior at all, and no magnification will ever help —
+that is where de Bruijn's construction is undefined, not merely inconvenient. The
+scan's triangle test misses them by construction (the triangle degenerates and
+falls out of the perimeter guard), so they need their own branch: inradius below
+a tolerance in **math units**, then dedupe by position and count how many
+families pass through the point.
+
+The page's **default γ = 0 is fully singular**: 97 concurrency points in the
+default window, the origin among them with all five lines through it. That is the
+classic five-fold symmetric configuration, so it is worth keeping as the default —
+but the meter has to say so loudly rather than letting it pass as ordinary.
 
 Companion control: **go to the smallest region in view.** Turns the near-singular
 configuration from a hazard into a destination, and is the entry point for a
@@ -121,6 +155,14 @@ Behavior, as settled:
   locks and stays locked while hovering inside, and leaving releases it. This is
   what removes the trapping problem — whatever would re-trigger the loupe is in a
   different panel from the thing now being hovered.
+- **Never closes on distance.** The first cut closed the loupe as soon as the
+  cursor moved off the target, which meant it vanished on the way to the panel and
+  could not be entered at all. It retargets on approach to something new, and is
+  dismissed with Esc — but "nothing nearby" is not a reason to close, because
+  travelling to the panel *is* moving away from the target.
+- **Says what it is showing.** `12k×  5 lines concurrent`, or `40×  region 0.04
+  px`, plus a "move in to hover" hint while unfrozen. Without the hint there is no
+  way to discover the panel is interactive.
 - A **footprint rectangle** in the main view showing what the loupe covers, and a
   **magnification label** on the loupe, since `n` is adaptive and ranges over
   orders of magnitude.
@@ -278,6 +320,21 @@ Not scoped, recorded so they aren't lost:
 - **Phason flips.** Step 6's text already promises them. Crossing a singular γ
   rearranges tiles locally — animating one crossing in slow motion is a natural
   page, and it is the payoff for getting item 1 right.
+- **Exact arithmetic in ℚ(ζ₅).** Would not *prevent* singularities — singularity
+  is a property of γ, not of precision; at γ = 0 five lines genuinely meet at the
+  origin and no arithmetic changes that. What it would buy is **decidability**.
+  `CONCURRENT_TOL = 1e-9` is currently a guess: a triple 1e-10 apart is called
+  concurrent, one 1e-8 apart is not, and neither verdict is certain. The pentagrid
+  lives in the fifth cyclotomic field, degree 4 over ℚ, so points, γ and every
+  intersection are exactly representable as four BigInt rationals, and
+  concurrency becomes a decision rather than a threshold. Jake's instinct about
+  primes is half right: with γ over a common denominator q, concurrency becomes an
+  integer condition, and choosing q to avoid the low-height relations gives a γ
+  that is *provably* regular over a stated window — something no amount of nudging
+  or measuring can deliver.
+  Not worth it in the scan, which is the hot loop and needs floats for the
+  display anyway. Worth it as a one-shot **certifier**: "this γ has no concurrency
+  in this window", run once, exactly. That is the one thing the meter cannot do.
 - **The lift.** P3 → Wieringa roof. Belongs in `wieringa-roof`, not here, but it
   is where a continuous parameter earns the most, and the fold angles are already
   verified there.
