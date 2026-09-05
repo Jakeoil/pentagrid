@@ -9,24 +9,28 @@ This file is the working plan.
 
 ## Orientation
 
-Returning after a dormancy. The state of play:
+State of play, verified 2026-09-05. Working tree clean and in sync with origin.
 
-- `src/method.ts` (~1500 lines) is essentially the whole project. Plain `tsc` to
+- `src/method.ts` (~2100 lines) is essentially the whole project. Plain `tsc` to
   `dist/`, no bundler, no runtime dependencies. `.github/workflows/deploy.yml`
-  builds and publishes the entire repo root to Pages, so any new `.html` file at
-  the top level is live on push with no configuration.
-- The multi-layer canvas refactor is **done** (commit `24ad0c8`). Stacked
-  canvases in a relative container: `background` (z 5), `grid-0..4` (z 10–14),
-  `axes` (z 20), `content` (z 50), plus `highlightCanvas` (z 55) and
-  `eventCanvas` (z 100, takes all input).
-- Visibility is two-level as designed: `layer.visible` is step-driven,
-  `layer.userVisible` is the checkbox. Grid alpha is CSS opacity per step, not a
-  redraw.
-- The math layer is already clean. `solveIntersection` / `computeRhomb` /
-  `collectRhombs` return plain data; every draw function takes its target
-  context as the first argument. No rendering types leak into the geometry.
-- An unfinished "enforce regularity" feature is committed as WIP in `5a7d04d`.
-  It is **superseded** — see item 1 for what replaces it and why.
+  builds and publishes the repo root to Pages, so any new top-level `.html` is
+  live on push with no configuration. `npm run build` stamps `src/build-id.ts`
+  first; the page shows that id beside the step indicator.
+- Stacked canvases in a relative container: `background` (z 5), `grid-0..4`
+  (z 10–14), `axes` (z 20), `content` (z 50), `highlight` (z 55), `footprint`
+  (z 60), `event` (z 100, takes all input), plus the pinned loupe panel.
+- Visibility is two-level: `layer.visible` is step-driven, `layer.userVisible` is
+  the checkbox. Grid alpha is CSS opacity per step, not a redraw. `userVisible`
+  is not merely cosmetic — `collectRhombs` skips family pairs whose layer is off.
+- The math layer is clean. `solveIntersection` / `computeRhomb` / `collectRhombs`
+  return plain data; every draw function takes its target context first. `scale`,
+  `viewX`, `viewY` are globals swapped by `withView` rather than threaded.
+- Regularity is decided exactly (item 1), the loupe is built (item 2), and the
+  5/2 gain is understood and has a toggle (item 3).
+- **Still open: item 4, rhomb provenance.** `Rhomb` is `{vertices, kTuples,
+  thick}`; `computeRhomb` receives `j, k, nj, nk, x0, y0` and discards all six.
+  Item 5 (split geometry recompute from render) is also open. Both gate the work
+  in *The method page, reorganised* below, and item 4 gates the explorations.
 
 ---
 
@@ -323,6 +327,80 @@ RESEARCH.md. Live link now points at the site root rather than `method.html`.
 Deleted along with its `dist/` output when `index.html` became a static page.
 
 ---
+
+## The method page, reorganised
+
+Requested 2026-09-05. The individual asks below are one design, and this is the
+idea holding them together:
+
+> **Features stop being step-gated. They become independent booleans, and the six
+> steps become presets over them.**
+
+Right now eight places switch on `currentStep`, so every capability is welded to
+the step that introduced it — intersection dots exist only at step 2, filled
+tiles only at step 6. Making them flags and letting the steps *set* the flags
+costs little and answers most of the list at once. Prev/Next still walks the
+narrative; it just stops being the only way to reach anything.
+
+### Layers
+
+- **Penrose gets its own layers**, split by what they draw: tiles, edges,
+  vertices, decoration. Cleans up the `content` catch-all, which currently holds
+  four unrelated things behind a switch.
+- **Orderable front or back** relative to the grid, so the tiling can sit over
+  the pentagrid or under it.
+- **One coordinate system, not two.** Registration (item 3) becomes permanent
+  rather than a toggle, so grid and tiling always share coordinates. The toggle
+  existed to make the 5/2 visible; the layer switch replaces it, and the tiling
+  can simply be hidden instead.
+
+### Settings, collapsed
+
+Behind a settings button — set once, then forgotten:
+
+- **`allow singularities`, default false.** The inverse of today's `keep γ
+  regular`. The current framing exposes as a choice something that is almost
+  always wrong to want; the escape hatch is only there to sit on a singularity
+  and watch a phason flip, which is a deliberate act, not a default-facing knob.
+- **Vertical-axis symmetry, default on.** Rotate the directions 90° so v₀ points
+  up and family 0's lines are *horizontal*. The five directions are then mirror
+  symmetric about the vertical axis (angles 90, 162, 234, 306, 18). Jake's
+  preferred orientation across all his Penrose work, so it is the default rather
+  than an option to find. Note this cannot disturb item 1: the concurrency
+  condition depends only on angle *differences*, which a common rotation
+  preserves.
+- **Gridline thickness.** Sometimes you just have to see them.
+
+### Settings, out in the open
+
+Per-view toggles, visible next to the layer switches:
+
+- Dots on intersections — at any step, not only step 2
+- Show the corresponding Penrose **vertex** on region hover
+- Show the corresponding Penrose **tile** on intersection hover
+- Show **all** Penrose vertices, restricted to the active grid layers
+- Show **all** Penrose edges
+- Show **all** Penrose tiles — solid fill, and/or the standard arc decoration
+
+### Order of work
+
+1. **Item 4 first — rhomb provenance.** "Penrose tile on intersection hover"
+   cannot be built without it: hovering a crossing has to find *its* rhomb, which
+   means the rhomb must remember the `(j, k, nj, nk, x₀)` that made it. This is
+   the same few lines the explorations have been waiting on.
+2. Feature flags, and the steps rewritten as presets over them.
+3. Penrose layers split out, ordering control, registration made permanent.
+4. The settings panel: collapsed group, symmetry, thickness.
+5. The open toggles, and intersection picking for the tile-on-hover.
+6. The arc decoration — the classic two-arcs-per-rhomb marking whose curves close
+   into loops across the tiling. Self-contained, and last.
+
+### One thing to watch
+
+Item 5 (split geometry recompute from render) stops being optional here. Every new
+"show all" toggle is another consumer of `collectRhombs`, which already runs on
+every draw and hits ~100k intersection solves per frame when zoomed out. Turning
+three of these on at once with no cache will be felt.
 
 ## Site structure
 
