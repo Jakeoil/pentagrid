@@ -7,7 +7,8 @@
     "dev": "tsc --watch",
     "stamp": "node tools/stamp.mjs",
     "serve": "python3 -m http.server 8001",
-    "check": "node tools/pagecheck.mjs"
+    "check": "node tools/pagecheck.mjs",
+    "test": "node --test tools/geometry.test.mjs"
   },
   "keywords": [],
   "author": "Jeff Coyle",
