@@ -467,7 +467,33 @@ ES modules means multiple entry points need no bundler and no configuration.
 3. **Two clusters as factories** returning `{element, sync}` — the γ dial bank and
    the loupe, which are the two most portable things in the file. Two proves the
    pattern without committing to all five.
-4. **Layer registration**, so an exploration can add its own.
+4. **~~Layer registration~~ — DONE 2026-09-05** (out of order; it does not depend
+   on stage 3). `src/view/layers.ts` holds `LayerStack`, page-agnostic: it knows
+   about canvases, z-order and visibility, and nothing about pentagrids. An
+   exploration registers a spec rather than importing the method page.
+
+   Layers **declare** instead of being commanded. `visible` and `opacity` are
+   predicates read at draw time, so a step preset changes what is drawn by
+   changing what those predicates see — no caller has to remember to update a
+   flag on a layer, which is what `draw()` used to spend twenty lines doing. The
+   stack also clears before each draw, so no layer has to remember that either,
+   and hides with `display:none` rather than clearing, so hiding an expensive
+   layer costs nothing.
+
+   **The panel is generated from the stack.** A layer registered with a `group`
+   gets its switch without anyone editing the panel code — which is the test of
+   whether registration is real. `addRaw` covers the canvases the stack should
+   size and position but never draw: the highlight and footprint overlays and the
+   input surface.
+
+   The old `overlay` catch-all is gone: intersection dots and K-labels are their
+   own layers now, so they toggle independently like everything else.
+
+   **10 tests** in `tools/layers.test.mjs`, the last of which is the reason the
+   stage exists — it registers a "ribbons" layer after the fact, knowing nothing
+   about the layers already there, and checks it draws, receives a usable context,
+   gets its own panel section, and is gated by the generated toggle. The DOM stub
+   moved to `tools/domstub.mjs` so pagecheck and the tests share one.
 5. **`createPentagrid(config)`** — thin, over parts that already exist, rather
    than a big-bang refactor.
 
