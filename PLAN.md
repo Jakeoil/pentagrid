@@ -494,8 +494,28 @@ ES modules means multiple entry points need no bundler and no configuration.
    about the layers already there, and checks it draws, receives a usable context,
    gets its own panel section, and is gated by the generated toggle. The DOM stub
    moved to `tools/domstub.mjs` so pagecheck and the tests share one.
-5. **`createPentagrid(config)`** — thin, over parts that already exist, rather
-   than a big-bang refactor.
+5. **~~`createPentagrid(config)`~~ — DONE 2026-09-05.** `src/view/pentagrid.ts`
+   holds the factory; `src/method.ts` is now twenty lines that hand it the page's
+   five elements, `METHOD_STEPS` and the build id. `src/app/method-steps.ts`
+   holds the narration, because a page's prose is content, not machinery.
+
+   The config takes container, the four control elements, `steps`, `presets`,
+   `buildId`, and a **`layers` callback** — the registration hook. It runs before
+   the panel is generated, so an exploration's layers get their switches like
+   anything else, and it is handed `{ stack, model, currentRhombs, withView,
+   gridView, redraw }`: what a layer needs and nothing more.
+
+   Sizing stayed implicit-from-container, so a second instance sizes itself from
+   its own host. Two instances on one page are independent.
+
+   **5 tests** in `tools/factory.test.mjs`: constructs from a bare container,
+   builds two independent instances at different sizes, takes custom narration
+   and clamps out-of-range steps, and registers a "ribbons" layer through the
+   config — checking it draws, gets a live `currentRhombs` whose rhombs carry
+   provenance, and gets its own panel section without the panel knowing.
+
+   Stage 3 (γ bank and loupe as `{element, sync}` factories) is the only one left,
+   and it is now optional rather than blocking: a second page can already exist.
 
 State ownership, decided alongside: **a central model with clusters as views over
 it**, each with a `sync()`. That is already the seam — `syncPanel()` is exactly
