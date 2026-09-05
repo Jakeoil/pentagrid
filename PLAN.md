@@ -32,25 +32,71 @@ Returning after a dormancy. The state of play:
 
 ## Open items
 
-These come first because they are cheap, and because items 3, 4 and 5 gate the
-explorations below.
+These come first because they are cheap, and because items 4 and 5 gate the
+explorations below — and item 3 changes what two of them should say.
 
-### 1. Regularity: measure it, do not enforce it — DECIDED 2026-09-04
+### 1. Regularity: prove it, and guard it — DECIDED 2026-09-04, corrected same day
 
-**Supersedes the WIP in `5a7d04d`.** That commit's `checkRegularity()` flags
-`|γⱼ − γₖ| < 1e-10` and nudges by `5e-9`. Both the test and the response are
-wrong, for reasons worth keeping:
+**Correction first.** An earlier draft of this item said regularity could not be
+enforced and should only be measured. That conflated two different claims and
+one of them is false. Region *size* cannot be bounded below — that argument, and
+the 0.042 px measurement under it, still stand. But exact *concurrency* is a
+measure-zero condition, and it turns out to be not merely avoidable but
+**decidable in closed form**. The guard was always achievable; it was removed on
+the strength of an argument that did not apply to it.
 
-- **The test is a proxy, and a narrow one.** De Bruijn's singularity condition is
-  three lines concurrent — a condition on integer combinations of the γ's, not on
-  pairwise equality. Configurations with all five γ distinct are routinely
-  singular; the pairwise test catches only the symmetric coincidences.
-- **Enforcement cannot work globally.** Regularity buys *positive* triangle area,
-  never area *bounded below*. As the line indices range over ℤ the
+**The criterion.** Three lines `(j,n): x·vⱼ = n − γⱼ =: cⱼ` are concurrent iff the
+3×3 determinant vanishes, which expands to
+
+```
+c_a·sin(θ_c−θ_b) + c_b·sin(θ_a−θ_c) + c_c·sin(θ_b−θ_a) = 0
+```
+
+For the pentagrid the θ are multiples of 72°, so dividing by sin 144° leaves every
+coefficient in {±1, ±φ} — and for all ten triples the split has the same shape:
+one `c_j` alone on one side, the other two together on the other. Each condition
+therefore reads `u + φ·v = 0` with `u, v` rational, and since φ is irrational
+**both** must vanish. The lone term gives `c_L = 0`, i.e. `γ_L ∈ ℤ`; the pair
+gives `c_P + c_Q = 0`, i.e. `γ_P + γ_Q ∈ ℤ`. So
+
+```
+triple (a,b,c) is singular  ⟺  γ_L ∈ ℤ  and  γ_P + γ_Q ∈ ℤ
+```
+
+| triple | lone | pair | triple | lone | pair |
+|---|---|---|---|---|---|
+| 012 | γ₁ | γ₀+γ₂ | 034 | γ₄ | γ₀+γ₃ |
+| 013 | γ₃ | γ₀+γ₁ | 123 | γ₂ | γ₁+γ₃ |
+| 014 | γ₀ | γ₁+γ₄ | 124 | γ₄ | γ₁+γ₂ |
+| 023 | γ₀ | γ₂+γ₃ | 134 | γ₁ | γ₃+γ₄ |
+| 024 | γ₂ | γ₀+γ₄ | 234 | γ₃ | γ₂+γ₄ |
+
+**Corollary: if no γⱼ is an integer, the pentagrid is regular everywhere.** Ten
+integer comparisons, no tolerance, no window. This *decides* legality rather than
+testing it — which is the thing the float scan can never do, however small its
+epsilon.
+
+Verified 205/205 against brute-force search, and the guarded default
+(γ = [1,2,3,4,−10]/10⁴) has zero concurrencies out to radius 40 where γ = 0 has
+380 out to radius 25.
+
+**Why the old 5e-9 nudge failed, exactly.** Magnitude was never the issue. It left
+γ₀, γ₂, γ₃ at exactly 0, and being *symmetric* it preserved γ₁ + γ₄ = 0 — so
+triples 014 and 023 stayed singular for any step size whatsoever. Correctness here
+is about rationality class, not smallness. The guard now shifts by 1/10⁴ with a
+different offset per family, which is both invisible and provably sufficient.
+
+**Everything below still holds, about size rather than legality:**
+
+- **The old test was a proxy, and a narrow one.** Singularity is a condition on
+  integer combinations of the γ's, not on pairwise equality; the table above is
+  what it actually looks like.
+- **A minimum region *size* still cannot be enforced.** Regularity buys *positive*
+  area, never area *bounded below*. As the line indices range over ℤ the
   near-concurrency defects equidistribute (Weyl — the direction ratios are
   irrational), so for **every** γ the infimum of region size over the plane is
-  zero. A window-local guarantee is achievable but breaks the moment you pan, and
-  then the sliders move as a side effect of panning.
+  zero. This is why the meter and the loupe are still needed even when γ is
+  provably regular.
 - **The small triangle is the content.** Three nearly-concurrent lines bound a
   genuine region with a genuine dual vertex; as γ crosses the singular value it
   collapses through zero and the tiling rearranges. That is the phason flip
@@ -111,10 +157,11 @@ falls out of the perimeter guard), so they need their own branch: inradius below
 a tolerance in **math units**, then dedupe by position and count how many
 families pass through the point.
 
-The page's **default γ = 0 is fully singular**: 97 concurrency points in the
-default window, the origin among them with all five lines through it. That is the
-classic five-fold symmetric configuration, so it is worth keeping as the default —
-but the meter has to say so loudly rather than letting it pass as ordinary.
+The page's **default γ = 0 is fully singular** — all ten triples, 97 concurrency
+points in the default window, the origin among them with all five lines. It is the
+classic five-fold symmetric configuration, so the guard (on by default, one
+checkbox) moves off it by 1/10⁴ and says so; unchecking the guard sits on it
+deliberately, which is how a phason flip gets watched.
 
 Companion control: **go to the smallest region in view.** Turns the near-singular
 configuration from a hazard into a destination, and is the entry point for a
@@ -176,7 +223,67 @@ view parameter through everything, or save/swap/restore the globals around the
 loupe's render. The latter is far less invasive and needs no change to any draw
 function.
 
-### 3. Rhombs should carry their provenance
+### 3. The dual map has gain 5/2 — FOUND 2026-09-05
+
+The tiling is drawn 2½ times the size of the pentagrid that generates it. Not an
+error; a consequence of drawing unit rhombs. But it means the two pictures do not
+register, and it quietly corrupts two specs below.
+
+Writing `K_j(x) = x·v_j + γ_j + ε_j` with `ε_j ∈ [0,1)`,
+
+```
+f(x) = Σ K_j v_j = Σ (x·v_j) v_j + Σ γ_j v_j + Σ ε_j v_j
+     = (5/2)·x   + const         + bounded wobble
+```
+
+because `Σ_j v_j v_jᵀ = (5/2)·I`. That value is forced and cannot involve φ: the
+operator is isotropic by the five-fold symmetry, so it is a scalar times the
+identity, and the scalar is `tr/2 = (Σ|v_j|²)/2 = 5/2`. The computation never
+looks at the angles — five unit vectors, two dimensions.
+
+**What it really is: 5 dimensions to 2.** The construction is the projection of
+ℤ⁵ onto a 2-plane. For the orthogonal projection `P: ℝ⁵ → E∥`, each basis vector
+satisfies `|Pe_j|² = 2/5` exactly — 2/5 of its squared length lands in the
+physical plane, 3/5 in the perpendicular space, and `Σ|Pe_j|² = tr(P) = dim E∥ =
+2`. Pythagoras in ℝ⁵. With those correctly normalised images (`|u_j| = √(2/5)`)
+the frame operator is exactly the identity and **the dual map has gain 1**. The
+5/2 appears only because the page renormalises to unit rhombs, inflating each
+vector by `√(5/2)`. So `5/2 = 1/(2/5)`, and in general n dimensions to d gives
+gain n/d.
+
+Which also means registration is not a fudge — it is the natural normalisation.
+
+**Where φ actually lives.** Walking one unit along v₀ you cross `2φ = 3.236068`
+rhomb edges but net-displace only `5/2`, because the edges are not collinear
+(ratio `4φ/5`). φ owns the combinatorics and the shapes; n/d owns the isotropic
+gain. A φ-flavoured gain would have meant the frame operator was not isotropic,
+contradicting the five-fold symmetry the whole construction rests on.
+
+Verified three ways: `n/2` holds for n = 3,5,7,9,11 to nine decimals, so it is a
+frame fact and not a Penrose one; direct measurement over 38,550 rhombs built the
+way the page builds them gives 2.50156 → 2.50044 → 2.50014 as the patch grows;
+and the density ratio (7.6942 regions per unit area against 1.2311 rhombs) is
+6.250000 = (5/2)².
+
+**Consequences, both of which correct specs written earlier:**
+
+- The transition lerp recorded under *On animation* is wrong. `lerp(x₀, f, t)`
+  interpolates between grid scale and 2.5× scale, so the animation is dominated
+  by a 2.5× zoom-out with the real content buried under it. It must be
+  `lerp((5/2)·x₀, f, t)`. Then the motion is *only* the wobble — each rhomb moves
+  at most ~1.6 units and settles — which shows the actual theorem: **the dual map
+  is a similarity plus a bounded perturbation.**
+- E1's ribbon straightening has the same defect. Comparing a wiggly dual path
+  against its straight generator only means something at matched scale, or the
+  2.5× swamps the wiggle being looked at.
+
+**On the page:** a *register scales* toggle drawing the pentagrid under
+`x ↦ (5/2)x`, so lines sit 2.5 apart and each rhomb lands on the crossing that
+made it. Scaling the grid up rather than the tiling down keeps the rhombs at the
+size they deserve. You cannot have both registration and edge = line spacing;
+the gain is the reason.
+
+### 4. Rhombs should carry their provenance
 
 `computeRhomb(j, k, nj, nk, x0, y0)` receives everything about where the rhomb
 came from and stores none of it — the `Rhomb` interface keeps only
@@ -187,7 +294,7 @@ Store `j, k, nj, nk, x0, y0` on the `Rhomb`. It is a few lines, and it is the
 single change that unlocks **both** the transition animation and Exploration 1.
 Do this before either.
 
-### 4. Split geometry recompute from render
+### 5. Split geometry recompute from render
 
 Right now `collectRhombs` runs on every `draw()`. At default zoom that is a few
 thousand `solveIntersection` calls — fine. Zoomed out, `maxN` clamps at 50, so
@@ -204,13 +311,13 @@ K-region cache easy, since it is its own canvas.
 The regularity scan (item 1) has exactly the same dependency and should share
 whatever cache this produces.
 
-### 5. README is stale
+### 6. README is stale
 
 It describes **five** steps with the old titles. The page has **six** — "Step 3 —
 Pentagrid Regions" was inserted in `1ea38c0` and shifted everything after it. The
 README also predates the layer toggles and the hover equations entirely.
 
-### 6. `src/index.ts` is vestigial
+### 7. `src/index.ts` is vestigial
 
 Three lines that append an `<h1>`. It becomes dead the moment `index.html` is a
 real page (below). Delete it and its `dist/` output then.
@@ -260,7 +367,7 @@ chain of rhomb centers.
 So the two polylines are the same list of rhombs read two ways, and
 
 ```
-p_i(t) = lerp(x₀_i, f_i, t)
+p_i(t) = lerp((5/2)·x₀_i, f_i, t)
 ```
 
 is the straightening animation. At `t = 0` the ribbon path *is* the straight grid
@@ -320,9 +427,15 @@ Not scoped, recorded so they aren't lost:
 - **Phason flips.** Step 6's text already promises them. Crossing a singular γ
   rearranges tiles locally — animating one crossing in slow motion is a natural
   page, and it is the payoff for getting item 1 right.
-- **Exact arithmetic in ℚ(ζ₅).** Would not *prevent* singularities — singularity
-  is a property of γ, not of precision; at γ = 0 five lines genuinely meet at the
-  origin and no arithmetic changes that. What it would buy is **decidability**.
+- **Exact arithmetic — largely delivered, see item 1.** The regularity question
+  turned out to need only ℚ(√5), not the full cyclotomic field, and reduces to ten
+  integer comparisons on γ held as exact rationals. What remains open is the same
+  treatment for the *K-tuples*: `Math.ceil(dot + γ − 1e-9)` is still a float with a
+  fudge, and at extreme loupe magnification that epsilon is the real floor.
+  Original note, still true of the general case: exact arithmetic would not
+  *prevent* singularities — singularity is a property of γ, not of precision; at
+  γ = 0 five lines genuinely meet at the origin and no arithmetic changes that.
+  What it buys is **decidability**.
   `CONCURRENT_TOL = 1e-9` is currently a guess: a triple 1e-10 apart is called
   concurrent, one 1e-8 apart is not, and neither verdict is certain. The pentagrid
   lives in the fifth cyclotomic field, degree 4 over ℚ, so points, γ and every
@@ -357,11 +470,13 @@ The transition worth having is not a mesh morph. Each rhomb is generated by an
 intersection and lands where the dual map sends it:
 
 ```
-vertex_i(t) = lerp(x₀, f + offset_i, t)
+vertex_i(t) = lerp((5/2)·x₀, f + offset_i, t)
 ```
 
-Each rhomb grows out of the crossing that made it. The animation is the theorem,
-not decoration — which is also exactly the E1 mechanism, one dimension up.
+The 5/2 is not optional — see item 3. Without it the animation is a 2.5× zoom
+with the content hidden inside it; with it, each rhomb moves only by the bounded
+wobble and settles onto its place. The animation is the theorem, not decoration —
+and it is also exactly the E1 mechanism, one dimension up.
 
 Some explorations may borrow the *vocabulary* — a scene, a parameter, a state
 derived from `t` — without borrowing any machinery.
