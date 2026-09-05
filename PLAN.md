@@ -625,48 +625,129 @@ page with modes.
 
 ## Explorations
 
-### E1 — Wiggle room, and watching the grid lines straighten
+### E1 — Wiggle room: what was measured, and what it is really for
 
-The picture: a patch of tiles with the transformed grid lines drawn across it,
-wandering through the rhomb centers, then straightening into the actual
-pentagrid.
+Discussed at length 2026-09-05 and **not built**. The measurements below are the
+result and are worth more than the page would have been; they are closed-form
+answers to "wiggle room", which is what E1 was asking for.
 
-**The mechanism is already latent in the data.** Fix a family `j` and a line
-index `nj`. That single grid line crosses lines of all other families; each
-crossing is one rhomb, and all of them share edge direction **v**ⱼ — that is a
-de Bruijn ribbon. Ordered along the line, the crossings give points `x₀` that lie
-*exactly on the straight grid line*; their dual images `f` give the wandering
-chain of rhomb centers.
+Reading **(a)**, ribbon geometry, is what was pursued. Reading **(b)** — the
+region of γ-space that produces a given finite patch, shrinking as the patch
+grows — is untouched and is still the more interesting object, needing a way to
+draw a region of 4-dimensional γ-space.
 
-So the two polylines are the same list of rhombs read two ways, and
+#### The ribbon, and its channel
+
+Fix a family `j` and a line index `nj`. That grid line's crossings are **exactly
+collinear** (max deviation 1.2e-15) and each is one rhomb; all of them share edge
+direction **v**ⱼ. That is a de Bruijn ribbon.
+
+The classic picture joins **edge midpoints**, not rhomb centres. For a tile
+`f, f+vⱼ, f+vⱼ+vₖ, f+vₖ` the two vⱼ-parallel edges have midpoints `f + vⱼ/2` and
+`f + vⱼ/2 + vₖ`, so **every in-tile segment is exactly one unit step `vₖ`**. The
+ribbon path is a walk of unit steps in the four non-`j` directions — that is why
+it zigzags the way it does.
+
+**The wiggle has a closed form.** Perpendicular spread of a ribbon about its own
+generating line, constant to ~1e-14 across 45 ribbons, all five families, and two
+different γ, and *attained* rather than merely bounded:
+
+| path through | spread | exact |
+|---|---|---|
+| rhomb centres | 0.809016994 | **φ/2** |
+| edge midpoints (the classic picture) | 1.118033989 | **√5/2** |
+
+Not derived. The naive bound from the ε-terms gives √5 ≈ 2.236, so the true
+answer is much tighter and there is structure unaccounted for. One suggestive
+fact: **φ is the long diagonal of the thick rhomb**, so the centre channel is
+half a fat tile's long diagonal. That smells like the reason; it is a guess.
+
+**A wrong prediction, recorded because the reasoning is tempting.** Thick steps
+carry you +cos 72° sideways and thin steps −cos 144°, so keeping the walk bounded
+looks like it should pin thick:thin along a ribbon to φ². Measured **1.59**,
+against 1.61 for the whole tiling — both φ. The error: the step is ±vₖ depending
+which way the path traverses that tile, so the sign is not fixed by tile type at
+all. The real fact is better: **a ribbon has the same tile mix as the tiling it
+sits in.**
+
+**Implementation gotcha.** `collectRhombs` emits `j < k`, so a family appears as
+*either* index. Filtering `r.j === j` gets 41 tiles where matching both positions
+gets **83** — half the ribbon is invisible if you get this wrong.
+
+#### The better exploration: tiles growing out of their crossings
+
+Jake's redirection, and the right one: the ribbon picture is *an* answer, not
+*the* answer. Instead of straightening a path, start from the step-2 intersection
+dots and let them **grow into the tiles they generate**.
+
+Each dot is not a dot but an infinitesimal Penrose tile, coloured as the
+composite of the two families whose lines crossed. As `t` rises the tiles grow to
+unit size, and some must move because they cannot grow in place.
+
+**The cross decoration.** In a tile's own frame `f + a·vⱼ + b·vₖ`, `a,b ∈ [0,1]`:
 
 ```
-p_i(t) = lerp((5/2)·x₀_i, f_i, t)
+arm j    a ∈ [0.25, 0.75],  b ∈ [0, 1]
+arm k    a ∈ [0, 1],        b ∈ [0.25, 0.75]
+centre   both — a half-scale rhomb, the composite
 ```
 
-is the straightening animation. At `t = 0` the ribbon path *is* the straight grid
-line, by construction. At `t = 1` it is the wiggly chain. This is the same lerp
-the tile transition needs, applied to ribbon polylines instead of tile vertices —
-which is why item 2 comes first.
+25 % white, 50 % colour, 25 % white, exactly. Both arms run midpoint-to-midpoint
+so the cross is centred for free, and **the arms join across shared edges by
+themselves**: of 20,528 arm/edge crossing points, 19,856 are shared by exactly
+two tiles (the rest are on the patch boundary). So the ribbons are not drawn —
+they *emerge* from per-tile decoration. No ribbon logic, no ordering, no filter.
 
-Selecting a ribbon is `j, nj` — a field on the rhomb once item 2 is done, so
-"highlight the ribbon through this tile" is a filter, not a search.
+This makes one parameter run **step-2 dots → the tiling → the ribbon picture**.
+The composite dot at `t = 0` is literally the centre composite of a tile with
+zero size.
 
-**One ambiguity to settle.** "Wiggle room of the grid line combinations" may mean
-a second thing, and it is also worth building:
+#### There is no struggle, and that is the finding
 
-- **(a) ribbon geometry** — how far the dual path deviates from its straight
-  generator. The reading above, and clearly what the second sentence describes.
-- **(b) γ-space freedom** — for a *given finite patch*, the set of γ producing
-  that patch is an open region in the sum-zero hyperplane. As the patch grows
-  from 1 to x tiles, that region shrinks. Showing the patch beside its admissible
-  γ-region, and watching the region close as tiles are added, is a different
-  exploration with the same name.
+With one clock for every tile, the endpoint of an arm is
 
-(b) is the more interesting mathematical object — it is patch frequency and local
-isomorphism made visible — but it needs a way to draw a region of 4-dimensional
-γ-space. (a) is buildable immediately. **Decide whether these are one exploration
-or two before starting.**
+```
+end_i(t) = (1−t)·qᵢ + t·(cᵢ + eᵢ) = (1−t)·qᵢ + t·M
+```
+
+— both neighbours are affine paths from their own crossing to *the same meeting
+point* M. So the gap between them is exactly `(1−t)·|qᵢ − qⱼ|`. Measured over all
+7,110 neighbouring arm-ends: gap/initial = 1.000, 0.750, 0.500, 0.250, 0.000, and
+the gap direction slews **0.00°**. Not small — zero, every pair. The tiling zips
+itself together with no lateral motion anywhere.
+
+The reason, in Jake's words: they are always ringing the gridline track. Every
+tile starts *on* its gridline and ends in a ribbon confined to √5/2 of that same
+line, so it never leaves. Belonging to two ribbons, a tile is penned inside the
+**intersection of two channels** — a small parallelogram around its own crossing.
+That is the entire freedom any tile has.
+
+So the struggle is not in the mathematics; it is something you add. Per-tile
+clocks break the shared target and the gap slews:
+
+| schedule | mean slew | max |
+|---|---|---|
+| uniform | **0.00°** | 0.0° |
+| by family | 37.4° | 179.7° |
+| crowded finish first | 39.3° | 179.7° |
+| thick before thin | 39.7° | 179.7° |
+| random per tile | **54.0°** | 179.7° |
+
+180° means some arms overshoot their partner and come back, which would read as a
+snap. Note mean *mismatch* is the wrong metric for this — every staggered
+schedule beats uniform on it, simply by parking finished tiles.
+
+**Crowding is real and local.** Nearest-neighbour gaps among starting positions:
+the tightest 200 average **0.013** — the near-concurrent triples, essentially
+coincident — and those tiles travel 0.721 against 0.491 for the loosest. The most
+dramatic motion happens exactly where the meter and the loupe were built to look.
+
+#### If it is ever built
+
+`grow.html`, one viewport, `createPentagrid` plus a `layers` callback. A `t`
+slider and a schedule selector, from the zero-struggle zip to the roughest.
+Wanting only some tiles expressed — "strips in one direction" — is a one-line
+predicate on the rhomb set, since provenance is on every rhomb.
 
 ### E2 — The pentagrid on the discrete directions
 
