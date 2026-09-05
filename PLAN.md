@@ -527,6 +527,43 @@ and explanation** (any narrated page). The **layer panel** should be *generated
 from* the layer list rather than reused, and the **regularity meter** is
 pentagrid-specific and should not try to be general.
 
+### The exercise that proved it
+
+`index.html` now carries two linked viewports — the same random pentagrid drawn
+as lines on the left and as its dual tiling on the right, with pan and zoom on
+either driving the other. `src/app/pair.ts` is 50 lines and imports nothing from
+`method.ts`, which is the whole claim.
+
+It found four things the factory was missing, all now added:
+
+- **`gridLines` and `axes` as features.** A family's `userVisible` also removes
+  the rhombs that family generates, so switching the grid off on the tiling side
+  would have left nothing to draw. Hiding and not-participating had to become
+  separate ideas.
+- **`config.features`**, so a page with no steps can state its own set rather
+  than inheriting step 1's.
+- **`config.gamma`**, so two instances can be given the same pentagrid.
+- **`getView` / `setView` / `onViewChange`.** `setView` deliberately does *not*
+  fire `onViewChange`, which is what stops two linked instances bouncing updates
+  off each other forever — a one-hop relay rather than a loop.
+
+Also needed: a page with no steps had to stop throwing. `updateStepUI` indexed
+`stepContent[currentStep]` unconditionally, and `setStep` is now a no-op rather
+than an error when there is nothing to step through.
+
+Six more tests, including the two that matter for this shape: `setView` does not
+notify, and two instances given the same γ produce rhomb-for-rhomb identical
+tilings while different γ do not.
+
+**The loupe is now off by default** (item 2's `loupe` config flag, and a
+checkbox in the method page's settings). It is a tool for inspecting
+near-singular configurations and it gets in the way of simply looking at the
+picture. Turning it off exposed a worse problem: `scanSmallRegions` — the
+expensive call in the file — was running on every draw whether or not anything
+would read the result, so the paired views were paying for it twice per pan
+frame. It is now skipped unless the loupe is on or the page has somewhere to put
+the meter.
+
 ### Still available, not taken
 
 - **devicePixelRatio.** The canvas is an 800-wide backing store at 800 CSS px, so

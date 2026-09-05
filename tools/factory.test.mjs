@@ -92,3 +92,107 @@ test("redraw is callable from outside and does not throw", () => {
     h.redraw();
     assert.ok(true);
 });
+
+// ── the linked-viewport case ──────────────────────────────────────
+// What index.html's paired views rely on.
+
+test("getView and setView round-trip", () => {
+    const h = createPentagrid({ container: host() });
+    h.setView({ scale: 137, x: -2.5, y: 4.25 });
+    assert.deepEqual(h.getView(), { scale: 137, x: -2.5, y: 4.25 });
+});
+
+test("setView does NOT fire onViewChange, or linked views would loop", () => {
+    let fired = 0;
+    const h = createPentagrid({
+        container: host(),
+        onViewChange: () => { fired++; },
+    });
+    h.setView({ scale: 90, x: 1, y: 1 });
+    h.setView({ scale: 91, x: 2, y: 2 });
+    assert.equal(fired, 0, "setView notified, which would ping-pong two instances");
+});
+
+test("two instances given the same gamma produce the same tiling", () => {
+    const gamma = [0.2317, -0.4102, 0.1553, 0.3078, -0.2846];
+    const grab = () => {
+        let rhombs = null;
+        createPentagrid({
+            container: host(400, 400),
+            gamma,
+            steps: [],
+            features: { penroseTiles: true },
+            layers: (parts) => { rhombs = () => parts.currentRhombs(); },
+        });
+        return rhombs();
+    };
+    const a = grab();
+    const b = grab();
+    assert.ok(a.length > 50, `only ${a.length} rhombs`);
+    assert.equal(a.length, b.length);
+    const key = (r) => `${r.j}${r.k}:${r.nj},${r.nk}`;
+    assert.deepEqual(a.map(key).sort(), b.map(key).sort(),
+                     "same gamma gave different tilings");
+});
+
+test("a different gamma gives a different tiling", () => {
+    const grab = (gamma) => {
+        let rhombs = null;
+        createPentagrid({
+            container: host(400, 400), gamma, steps: [],
+            features: { penroseTiles: true },
+            layers: (parts) => { rhombs = () => parts.currentRhombs(); },
+        });
+        return rhombs().map((r) => `${r.j}${r.k}:${r.nj},${r.nk}:${r.thick}`).sort().join("|");
+    };
+    const a = grab([0.2317, -0.4102, 0.1553, 0.3078, -0.2846]);
+    const b = grab([-0.3311, 0.2204, -0.1097, 0.4413, -0.2209]);
+    assert.notEqual(a, b);
+});
+
+test("a page with no steps ignores setStep instead of throwing", () => {
+    const h = createPentagrid({ container: host(), steps: [] });
+    h.setStep(3);
+    h.redraw();
+    assert.ok(true);
+});
+
+test("features from the config survive when there are no steps to impose one", () => {
+    let drewTiles = 0;
+    const h = createPentagrid({
+        container: host(),
+        steps: [],
+        features: { gridLines: false, axes: false, penroseTiles: true },
+    });
+    assert.equal(h.stack.get("penrose-tiles").canvas.style.display, "block");
+    assert.equal(h.stack.get("grid-0").canvas.style.display, "none");
+    assert.equal(h.stack.get("axes").canvas.style.display, "none");
+});
+
+test("the loupe is off unless the page asks for it", () => {
+    let opened = 0;
+    const h = createPentagrid({ container: host() });
+    // no loupe canvas should ever be shown; the scan that feeds it is skipped
+    // entirely on a page with no controls
+    assert.ok(h.stack, "constructed");
+    const withLoupe = createPentagrid({ container: host(), loupe: true });
+    assert.ok(withLoupe.stack, "constructed with the loupe on");
+});
+
+test("with no controls and no loupe, nothing consumes the scan", () => {
+    // The scan is the expensive call in the file; a bare viewport must not pay
+    // for it on every pan frame.
+    const h = createPentagrid({ container: host(), steps: [], features: { penroseTiles: true } });
+    const t0 = process.hrtime.bigint();
+    for (let i = 0; i < 40; i++) h.redraw();
+    const bare = Number(process.hrtime.bigint() - t0) / 1e6;
+
+    const g = createPentagrid({
+        container: host(), steps: [], loupe: true, features: { penroseTiles: true },
+    });
+    const t1 = process.hrtime.bigint();
+    for (let i = 0; i < 40; i++) g.redraw();
+    const scanned = Number(process.hrtime.bigint() - t1) / 1e6;
+
+    assert.ok(bare < scanned, `bare ${bare.toFixed(1)}ms should beat scanned ${scanned.toFixed(1)}ms`);
+});
