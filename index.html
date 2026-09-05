@@ -30,6 +30,35 @@
             flex: 1;
             border-radius: 2px;
         }
+        .pair {
+            display: flex;
+            gap: 14px;
+            margin: 20px 0 6px;
+            flex-wrap: wrap;
+        }
+        .pair figure { margin: 0; }
+        .pair figcaption {
+            font-size: 12px;
+            color: #777;
+            margin-top: 5px;
+            text-align: center;
+        }
+        .viewport {
+            position: relative;
+            width: 340px;
+            height: 340px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            touch-action: none;
+            overflow: hidden;
+        }
+        .layer-canvas { position: absolute; top: 0; left: 0; }
+        .hint {
+            font-size: 12px;
+            color: #999;
+            margin: 0 0 22px;
+        }
         .card {
             display: block;
             border: 1px solid #ddd;
@@ -113,6 +142,29 @@
     &gamma; varies. That is de Bruijn's 1981 result, and this site is an attempt
     to make it something you can put your hands on rather than read.</p>
 
+    <h3>From grid to tiling</h3>
+    <p>Every region between the lines has a fixed tuple of five integers
+    <i>K<sub>j</sub></i>, one per family, counting how many lines of that family
+    you have crossed. Send each region to
+    <i>f</i>&thinsp;=&thinsp;&sum;&thinsp;<i>K<sub>j</sub></i>&thinsp;<b>v</b><sub><i>j</i></sub>
+    and adjacent regions land one <b>v</b><sub><i>j</i></sub> apart. The four
+    regions meeting at a crossing therefore land on the four corners of a rhomb
+    &mdash; so <b>each crossing on the left is one tile on the right</b>, fat if
+    the two families are adjacent, thin if they are two apart.</p>
+
+    <div class="pair">
+        <figure>
+            <div class="viewport" id="pair-grid" data-width="340" data-height="340"></div>
+            <figcaption>a random pentagrid</figcaption>
+        </figure>
+        <figure>
+            <div class="viewport" id="pair-tiles" data-width="340" data-height="340"></div>
+            <figcaption>its dual tiling</figcaption>
+        </figure>
+    </div>
+    <p class="hint">Drag to pan, scroll to zoom &mdash; the two views are locked
+    together. Reload for a different &gamma;.</p>
+
     <a class="card" href="method.html">
         <div class="t">The Method &rarr;</div>
         <div class="d">The construction in six steps, from the bare grid to the finished
@@ -177,5 +229,6 @@
     </footer>
 
 </div>
+    <script type="module" src="./dist/app/pair.js"></script>
 </body>
 </html>
