@@ -311,16 +311,16 @@ K-region cache easy, since it is its own canvas.
 The regularity scan (item 1) has exactly the same dependency and should share
 whatever cache this produces.
 
-### 6. README is stale
+### 6. ~~README is stale~~ — DONE 2026-09-05
 
-It describes **five** steps with the old titles. The page has **six** — "Step 3 —
-Pentagrid Regions" was inserted in `1ea38c0` and shifted everything after it. The
-README also predates the layer toggles and the hover equations entirely.
+Rewritten: six steps with the current titles, the layer toggles and the two hover
+behaviours, the three non-obvious findings (exact regularity, sub-pixel regions
+and the loupe, the 5/2 gain), the build-stamp workflow, and pointers here and to
+RESEARCH.md. Live link now points at the site root rather than `method.html`.
 
-### 7. `src/index.ts` is vestigial
+### 7. ~~`src/index.ts` is vestigial~~ — DONE 2026-09-05
 
-Three lines that append an `<h1>`. It becomes dead the moment `index.html` is a
-real page (below). Delete it and its `dist/` output then.
+Deleted along with its `dist/` output when `index.html` became a static page.
 
 ---
 
@@ -330,14 +330,20 @@ Three top-level pages, following the shape wieringa-roof uses.
 
 | page | content | state |
 |---|---|---|
-| `index.html` | front door — what a pentagrid is, why it matters, links out | **to build** |
+| `index.html` | front door — what a pentagrid is, why it matters, links out | done |
 | `method.html` | the mathematics — de Bruijn's dual construction in six steps | done |
-| `explorations.html` | index of the explorations, each linking to its own page | **to build** |
+| `explorations.html` | index of the explorations, each linking to its own page | deferred |
 
-`index.html` is currently a stub that loads `dist/index.js` to write a heading.
-It becomes a real landing page: a short statement of what the object is, a
-prominent link to `method.html` as the mathematical spine, and a link to
-`explorations.html`.
+`index.html` is a static page — no script, and `src/index.ts` is gone with it.
+It states the construction, links to `method.html` as the spine, and surfaces the
+three things that are not obvious from looking at the method page: that
+regularity is decided rather than tested, that sub-pixel regions are the normal
+case and the loupe is the answer, and that the tiling is 5/2 the grid.
+
+`explorations.html` is **deferred until there is an exploration page to index**.
+An index of zero pages is worse than a section, so for now the explorations are a
+"planned" block on `index.html`; that block moves to its own page as soon as
+either E1 or E2 has one.
 
 `method.html` stays as it is. It is the explanatory core and everything else
 assumes it. The explorations link back to it rather than re-deriving.
