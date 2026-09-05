@@ -402,6 +402,68 @@ Item 5 (split geometry recompute from render) stops being optional here. Every n
 every draw and hits ~100k intersection solves per frame when zoomed out. Turning
 three of these on at once with no cache will be felt.
 
+## Parameterising the canvas
+
+Decided 2026-09-05, after weighing four shapes for it: a config object plus
+`createPentagrid()`, a class, a module split with explicit context, or a web
+component. The component turned out not to be an alternative — it is a wrapper
+over whichever of the other three you pick, so it is a later skin, not a choice
+instead of them.
+
+**Chosen: the module split, reached in stages**, each independently useful and
+committable. What decides it is the explorations: `wiggle.html` needs the same γ
+cluster and grid layers but its *own* content layer, and no feature flag in
+`method.ts` will ever name "ribbons". A closed `Features` enum cannot express
+that; layer registration can, and only the split lets an exploration's draw
+function be written without importing the whole page.
+
+A second reason, particular to how this project gets verified: every check this
+session re-implemented the geometry from scratch — the small-region scan, the
+regularity criterion, the 5/2 gain, the arc joins. Four re-derivations, any of
+which could drift from what the page actually runs. With a DOM-free `geometry/`
+they become tests importing the real code, and `pagecheck` goes back to covering
+wiring, which is all it should ever have covered.
+
+The build already supports this for free: `tsc` with `include: ["src"]` and plain
+ES modules means multiple entry points need no bundler and no configuration.
+
+### Stages
+
+1. **~~Canvas size into the view~~ — DONE 2026-09-05.** `CANVAS_W`/`CANVAS_H` and
+   `MARGIN` are gone; a `CanvasSpec` is read once from the page and everything
+   downstream goes through it (83 sites). Explicit `data-width` / `data-height` /
+   `data-margin` on `#canvas-container` win; otherwise the container's own
+   laid-out size, then 800. Margin keeps its *proportion* (5% of the short side,
+   still 40 at 800) rather than its number, so the K-labels keep a gutter at any
+   size. `pagecheck` now takes `PAGECHECK_SIZE` and `PAGECHECK_ATTR` and is run at
+   several sizes including non-square.
+2. **Extract `geometry/`** — no DOM, no globals. Gives real tests, retires the
+   scratchpad re-derivations.
+3. **Two clusters as factories** returning `{element, sync}` — the γ dial bank and
+   the loupe, which are the two most portable things in the file. Two proves the
+   pattern without committing to all five.
+4. **Layer registration**, so an exploration can add its own.
+5. **`createPentagrid(config)`** — thin, over parts that already exist, rather
+   than a big-bang refactor.
+
+State ownership, decided alongside: **a central model with clusters as views over
+it**, each with a `sync()`. That is already the seam — `syncPanel()` is exactly
+this — and it survives a page that drives γ from something other than sliders.
+
+Which clusters are honestly reusable: the **γ dial bank** (any multigrid), the
+**loupe** (any canvas view — the most portable code in the file), the **step nav
+and explanation** (any narrated page). The **layer panel** should be *generated
+from* the layer list rather than reused, and the **regularity meter** is
+pentagrid-specific and should not try to be general.
+
+### Still available, not taken
+
+- **devicePixelRatio.** The canvas is an 800-wide backing store at 800 CSS px, so
+  it is soft on a retina display. Now that size flows through one place this is a
+  couple of lines — but it changes how everything renders, so it is its own step.
+- **`ResizeObserver`.** "Implicit" sizing currently means *read the container
+  once*. Observing it would make the page stop being one fixed size forever.
+
 ## Site structure
 
 Three top-level pages, following the shape wieringa-roof uses.
