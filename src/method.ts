@@ -2,12 +2,26 @@ import { BUILD_ID } from "./build-id.js";
 
 const NUM_GRIDS = 5;
 
-// Unit vectors at 72° intervals
+// Unit vectors at 72° intervals.
+//
+// With verticalSymmetry the whole star is turned a quarter turn, so v0 points up
+// and family 0's LINES are horizontal. The five directions are then mirror
+// symmetric about the vertical axis (90, 162, 234, 306, 18 degrees), which is the
+// orientation Jake uses throughout. It cannot disturb the regularity criterion:
+// that depends only on angle differences, which a common rotation preserves.
+let verticalSymmetry = true;
+// "Sometimes you just have to see them."
+let gridLineWidth = 1;
 const directions: [number, number][] = [];
-for (let j = 0; j < NUM_GRIDS; j++) {
-    const angle = (2 * Math.PI * j) / 5;
-    directions.push([Math.cos(angle), Math.sin(angle)]);
+
+function rebuildDirections() {
+    const offset = verticalSymmetry ? Math.PI / 2 : 0;
+    for (let j = 0; j < NUM_GRIDS; j++) {
+        const angle = (2 * Math.PI * j) / 5 + offset;
+        directions[j] = [Math.cos(angle), Math.sin(angle)];
+    }
 }
+rebuildDirections();
 
 // Grid line colors
 const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
@@ -54,11 +68,12 @@ let viewMargin = MARGIN;
 // projection R^5 -> E_par sends each basis vector to length sqrt(2/5), and with
 // that normalisation the gain is exactly 1 — the 5/2 is the price of unit
 // rhombs. See PLAN.md item 3.
+// Permanent, not a toggle. The grid and the tiling share one coordinate system;
+// showing or hiding the tiling is what the Penrose layers are for.
 const REGISTER_GAIN = 5 / 2;
-let registerScales = false;
 
 function gridGain(): number {
-    return registerScales ? REGISTER_GAIN : 1;
+    return REGISTER_GAIN;
 }
 
 /** The view that grid-space objects (lines, K-regions, K-labels) draw under. */
@@ -277,12 +292,73 @@ eventCanvas.style.pointerEvents = "auto";
 eventCanvas.style.cursor = "grab";
 container.appendChild(eventCanvas);
 
+// ── Features, and the steps as presets over them ──────────────────
+//
+// Capabilities used to be welded to the step that introduced them — eight
+// switches on currentStep, so intersection dots existed only at step 2 and
+// filled tiles only at step 6. They are flags now, and the steps set the flags.
+// Prev/Next still walks the narrative; it is no longer the only way to reach
+// anything. PLAN.md, "The method page, reorganised".
+
+interface Features {
+    kRegions: boolean;
+    kLabels: boolean;
+    intersectionDots: boolean;
+    penroseTiles: boolean;
+    penroseEdges: boolean;
+    penroseVertices: boolean;
+    penroseDecor: boolean;
+    hoverVertex: boolean;   // region hover -> its Penrose vertex
+    hoverTile: boolean;     // intersection hover -> its Penrose tile
+}
+
+const NO_FEATURES: Features = {
+    kRegions: false, kLabels: false, intersectionDots: false,
+    penroseTiles: false, penroseEdges: false, penroseVertices: false,
+    penroseDecor: false, hoverVertex: false, hoverTile: false,
+};
+
+const STEP_PRESETS: Partial<Features>[] = [
+    {},                                                        // 1 the pentagrid
+    { intersectionDots: true, hoverTile: true },               // 2 intersections
+    { kRegions: true, kLabels: true, hoverVertex: true },      // 3 regions
+    { penroseVertices: true, hoverVertex: true },              // 4 dual vertices
+    { penroseEdges: true, hoverTile: true },                   // 5 building rhombs
+    { penroseTiles: true },                                    // 6 the tiling
+];
+
+let features: Features = { ...NO_FEATURES, ...STEP_PRESETS[0] };
+
+function applyStepPreset() {
+    features = { ...NO_FEATURES, ...STEP_PRESETS[currentStep] };
+}
+
+// ── The rhomb cache ───────────────────────────────────────────────
+//
+// Four layers now want the same rhombs, and collectRhombs is the expensive call
+// in the file. It depends on γ, the view and the active families — never on which
+// layer is asking. PLAN.md item 5.
+
+let rhombCache: Rhomb[] | null = null;
+let rhombCacheKey = "";
+
+function currentRhombs(): Rhomb[] {
+    const key = [
+        scale, viewX, viewY, gammaQ.join(","), verticalSymmetry ? 1 : 0,
+        gridLayers.map((l) => (l.userVisible ? 1 : 0)).join(""),
+    ].join("|");
+    if (rhombCache && key === rhombCacheKey) return rhombCache;
+    rhombCache = collectRhombs(getVisibleRect());
+    rhombCacheKey = key;
+    return rhombCache;
+}
+
 // ── Create layers ─────────────────────────────────────────────────
 
 // Background layer (K-regions pixel fill)
 const bgLayer = addLayer("background", "K-regions", 5, () => {
     bgLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
-    if (currentStep === 2) {
+    if (features.kRegions) {
         withView(gridView(), () => drawKRegions(bgLayer.ctx, CANVAS_W / 2, CANVAS_H / 2));
     }
 });
@@ -304,36 +380,66 @@ const axesLayer = addLayer("axes", "Axes", 20, () => {
     drawAxes(axesLayer.ctx, CANVAS_W, CANVAS_H, CANVAS_W / 2, CANVAS_H / 2);
 });
 
-// Content layer (step-specific overlays: dots, rhombs, vertices, edge labels)
-const contentLayer = addLayer("content", "Content", 50, () => {
-    contentLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+// ── Penrose layers ────────────────────────────────────────────────
+//
+// The tiling gets its own layers rather than sharing a switch-on-step catch-all,
+// so each part can be shown alone and the whole group can sit over the pentagrid
+// or under it.
+
+const PENROSE_Z_BACK = 6;    // above the K-regions, below the grid
+const PENROSE_Z_FRONT = 30;  // above the axes, below the overlay
+let penroseInFront = true;
+
+const penroseLayers: Layer[] = [];
+function addPenroseLayer(id: string, label: string, i: number, drawFn: (l: Layer) => void) {
+    const layer = addLayer(id, label, PENROSE_Z_FRONT + i, () => {
+        layer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+        drawFn(layer);
+    });
+    penroseLayers.push(layer);
+    return layer;
+}
+
+const tilesLayer = addPenroseLayer("penrose-tiles", "Tiles", 0, (l) => {
+    if (features.penroseTiles) {
+        drawRhombs(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2, true);
+    }
+});
+const edgesLayer = addPenroseLayer("penrose-edges", "Edges", 1, (l) => {
+    if (features.penroseEdges) {
+        drawRhombs(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2, false);
+    }
+});
+const decorLayer = addPenroseLayer("penrose-decor", "Arcs", 2, (l) => {
+    if (features.penroseDecor) {
+        drawPenroseDecor(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2);
+    }
+});
+const verticesLayer = addPenroseLayer("penrose-vertices", "Vertices", 3, (l) => {
+    // dualVertices is repopulated here and read by the step-4 hover, so it runs
+    // whenever the vertices are wanted for picking even if not for display.
+    if (features.penroseVertices || features.hoverVertex) {
+        drawDualVertices(l.ctx, currentRhombs(), CANVAS_W / 2, CANVAS_H / 2,
+                         features.penroseVertices);
+    }
+});
+
+function restackPenrose() {
+    const base = penroseInFront ? PENROSE_Z_FRONT : PENROSE_Z_BACK;
+    penroseLayers.forEach((l, i) => { l.canvas.style.zIndex = String(base + i); });
+}
+
+// Overlay layer — things drawn on the pentagrid itself
+const overlayLayer = addLayer("overlay", "Overlay", 50, () => {
+    overlayLayer.ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
     const cx = CANVAS_W / 2;
     const cy = CANVAS_H / 2;
-    const vis = getVisibleRect();
-    switch (currentStep) {
-        case 1:
-            withView(gridView(), () =>
-                drawIntersectionDots(contentLayer.ctx, cx, cy, getVisibleRect()));
-            break;
-        case 2:
-            withView(gridView(), () => drawKEdgeLabels(contentLayer.ctx, cx, cy));
-            break;
-        case 3: {
-            const rhombs = collectRhombs(vis);
-            drawDualVertices(contentLayer.ctx, rhombs, cx, cy);
-            break;
+    withView(gridView(), () => {
+        if (features.intersectionDots) {
+            drawIntersectionDots(overlayLayer.ctx, cx, cy, getVisibleRect());
         }
-        case 4: {
-            const rhombs = collectRhombs(vis);
-            drawRhombs(contentLayer.ctx, rhombs, cx, cy, false);
-            break;
-        }
-        case 5: {
-            const rhombs = collectRhombs(vis);
-            drawRhombs(contentLayer.ctx, rhombs, cx, cy, true);
-            break;
-        }
-    }
+        if (features.kLabels) drawKEdgeLabels(overlayLayer.ctx, cx, cy);
+    });
 });
 
 // Highlight overlay canvas (for dual vertex hover on step 4)
@@ -732,6 +838,8 @@ setLockedIndex(4);
 // ── Step navigation logic ─────────────────────────────────────────
 
 function updateStepUI() {
+    applyStepPreset();
+    syncPanel();
     stepIndicator.textContent = `Step ${currentStep + 1} of ${STEP_COUNT}`;
     prevBtn.disabled = currentStep === 0;
     nextBtn.disabled = currentStep === STEP_COUNT - 1;
@@ -928,6 +1036,12 @@ interface Rhomb {
     vertices: [number, number][]; // 4 vertices in parallelogram order
     kTuples: number[][]; // K-tuple for each of the 4 vertices
     thick: boolean;
+    // Provenance: the crossing that generated this rhomb. computeRhomb has
+    // always received all of it; keeping it is what lets a hovered intersection
+    // find its tile, and what the ribbon explorations need. PLAN.md item 4.
+    j: number; k: number;    // the two families whose lines crossed
+    nj: number; nk: number;  // and which line of each
+    x0: number; y0: number;  // the intersection itself, in grid coordinates
 }
 
 function computeRhomb(
@@ -968,15 +1082,19 @@ function computeRhomb(
     ];
 
     const d = Math.min(k - j, 5 - (k - j));
-    return { vertices, kTuples, thick: d === 1 };
+    return { vertices, kTuples, thick: d === 1, j, k, nj, nk, x0, y0 };
 }
 
 function collectRhombs(vis: ViewRect): Rhomb[] {
     const rhombs: Rhomb[] = [];
+    // vis is in TILING coordinates, where the vertices live. The line indices are
+    // grid-space, so their range comes from vis scaled down by the registration
+    // gain — without that division the loops over-generate by gain² and most of
+    // the work is thrown away by the visibility test.
     const maxCoord = Math.max(
         Math.abs(vis.xMin), Math.abs(vis.xMax),
         Math.abs(vis.yMin), Math.abs(vis.yMax),
-    );
+    ) / gridGain();
     const maxN = Math.min(Math.ceil(maxCoord) + 5, 50);
     const pad = 1.5;
 
@@ -1105,7 +1223,7 @@ function drawGridFamily(
     const nHi = Math.ceil(maxDot + gamma[j]) + 1;
 
     tc.strokeStyle = COLORS[j];
-    tc.lineWidth = currentStep === 2 ? 2 : 1;
+    tc.lineWidth = gridLineWidth;
 
     for (let n = nLo; n <= nHi; n++) {
         const c = n - gamma[j];
@@ -1191,7 +1309,9 @@ let dualVertices: DualVertex[] = [];
  * @param cx - Screen x of the canvas center
  * @param cy - Screen y of the canvas center
  */
-function drawDualVertices(tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number) {
+function drawDualVertices(
+    tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, show: boolean,
+) {
     const seen = new Set<string>();
     dualVertices = [];
     tc.fillStyle = "#c0392b";
@@ -1203,10 +1323,62 @@ function drawDualVertices(tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: num
             seen.add(key);
             const [sx, sy] = mathToScreen(vx, vy, cx, cy);
             dualVertices.push({ sx, sy, mx: vx, my: vy, K: rhomb.kTuples[vi] });
+            if (!show) continue;
             tc.beginPath();
             tc.arc(sx, sy, 3, 0, 2 * Math.PI);
             tc.fill();
         }
+    }
+}
+
+// ── The arc decoration ────────────────────────────────────────────
+//
+// The classic marking whose curves close into loops across the tiling. Each edge
+// of every rhomb is +v_j from one of its endpoints, and that orientation is
+// global, so putting the crossing point at the same fraction ARC_T along every
+// edge makes the curves join across every shared edge automatically — no
+// matching rules to enforce, they come out of the construction.
+//
+// A rhomb f, f+v_j, f+v_j+v_k, f+v_k then carries exactly two arcs: one centred
+// at f of radius ARC_T (both its edges leave f in a + direction), and one at the
+// opposite corner of radius 1-ARC_T. The two radii sum to 1, which is what makes
+// them meet. 1/φ² and 1/φ are the golden choice.
+const PHI = (1 + Math.sqrt(5)) / 2;
+const ARC_T = 1 / (PHI * PHI);
+const ARC_COLORS = ["#c1440e", "#1b6ca8"];
+
+/** One arc in math coordinates, taking the short way round. */
+function arcBetween(
+    tc: CanvasRenderingContext2D, mx: number, my: number, r: number,
+    a1: number, a2: number, cx: number, cy: number,
+) {
+    const [sx, sy] = mathToScreen(mx, my, cx, cy);
+    // Screen y is flipped, so a math angle θ is screen angle −θ.
+    const s1 = -a1;
+    let d = -a2 - s1;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    tc.beginPath();
+    tc.arc(sx, sy, r * scale, s1, s1 + d, d < 0);
+    tc.stroke();
+}
+
+function drawPenroseDecor(
+    tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
+) {
+    tc.lineWidth = 1.6;
+    tc.lineCap = "round";
+    for (const r of rhombs) {
+        const [vjx, vjy] = directions[r.j];
+        const [vkx, vky] = directions[r.k];
+        const aj = Math.atan2(vjy, vjx);
+        const ak = Math.atan2(vky, vkx);
+        const [fx, fy] = r.vertices[0];
+        const [gx, gy] = r.vertices[2];
+        tc.strokeStyle = ARC_COLORS[0];
+        arcBetween(tc, fx, fy, ARC_T, aj, ak, cx, cy);
+        tc.strokeStyle = ARC_COLORS[1];
+        arcBetween(tc, gx, gy, 1 - ARC_T, aj + Math.PI, ak + Math.PI, cx, cy);
     }
 }
 
@@ -1486,24 +1658,27 @@ function drawKEdgeLabels(tc: CanvasRenderingContext2D, cx: number, cy: number) {
 // ── Main draw ─────────────────────────────────────────────────────
 
 function draw() {
-    const gridAlphas = [0.6, 0.6, 0.4, 0.15, 0.15, 0];
+    // Grid opacity is a step preset, floored so the grid never vanishes — the
+    // pentagrid and the tiling now share coordinates, and that is only worth
+    // anything if both are on screen.
+    const gridAlphas = [0.6, 0.6, 0.4, 0.28, 0.24, 0.18];
     const alpha = gridAlphas[currentStep];
-
-    // Set grid layer visibility and CSS opacity
     for (let j = 0; j < NUM_GRIDS; j++) {
         const layer = layers.get(`grid-${j}`)!;
-        layer.visible = alpha > 0;
+        layer.visible = true;
         layer.canvas.style.opacity = String(alpha);
     }
 
-    // Background only on step 2
-    layers.get("background")!.visible = currentStep === 2;
-
-    // Axes always visible
+    layers.get("background")!.visible = features.kRegions;
     layers.get("axes")!.visible = true;
+    layers.get("overlay")!.visible = true;
 
-    // Content always drawn (draw function switches on step internally)
-    layers.get("content")!.visible = true;
+    tilesLayer.visible = features.penroseTiles;
+    edgesLayer.visible = features.penroseEdges;
+    decorLayer.visible = features.penroseDecor;
+    // The vertex layer also populates the pick list, so it runs when the hover
+    // wants vertices even if nothing is to be drawn.
+    verticesLayer.visible = features.penroseVertices || features.hoverVertex;
 
     drawAllLayers();
 
@@ -1513,72 +1688,125 @@ function draw() {
     if (loupe) { drawLoupe(); drawFootprint(); }
 }
 
-// ── Layer toggle UI ───────────────────────────────────────────────
+// ── Panel ─────────────────────────────────────────────────────────
+
+const featureBoxes: { key: keyof Features; cb: HTMLInputElement }[] = [];
+
+function row(parent: HTMLElement, title: string): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "panel-row";
+    if (title) {
+        const t = document.createElement("span");
+        t.className = "panel-label";
+        t.textContent = title;
+        wrap.appendChild(t);
+    }
+    parent.appendChild(wrap);
+    return wrap;
+}
+
+function checkbox(
+    parent: HTMLElement, label: string, checked: boolean,
+    onChange: (v: boolean) => void, swatch?: string,
+): HTMLInputElement {
+    const lbl = document.createElement("label");
+    lbl.className = "layer-toggle";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = checked;
+    cb.addEventListener("change", () => onChange(cb.checked));
+    lbl.appendChild(cb);
+    if (swatch) {
+        const sw = document.createElement("span");
+        sw.className = "layer-swatch";
+        sw.style.background = swatch;
+        lbl.appendChild(sw);
+    }
+    lbl.appendChild(document.createTextNode(label));
+    parent.appendChild(lbl);
+    return cb;
+}
+
+/** A checkbox bound to one feature flag, re-synced when a step preset lands. */
+function featureToggle(parent: HTMLElement, key: keyof Features, label: string) {
+    const cb = checkbox(parent, label, features[key], (v) => {
+        features[key] = v;
+        draw();
+    });
+    featureBoxes.push({ key, cb });
+}
+
+function syncPanel() {
+    for (const { key, cb } of featureBoxes) cb.checked = features[key];
+}
 
 function buildLayerPanel() {
-    const wrapper = document.createElement("div");
-    wrapper.style.cssText = "display:flex;gap:14px;align-items:center;margin:4px 0;flex-wrap:wrap;";
-
-    const title = document.createElement("span");
-    title.textContent = "Layers:";
-    title.style.cssText = "font-size:12px;color:#888;";
-    wrapper.appendChild(title);
-
-    // Grid family toggles
+    // Grid families and axes
+    const gridRow = row(layerPanelDiv, "Pentagrid");
     for (let j = 0; j < NUM_GRIDS; j++) {
-        const layer = layers.get(`grid-${j}`)!;
-        const label = document.createElement("label");
-        label.className = "layer-toggle";
-
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = true;
-        cb.addEventListener("change", () => {
-            layer.userVisible = cb.checked;
+        const layer = gridLayers[j];
+        checkbox(gridRow, `${j}`, true, (v) => {
+            layer.userVisible = v;
+            rhombCache = null;   // the rhomb set depends on the active families
             draw();
-        });
-
-        const swatch = document.createElement("span");
-        swatch.className = "layer-swatch";
-        swatch.style.background = COLORS[j];
-
-        label.appendChild(cb);
-        label.appendChild(swatch);
-        label.appendChild(document.createTextNode(`${j}`));
-        wrapper.appendChild(label);
+        }, COLORS[j]);
     }
+    checkbox(gridRow, "Axes", true, (v) => { axesLayer.userVisible = v; draw(); });
+    featureToggle(gridRow, "intersectionDots", "Dots");
+    featureToggle(gridRow, "kRegions", "K-regions");
+    featureToggle(gridRow, "kLabels", "K-labels");
 
-    // Axes toggle
-    const axesLbl = document.createElement("label");
-    axesLbl.className = "layer-toggle";
-    const axesCb = document.createElement("input");
-    axesCb.type = "checkbox";
-    axesCb.checked = true;
-    axesCb.addEventListener("change", () => {
-        axesLayer.userVisible = axesCb.checked;
+    // The tiling
+    const pRow = row(layerPanelDiv, "Penrose");
+    featureToggle(pRow, "penroseTiles", "Tiles");
+    featureToggle(pRow, "penroseEdges", "Edges");
+    featureToggle(pRow, "penroseVertices", "Vertices");
+    featureToggle(pRow, "penroseDecor", "Arcs");
+    checkbox(pRow, "in front", penroseInFront, (v) => {
+        penroseInFront = v;
+        restackPenrose();
+    });
+
+    // Hover behaviour
+    const hRow = row(layerPanelDiv, "On hover");
+    featureToggle(hRow, "hoverVertex", "vertex from region");
+    featureToggle(hRow, "hoverTile", "tile from intersection");
+
+    // Collapsed settings — set once, then forgotten
+    const det = document.createElement("details");
+    det.className = "settings";
+    const sum = document.createElement("summary");
+    sum.textContent = "settings";
+    det.appendChild(sum);
+
+    const sRow = row(det, "");
+    checkbox(sRow, "allow singularities", !guardRegular, (v) => {
+        guardRegular = !v;
+        updateLockedGamma();
         draw();
     });
-    axesLbl.appendChild(axesCb);
-    axesLbl.appendChild(document.createTextNode("Axes"));
-    wrapper.appendChild(axesLbl);
-
-    // Registration. The dual map has gain 5/2, so without this the tiling is
-    // drawn 2.5x the grid that generates it and the two do not line up.
-    const regLbl = document.createElement("label");
-    regLbl.className = "layer-toggle";
-    regLbl.title = "Draw the pentagrid at 5/2 so each rhomb sits on the crossing that made it";
-    const regCb2 = document.createElement("input");
-    regCb2.type = "checkbox";
-    regCb2.checked = registerScales;
-    regCb2.addEventListener("change", () => {
-        registerScales = regCb2.checked;
+    checkbox(sRow, "vertical-axis symmetry", verticalSymmetry, (v) => {
+        verticalSymmetry = v;
+        rebuildDirections();
+        rhombCache = null;
         draw();
     });
-    regLbl.appendChild(regCb2);
-    regLbl.appendChild(document.createTextNode("register 5:2"));
-    wrapper.appendChild(regLbl);
 
-    layerPanelDiv.appendChild(wrapper);
+    const tRow = row(det, "gridline width");
+    const thick = document.createElement("input");
+    thick.type = "range";
+    thick.min = "0.5";
+    thick.max = "4";
+    thick.step = "0.5";
+    thick.value = String(gridLineWidth);
+    thick.className = "thickness";
+    thick.addEventListener("input", () => {
+        gridLineWidth = parseFloat(thick.value);
+        draw();
+    });
+    tRow.appendChild(thick);
+
+    layerPanelDiv.appendChild(det);
 }
 
 // ── Loupe ─────────────────────────────────────────────────────────
@@ -1813,6 +2041,52 @@ window.addEventListener("keydown", (e) => {
     }
 });
 
+// ── Intersection picking ──────────────────────────────────────────
+
+/** The rhomb whose generating crossing is nearest the cursor, within a radius. */
+function nearestIntersection(sx: number, sy: number, cx: number, cy: number): Rhomb | null {
+    let best: Rhomb | null = null;
+    let bestD = 14;
+    for (const r of currentRhombs()) {
+        const [ix, iy] = gridToScreen(r.x0, r.y0, cx, cy);
+        const d = Math.hypot(ix - sx, iy - sy);
+        if (d < bestD) { bestD = d; best = r; }
+    }
+    return best;
+}
+
+/** Fill the tile a crossing produced, and join the two with an arrow. */
+function highlightTile(r: Rhomb, cx: number, cy: number) {
+    const pts = r.vertices.map(([x, y]) => mathToScreen(x, y, cx, cy));
+    highlightCtx.beginPath();
+    highlightCtx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) highlightCtx.lineTo(pts[i][0], pts[i][1]);
+    highlightCtx.closePath();
+    highlightCtx.fillStyle = r.thick ? "rgba(232,193,112,0.75)" : "rgba(126,184,218,0.75)";
+    highlightCtx.fill();
+    highlightCtx.strokeStyle = "rgba(255,180,0,0.95)";
+    highlightCtx.lineWidth = 2;
+    highlightCtx.stroke();
+
+    // The crossing itself, and a line to the tile it became
+    const [ix, iy] = gridToScreen(r.x0, r.y0, cx, cy);
+    let mx = 0, my = 0;
+    for (const [px, py] of pts) { mx += px; my += py; }
+    mx /= pts.length; my /= pts.length;
+
+    highlightCtx.strokeStyle = "rgba(255,180,0,0.9)";
+    highlightCtx.lineWidth = 1.5;
+    highlightCtx.beginPath();
+    highlightCtx.moveTo(ix, iy);
+    highlightCtx.lineTo(mx, my);
+    highlightCtx.stroke();
+
+    highlightCtx.fillStyle = "#e63946";
+    highlightCtx.beginPath();
+    highlightCtx.arc(ix, iy, 4, 0, 2 * Math.PI);
+    highlightCtx.fill();
+}
+
 // ── Tooltip / hover highlight ──────────────────────────────────────
 
 function clearHighlight() {
@@ -1967,10 +2241,29 @@ eventCanvas.addEventListener("mousemove", (e) => {
         if (target) openLoupe(target);
     }
 
-    if (currentStep === 2) {
-        // Step 3: show K-tuple at cursor and arrow to its dual vertex. The
-        // K-tuple is a fact about the pentagrid, so it is read in grid
-        // coordinates; the dual vertex it points at stays in tiling coordinates.
+    // Intersection -> its tile. Only possible now that rhombs remember the
+    // crossing that made them (PLAN.md item 4).
+    if (features.hoverTile) {
+        const hit = nearestIntersection(sx, sy, cx, cy);
+        if (hit) {
+            clearHighlight();
+            highlightTile(hit, cx, cy);
+            tooltip.innerHTML =
+                `families <span style="color:${COLORS[hit.j]}">${hit.j}</span>` +
+                `&times;<span style="color:${COLORS[hit.k]}">${hit.k}</span>` +
+                ` &nbsp;n = (${hit.nj}, ${hit.nk})` +
+                `<br><span style="color:#fc0">${hit.thick ? "thick" : "thin"}</span> rhomb`;
+            tooltip.style.display = "block";
+            tooltip.style.left = (e.clientX + 12) + "px";
+            tooltip.style.top = (e.clientY - 34) + "px";
+            return;
+        }
+    }
+
+    if (features.hoverVertex) {
+        // Region -> its dual vertex. The K-tuple is a fact about the pentagrid,
+        // so it is read in grid coordinates; the vertex it points at stays in
+        // tiling coordinates.
         const [mx, my] = screenToGrid(sx, sy, cx, cy);
         const K = computeKTuple(mx, my);
         tooltip.innerHTML = formatKTooltip(K);
@@ -2034,8 +2327,8 @@ eventCanvas.addEventListener("mousemove", (e) => {
         return;
     }
 
-    if (currentStep === 3) {
-        // Step 4: find nearest dual vertex
+    if (features.hoverVertex) {
+        // and the reverse: nearest dual vertex -> the region that produced it
         let best: DualVertex | null = null;
         let bestDist = 12; // pixel threshold
         for (const dv of dualVertices) {
@@ -2093,6 +2386,7 @@ eventCanvas.addEventListener("mouseleave", () => {
 console.log(`pentagrid build ${BUILD_ID}`);
 
 buildLayerPanel();
+restackPenrose();
 updateLockedGamma();
 updateStepUI();
 draw();
