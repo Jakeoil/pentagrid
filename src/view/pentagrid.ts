@@ -25,6 +25,10 @@ const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
 
 
 export interface Features {
+    /** The pentagrid itself. Separate from a family's userVisible, which also
+     *  removes the rhombs that family generates. */
+    gridLines: boolean;
+    axes: boolean;
     kRegions: boolean;
     kLabels: boolean;
     intersectionDots: boolean;
@@ -61,6 +65,17 @@ export interface PentagridConfig {
     layers?: (ctx: PentagridParts) => void;
     /** A stamp to show beside the step indicator. */
     buildId?: string;
+    /** Starting feature set. Useful for a page with no steps to impose one. */
+    features?: Partial<Features>;
+    /** Starting offsets. Omitted means all zero, which the guard then moves off. */
+    gamma?: readonly number[];
+    /** Fired whenever the user pans or zooms this instance. Not fired by
+     *  setView, so linking two instances does not loop. */
+    onViewChange?: (v: View) => void;
+    /** The magnifier that opens on tiny regions. Off unless asked for: it is a
+     *  tool for inspecting near-singular configurations, and it gets in the way
+     *  of simply looking at the picture. */
+    loupe?: boolean;
 }
 
 /** What a registered layer callback is handed. */
@@ -73,9 +88,17 @@ export interface PentagridParts {
     redraw: () => void;
 }
 
+export interface View { scale: number; x: number; y: number; }
+
 export interface PentagridHandle {
     redraw: () => void;
     setStep: (i: number) => void;
+    /** Read the current pan and zoom. */
+    getView: () => View;
+    /** Drive the pan and zoom from outside. Does NOT fire onViewChange, so two
+     *  linked instances cannot bounce updates off each other forever. */
+    setView: (v: View) => void;
+    setGamma: (g: readonly number[]) => void;
     stack: LayerStack;
 }
 
@@ -175,7 +198,18 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return r;
     }
 
+    // The meter is the scan's other consumer, and it only exists if the page
+    // gave us somewhere to put it.
+    const showsMeter = !!config.controls;
+
     function scanSmallRegions() {
+        if (!loupeEnabled && !showsMeter) {
+            // Nothing would read the result, and this is the expensive call in
+            // the file — it was running twice per frame on the paired views.
+            smallRegions = [];
+            concurrencies = [];
+            return;
+        }
         // The scan is grid-space, so it gets the grid rect. It had been handed the
         // tiling rect, which since registration became permanent meant scanning 6.25x
         // the area and counting regions that are not on screen toward the meter.
@@ -197,6 +231,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // implicitly. The loupe is a second view, so it swaps them via withView()
     // rather than threading a parameter through every draw function.
     let scale = 60;
+
+    /** Tell the page the user moved. Never called by setView, so two linked
+     *  instances cannot bounce updates back and forth. */
+    function notifyView() {
+        config.onViewChange?.({ scale, x: viewX, y: viewY });
+    }
+
     let viewX = 0;
     let viewY = 0;
     let viewW = canvas.w;
@@ -249,6 +290,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
     let loupe: Loupe | null = null;
     let loupeFrozen = false;
+    // A setting rather than a feature, so a step preset cannot switch it back on.
+    let loupeEnabled = config.loupe ?? false;
     let loupeHoverK: number[] | null = null;
 
     // ── DOM elements ──────────────────────────────────────────────────
@@ -279,6 +322,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // anything. PLAN.md, "The method page, reorganised".
 
     const NO_FEATURES: Features = {
+        gridLines: true, axes: true,
         kRegions: false, kLabels: false, intersectionDots: false,
         penroseTiles: false, penroseEdges: false, penroseVertices: false,
         penroseDecor: false, hoverVertex: false, hoverTile: false,
@@ -293,9 +337,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         { penroseTiles: true },                                    // 6 the tiling
     ];
 
-    let features: Features = { ...NO_FEATURES, ...STEP_PRESETS[0] };
+    let features: Features = { ...NO_FEATURES, ...STEP_PRESETS[0], ...config.features };
 
     function applyStepPreset() {
+        // With no steps the page's own feature set stands, untouched.
+        if (STEP_COUNT === 0) return;
         features = { ...NO_FEATURES, ...STEP_PRESETS[currentStep] };
     }
 
@@ -339,7 +385,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     for (let j = 0; j < NUM_GRIDS; j++) {
         gridLayers.push(stack.add({
             id: `grid-${j}`, label: `${j}`, z: 10 + j, group: "Pentagrid",
-            opacity: () => gridAlphas[currentStep],
+            visible: () => features.gridLines,
+            opacity: () => gridAlphas[Math.min(currentStep, gridAlphas.length - 1)],
             draw: (c) => withView(gridView(), () =>
                 drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy)),
         }));
@@ -347,6 +394,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const axesLayer = stack.add({
         id: "axes", label: "Axes", z: 20, group: "Pentagrid",
+        visible: () => features.axes,
         draw: (c) => drawAxes(c.ctx, c.w, c.h, c.cx, c.cy),
     });
 
@@ -687,6 +735,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function updateStepUI() {
         applyStepPreset();
         syncPanel();
+        if (STEP_COUNT === 0) return;
         stepIndicator.textContent = `Step ${currentStep + 1} of ${STEP_COUNT}`;
         prevBtn.disabled = currentStep === 0;
         nextBtn.disabled = currentStep === STEP_COUNT - 1;
@@ -751,6 +800,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const [mx, my] = screenToMath(sx, sy, cx, cy);
         scale = Math.max(10, Math.min(400, scale * factor));
         viewX = mx - (sx - cx) / scale;
+        notifyView();
         viewY = my + (sy - cy) / scale;
         draw();
     }
@@ -775,6 +825,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (!isPanning) return;
         viewX -= (e.offsetX - panLastX) / scale;
         viewY += (e.offsetY - panLastY) / scale;
+        notifyView();
         panLastX = e.offsetX;
         panLastY = e.offsetY;
         draw();
@@ -793,6 +844,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // Double-click to reset view
     eventCanvas.addEventListener("dblclick", () => {
         scale = 60;
+        notifyView();
         viewX = 0;
         viewY = 0;
         draw();
@@ -824,6 +876,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const dy = e.touches[0].clientY - panLastY;
             viewX -= dx / scale;
             viewY += dy / scale;
+            notifyView();
             panLastX = e.touches[0].clientX;
             panLastY = e.touches[0].clientY;
             draw();
@@ -1478,6 +1531,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             updateLockedGamma();
             draw();
         });
+        checkbox(sRow, "loupe on tiny regions", loupeEnabled, (v) => {
+            loupeEnabled = v;
+            if (!v) closeLoupe();
+            draw();
+        });
         checkbox(sRow, "vertical-axis symmetry", verticalSymmetry, (v) => {
             verticalSymmetry = v;
             rebuildDirections();
@@ -1887,7 +1945,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // Retarget on approach, but never close on "nothing nearby": the cursor has
         // to travel off the target to reach the panel, and closing on distance meant
         // the loupe disappeared en route and could never be entered. Esc dismisses.
-        if (!loupeFrozen) {
+        if (loupeEnabled && !loupeFrozen) {
             const target = nearestLoupeTarget(sx, sy, cx, cy);
             if (target) openLoupe(target);
         }
@@ -2042,6 +2100,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         stack, model, currentRhombs, withView, gridView, redraw: () => draw(),
     });
 
+    if (config.gamma) {
+        for (let j = 0; j < NUM_GRIDS; j++) {
+            gammaQ[j] = Math.round((config.gamma[j] ?? 0) * GAMMA_DEN);
+        }
+    }
+
     buildLayerPanel();
     restackPenrose();
     updateLockedGamma();
@@ -2051,8 +2115,24 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     return {
         redraw: draw,
         setStep: (i: number) => {
+            if (STEP_COUNT === 0) return;
             currentStep = Math.max(0, Math.min(STEP_COUNT - 1, i));
             updateStepUI();
+            draw();
+        },
+        getView: () => ({ scale, x: viewX, y: viewY }),
+        setView: (v) => {
+            scale = v.scale;
+            viewX = v.x;
+            viewY = v.y;
+            draw();
+        },
+        setGamma: (g) => {
+            for (let j = 0; j < NUM_GRIDS; j++) {
+                gammaQ[j] = Math.round((g[j] ?? 0) * GAMMA_DEN);
+            }
+            updateLockedGamma();
+            rhombCache = null;
             draw();
         },
         stack,
