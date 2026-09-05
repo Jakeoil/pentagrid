@@ -9,6 +9,9 @@ import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
 import { rhombArcs } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
+import { createGammaBank } from "../ui/dials.js";
+import { createLoupe } from "../ui/loupe.js";
+import type { LoupeTarget } from "../ui/loupe.js";
 import type { Layer, LayerContext } from "./layers.js";
 
 import { METHOD_STEPS } from "../app/method-steps.js";
@@ -281,18 +284,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return mathToScreen(gx * g, gy * g, cx, cy);
     }
 
-    // Loupe state lives here rather than in the loupe section below, because draw()
-    // reads it and draw() first runs at init, before that section is evaluated.
-    interface Loupe {
-        x: number; y: number;
-        scale: number; mag: number;
-        label: string;
-    }
-    let loupe: Loupe | null = null;
-    let loupeFrozen = false;
     // A setting rather than a feature, so a step preset cannot switch it back on.
     let loupeEnabled = config.loupe ?? false;
-    let loupeHoverK: number[] | null = null;
 
     // ── DOM elements ──────────────────────────────────────────────────
 
@@ -456,50 +449,28 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const eventCanvas = eventLayer.canvas;
     eventCanvas.style.cursor = "grab";
 
-    // ── Build slider controls ─────────────────────────────────────────
+    // ── The γ bank ────────────────────────────────────────────────────
+    //
+    // A view over the values, nothing more: it reports which slider moved and
+    // which label was clicked, and renders what it is told. The constraint —
+    // that one index is computed from the others so Σγ = 0 — is ours, not its.
 
-    interface Dial {
-        input: HTMLInputElement;
-        display: HTMLSpanElement;
-    }
-
-    const dials: Dial[] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const div = document.createElement("div");
-        div.className = "dial";
-
-        const label = document.createElement("label");
-        label.innerHTML = `<span style="color:${COLORS[j]}">γ<sub>${j}</sub></span>`;
-        label.style.cursor = "pointer";
-        label.title = `Lock γ${j} (compute from others)`;
-        label.addEventListener("click", () => setLockedIndex(j));
-
-        const input = document.createElement("input");
-        input.type = "range";
-        input.min = "-2";
-        input.max = "2";
-        input.step = "0.01";
-        input.value = "0";
-        input.style.accentColor = COLORS[j];
-
-        const display = document.createElement("span");
-        display.className = "value";
-        display.style.color = COLORS[j];
-        display.textContent = "0.00";
-
-        div.appendChild(label);
-        div.appendChild(input);
-        div.appendChild(display);
-        controlsDiv.appendChild(div);
-
-        dials.push({ input, display });
-    }
-
-    // Sum display
-    const sumSpan = document.createElement("div");
-    sumSpan.className = "sum-display";
-    sumSpan.textContent = "Σ = 0.00";
-    controlsDiv.appendChild(sumSpan);
+    const bank = createGammaBank({
+        count: NUM_GRIDS,
+        colors: COLORS,
+        onChange: (j, value) => {
+            if (j === lockedIndex) return;
+            gammaQ[j] = Math.round(value * GAMMA_DEN);
+            updateLockedGamma();
+            draw();
+        },
+        onLock: (j) => {
+            lockedIndex = j;
+            updateLockedGamma();
+            draw();
+        },
+    });
+    controlsDiv.appendChild(bank.element);
 
     // ── Regularity meter ──────────────────────────────────────────────
     //
@@ -698,37 +669,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function updateLockedGamma() {
         relock();
         guardRegularity();
-        for (let j = 0; j < NUM_GRIDS; j++) {
-            dials[j].display.textContent = gamma[j].toFixed(2);
-        }
-        dials[lockedIndex].input.value = gamma[lockedIndex].toFixed(2);
-        const total = gamma.reduce((a, b) => a + b, 0);
-        sumSpan.textContent = `Σ = ${total.toFixed(4)}`;
+        bank.sync({
+            values: gamma,
+            locked: lockedIndex,
+            sum: gamma.reduce((a, b) => a + b, 0),
+        });
     }
-
-    function setLockedIndex(j: number) {
-        dials[lockedIndex].input.disabled = false;
-        dials[lockedIndex].input.parentElement!.className = "dial";
-        lockedIndex = j;
-        dials[lockedIndex].input.disabled = true;
-        dials[lockedIndex].input.parentElement!.className = "dial computed";
-        updateLockedGamma();
-        draw();
-    }
-
-    function onSliderChange(j: number) {
-        if (j === lockedIndex) return;
-        gammaQ[j] = Math.round(parseFloat(dials[j].input.value) * GAMMA_DEN);
-        updateLockedGamma();
-        draw();
-    }
-
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        dials[j].input.addEventListener("input", () => onSliderChange(j));
-    }
-
-    // Set initial locked slider
-    setLockedIndex(4);
 
     // ── Step navigation logic ─────────────────────────────────────────
 
@@ -1433,7 +1379,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // The scan depends on γ and the view, exactly like the rhomb set does.
         scanSmallRegions();
         updateMeter();
-        if (loupe) { drawLoupe(); drawFootprint(); }
+        if (loupe.view) { loupe.redraw(); drawFootprint(); }
     }
 
     // ── Panel ─────────────────────────────────────────────────────────
@@ -1562,55 +1508,61 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // ── Loupe ─────────────────────────────────────────────────────────
     //
-    // An inset panel, not a fisheye. A radial magnifier is not conformal, so inside
-    // it the straight lines would curve and 72° would stop being 72° — an expensive
-    // distortion for a page whose subject is straight lines at exact angles. And
-    // with g(0)=0, g(R)=R the mean of g' over [0,R] is exactly 1, so magnifying the
-    // centre forces a compression annulus at the rim, where things are HARDER to hit
-    // than at 1x. The inset costs none of that, and picking inside it is just
-    // screenToMath at a different scale and centre.
-    //
-    // Regions are already hoverable at any size — computeKTuple is exact at a point,
-    // with no threshold and no nearest-neighbour search. The only thing that fails
-    // at 1px is aiming, so this is magnification and no new picking code.
+    // The panel itself is in ui/loupe.ts and knows nothing about pentagrids. What
+    // stays here is what only this page can say: what counts as a target worth
+    // magnifying, how to paint the magnified content, and what a point under the
+    // cursor means.
 
-    const LOUPE_W = 220;
-    const LOUPE_H = 220;
     const LOUPE_TRIGGER_PX = 20;   // search radius around the cursor
-    const LOUPE_TARGET_PX = 40;    // and present it at about this size
+    const LOUPE_TARGET_PX = 40;    // and present the target at about this size
     const LOUPE_MAX_MAG = 1e5;
-    // A concurrency has no size to scale from. This is enough to show plainly that
-    // the lines really do meet rather than bounding a sliver.
+    // A concurrency has no size to scale from. This is enough to show plainly
+    // that the lines really do meet rather than bounding a sliver.
     const CONCURRENCY_MAG = 1000;
 
-    const loupeCanvas = document.createElement("canvas");
-    loupeCanvas.width = LOUPE_W;
-    loupeCanvas.height = LOUPE_H;
-    loupeCanvas.className = "loupe";
-    loupeCanvas.style.display = "none";
-    container.appendChild(loupeCanvas);
-    const loupeCtx = loupeCanvas.getContext("2d")!;
+    let loupeHoverK: number[] | null = null;
 
-
-    function loupeView(): ViewState {
-        return {
-            scale: loupe!.scale, viewX: loupe!.x, viewY: loupe!.y,
-            w: LOUPE_W, h: LOUPE_H, margin: 0,
-        };
-    }
-
-    function loupeToMath(sx: number, sy: number): [number, number] {
-        return [
-            loupe!.x + (sx - LOUPE_W / 2) / loupe!.scale,
-            loupe!.y - (sy - LOUPE_H / 2) / loupe!.scale,
-        ];
-    }
-
-    interface LoupeTarget { x: number; y: number; mag: number; label: string; }
+    const loupe = createLoupe({
+        container,
+        onChange: () => drawFootprint(),
+        tooltip,
+        onHover: (mx, my) => {
+            loupeHoverK = computeKTuple(mx, my);
+            return formatKTooltip(loupeHoverK);
+        },
+        render: (lctx, lview, lsize) => {
+            const lcx = lsize / 2, lcy = lsize / 2;
+            withView({
+                scale: lview.scale, viewX: lview.x, viewY: lview.y,
+                w: lsize, h: lsize, margin: 0,
+            }, () => {
+                if (loupeHoverK) {
+                    const poly = regionPoly(loupeHoverK);
+                    if (poly.length >= 3) {
+                        lctx.beginPath();
+                        poly.forEach(([px, py], i) => {
+                            const [sx, sy] = mathToScreen(px, py, lcx, lcy);
+                            if (i === 0) lctx.moveTo(sx, sy); else lctx.lineTo(sx, sy);
+                        });
+                        lctx.closePath();
+                        lctx.fillStyle = "rgba(255, 255, 100, 0.45)";
+                        lctx.fill();
+                        lctx.strokeStyle = "rgba(255, 200, 0, 0.9)";
+                        lctx.lineWidth = 2;
+                        lctx.stroke();
+                    }
+                }
+                for (let j = 0; j < NUM_GRIDS; j++) {
+                    if (!gridLayers[j].userVisible) continue;
+                    drawGridFamily(lctx, j, lsize, lsize, lcx, lcy);
+                }
+            });
+        },
+    });
 
     /**
      * The thing nearest the cursor worth magnifying: an unhittable region, or a
-     * concurrency. Concurrencies win ties — they are the more important find, and
+     * concurrency. Concurrencies win — they are the more important find, and
      * unlike a small region no magnification will ever open one up.
      */
     function nearestLoupeTarget(sx: number, sy: number, cx: number, cy: number): LoupeTarget | null {
@@ -1644,34 +1596,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return best;
     }
 
-    function openLoupe(r: LoupeTarget) {
-        // Already latched onto this target: leave the magnification alone, or the
-        // panel zooms continuously as the cursor moves and becomes unreadable.
-        if (loupe && loupe.x === r.x && loupe.y === r.y) return;
-        loupe = { x: r.x, y: r.y, scale: scale * r.mag, mag: r.mag, label: r.label };
-        loupeHoverK = null;
-        loupeCanvas.style.display = "block";
-        loupeCanvas.style.pointerEvents = "auto";
-        drawLoupe();
-        drawFootprint();
-    }
-
-    function closeLoupe() {
-        if (!loupe) return;
-        loupe = null;
-        loupeHoverK = null;
-        loupeCanvas.style.display = "none";
-        loupeCanvas.style.pointerEvents = "none";
-        footprintCtx.clearRect(0, 0, canvas.w, canvas.h);
-    }
-
+    /** Where the panel is looking, drawn in the main view. */
     function drawFootprint() {
         footprintCtx.clearRect(0, 0, canvas.w, canvas.h);
-        if (!loupe) return;
+        const v = loupe.view;
+        if (!v) return;
         const cx = canvas.w / 2, cy = canvas.h / 2;
-        const half = (LOUPE_W / 2) / loupe.scale;
-        const [x0, y0] = gridToScreen(loupe.x - half, loupe.y + half, cx, cy);
-        const [x1, y1] = gridToScreen(loupe.x + half, loupe.y - half, cx, cy);
+        const half = (220 / 2) / v.scale;
+        const [x0, y0] = gridToScreen(v.x - half, v.y + half, cx, cy);
+        const [x1, y1] = gridToScreen(v.x + half, v.y - half, cx, cy);
         // At high magnification the footprint is sub-pixel; show a minimum box.
         const w = Math.max(x1 - x0, 7), h = Math.max(y1 - y0, 7);
         const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
@@ -1680,107 +1613,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         footprintCtx.strokeRect(mx - w / 2, my - h / 2, w, h);
     }
 
-    function drawLoupe() {
-        if (!loupe) return;
-        loupeCtx.clearRect(0, 0, LOUPE_W, LOUPE_H);
-        loupeCtx.fillStyle = "#fff";
-        loupeCtx.fillRect(0, 0, LOUPE_W, LOUPE_H);
-
-        const lcx = LOUPE_W / 2, lcy = LOUPE_H / 2;
-
-        withView(loupeView(), () => {
-            if (loupeHoverK) {
-                const poly = regionPoly(loupeHoverK);
-                if (poly.length >= 3) {
-                    loupeCtx.beginPath();
-                    poly.forEach(([px, py], i) => {
-                        const [sx, sy] = mathToScreen(px, py, lcx, lcy);
-                        if (i === 0) loupeCtx.moveTo(sx, sy); else loupeCtx.lineTo(sx, sy);
-                    });
-                    loupeCtx.closePath();
-                    loupeCtx.fillStyle = "rgba(255, 255, 100, 0.45)";
-                    loupeCtx.fill();
-                    loupeCtx.strokeStyle = "rgba(255, 200, 0, 0.9)";
-                    loupeCtx.lineWidth = 2;
-                    loupeCtx.stroke();
-                }
-            }
-            for (let j = 0; j < NUM_GRIDS; j++) {
-                if (!gridLayers[j].userVisible) continue;
-                drawGridFamily(loupeCtx, j, LOUPE_W, LOUPE_H, lcx, lcy);
-            }
-        });
-
-        // Centre mark on the region that triggered the loupe
-        loupeCtx.strokeStyle = "rgba(220, 40, 70, 0.55)";
-        loupeCtx.lineWidth = 1;
-        loupeCtx.beginPath();
-        loupeCtx.moveTo(lcx - 7, lcy); loupeCtx.lineTo(lcx - 3, lcy);
-        loupeCtx.moveTo(lcx + 3, lcy); loupeCtx.lineTo(lcx + 7, lcy);
-        loupeCtx.moveTo(lcx, lcy - 7); loupeCtx.lineTo(lcx, lcy - 3);
-        loupeCtx.moveTo(lcx, lcy + 3); loupeCtx.lineTo(lcx, lcy + 7);
-        loupeCtx.stroke();
-
-        // What this is, and at what magnification — mag is adaptive and spans orders
-        // of magnitude, so it has to be stated.
-        const mag = loupe.mag;
-        const magStr = mag >= 1000
-            ? `${(mag / 1000).toFixed(mag < 10000 ? 1 : 0)}k×`
-            : `${Math.round(mag)}×`;
-        loupeCtx.font = "11px monospace";
-        loupeCtx.textAlign = "left";
-        loupeCtx.textBaseline = "bottom";
-        const foot = `${magStr}  ${loupe.label}`;
-        const tw = loupeCtx.measureText(foot).width;
-        loupeCtx.fillStyle = "rgba(255,255,255,0.88)";
-        loupeCtx.fillRect(3, LOUPE_H - 17, tw + 8, 15);
-        loupeCtx.fillStyle = "#444";
-        loupeCtx.fillText(foot, 7, LOUPE_H - 4);
-
-        // The panel is useless unless you know you can move into it.
-        if (!loupeFrozen) {
-            loupeCtx.font = "10px sans-serif";
-            loupeCtx.textAlign = "center";
-            loupeCtx.textBaseline = "top";
-            const hint = "move in to hover · esc to close";
-            const hw = loupeCtx.measureText(hint).width;
-            loupeCtx.fillStyle = "rgba(255,255,255,0.88)";
-            loupeCtx.fillRect(LOUPE_W / 2 - hw / 2 - 4, 3, hw + 8, 14);
-            loupeCtx.fillStyle = "#888";
-            loupeCtx.fillText(hint, LOUPE_W / 2, 5);
-        }
-    }
-
-    // Entering the loupe is the commit gesture: the view latches and stays put while
-    // hovering inside, so travelling to it can never retarget or close it.
-    loupeCanvas.addEventListener("mouseenter", () => { loupeFrozen = true; drawLoupe(); });
-
-    loupeCanvas.addEventListener("mouseleave", () => {
-        loupeFrozen = false;
+    function closeLoupe() {
         loupeHoverK = null;
-        tooltip.style.display = "none";
-        drawLoupe();
-    });
-
-    loupeCanvas.addEventListener("mousemove", (e) => {
-        if (!loupe) return;
-        const rect = loupeCanvas.getBoundingClientRect();
-        const [mx, my] = loupeToMath(e.clientX - rect.left, e.clientY - rect.top);
-        loupeHoverK = computeKTuple(mx, my);
-        tooltip.innerHTML = formatKTooltip(loupeHoverK);
-        tooltip.style.display = "block";
-        tooltip.style.left = (e.clientX + 12) + "px";
-        tooltip.style.top = (e.clientY - 28) + "px";
-        drawLoupe();
-    });
-
-    window.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-            loupeFrozen = false;
-            closeLoupe();
-            tooltip.style.display = "none";
-        }
-    });
+        loupe.close();
+    }
 
     // ── Intersection picking ──────────────────────────────────────────
 
@@ -1945,9 +1781,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // Retarget on approach, but never close on "nothing nearby": the cursor has
         // to travel off the target to reach the panel, and closing on distance meant
         // the loupe disappeared en route and could never be entered. Esc dismisses.
-        if (loupeEnabled && !loupeFrozen) {
+        if (loupeEnabled && !loupe.frozen) {
             const target = nearestLoupeTarget(sx, sy, cx, cy);
-            if (target) openLoupe(target);
+            if (target) loupe.open(target, scale);
         }
 
         // Intersection -> its tile. Only possible now that rhombs remember the
