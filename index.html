@@ -4,8 +4,178 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pentagrid</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+            background: #fafafa;
+            color: #333;
+        }
+        .page { max-width: 720px; }
+        h1 { margin-bottom: 4px; }
+        h2 { color: #555; font-weight: normal; margin-top: 0; font-size: 20px; }
+        h3 {
+            font-size: 16px;
+            color: #222;
+            margin: 28px 0 8px;
+        }
+        p { line-height: 1.65; }
+        .rule {
+            display: flex;
+            gap: 3px;
+            margin: 18px 0 24px;
+        }
+        .rule span {
+            height: 4px;
+            flex: 1;
+            border-radius: 2px;
+        }
+        .card {
+            display: block;
+            border: 1px solid #ddd;
+            background: #fff;
+            border-radius: 5px;
+            padding: 16px 18px;
+            text-decoration: none;
+            color: inherit;
+            margin: 18px 0;
+        }
+        .card:hover { border-color: #999; background: #fdfdfd; }
+        .card .t {
+            font-size: 17px;
+            font-weight: bold;
+            color: #1d3557;
+            margin-bottom: 4px;
+        }
+        .card .d { font-size: 14px; color: #555; line-height: 1.55; }
+        ol.steps, ul.plain {
+            font-size: 15px;
+            line-height: 1.7;
+            padding-left: 22px;
+        }
+        ul.plain { list-style: none; padding-left: 0; }
+        ul.plain li { margin-bottom: 12px; }
+        ul.plain b { color: #222; }
+        .pending {
+            font-size: 11px;
+            font-family: monospace;
+            color: #999;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            padding: 1px 5px;
+            margin-left: 6px;
+            vertical-align: 1px;
+        }
+        .eq {
+            font-family: "Times New Roman", serif;
+            font-size: 17px;
+            text-align: center;
+            background: #f0f0f0;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 16px 0;
+        }
+        footer {
+            margin-top: 40px;
+            padding-top: 14px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 13px;
+            color: #888;
+            line-height: 1.7;
+        }
+        footer a { color: #457b9d; }
+    </style>
 </head>
 <body>
-    <script type="module" src="./dist/index.js"></script>
+<div class="page">
+
+    <h1>Pentagrid</h1>
+    <h2>Explorations of de Bruijn's method for Penrose tilings</h2>
+
+    <div class="rule">
+        <span style="background:#e63946"></span>
+        <span style="background:#457b9d"></span>
+        <span style="background:#2a9d8f"></span>
+        <span style="background:#d4a017"></span>
+        <span style="background:#9b5de5"></span>
+    </div>
+
+    <p>Take five families of equally spaced parallel lines, turned 72&deg; from one
+    another, each shifted by an offset &gamma;<sub><i>j</i></sub>. The lines cut the
+    plane into regions. Give every region the five integers</p>
+
+    <p class="eq"><i>K<sub>j</sub></i>(<b>x</b>)&thinsp;=&thinsp;&lceil;&thinsp;<b>x</b>&thinsp;&middot;&thinsp;<b>v</b><sub><i>j</i></sub>
+    &plus;&thinsp;&gamma;<sub><i>j</i></sub>&thinsp;&rceil;</p>
+
+    <p>and send each region to the point
+    <i>f</i>&thinsp;(<b>x</b>)&thinsp;=&thinsp;&sum;&thinsp;<i>K<sub>j</sub></i>&thinsp;<b>v</b><sub><i>j</i></sub>.
+    What comes out is a Penrose rhomb tiling &mdash; every one of them, as
+    &gamma; varies. That is de Bruijn's 1981 result, and this site is an attempt
+    to make it something you can put your hands on rather than read.</p>
+
+    <a class="card" href="method.html">
+        <div class="t">The Method &rarr;</div>
+        <div class="d">The construction in six steps, from the bare grid to the finished
+        tiling. Five &gamma; sliders, pan and zoom, and hover anywhere to read off a
+        region's <i>K</i>-tuple and watch it map to its dual vertex.</div>
+    </a>
+
+    <h3>What is on that page</h3>
+    <ol class="steps">
+        <li>The pentagrid &mdash; five families of lines</li>
+        <li>Intersections &mdash; the pairwise crossings</li>
+        <li>Pentagrid regions &mdash; the <i>K</i>-tuples, and hovering them</li>
+        <li>Dual vertices &mdash; <i>f</i>&thinsp;(<b>x</b>) region by region</li>
+        <li>Building rhombs &mdash; four regions to a parallelogram</li>
+        <li>The Penrose tiling &mdash; the complete dual</li>
+    </ol>
+
+    <h3>Three things worth knowing before you touch the sliders</h3>
+    <ul class="plain">
+        <li><b>Regularity is decided, not guessed.</b> The construction needs no three
+        lines concurrent. That turns out to have a closed form: a triple is singular
+        exactly when one particular &gamma; is an integer <em>and</em> a particular pair
+        of them sums to an integer. So if no &gamma;<sub><i>j</i></sub> is an integer,
+        the pentagrid is regular <em>everywhere</em> &mdash; ten integer comparisons,
+        no tolerance. The <span style="font-family:monospace">keep &gamma; regular</span>
+        checkbox holds you off the singular set; the default &gamma;&thinsp;=&thinsp;0 is
+        on it, with all five lines through the origin.</li>
+
+        <li><b>Most regions are far too small to click.</b> Not as an edge case &mdash;
+        an ordinary &gamma; already has regions of a few hundredths of a pixel, because
+        the near-concurrent triples equidistribute. The meter counts them and the
+        <em>loupe</em> opens automatically when you approach one, magnifying as far as
+        it takes. Move into the panel to hover inside it.</li>
+
+        <li><b>The tiling is 2&frac12; times the grid that makes it.</b> The dual map has
+        gain 5/2, so the two pictures do not line up by default. It is not an
+        accident: the construction projects &Zopf;<sup>5</sup> onto a plane, each basis
+        vector keeps 2/5 of its length there, and 5/2 is the reciprocal. The
+        <span style="font-family:monospace">register 5:2</span> toggle puts every rhomb
+        back on the crossing that generated it.</li>
+    </ul>
+
+    <h3>Explorations <span class="pending">planned</span></h3>
+    <p style="font-size:15px;">Each of these is a project of its own rather than another
+    step in the walkthrough, and each will get its own page. Neither is built yet.</p>
+    <ul class="plain" style="font-size:15px;">
+        <li><b>Wiggle room.</b> One grid line's crossings lie exactly on it; their dual
+        images wander through the rhomb centres. Same rhombs, read two ways &mdash; so
+        interpolating between them is a ribbon straightening into its generator.</li>
+        <li><b>The discrete pentagrid.</b> Replace the 72&deg; directions with the
+        limiting directions of an integer Penrose construction, 34.6438&deg; and
+        71.1377&deg;, and dualise that instead. Whether the result is still two rhomb
+        shapes is the first thing to find out.</li>
+    </ul>
+
+    <footer>
+        N.&thinsp;G.&thinsp;de Bruijn, &ldquo;Algebraic theory of Penrose's non-periodic
+        tilings of the plane,&rdquo; <i>Kon. Nederl. Akad. Wetensch. Proc.</i>
+        <b>84</b> (1981).<br>
+        Source, notes and open questions:
+        <a href="https://github.com/Jakeoil/pentagrid">github.com/Jakeoil/pentagrid</a>
+    </footer>
+
+</div>
 </body>
 </html>
