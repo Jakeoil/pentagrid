@@ -82,6 +82,7 @@ globalThis.document = makeStub({
 });
 globalThis.window = makeStub({ addEventListener: noop, devicePixelRatio: 1 });
 globalThis.Touch = class {};
+globalThis.getComputedStyle = () => ({ position: "static" });
 
 // Recorded so a test can drive a resize instead of waiting for a real layout.
 export const resizeObservers = [];

@@ -277,3 +277,40 @@ test("drawing survives both edge settings at every stage", () => {
     }
     assert.ok(true);
 });
+
+// ── embeddability ─────────────────────────────────────────────────
+// A third-party page importing this knows none of our CSS, so the container has
+// to stand on its own.
+
+test("layer canvases position themselves, without a stylesheet", () => {
+    const stack = new LayerStack(host(), 400, 300);
+    const drawn = stack.add({ id: "a", label: "a", z: 7, draw: () => {} });
+    const raw = stack.addRaw(9);
+    for (const c of [drawn.canvas, raw.canvas]) {
+        assert.equal(c.style.position, "absolute", "canvases must overlay, not stack in flow");
+        assert.equal(c.style.top, "0");
+        assert.equal(c.style.left, "0");
+    }
+    assert.equal(drawn.canvas.style.zIndex, "7");
+});
+
+test("the stack gives a static container something to anchor against", () => {
+    const c = host();
+    new LayerStack(c, 400, 300);
+    assert.equal(c.style.position, "relative",
+                 "absolute children need a positioned ancestor");
+});
+
+test("a container that is already positioned is left alone", () => {
+    const c = host();
+    c.style.position = "absolute";
+    // the stub reports computed position "static", so emulate a positioned host
+    const saved = globalThis.getComputedStyle;
+    globalThis.getComputedStyle = () => ({ position: "absolute" });
+    try {
+        new LayerStack(c, 400, 300);
+        assert.equal(c.style.position, "absolute", "the stack overrode the page's own layout");
+    } finally {
+        globalThis.getComputedStyle = saved;
+    }
+});

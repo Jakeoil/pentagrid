@@ -9,7 +9,13 @@ import "./domstub.mjs";                      // installs globalThis.document
 import { LayerStack } from "../dist/view/layers.js";
 
 function makeContainer() {
-    return { children: [], appendChild(c) { this.children.push(c); return c; } };
+    // style included because a real element always has one: the stack sets
+    // position on its container so absolutely positioned canvases have an anchor.
+    return {
+        style: {},
+        children: [],
+        appendChild(c) { this.children.push(c); return c; },
+    };
 }
 const spec = (id, over = {}) => ({
     id, label: id, z: 10, draw: () => {}, ...over,
