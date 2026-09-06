@@ -17,11 +17,11 @@
         .pair { display: flex; gap: 16px; margin: 18px 0 8px; flex-wrap: wrap; }
         .pair figure { margin: 0; }
         .pair figcaption { font-size: 12px; color: #777; margin-top: 5px; text-align: center; }
-        .viewport, canvas.perp {
+        .viewport, .region-panel {
             position: relative; width: 400px; height: 400px; background: #fff;
             border: 1px solid #ddd; border-radius: 4px; touch-action: none; overflow: hidden;
         }
-        canvas.perp { display: block; cursor: crosshair; }
+        .region-panel { display: block; cursor: crosshair; }
         .layer-canvas { position: absolute; top: 0; left: 0; }
         .controls-row {
             display: flex; align-items: center; gap: 14px; margin: 6px 0 2px;
@@ -77,7 +77,7 @@
             <figcaption>the tiling, patch vertices marked</figcaption>
         </figure>
         <figure>
-            <canvas class="perp" id="wiggle-perp" width="400" height="400"></canvas>
+            <div id="wiggle-perp"></div>
             <figcaption>&gamma; in the perpendicular plane, and the room it has</figcaption>
         </figure>
     </div>
