@@ -75,6 +75,30 @@ const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
 };
 
+/**
+ * The same world-to-screen mapping the renderer uses, exposed so it can be
+ * checked without a canvas. Pan is applied in screen space; with elevation π/2
+ * and azimuth 0 this is exactly the pentagrid's mathToScreen.
+ */
+export function projectToScreen(
+    state: Pick<GrowthState, "azimuth" | "elevation">,
+    p: Vec3,
+    view: { scale: number; x: number; y: number },
+    cx: number,
+    cy: number,
+) {
+    const ca = Math.cos(state.azimuth), sa = Math.sin(state.azimuth);
+    const xr = p[0] * ca - p[1] * sa;
+    const yr = p[0] * sa + p[1] * ca;
+    const ce = Math.cos(state.elevation), se = Math.sin(state.elevation);
+    const sx = xr, sy = -(yr * se + p[2] * ce);
+    return {
+        x: cx + (sx - view.x) * view.scale,
+        y: cy + (sy + view.y) * view.scale,
+        depth: yr * ce - p[2] * se,
+    };
+}
+
 export function createGrowthView(config: GrowthConfig): GrowthHandle {
     const state: GrowthState = { ...DEFAULTS };
     if (config.lift) { state.fold = 1; state.grow = 1; state.elevation = 0.95; state.azimuth = 0.35; }
@@ -94,6 +118,24 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             + grow * ((a - 0.5) * vj[1] + (b - 0.5) * vk[1]);
         const m = vertexIndex(r.kTuples[0]);
         return [x, y, fold * grow * RISE * (m + a + b)];
+    }
+
+    /**
+     * World point to screen.
+     *
+     * The pan is applied AFTER projection, in screen space, so a drag moves the
+     * picture 1:1 whatever the camera is doing. Applying it in world space would
+     * foreshorten a vertical drag under tilt and send it off at an angle under
+     * spin. With the camera looking straight down and unspun this reduces exactly
+     * to the pentagrid's own mathToScreen.
+     */
+    function toScreen(p: Vec3, v: { scale: number; x: number; y: number }, cx: number, cy: number) {
+        const q = project(p);
+        return {
+            x: cx + (q.sx - v.x) * v.scale,
+            y: cy + (q.sy + v.y) * v.scale,
+            d: q.depth,
+        };
     }
 
     /** Orthographic: spin about the vertical, then tilt. */
@@ -141,10 +183,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const dirs = model.directions;
                     const rhombs = currentRhombs();
                     const { grow, band } = state;
-                    const S = (p: Vec3) => {
-                        const q = project(p);
-                        return { x: cx + (q.sx - v.x) * v.scale, y: cy + q.sy * v.scale, d: q.depth };
-                    };
+                    const S = (p: Vec3) => toScreen(p, v, cx, cy);
                     const lo = 0.5 - band / 2, hi = 0.5 + band / 2;
 
                     const order = rhombs

@@ -129,3 +129,58 @@ test("convexBoundary recovers a disc it is given", () => {
         assert.ok(Math.abs(Math.hypot(x, y) - 0.8) < 1e-5, `radius ${Math.hypot(x, y)}`);
     assert.ok(Math.abs(polygonArea(poly) - Math.PI * 0.64) < 1e-3);
 });
+
+// ── the world-to-screen mapping ───────────────────────────────────
+// grow.html and roof.html could not be panned vertically: the projection applied
+// viewX and silently dropped viewY.
+
+import { projectToScreen } from "../dist/view/growth.js";
+
+const FLAT = { azimuth: 0, elevation: Math.PI / 2 };
+
+test("panning moves the picture on BOTH axes", () => {
+    const p = [1, 2, 0];
+    const base = projectToScreen(FLAT, p, { scale: 60, x: 0, y: 0 }, 400, 300);
+    const right = projectToScreen(FLAT, p, { scale: 60, x: 0.5, y: 0 }, 400, 300);
+    const up = projectToScreen(FLAT, p, { scale: 60, x: 0, y: 0.5 }, 400, 300);
+
+    assert.notEqual(right.x, base.x, "viewX had no effect");
+    assert.equal(right.y, base.y, "viewX should not move y");
+    assert.notEqual(up.y, base.y, "viewY had no effect — this was the bug");
+    assert.equal(up.x, base.x, "viewY should not move x");
+});
+
+test("flat and unspun, it is exactly the pentagrid's own transform", () => {
+    // mathToScreen: [cx + (mx - viewX)*scale, cy - (my - viewY)*scale]
+    const view = { scale: 43, x: -1.25, y: 2.5 };
+    for (const [mx, my] of [[0, 0], [3, -2], [-7.5, 4.25]]) {
+        const got = projectToScreen(FLAT, [mx, my, 0], view, 400, 300);
+        assert.ok(Math.abs(got.x - (400 + (mx - view.x) * view.scale)) < 1e-9, `x at ${mx},${my}`);
+        assert.ok(Math.abs(got.y - (300 - (my - view.y) * view.scale)) < 1e-9, `y at ${mx},${my}`);
+    }
+});
+
+test("a drag moves the picture 1:1 whatever the camera is doing", () => {
+    // pentagrid's pan does viewX -= dx/scale, viewY += dy/scale for a drag of
+    // (dx, dy) screen pixels, so the picture must follow by exactly (dx, dy).
+    const p = [2, -1, 1.5];
+    const scale = 55, dx = 17, dy = -23;
+    for (const cam of [FLAT, { azimuth: 0.9, elevation: 0.6 }, { azimuth: 4.2, elevation: 0.2 }]) {
+        const a = projectToScreen(cam, p, { scale, x: 0, y: 0 }, 400, 300);
+        const b = projectToScreen(cam, p, { scale, x: -dx / scale, y: dy / scale }, 400, 300);
+        assert.ok(Math.abs((b.x - a.x) - dx) < 1e-9, `dx under ${JSON.stringify(cam)}`);
+        assert.ok(Math.abs((b.y - a.y) - dy) < 1e-9, `dy under ${JSON.stringify(cam)}`);
+    }
+});
+
+test("height only moves things when the camera is tilted off vertical", () => {
+    const view = { scale: 60, x: 0, y: 0 };
+    const flatLow = projectToScreen(FLAT, [1, 1, 0], view, 0, 0);
+    const flatHigh = projectToScreen(FLAT, [1, 1, 3], view, 0, 0);
+    assert.ok(Math.abs(flatHigh.y - flatLow.y) < 1e-9, "looking straight down, height is invisible");
+
+    const tilt = { azimuth: 0, elevation: 0.6 };
+    const tLow = projectToScreen(tilt, [1, 1, 0], view, 0, 0);
+    const tHigh = projectToScreen(tilt, [1, 1, 3], view, 0, 0);
+    assert.ok(tHigh.y < tLow.y, "tilted, higher must draw further up the screen");
+});
