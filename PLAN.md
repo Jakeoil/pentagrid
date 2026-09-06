@@ -633,8 +633,8 @@ answers to "wiggle room", which is what E1 was asking for.
 
 Reading **(a)**, ribbon geometry, is what was pursued. Reading **(b)** — the
 region of γ-space that produces a given finite patch, shrinking as the patch
-grows — is untouched and is still the more interesting object, needing a way to
-draw a region of 4-dimensional γ-space.
+grows — is the one still worth building, and the obstacle this plan recorded
+against it turned out not to exist. See *Completing E1* below.
 
 #### The ribbon, and its channel
 
@@ -742,10 +742,57 @@ the tightest 200 average **0.013** — the near-concurrent triples, essentially
 coincident — and those tiles travel 0.721 against 0.491 for the loosest. The most
 dramatic motion happens exactly where the meter and the loupe were built to look.
 
+#### Completing E1: reading (b), and why it is now easy
+
+**The recorded obstacle was false.** This plan said (b) "needs a way to draw a
+region of 4-dimensional γ-space". It needs a way to draw a region of a *plane*.
+
+Under the cyclic symmetry ℝ⁵ splits as E∥ (cos/sin 2πj/5) ⊕ E⊥ (cos/sin 4πj/5) ⊕
+the all-ones line, and Σγ = 0 kills the last. Of the four dimensions that remain,
+**two do nothing to the tiling at all**:
+
+```
+γⱼ → γⱼ + w·vⱼ   ⟹   the crossing moves to x₀ − w, but its K-tuple is
+                      ⌈vᵢ·(x₀−w) + γᵢ + w·vᵢ⌉ = ⌈vᵢ·x₀ + γᵢ⌉ — unchanged.
+```
+
+Same tuple, same `f`. The pentagrid slides and **the tiling does not move**.
+Measured: a shift within E∥ leaves **1235 / 1235 tiles identical**, even for
+w = (−2.2, 3.1). Shifts within E⊥ genuinely change it — 1005, then 377, then 88
+tiles surviving as the shift grows.
+
+So the pattern depends only on the E⊥ component of γ. **γ-space for the tiling is
+two-dimensional.**
+
+**And the region is convex.** For a fixed patch, each tile's existence is a set of
+*linear* inequalities in γ, hence linear in the two E⊥ coordinates. The admissible
+set is a convex polygon, and growing the patch slices off a half-plane per tile.
+
+Three things follow, and they are the reason to build it:
+
+- **Its area, normalised, is that patch's frequency in the tiling.** This is the
+  cut-and-project acceptance domain, reached from the "wiggle room" question
+  rather than from the standard theory.
+- **Crossing an edge of the polygon is a phason flip.** The γ sliders already move
+  a point inside it; the moment it leaves, the patch changes.
+- It is the literal answer to the question E1 asked. The polygon *is* the room.
+
+**What to build.** `wiggle.html`: the tiling on the left with a selectable patch
+(`createPentagrid`), the acceptance polygon on the right (a plain canvas — it is
+not a pentagrid), the current γ as a dot inside it. Add tiles to the patch, watch
+the polygon shrink and the area fall.
+
+**A cheap win worth taking regardless.** Two of the five sliders do not change the
+pattern. Splitting the γ bank into its E∥ part (pans the grid, tiling frozen) and
+its E⊥ part (actually changes the tiling) would make that visible on the method
+page — and with registration permanent, "drag this and watch the grid slide under
+a stationary tiling" is a demonstration in itself. A change to the bank's
+callbacks, not new machinery.
+
 #### If it is ever built
 
-`grow.html`, one viewport, `createPentagrid` plus a `layers` callback. A `t`
-slider and a schedule selector, from the zero-struggle zip to the roughest.
+The growth animation, if it is ever wanted: `grow.html`, one viewport,
+`createPentagrid` plus a `layers` callback. A `t` slider and a schedule selector, from the zero-struggle zip to the roughest.
 Wanting only some tiles expressed — "strips in one direction" — is a one-line
 predicate on the rhomb set, since provenance is on every rhomb.
 
