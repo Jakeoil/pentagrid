@@ -1,0 +1,119 @@
+/* Shared shell for the exploration pages. Page-specific rules stay in-page.
+   Modelled on wieringa-roof/site.css: a centred wrap, generous measure, and
+   viewports that take the full width they are given. */
+
+:root {
+    --bg: #fafafa;
+    --panel: #ffffff;
+    --ink: #222;
+    --ink-soft: #555;
+    --ink-faint: #888;
+    --rule: #ddd;
+    --accent: #457b9d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+}
+
+.wrap {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 28px 20px 64px;
+}
+
+h1 { margin: 0 0 6px; font-size: 30px; letter-spacing: -0.01em; }
+h2 { margin: 0 0 24px; font-size: 19px; font-weight: normal; color: var(--ink-soft); }
+h3 { margin: 30px 0 8px; font-size: 16px; font-weight: 600; }
+p { max-width: 68ch; }
+a { color: var(--accent); }
+
+.eq {
+    font-family: "Times New Roman", serif;
+    font-size: 17px;
+    text-align: center;
+    background: #f0f0f0;
+    border-radius: 6px;
+    padding: 12px;
+    margin: 16px 0;
+    max-width: 68ch;
+}
+
+/* ── controls ──────────────────────────────────────────────────── */
+
+.bar {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px 14px;
+    align-items: center;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 20px 0 12px;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+.bar input[type=range] { width: 100%; }
+.bar .val {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 12px;
+    color: var(--ink-faint);
+    min-width: 44px;
+    text-align: right;
+}
+
+/* ── viewports ─────────────────────────────────────────────────── */
+
+.viewport {
+    position: relative;
+    width: 100%;
+    height: min(72vh, 680px);
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    overflow: hidden;
+    touch-action: none;
+}
+.layer-canvas { position: absolute; top: 0; left: 0; }
+
+.pair {
+    display: flex;
+    gap: 16px;
+    margin: 20px 0 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.pair figure { margin: 0; }
+.pair figcaption {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-top: 7px;
+    text-align: center;
+}
+.pair .viewport { width: 460px; height: 460px; }
+/* No width/height here: the panel canvas is created at its true pixel size, and
+   stretching it with CSS would only blur it. */
+.region-panel {
+    display: block;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    cursor: crosshair;
+}
+
+.hint { font-size: 12.5px; color: var(--ink-faint); margin-top: 8px; }
+
+footer {
+    margin-top: 40px;
+    padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    font-size: 13px;
+    color: var(--ink-faint);
+}

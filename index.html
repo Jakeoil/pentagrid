@@ -6,12 +6,12 @@
     <title>Pentagrid</title>
     <style>
         body {
-            font-family: sans-serif;
-            margin: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            margin: 28px 20px 64px;
             background: #fafafa;
             color: #333;
         }
-        .page { max-width: 720px; }
+        .page { max-width: 980px; margin: 0 auto; }
         h1 { margin-bottom: 4px; }
         h2 { color: #555; font-weight: normal; margin-top: 0; font-size: 20px; }
         h3 {
@@ -19,7 +19,7 @@
             color: #222;
             margin: 28px 0 8px;
         }
-        p { line-height: 1.65; }
+        p { line-height: 1.65; max-width: 68ch; }
         .rule {
             display: flex;
             gap: 3px;
@@ -32,6 +32,7 @@
         }
         .pair {
             display: flex;
+            justify-content: center;
             gap: 14px;
             margin: 20px 0 6px;
             flex-wrap: wrap;
@@ -45,8 +46,8 @@
         }
         .viewport {
             position: relative;
-            width: 340px;
-            height: 340px;
+            width: 440px;
+            height: 440px;
             background: #fff;
             border: 1px solid #ddd;
             border-radius: 4px;
@@ -154,11 +155,11 @@
 
     <div class="pair">
         <figure>
-            <div class="viewport" id="pair-grid" data-width="340" data-height="340"></div>
+            <div class="viewport" id="pair-grid" ></div>
             <figcaption>a random pentagrid</figcaption>
         </figure>
         <figure>
-            <div class="viewport" id="pair-tiles" data-width="340" data-height="340"></div>
+            <div class="viewport" id="pair-tiles" ></div>
             <figcaption>its dual tiling</figcaption>
         </figure>
     </div>

@@ -4,41 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pentagrid — Wiggle Room</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background: #fafafa; color: #333; }
-        .page { max-width: 860px; }
-        h1 { margin-bottom: 4px; }
-        h2 { color: #555; font-weight: normal; margin-top: 0; font-size: 19px; }
-        p { line-height: 1.65; max-width: 720px; }
-        .eq {
-            font-family: "Times New Roman", serif; font-size: 16px; text-align: center;
-            background: #f0f0f0; border-radius: 4px; padding: 9px; margin: 14px 0; max-width: 720px;
-        }
-        .pair { display: flex; gap: 16px; margin: 18px 0 8px; flex-wrap: wrap; }
-        .pair figure { margin: 0; }
-        .pair figcaption { font-size: 12px; color: #777; margin-top: 5px; text-align: center; }
-        .viewport, .region-panel {
-            position: relative; width: 400px; height: 400px; background: #fff;
-            border: 1px solid #ddd; border-radius: 4px; touch-action: none; overflow: hidden;
-        }
-        .region-panel { display: block; cursor: crosshair; }
-        .layer-canvas { position: absolute; top: 0; left: 0; }
-        .controls-row {
-            display: flex; align-items: center; gap: 14px; margin: 6px 0 2px;
-            font-size: 13px; color: #555; flex-wrap: wrap;
-        }
-        .controls-row input[type=range] { width: 190px; }
-        #wiggle-readout { font-size: 13px; font-family: monospace; color: #444; margin: 4px 0 18px; }
-        .hint { font-size: 12px; color: #999; }
-        footer {
-            margin-top: 34px; padding-top: 12px; border-top: 1px solid #e0e0e0;
-            font-size: 13px; color: #888;
-        }
-        footer a { color: #457b9d; }
-    </style>
+    <link rel="stylesheet" href="./site.css">
 </head>
 <body>
-<div class="page">
+<div class="wrap">
     <h1>Wiggle room</h1>
     <h2>How much can &gamma; move before the pattern changes?</h2>
 
@@ -65,15 +34,17 @@
     you add to the patch can only shave it down. That region is the wiggle room,
     and you can measure it.</p>
 
-    <div class="controls-row">
-        <label>patch radius <input type="range" id="wiggle-radius" min="1" max="7" step="0.25" value="2.5"></label>
-        <span class="hint">drag the dot &mdash; double-click the right panel to re-anchor the patch here</span>
+    <div class="bar">
+        <label for="wiggle-radius">patch radius</label>
+        <input type="range" id="wiggle-radius" min="1" max="7" step="0.25" value="2.5">
+        <span class="val" id="wiggle-radius-value"></span>
     </div>
+    <p class="hint" style="margin:0 0 6px">drag the dot &mdash; double-click the right panel to re-anchor the patch here</p>
     <div id="wiggle-readout"></div>
 
     <div class="pair">
         <figure>
-            <div class="viewport" id="wiggle-tiling" data-width="400" data-height="400"></div>
+            <div class="viewport" id="wiggle-tiling"></div>
             <figcaption>the tiling, patch vertices marked</figcaption>
         </figure>
         <figure>

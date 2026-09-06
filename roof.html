@@ -4,38 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pentagrid — The Wieringa Roof</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background: #fafafa; color: #333; }
-        .page { max-width: 780px; }
-        h1 { margin-bottom: 4px; }
-        h2 { color: #555; font-weight: normal; margin-top: 0; font-size: 19px; }
-        p { line-height: 1.65; }
-        .eq {
-            font-family: "Times New Roman", serif; font-size: 17px; text-align: center;
-            background: #f0f0f0; border-radius: 4px; padding: 10px; margin: 14px 0;
-        }
-        .viewport {
-            position: relative; width: 720px; height: 560px; background: #fff;
-            border: 1px solid #ddd; border-radius: 4px; touch-action: none; overflow: hidden;
-        }
-        .layer-canvas { position: absolute; top: 0; left: 0; }
-        .controls {
-            display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px;
-            align-items: center; margin: 16px 0 10px; max-width: 520px;
-            font-size: 13px; color: #444;
-        }
-        .controls input[type=range] { width: 100%; }
-        .controls .val { font-family: monospace; font-size: 12px; color: #666; min-width: 40px; text-align: right; }
-        .hint { font-size: 12px; color: #999; margin-top: 6px; }
-        footer {
-            margin-top: 32px; padding-top: 12px; border-top: 1px solid #e0e0e0;
-            font-size: 13px; color: #888;
-        }
-        footer a { color: #457b9d; }
-    </style>
+    <link rel="stylesheet" href="./site.css">
 </head>
 <body>
-<div class="page">
+<div class="wrap">
     <h1>The Wieringa roof</h1>
     <h2>The same tiling, folded into golden rhombi</h2>
 
@@ -54,7 +26,7 @@
     index only ever takes the values 1, 2, 3, 4, and so the whole roof stands on
     four levels.</p>
 
-    <div class="controls">
+    <div class="bar">
         <label for="roof-t">grow</label>
         <input type="range" id="roof-t" min="0" max="1" step="0.005" value="1">
         <span class="val" id="roof-t-value">1.00</span>
@@ -76,7 +48,7 @@
         <span class="val" id="roof-el-value">54&deg;</span>
     </div>
 
-    <div class="viewport" id="roof-view" data-width="720" data-height="560"></div>
+    <div class="viewport" id="roof-view"></div>
     <p class="hint">Drag to pan, scroll to zoom. <b>fold</b> at 0 lays the roof flat
     &mdash; the ordinary tiling &mdash; and <b>grow</b> still runs the whole assembly
     from the pentagrid, now in three dimensions.</p>

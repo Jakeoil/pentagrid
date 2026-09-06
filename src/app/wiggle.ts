@@ -26,6 +26,7 @@ const gridHost = document.getElementById("wiggle-tiling");
 const perpHost = document.getElementById("wiggle-perp");
 const radiusInput = document.getElementById("wiggle-radius") as HTMLInputElement | null;
 const readout = document.getElementById("wiggle-readout");
+const radiusOut = document.getElementById("wiggle-radius-value");
 
 let view: PentagridHandle | null = null;
 let panel: ReturnType<typeof createRegionPanel> | null = null;
@@ -106,17 +107,20 @@ if (gridHost && perpHost) {
 
     panel = createRegionPanel({
         container: perpHost,
-        size: 400,
+        size: 460,
         onMove: (x, y) => { p = x; q = y; refresh(); },
     });
     perpHost.addEventListener("dblclick", reanchor);
 
     if (radiusInput) {
         radiusInput.value = String(radius);
-        radiusInput.addEventListener("input", () => {
+        const onRadius = () => {
             radius = parseFloat(radiusInput.value);
+            if (radiusOut) radiusOut.textContent = radius.toFixed(2);
             reanchor();
-        });
+        };
+        radiusInput.addEventListener("input", onRadius);
+        onRadius();
     }
     reanchor();
 }
