@@ -172,6 +172,9 @@ preset changes what is drawn by changing what they see.
 
 ### Canvas containers
 
+See **[MODULES.md](MODULES.md)** for the full guide: what the pattern is called,
+how to write one, and how to use these from any page including a third party's.
+
 **Anything with real drawing in it gets a container.** A page should be a
 container element, a config object and some sliders — not a renderer. The rule
 is the same one `createPentagrid` follows: own your canvases, take a config,
@@ -300,6 +303,8 @@ each page loads its own entry point.
   explorations. Start here when picking the project back up.
 - [`RESEARCH.md`](RESEARCH.md) — the open research question, a pentagrid built on
   the discrete directions rather than 72° ones.
+- [`MODULES.md`](MODULES.md) — the canvas-module pattern: writing one, and using
+  one from any page.
 
 ## References
 
