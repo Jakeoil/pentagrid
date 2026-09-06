@@ -196,3 +196,19 @@ test("with no controls and no loupe, nothing consumes the scan", () => {
 
     assert.ok(bare < scanned, `bare ${bare.toFixed(1)}ms should beat scanned ${scanned.toFixed(1)}ms`);
 });
+
+test("a registered layer is handed the view, before the handle exists", () => {
+    // grow.ts hit this: layers draw during createPentagrid, so a layer that works
+    // in world coordinates cannot reach the handle for the transform.
+    let seen = null;
+    createPentagrid({
+        container: host(),
+        steps: [],
+        layers: ({ getView }) => {
+            assert.ok(typeof getView === "function", "no getView handed to the layer");
+            seen = getView();
+        },
+    });
+    assert.ok(seen && typeof seen.scale === "number", "view not readable at registration");
+    assert.ok(Number.isFinite(seen.x) && Number.isFinite(seen.y));
+});

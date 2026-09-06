@@ -284,3 +284,108 @@ test("each rhomb yields two arcs, on opposite corners, radii summing to 1", () =
         assert.deepEqual([b.x, b.y], r.vertices[2]);
     }
 });
+
+// ── the perpendicular plane (PLAN.md, E1 reading (b)) ─────────────
+
+import { regionPoly as _regionPoly } from "../dist/geometry/region.js";
+
+const unit = (u) => { const n = Math.hypot(...u); return u.map((x) => x / n); };
+const ang = (j) => Math.atan2(dirs[j][1], dirs[j][0]);
+const E3 = unit([0,1,2,3,4].map((j) => Math.cos(2 * ang(j))));
+const E4 = unit([0,1,2,3,4].map((j) => Math.sin(2 * ang(j))));
+const perpGamma = (p, q) => [0,1,2,3,4].map((j) => p * E3[j] + q * E4[j]);
+const FEAS = { xMin: -80, xMax: 80, yMin: -80, yMax: 80 };
+const realised = (gamma, K) => _regionPoly(pg(gamma), K, FEAS).length >= 3;
+
+test("E_par and E_perp are orthogonal, and both are orthogonal to the sum", () => {
+    const d = (u, v) => u.reduce((s, x, i) => s + x * v[i], 0);
+    const A = dirs.map((v) => v[0]), B = dirs.map((v) => v[1]);
+    for (const [u, name] of [[A, "A"], [B, "B"]]) {
+        assert.ok(near(d(u, E3), 0, 1e-12), `${name}·E3`);
+        assert.ok(near(d(u, E4), 0, 1e-12), `${name}·E4`);
+    }
+    assert.ok(near(d(E3, [1,1,1,1,1]), 0, 1e-12));
+    assert.ok(near(d(E3, E4), 0, 1e-12));
+});
+
+test("shifting gamma inside E_par leaves the tiling literally unchanged", () => {
+    const g0 = GENERIC;
+    const box = { xMin: -14, xMax: 14, yMin: -14, yMax: 14 };
+    const sig = (g) => new Set(collectRhombs(pg(g), box, { gain: 2.5 }).map((r) => {
+        const vj = dirs[r.j], vk = dirs[r.k], f = r.vertices[0];
+        const cx = f[0] + (vj[0] + vk[0]) / 2, cy = f[1] + (vj[1] + vk[1]) / 2;
+        return `${r.j}${r.k}${r.thick ? 1 : 0}|${Math.round(cx * 1e6)},${Math.round(cy * 1e6)}`;
+    }));
+    const base = sig(g0);
+    for (const [a, b] of [[0.37, -0.62], [1.5, 0.9], [-2.2, 3.1]]) {
+        const g = g0.map((x, j) => x + a * dirs[j][0] + b * dirs[j][1]);
+        assert.ok(near(g.reduce((x, y) => x + y, 0), 0, 1e-12), "sum-zero must survive");
+        const s = sig(g);
+        assert.equal(s.size, base.size);
+        for (const k of s) assert.ok(base.has(k), `E_par shift moved a tile: w=(${a},${b})`);
+    }
+});
+
+test("shifting gamma inside E_perp does change the tiling", () => {
+    const box = { xMin: -14, xMax: 14, yMin: -14, yMax: 14 };
+    const sig = (g) => new Set(collectRhombs(pg(g), box, { gain: 2.5 })
+        .map((r) => `${r.j}${r.k}|${Math.round(r.vertices[0][0] * 1e6)},${Math.round(r.vertices[0][1] * 1e6)}`));
+    const base = sig(GENERIC);
+    const moved = sig(GENERIC.map((x, j) => x + 0.4 * E3[j]));
+    let same = 0;
+    for (const k of moved) if (base.has(k)) same++;
+    assert.ok(same < moved.size * 0.3, `E_perp shift changed too little: ${same}/${moved.size}`);
+});
+
+test("the acceptance region is convex and shrinks as the patch grows", () => {
+    const p0 = 0.31, q0 = -0.17;
+    const patchAt = (r) => {
+        const g = perpGamma(p0, q0), P = pg(g);
+        const seen = new Set(), out = [];
+        for (let x = -r - 1; x <= r + 1; x += 0.08)
+            for (let y = -r - 1; y <= r + 1; y += 0.08) {
+                const K = computeKTuple(P, x, y), key = K.join(",");
+                if (seen.has(key)) continue;
+                seen.add(key);
+                const f = dualVertex(P, K);
+                if (Math.hypot(f[0], f[1]) <= r) out.push(K);
+            }
+        return out;
+    };
+    const holds = (p, q, patch) => {
+        const g = perpGamma(p, q);
+        return patch.every((K) => realised(g, K));
+    };
+    let prevArea = Infinity, prevCount = 0;
+    for (const r of [1.2, 2.5, 4]) {
+        const patch = patchAt(r);
+        assert.ok(patch.length > prevCount, "patch did not grow");
+        prevCount = patch.length;
+        assert.ok(holds(p0, q0, patch), "the anchoring gamma must be inside its own region");
+
+        const RAYS = 72, rad = [];
+        for (let i = 0; i < RAYS; i++) {
+            const a = 2 * Math.PI * i / RAYS, dx = Math.cos(a), dy = Math.sin(a);
+            let lo = 0, hi = 2.5;
+            if (holds(p0 + hi * dx, q0 + hi * dy, patch)) lo = hi;
+            else for (let s = 0; s < 20; s++) {
+                const m = (lo + hi) / 2;
+                if (holds(p0 + m * dx, q0 + m * dy, patch)) lo = m; else hi = m;
+            }
+            rad.push(lo);
+        }
+        // convex: the midpoint of any chord of the boundary must still hold
+        for (let t = 0; t < 120; t++) {
+            const i = t % RAYS, k = (t * 7 + 13) % RAYS;
+            const ai = 2 * Math.PI * i / RAYS, ak = 2 * Math.PI * k / RAYS;
+            const mx = (p0 + rad[i] * Math.cos(ai) + p0 + rad[k] * Math.cos(ak)) / 2;
+            const my = (q0 + rad[i] * Math.sin(ai) + q0 + rad[k] * Math.sin(ak)) / 2;
+            assert.ok(holds(mx, my, patch), "acceptance region is not convex");
+        }
+        let area = 0;
+        for (let i = 0; i < RAYS; i++)
+            area += 0.5 * rad[i] * rad[(i + 1) % RAYS] * Math.sin(2 * Math.PI / RAYS);
+        assert.ok(area <= prevArea + 1e-12, `room grew as the patch grew: ${area} > ${prevArea}`);
+        prevArea = area;
+    }
+});
