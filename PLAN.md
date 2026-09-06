@@ -831,6 +831,46 @@ The growth animation, if it is ever wanted: `grow.html`, one viewport,
 Wanting only some tiles expressed — "strips in one direction" — is a one-line
 predicate on the rhomb set, since provenance is on every rhomb.
 
+### E3 — The Wieringa roof — BUILT 2026-09-06, `roof.html`
+
+Jake's ask after seeing `grow.html`: the same growth, but standing up.
+
+**The lift costs nothing, because the height was already in the data.** Give
+every vertex `z = RISE·ΣK` with `RISE = 1/2` — half its de Bruijn index — and both
+rhomb types become the *same* golden rhombus: edge √5/2, diagonals φ:1, angles
+63.4349° / 116.5651°. Thick and thin stop being different shapes; which you see
+depends only on which corner sits at the shared vertex.
+
+Equivalently the generators are `E_j = v_j + ½ẑ`, and `E_j·E_k / |E_j|² = ±1/√5`
+for both |j−k| = 1 and 2 — one condition, both satisfied by the same `c = 1/2`,
+which is why a single shape covers both.
+
+In a tile's own frame `z = RISE·(m + a + b)` is affine, so every face stays
+exactly planar and the surface is a **height field**. A depth sort over the faces
+is therefore exact, and no 3D library is needed — Canvas 2D does it.
+
+**Cross-validated against wieringa-roof.** That project verified these numbers
+independently, from deflation rather than from the pentagrid. Measured here over
+2384 interior edges:
+
+```
+edge length        1.118033989 = √5/2, every edge
+interior edges     2384, none flat
+thick|thick        36°
+thick|thin         36° or 72°
+thin|thin          108°
+index range        exactly {1,2,3,4} — four levels
+```
+
+which reproduces `wieringa-roof/PLAN.md:46` exactly, from the other direction.
+
+The lift lives in `src/geometry/roof.ts` — DOM-free like the rest of `geometry/`,
+so the page is not where the mathematics is kept. Four tests cover it.
+
+**Still to come:** the oblate and acute golden hexahedra. The roof is the lid on
+them (see wieringa-roof's triacontahedra note), and the rhombs are the step Jake
+wanted first.
+
 ### E2 — The pentagrid on the discrete directions
 
 Fully specified in [RESEARCH.md](RESEARCH.md): replace the 72° directions with
