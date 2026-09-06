@@ -86,6 +86,10 @@ export interface PentagridParts {
     stack: LayerStack;
     model: Pentagrid;
     currentRhombs: () => Rhomb[];
+    /** The current pan and zoom. A layer drawing in world coordinates needs it,
+     *  and cannot get it from the handle — layers draw before createPentagrid
+     *  has returned one. */
+    getView: () => View;
     withView: (v: ViewState, fn: () => void) => void;
     gridView: () => ViewState;
     redraw: () => void;
@@ -1933,7 +1937,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // An exploration's own layers go on before the panel is generated, so they
     // get their switches like anything else.
     config.layers?.({
-        stack, model, currentRhombs, withView, gridView, redraw: () => draw(),
+        stack, model, currentRhombs, withView, gridView,
+        getView: () => ({ scale, x: viewX, y: viewY }),
+        redraw: () => draw(),
     });
 
     if (config.gamma) {
