@@ -83,6 +83,20 @@ globalThis.document = makeStub({
 globalThis.window = makeStub({ addEventListener: noop, devicePixelRatio: 1 });
 globalThis.Touch = class {};
 
+// Recorded so a test can drive a resize instead of waiting for a real layout.
+export const resizeObservers = [];
+globalThis.ResizeObserver = class {
+    constructor(cb) { this.cb = cb; this.targets = []; resizeObservers.push(this); }
+    observe(el) { this.targets.push(el); }
+    unobserve() {}
+    disconnect() { this.targets.length = 0; }
+};
+/** Fire every observer that is watching `el`. */
+export function fireResize(el) {
+    for (const ro of resizeObservers)
+        if (ro.targets.includes(el)) ro.cb([{ target: el }], ro);
+}
+
 
 export { handlers, inputs, elements, makeStub, noop, SW, SH, USE_ATTR };
 export function reset() {

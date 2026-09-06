@@ -184,3 +184,78 @@ test("height only moves things when the camera is tilted off vertical", () => {
     const tHigh = projectToScreen(tilt, [1, 1, 3], view, 0, 0);
     assert.ok(tHigh.y < tLow.y, "tilted, higher must draw further up the screen");
 });
+
+// ── resizing ──────────────────────────────────────────────────────
+
+import { LayerStack } from "../dist/view/layers.js";
+import { createPentagrid } from "../dist/view/pentagrid.js";
+import { fireResize } from "./domstub.mjs";
+
+test("LayerStack.resize reaches drawn and raw canvases alike", () => {
+    const stack = new LayerStack(host(), 400, 300);
+    const drawn = stack.add({ id: "a", label: "a", z: 1, draw: () => {} });
+    const raw = stack.addRaw(9);
+    stack.resize(640, 480);
+    assert.equal(stack.w, 640);
+    assert.equal(drawn.canvas.width, 640);
+    assert.equal(drawn.canvas.height, 480);
+    assert.equal(raw.canvas.width, 640, "a raw layer was left behind");
+    assert.equal(raw.canvas.height, 480);
+});
+
+test("resize ignores a collapsed or unchanged box", () => {
+    const stack = new LayerStack(host(), 400, 300);
+    const l = stack.add({ id: "a", label: "a", z: 1, draw: () => {} });
+    stack.resize(0, 300);
+    assert.equal(stack.w, 400, "a zero width should be ignored, not applied");
+    stack.resize(-5, -5);
+    assert.equal(stack.w, 400);
+    l.canvas.width = 111;                       // would be reset by a real resize
+    stack.resize(400, 300);
+    assert.equal(l.canvas.width, 111, "resize to the same size should do nothing");
+});
+
+function sizedHost(w, h, attrs = null) {
+    const el = makeStub({
+        children: [],
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: el._w, height: el._h }),
+        getAttribute: (n) => (attrs ? (attrs[n] ?? null) : null),
+    });
+    el._w = w; el._h = h;
+    el.appendChild = (c) => { el.children.push(c); return c; };
+    return el;
+}
+
+test("an implicitly sized view follows its container", () => {
+    const el = sizedHost(700, 500);
+    const h = createPentagrid({ container: el });
+    assert.equal(h.stack.w, 700);
+    assert.equal(h.stack.h, 500);
+
+    el._w = 940; el._h = 620;
+    fireResize(el);
+
+    assert.equal(h.stack.w, 940, "the stack did not follow the container");
+    assert.equal(h.stack.h, 620);
+    for (const l of h.stack.all()) assert.equal(l.canvas.width, 940);
+});
+
+test("an implicitly sized container is not pinned with px", () => {
+    // Writing px onto the container overrides its own CSS, which is what kept
+    // width:100% viewports from ever reflowing.
+    const el = sizedHost(700, 500);
+    createPentagrid({ container: el });
+    assert.ok(!el.style.width, `container was pinned to ${el.style.width}`);
+    assert.ok(!el.style.height);
+});
+
+test("a page that names a size keeps it, and is pinned", () => {
+    const el = sizedHost(700, 500, { "data-width": "340", "data-height": "340" });
+    const h = createPentagrid({ container: el });
+    assert.equal(h.stack.w, 340, "an explicit size was not honoured");
+    assert.equal(el.style.width, "340px", "an explicit size should pin the box");
+
+    el._w = 900; el._h = 900;
+    fireResize(el);
+    assert.equal(h.stack.w, 340, "an explicitly sized view must not reflow");
+});
