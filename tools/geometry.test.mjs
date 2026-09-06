@@ -389,3 +389,86 @@ test("the acceptance region is convex and shrinks as the patch grows", () => {
         prevArea = area;
     }
 });
+
+// ── the Wieringa lift ─────────────────────────────────────────────
+
+import {
+    RISE, ROOF_EDGE, faceNormal, liftLocal, vertexIndex,
+} from "../dist/geometry/roof.js";
+
+const roofRhombs = () => collectRhombs(pg(GENERIC),
+    { xMin: -14, xMax: 14, yMin: -14, yMax: 14 }, { gain: 2.5 });
+
+test("every lifted edge is the golden rhombus edge, sqrt(5)/2", () => {
+    const P = pg(GENERIC);
+    let lo = Infinity, hi = 0;
+    for (const r of roofRhombs()) {
+        const c = [[0,0],[1,0],[1,1],[0,1]].map(([a, b]) => liftLocal(P, r, a, b));
+        for (let i = 0; i < 4; i++) {
+            const A = c[i], B = c[(i + 1) % 4];
+            const L = Math.hypot(B[0]-A[0], B[1]-A[1], B[2]-A[2]);
+            lo = Math.min(lo, L); hi = Math.max(hi, L);
+        }
+    }
+    assert.ok(near(lo, ROOF_EDGE, 1e-12) && near(hi, ROOF_EDGE, 1e-12), `${lo}..${hi}`);
+});
+
+test("both rhomb types lift to the SAME golden rhombus, diagonals phi:1", () => {
+    const P = pg(GENERIC);
+    let sawThick = false, sawThin = false;
+    for (const r of roofRhombs().slice(0, 400)) {
+        const A = liftLocal(P, r, 0, 0), B = liftLocal(P, r, 1, 0);
+        const C = liftLocal(P, r, 1, 1), D = liftLocal(P, r, 0, 1);
+        const d1 = Math.hypot(C[0]-A[0], C[1]-A[1], C[2]-A[2]);
+        const d2 = Math.hypot(D[0]-B[0], D[1]-B[1], D[2]-B[2]);
+        const ratio = Math.max(d1, d2) / Math.min(d1, d2);
+        assert.ok(near(ratio, PHI, 1e-9), `${r.thick ? "thick" : "thin"} ratio ${ratio}`);
+        if (r.thick) sawThick = true; else sawThin = true;
+    }
+    assert.ok(sawThick && sawThin, "did not see both types");
+});
+
+test("the index runs exactly 1..4, so the roof has four levels", () => {
+    const P = pg(GENERIC);
+    const levels = new Set();
+    for (const r of roofRhombs())
+        for (const K of r.kTuples) levels.add(vertexIndex(K));
+    assert.deepEqual([...levels].sort((a, b) => a - b), [1, 2, 3, 4]);
+    assert.equal(RISE, 0.5);
+});
+
+test("fold angles are 36, 72 or 108 and never flat", () => {
+    const P = pg(GENERIC);
+    const rhombs = roofRhombs();
+    const key = (p) => `${Math.round(p[0]*1e6)},${Math.round(p[1]*1e6)},${Math.round(p[2]*1e6)}`;
+    const edges = new Map();
+    for (const r of rhombs) {
+        const c = [[0,0],[1,0],[1,1],[0,1]].map(([a, b]) => liftLocal(P, r, a, b));
+        for (let i = 0; i < 4; i++) {
+            const k = [key(c[i]), key(c[(i+1)%4])].sort().join("|");
+            const l = edges.get(k);
+            if (l) l.push(r); else edges.set(k, [r]);
+        }
+    }
+    const byKind = new Map();
+    let shared = 0;
+    for (const rs of edges.values()) {
+        if (rs.length !== 2) continue;
+        shared++;
+        const n1 = faceNormal(P, rs[0]), n2 = faceNormal(P, rs[1]);
+        const dot = Math.min(1, Math.max(-1, n1[0]*n2[0] + n1[1]*n2[1] + n1[2]*n2[2]));
+        const deg = Math.acos(dot) * 180 / Math.PI;
+        assert.ok(deg > 1e-6, "an interior edge came out flat");
+        const rounded = Math.round(deg);
+        assert.ok([36, 72, 108].includes(rounded), `fold angle ${deg}`);
+        assert.ok(near(deg, rounded, 1e-9), `fold angle not exact: ${deg}`);
+        const kind = [rs[0].thick ? "thick" : "thin", rs[1].thick ? "thick" : "thin"].sort().join("|");
+        if (!byKind.has(kind)) byKind.set(kind, new Set());
+        byKind.get(kind).add(rounded);
+    }
+    assert.ok(shared > 1000, `only ${shared} interior edges`);
+    // wieringa-roof's independently verified table
+    assert.deepEqual([...byKind.get("thick|thick")].sort((a,b)=>a-b), [36]);
+    assert.deepEqual([...byKind.get("thick|thin")].sort((a,b)=>a-b), [36, 72]);
+    assert.deepEqual([...byKind.get("thin|thin")].sort((a,b)=>a-b), [108]);
+});
