@@ -30,11 +30,17 @@ const MIX: string[][] = COLORS.map((a) => COLORS.map((b) => {
 }));
 
 let t = 0;
+// Fraction of the tile the coloured band spans. At 0.5 it is Jake's original
+// 25 % white / 50 % colour / 25 % white; at 1 it fills the tile edge to edge;
+// past 1 the bands overrun their tiles and the ribbons start to overlap.
+let thickness = 0.5;
 let handle: PentagridHandle | null = null;
 
 const host = document.getElementById("grow-view");
 const tInput = document.getElementById("grow-t") as HTMLInputElement | null;
 const tOut = document.getElementById("grow-t-value");
+const wInput = document.getElementById("grow-w") as HTMLInputElement | null;
+const wOut = document.getElementById("grow-w-value");
 
 // ── tile geometry at time t ───────────────────────────────────────
 //
@@ -125,7 +131,7 @@ if (host) {
 
                     // the grid lines, still attached. One stroked polyline each,
                     // thickening from a hairline to half a tile.
-                    const width = Math.max(1, 0.5 * t * v.scale);
+                    const width = Math.max(1, thickness * t * v.scale);
                     ctx.lineCap = "butt";
                     ctx.lineJoin = "round";
                     ctx.lineWidth = width;
@@ -153,7 +159,10 @@ if (host) {
                             ctx.arc(c[0], c[1], 2.5, 0, 2 * Math.PI);
                             ctx.fill();
                         } else {
-                            const pts = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
+                            // the centre is where the two bands overlap, so it
+                            // follows the thickness
+                            const lo = 0.5 - thickness / 2, hi = 0.5 + thickness / 2;
+                            const pts = [[lo, lo], [hi, lo], [hi, hi], [lo, hi]]
                                 .map(([a, b]) => S(local(r, f, a, b, t)));
                             ctx.beginPath();
                             ctx.moveTo(pts[0][0], pts[0][1]);
@@ -168,12 +177,18 @@ if (host) {
     });
 }
 
-if (tInput) {
-    const apply = () => {
+function applyControls() {
+    if (tInput) {
         t = parseFloat(tInput.value);
         if (tOut) tOut.textContent = t.toFixed(2);
-        handle?.redraw();
-    };
-    tInput.addEventListener("input", apply);
-    apply();
+    }
+    if (wInput) {
+        thickness = parseFloat(wInput.value);
+        if (wOut) wOut.textContent = `${Math.round(thickness * 100)}%`;
+    }
+    handle?.redraw();
 }
+
+tInput?.addEventListener("input", applyControls);
+wInput?.addEventListener("input", applyControls);
+applyControls();
