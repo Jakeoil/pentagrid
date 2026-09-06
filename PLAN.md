@@ -742,7 +742,7 @@ the tightest 200 average **0.013** — the near-concurrent triples, essentially
 coincident — and those tiles travel 0.721 against 0.491 for the loosest. The most
 dramatic motion happens exactly where the meter and the loupe were built to look.
 
-#### Completing E1: reading (b), and why it is now easy
+#### Completing E1: reading (b) — BUILT 2026-09-06, `wiggle.html`
 
 **The recorded obstacle was false.** This plan said (b) "needs a way to draw a
 region of 4-dimensional γ-space". It needs a way to draw a region of a *plane*.
@@ -777,10 +777,45 @@ Three things follow, and they are the reason to build it:
   a point inside it; the moment it leaves, the patch changes.
 - It is the literal answer to the question E1 asked. The polygon *is* the room.
 
-**What to build.** `wiggle.html`: the tiling on the left with a selectable patch
-(`createPentagrid`), the acceptance polygon on the right (a plain canvas — it is
-not a pentagrid), the current γ as a dot inside it. Add tiles to the patch, watch
-the polygon shrink and the area fall.
+**Built.** `wiggle.html` / `src/app/wiggle.ts`. The tiling on the left via
+`createPentagrid` with a `patch` layer marking the vertices; the perpendicular
+plane on the right as a plain canvas, since it is not a pentagrid. A radius
+slider grows the patch, and the dot is **draggable** — which is the whole point.
+Drag inside the region and the patch holds; cross the boundary and vertices go
+hollow as they stop existing. Double-click re-anchors the patch to wherever you
+have landed.
+
+The region is found by **ray casting** from the anchoring γ, which is inside by
+construction because the patch was read off it; convexity is what makes one
+boundary crossing per ray the whole story. 120 rays, 18 bisections, and the test
+for a single γ is `regionPoly(...).length >= 3` — the five strips still share a
+point. Cost at the largest patch (173 vertices): **121 ms**, and only on radius
+change, never while dragging.
+
+Areas measured, showing the shrink is lumpy rather than smooth:
+
+```
+r = 1     5 vertices   room 0.26125
+r = 2.5  26 vertices   room 0.06175
+r = 4    52 vertices   room 0.02361
+r = 5.5 104 vertices   room 0.02022     <- doubling the patch barely moved it
+r = 7   173 vertices   room 0.01115
+```
+
+Most vertices you add were already forced by the ones inside them; the area only
+drops when a genuinely new constraint binds.
+
+**A derivation that failed, worth recording.** The tempting closed form is: K is
+realised iff ‖P_{⊥⊕1}(s)‖_∞ < ½ for s = K − γ − ½·**1**. That is wrong — the
+ℓ²-orthogonal projection minimises the *Euclidean* residual, not the max-norm
+one, so it over-rejects: 1415 of 3850 genuinely realised tuples failed it. The
+honest test is 2D feasibility, which `regionPoly` already does, and which agreed
+with sampled truth on all 2721 tuples with no misses.
+
+Four tests in `tools/geometry.test.mjs` cover the claims the page rests on: the
+two subspaces are orthogonal, an E∥ shift leaves every tile identical, an E⊥
+shift genuinely moves things, and the acceptance region is convex and never grows
+as the patch does.
 
 **A cheap win worth taking regardless.** Two of the five sliders do not change the
 pattern. Splitting the γ bank into its E∥ part (pans the grid, tiling frozen) and
