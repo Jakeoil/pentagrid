@@ -27,25 +27,16 @@
     four levels.</p>
 
     <div class="bar">
-        <label for="roof-t">grow</label>
-        <input type="range" id="roof-t" min="0" max="1" step="0.005" value="1">
-        <span class="val" id="roof-t-value">1.00</span>
-
-        <label for="roof-fold">fold</label>
-        <input type="range" id="roof-fold" min="0" max="1" step="0.01" value="1">
-        <span class="val" id="roof-fold-value">100%</span>
-
-        <label for="roof-band">band</label>
-        <input type="range" id="roof-band" min="0" max="1" step="0.02" value="0.5">
-        <span class="val" id="roof-band-value">50%</span>
-
-        <label for="roof-az">spin</label>
-        <input type="range" id="roof-az" min="0" max="6.283" step="0.01" value="0.35">
-        <span class="val" id="roof-az-value">20&deg;</span>
-
-        <label for="roof-el">tilt</label>
-        <input type="range" id="roof-el" min="0.05" max="1.5707" step="0.005" value="0.95">
-        <span class="val" id="roof-el-value">54&deg;</span>
+        <label><span class="cap">grow <span class="val" id="roof-t-value">1.00</span></span>
+            <input type="range" id="roof-t" min="0" max="1" step="0.005" value="1"></label>
+        <label><span class="cap">fold <span class="val" id="roof-fold-value">100%</span></span>
+            <input type="range" id="roof-fold" min="0" max="1" step="0.01" value="1"></label>
+        <label><span class="cap">band <span class="val" id="roof-band-value">50%</span></span>
+            <input type="range" id="roof-band" min="0" max="1" step="0.02" value="0.5"></label>
+        <label><span class="cap">spin <span class="val" id="roof-az-value">20&deg;</span></span>
+            <input type="range" id="roof-az" min="0" max="6.283" step="0.01" value="0.35"></label>
+        <label><span class="cap">tilt <span class="val" id="roof-el-value">54&deg;</span></span>
+            <input type="range" id="roof-el" min="0.05" max="1.5707" step="0.005" value="0.95"></label>
     </div>
 
     <div class="viewport" id="roof-view"></div>

@@ -47,34 +47,51 @@ a { color: var(--accent); }
 
 /* ── controls ──────────────────────────────────────────────────── */
 
+/* Controls stay put while you scroll: dragging a slider is useless if it takes
+   the picture off screen. Laid out across rather than down so a five-slider bar
+   is one row and not five. */
 .bar {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 8px 14px;
-    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 10px 18px;
     background: var(--panel);
     border: 1px solid var(--rule);
     border-radius: 8px;
-    padding: 14px 16px;
+    padding: 12px 16px;
     margin: 20px 0 12px;
     font-size: 13px;
     color: var(--ink-soft);
+    box-shadow: 0 1px 8px rgba(0, 0, 0, 0.05);
 }
-.bar input[type=range] { width: 100%; }
+.bar label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+}
+.bar .cap { display: flex; justify-content: space-between; gap: 12px; }
+.bar input[type=range] { width: 158px; display: block; }
 .bar .val {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 12px;
     color: var(--ink-faint);
-    min-width: 44px;
-    text-align: right;
 }
 
 /* ── viewports ─────────────────────────────────────────────────── */
 
 .viewport {
     position: relative;
+    /* Its own stacking context, or the layer canvases (up to z 200) would paint
+       straight over the sticky bar. */
+    z-index: 0;
     width: 100%;
-    height: min(72vh, 680px);
+    /* Leave room for the bar above it, so controls and picture share a screen. */
+    height: min(calc(100vh - 150px), 720px);
+    min-height: 340px;
     background: var(--panel);
     border: 1px solid var(--rule);
     border-radius: 8px;
