@@ -74,6 +74,16 @@ a { color: var(--accent); }
     font-size: 12px;
 }
 .bar .cap { display: flex; justify-content: space-between; gap: 12px; }
+/* Checkboxes sit on the slider baseline rather than above it. */
+.bar label.check {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--ink);
+    padding-bottom: 2px;
+}
+.bar label.check input { margin: 0; }
 .bar input[type=range] { width: 158px; display: block; }
 .bar .val {
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;

@@ -61,6 +61,8 @@ export interface GrowthState {
     azimuth: number;
     /** Camera tilt from the horizon, radians. π/2 looks straight down. */
     elevation: number;
+    /** Draw tile edges as real lines rather than the default hairline ghost. */
+    boldEdges: boolean;
 }
 
 export interface GrowthHandle {
@@ -73,6 +75,7 @@ export interface GrowthHandle {
 
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
+    boldEdges: false,
 };
 
 /**
@@ -230,10 +233,18 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             ctx.fill();
                         }
                         if (grow > 0.02) {
-                            ctx.strokeStyle = shaded
-                                ? `rgba(0,0,0,${(0.10 + 0.18 * k).toFixed(3)})`
-                                : "rgba(0,0,0,0.28)";
-                            ctx.lineWidth = 1;
+                            // Bold still tracks the shading, so creases keep
+                            // reading on the roof; it just stops being a ghost.
+                            ctx.strokeStyle = state.boldEdges
+                                ? (shaded
+                                    ? `rgba(0,0,0,${(0.55 + 0.35 * k).toFixed(3)})`
+                                    : "rgba(0,0,0,0.85)")
+                                : (shaded
+                                    ? `rgba(0,0,0,${(0.10 + 0.18 * k).toFixed(3)})`
+                                    : "rgba(0,0,0,0.28)");
+                            ctx.lineWidth = state.boldEdges
+                                ? Math.max(1.6, Math.min(4, v.scale * 0.03))
+                                : 1;
                             trace(r, BODY);
                             ctx.stroke();
                         }

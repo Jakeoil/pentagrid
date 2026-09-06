@@ -259,3 +259,21 @@ test("a page that names a size keeps it, and is pinned", () => {
     fireResize(el);
     assert.equal(h.stack.w, 340, "an explicitly sized view must not reflow");
 });
+
+test("bold edges is off by default and switchable", () => {
+    const v = createGrowthView({ container: host() });
+    assert.equal(v.get().boldEdges, false, "edges should start faint");
+    v.set({ boldEdges: true });
+    assert.equal(v.get().boldEdges, true);
+    v.set({ grow: 0.7 });
+    assert.equal(v.get().boldEdges, true, "an unrelated set cleared the switch");
+});
+
+test("drawing survives both edge settings at every stage", () => {
+    for (const lift of [false, true]) {
+        const v = createGrowthView({ container: host(), lift });
+        for (const boldEdges of [false, true])
+            for (const grow of [0, 0.5, 1]) v.set({ boldEdges, grow });
+    }
+    assert.ok(true);
+});

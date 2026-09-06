@@ -4,7 +4,7 @@
 // starting state, and five sliders.
 
 import { createGrowthView } from "../view/growth.js";
-import { bindSliders } from "../view/controls.js";
+import { bindSliders, bindToggles } from "../view/controls.js";
 
 const host = document.getElementById("grow-view");
 if (host) {
@@ -13,4 +13,5 @@ if (host) {
         { id: "grow-t", key: "grow", format: (v) => v.toFixed(2) },
         { id: "grow-w", key: "band", format: (v) => `${Math.round(v * 100)}%` },
     ]);
+    bindToggles(view, [{ id: "grow-edges", key: "boldEdges" }]);
 }
