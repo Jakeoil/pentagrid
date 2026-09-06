@@ -592,6 +592,35 @@ the meter.
 - **`ResizeObserver`.** "Implicit" sizing currently means *read the container
   once*. Observing it would make the page stop being one fixed size forever.
 
+## Canvas containers — a standing rule
+
+Set 2026-09-06, after `grow.html` and `roof.html` were built as page code.
+
+**Anything with real drawing in it gets a container**, the way `createPentagrid`
+does: own your canvases, take a config, hand back a handle. A page should be a
+container element, a config object and some sliders.
+
+Two things follow. A second page wanting the same picture becomes a config change
+rather than a copy — `grow.html` and `roof.html` are now the same container
+behind 16 and 19 lines each, down from 194 and 175. And the renderer can be
+tested with no page in sight, which is where the container tests come from.
+
+| container | what it draws |
+|---|---|
+| `view/pentagrid` `createPentagrid` | the pentagrid and its dual |
+| `view/growth` `createGrowthView` | the assembling tiling, flat or folded |
+| `view/region-panel` `createRegionPanel` | a convex region and a draggable point |
+
+`view/controls` `bindSliders` goes with them: every page was repeating the same
+range-input wiring.
+
+The split to keep making: DOM-free mathematics into `geometry/`, drawing into
+`view/`. `geometry/roof` (the lift) and `geometry/acceptance` (the perpendicular
+plane, convex boundaries by ray cast) came out of the pages at the same time, and
+are tested directly.
+
+Documented in the README under *Canvas containers*.
+
 ## Site structure
 
 Three top-level pages, following the shape wieringa-roof uses.

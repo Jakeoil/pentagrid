@@ -72,6 +72,11 @@ so a new page is an HTML file and an entry point — nothing else.
 | `geometry/region` | the dual map run backwards | no |
 | `geometry/decor` | arc geometry | no |
 | `view/layers` | `LayerStack` — canvases, z-order, visibility | yes |
+| `view/growth` | `createGrowthView` — the assembling tiling, flat or folded | yes |
+| `view/region-panel` | `createRegionPanel` — a convex region and a draggable point | yes |
+| `view/controls` | `bindSliders` | yes |
+| `geometry/roof` | the Wieringa lift | no |
+| `geometry/acceptance` | the perpendicular plane, convex boundaries | no |
 | `view/pentagrid` | `createPentagrid` | yes |
 | `ui/dials` | `createGammaBank` | yes |
 | `ui/loupe` | `createLoupe` | yes |
@@ -160,6 +165,75 @@ createPentagrid({
 
 `visible` and `opacity` are predicates read at draw time, not flags, so a step
 preset changes what is drawn by changing what they see.
+
+### Canvas containers
+
+**Anything with real drawing in it gets a container.** A page should be a
+container element, a config object and some sliders — not a renderer. The rule
+is the same one `createPentagrid` follows: own your canvases, take a config,
+hand back a handle.
+
+Two things fall out of it. A second page that wants the same picture is a config
+change rather than a copy, and the renderer can be tested with no page in sight.
+`grow.html` and `roof.html` are the same 300-line container behind 16 and 19
+lines of page.
+
+#### `createGrowthView` — the assembling tiling
+
+Tiles growing out of the crossings that made them, with the grid lines still
+fastened to the edge midpoints they pass between. `lift` stands the surface up
+into golden rhombi; the flat view is just `fold = 0` with the camera looking
+straight down.
+
+```ts
+import { createGrowthView } from "../view/growth.js";
+import { bindSliders } from "../view/controls.js";
+
+const view = createGrowthView({
+    container: document.getElementById("view")!,
+    lift: true,            // the Wieringa roof; false for the flat assembly
+    ribbons: "quads",      // "stroke" is one continuous polyline per grid line —
+                           // better flat, but it cannot be depth sorted
+});
+
+bindSliders(view, [
+    { id: "t",    key: "grow",      format: (v) => v.toFixed(2) },
+    { id: "fold", key: "fold",      format: (v) => `${Math.round(v * 100)}%` },
+    { id: "az",   key: "azimuth",   format: (v) => `${Math.round(v * 180 / Math.PI)}°` },
+]);
+
+view.set({ grow: 1, band: 0.5 });   // patches state, leaves the rest alone
+view.get().fold;                    // a copy, not the live object
+view.pentagrid;                     // pan/zoom, γ and the layer stack underneath
+```
+
+State is `{ grow, fold, band, azimuth, elevation }`. `bindSliders` wires range
+inputs to it and writes the formatted value into `#<id>-value` if that element
+exists.
+
+#### `createRegionPanel` — a region and a point in it
+
+A small canvas showing a convex polygon with a draggable dot. Knows nothing
+about pentagrids — a polygon, a point and a callback.
+
+```ts
+import { createRegionPanel } from "../view/region-panel.js";
+
+const panel = createRegionPanel({
+    container: document.getElementById("panel")!,
+    size: 400,
+    span: 3.2,                                   // world units across
+    onMove: (x, y) => { /* dragged to here */ },
+});
+
+panel.setRegion(polygon);      // [[x, y], ...]
+panel.setPoint(0.3, -0.2);
+panel.inside();                // is the point in the region?
+```
+
+The region itself comes from `geometry/acceptance`, which is DOM-free:
+`convexBoundary(predicate, from)` traces a convex region by ray casting from a
+point known to be inside it, and `polygonArea` measures the result.
 
 ### The geometry on its own
 
