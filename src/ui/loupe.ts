@@ -55,7 +55,14 @@ export function createLoupe(opts: LoupeOptions): Loupe {
     const canvas = document.createElement("canvas");
     canvas.width = size;
     canvas.height = size;
+    // Structure inline, decoration left to CSS: a page that imports this and
+    // knows none of our stylesheet still gets a panel pinned where it belongs.
     canvas.className = "loupe";
+    canvas.style.position = "absolute";
+    canvas.style.right = "8px";
+    canvas.style.bottom = "8px";
+    canvas.style.zIndex = "200";
+    canvas.style.background = "#fff";
     canvas.style.display = "none";
     opts.container.appendChild(canvas);
     const ctx = canvas.getContext("2d")!;

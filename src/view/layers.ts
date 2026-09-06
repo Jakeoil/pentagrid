@@ -55,13 +55,25 @@ export class LayerStack {
         this.container = container;
         this.w = w;
         this.h = h;
+        // Absolutely positioned children need a positioned ancestor, and the
+        // container is not ours to restyle beyond that one requirement.
+        const pos = typeof getComputedStyle === "function"
+            ? getComputedStyle(container).position : "";
+        if (!pos || pos === "static") container.style.position = "relative";
     }
 
     private makeCanvas(z: number, pointerEvents: string): HTMLCanvasElement {
         const c = document.createElement("canvas");
         c.width = this.w;
         c.height = this.h;
+        // The stack only works if the canvases overlay each other, so that is set
+        // here rather than left to a stylesheet. The class stays for pages that
+        // want to style them further, but nothing depends on it — an outside page
+        // that imports this and knows none of our CSS still gets a working stack.
         c.className = "layer-canvas";
+        c.style.position = "absolute";
+        c.style.top = "0";
+        c.style.left = "0";
         c.style.zIndex = String(z);
         c.style.pointerEvents = pointerEvents;
         this.container.appendChild(c);

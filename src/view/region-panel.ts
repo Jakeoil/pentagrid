@@ -35,6 +35,9 @@ export function createRegionPanel(config: RegionPanelConfig): RegionPanelHandle 
     canvas.width = size;
     canvas.height = size;
     canvas.className = "region-panel";
+    canvas.style.display = "block";
+    canvas.style.background = "#fff";
+    canvas.style.cursor = "crosshair";
     config.container.appendChild(canvas);
     const ctx = canvas.getContext("2d")!;
 
