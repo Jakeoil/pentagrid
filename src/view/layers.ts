@@ -43,10 +43,13 @@ export interface RawLayer {
 
 export class LayerStack {
     readonly container: HTMLElement;
-    readonly w: number;
-    readonly h: number;
+    /** Current size. Mutable: the host may resize the stack under us. */
+    w: number;
+    h: number;
     private readonly byId = new Map<string, Layer>();
     private readonly order: Layer[] = [];
+    /** Canvases the stack sizes but never draws, so resize can reach them too. */
+    private readonly raw: HTMLCanvasElement[] = [];
 
     constructor(container: HTMLElement, w: number, h: number) {
         this.container = container;
@@ -85,7 +88,22 @@ export class LayerStack {
      */
     addRaw(z: number, pointerEvents = "none"): RawLayer {
         const canvas = this.makeCanvas(z, pointerEvents);
+        this.raw.push(canvas);
         return { canvas, ctx: canvas.getContext("2d")! };
+    }
+
+    /**
+     * Resize every canvas, drawn and raw alike. Setting width or height clears a
+     * canvas, so the caller must redraw afterwards — which is why this does not
+     * redraw itself: the host knows what a redraw costs and when it is due.
+     */
+    resize(w: number, h: number) {
+        if (!(w > 0 && h > 0)) return;
+        if (w === this.w && h === this.h) return;
+        this.w = w;
+        this.h = h;
+        for (const l of this.order) { l.canvas.width = w; l.canvas.height = h; }
+        for (const c of this.raw) { c.width = w; c.height = h; }
     }
 
     get(id: string): Layer | undefined {

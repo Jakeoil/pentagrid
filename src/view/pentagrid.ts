@@ -136,7 +136,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // Explicit wins: data-width / data-height / data-margin on #canvas-container.
     // Implicit otherwise: the container's own laid-out size, then 800 as a floor.
 
-    interface CanvasSpec { w: number; h: number; margin: number; }
+    interface CanvasSpec {
+    w: number; h: number; margin: number;
+    /** The page named a size, so it is pinned and must not reflow. */
+    explicit: boolean;
+    /** A named margin overrides the proportional one on resize. */
+    fixedMargin: number | null;
+}
 
     function intAttr(el: Element, name: string): number | null {
         const raw = parseInt(String(el.getAttribute(name) ?? ""), 10);
@@ -146,12 +152,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function readCanvasSpec(): CanvasSpec {
         const el = config.container;
         const rect = el.getBoundingClientRect();
-        const w = intAttr(el, "data-width") ?? (Math.round(rect.width) || 800);
-        const h = intAttr(el, "data-height") ?? (Math.round(rect.height) || 800);
+        const dw = intAttr(el, "data-width");
+        const dh = intAttr(el, "data-height");
+        const w = dw ?? (Math.round(rect.width) || 800);
+        const h = dh ?? (Math.round(rect.height) || 800);
         // 40 on an 800 canvas: keep the proportion rather than the number, so the
         // K-labels still have a gutter to live in at any size.
-        const margin = intAttr(el, "data-margin") ?? Math.round(Math.min(w, h) * 0.05);
-        return { w, h, margin };
+        const fixedMargin = intAttr(el, "data-margin");
+        const margin = fixedMargin ?? Math.round(Math.min(w, h) * 0.05);
+        return { w, h, margin, explicit: dw !== null || dh !== null, fixedMargin };
     }
 
     const canvas = readCanvasSpec();
@@ -298,8 +307,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const explanationDiv = config.explanation ?? document.createElement("div");
     const layerPanelDiv = config.panel ?? document.createElement("div");
     const container = config.container;
-    container.style.width = `${canvas.w}px`;
-    container.style.height = `${canvas.h}px`;
+    // Only pin the box when the page asked for a size. Writing px here for an
+    // implicitly sized container overrides its own CSS — which is exactly what
+    // kept the viewports from ever reflowing.
+    if (canvas.explicit) {
+        container.style.width = `${canvas.w}px`;
+        container.style.height = `${canvas.h}px`;
+    }
 
     // Tooltip for K-tuple display
     const tooltip = document.createElement("div");
@@ -1941,6 +1955,25 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         getView: () => ({ scale, x: viewX, y: viewY }),
         redraw: () => draw(),
     });
+
+    // Follow the container when the page did not name a size. Setting a canvas's
+    // width clears it, so every resize is followed by a redraw.
+    if (!canvas.explicit && typeof ResizeObserver !== "undefined") {
+        const ro = new ResizeObserver(() => {
+            const r = container.getBoundingClientRect();
+            const w = Math.round(r.width), h = Math.round(r.height);
+            if (!(w > 0 && h > 0)) return;          // hidden, or not laid out yet
+            if (w === canvas.w && h === canvas.h) return;
+            canvas.w = w;
+            canvas.h = h;
+            canvas.margin = canvas.fixedMargin ?? Math.round(Math.min(w, h) * 0.05);
+            viewW = w; viewH = h; viewMargin = canvas.margin;
+            stack.resize(w, h);
+            rhombCache = null;                       // the visible rect moved
+            draw();
+        });
+        ro.observe(container);
+    }
 
     if (config.gamma) {
         for (let j = 0; j < NUM_GRIDS; j++) {
