@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentagrid — Wiggle Room</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #fafafa; color: #333; }
+        .page { max-width: 860px; }
+        h1 { margin-bottom: 4px; }
+        h2 { color: #555; font-weight: normal; margin-top: 0; font-size: 19px; }
+        p { line-height: 1.65; max-width: 720px; }
+        .eq {
+            font-family: "Times New Roman", serif; font-size: 16px; text-align: center;
+            background: #f0f0f0; border-radius: 4px; padding: 9px; margin: 14px 0; max-width: 720px;
+        }
+        .pair { display: flex; gap: 16px; margin: 18px 0 8px; flex-wrap: wrap; }
+        .pair figure { margin: 0; }
+        .pair figcaption { font-size: 12px; color: #777; margin-top: 5px; text-align: center; }
+        .viewport, canvas.perp {
+            position: relative; width: 400px; height: 400px; background: #fff;
+            border: 1px solid #ddd; border-radius: 4px; touch-action: none; overflow: hidden;
+        }
+        canvas.perp { display: block; cursor: crosshair; }
+        .layer-canvas { position: absolute; top: 0; left: 0; }
+        .controls-row {
+            display: flex; align-items: center; gap: 14px; margin: 6px 0 2px;
+            font-size: 13px; color: #555; flex-wrap: wrap;
+        }
+        .controls-row input[type=range] { width: 190px; }
+        #wiggle-readout { font-size: 13px; font-family: monospace; color: #444; margin: 4px 0 18px; }
+        .hint { font-size: 12px; color: #999; }
+        footer {
+            margin-top: 34px; padding-top: 12px; border-top: 1px solid #e0e0e0;
+            font-size: 13px; color: #888;
+        }
+        footer a { color: #457b9d; }
+    </style>
+</head>
+<body>
+<div class="page">
+    <h1>Wiggle room</h1>
+    <h2>How much can &gamma; move before the pattern changes?</h2>
+
+    <p>The five offsets look like five degrees of freedom, and
+    &gamma;<sub>0</sub>&thinsp;+&thinsp;&middot;&middot;&middot;&thinsp;+&thinsp;&gamma;<sub>4</sub>&thinsp;=&thinsp;0
+    cuts that to four. But two of those four do nothing at all. Shifting every
+    &gamma;<sub><i>j</i></sub> by <b>w</b>&thinsp;&middot;&thinsp;<b>v</b><sub><i>j</i></sub>
+    moves each crossing to <b>x</b><sub>0</sub>&thinsp;&minus;&thinsp;<b>w</b>, and
+    its <i>K</i>-tuple to</p>
+
+    <p class="eq">&lceil;&thinsp;<b>v</b><sub><i>i</i></sub>&thinsp;&middot;&thinsp;(<b>x</b><sub>0</sub>&thinsp;&minus;&thinsp;<b>w</b>)
+    &plus;&thinsp;&gamma;<sub><i>i</i></sub>&thinsp;&plus;&thinsp;<b>w</b>&thinsp;&middot;&thinsp;<b>v</b><sub><i>i</i></sub>&thinsp;&rceil;
+    &nbsp;=&nbsp;
+    &lceil;&thinsp;<b>v</b><sub><i>i</i></sub>&thinsp;&middot;&thinsp;<b>x</b><sub>0</sub>&thinsp;&plus;&thinsp;&gamma;<sub><i>i</i></sub>&thinsp;&rceil;</p>
+
+    <p>&mdash; unchanged. Same tuple, same vertex. The pentagrid slides and
+    <em>the tiling does not move.</em> So the pattern depends on just two
+    numbers: &gamma;'s component in the perpendicular plane, spanned by the same
+    five angles doubled. That plane is the panel on the right.</p>
+
+    <p>Fix a patch of the tiling and ask which &gamma; keep it. Each vertex
+    survives exactly when its five strips still share a point &mdash; a linear
+    condition &mdash; so the answer is a <b>convex region</b>, and every vertex
+    you add to the patch can only shave it down. That region is the wiggle room,
+    and you can measure it.</p>
+
+    <div class="controls-row">
+        <label>patch radius <input type="range" id="wiggle-radius" min="1" max="7" step="0.25" value="2.5"></label>
+        <span class="hint">drag the dot &mdash; double-click the right panel to re-anchor the patch here</span>
+    </div>
+    <div id="wiggle-readout"></div>
+
+    <div class="pair">
+        <figure>
+            <div class="viewport" id="wiggle-tiling" data-width="400" data-height="400"></div>
+            <figcaption>the tiling, patch vertices marked</figcaption>
+        </figure>
+        <figure>
+            <canvas class="perp" id="wiggle-perp" width="400" height="400"></canvas>
+            <figcaption>&gamma; in the perpendicular plane, and the room it has</figcaption>
+        </figure>
+    </div>
+
+    <p>Inside the region the marked patch is intact. Cross the boundary and a
+    vertex fails &mdash; hollow circles are the ones that no longer exist. That
+    crossing is a <em>phason flip</em>: the tiling rearranges locally while
+    everything far away stays put. Growing the patch shrinks the room, but not
+    smoothly &mdash; most vertices you add were already forced by the ones
+    inside them, and the area only drops when a genuinely new constraint binds.</p>
+
+    <footer>
+        <a href="./">&larr; Pentagrid</a> &nbsp;·&nbsp;
+        <a href="method.html">The Method</a>
+    </footer>
+    <script type="module" src="./dist/app/wiggle.js"></script>
+</div>
+</body>
+</html>
