@@ -589,8 +589,16 @@ the meter.
 - **devicePixelRatio.** The canvas is an 800-wide backing store at 800 CSS px, so
   it is soft on a retina display. Now that size flows through one place this is a
   couple of lines — but it changes how everything renders, so it is its own step.
-- **`ResizeObserver`.** "Implicit" sizing currently means *read the container
-  once*. Observing it would make the page stop being one fixed size forever.
+- ~~**`ResizeObserver`.**~~ **DONE 2026-09-06.** Implicit sizing now observes the
+  container and follows it; explicit `data-width` / `data-height` still pins the
+  box and does not reflow. `LayerStack.resize` reaches the raw canvases as well as
+  the drawn ones, and does not redraw itself — setting a canvas's width clears it,
+  so the host decides when that cost is paid.
+
+  The thing actually blocking this was not the observer. `createPentagrid` wrote
+  the measured size back onto the container as px, which overrode the page's own
+  CSS, so a `width: 100%` viewport could never have reflowed no matter what
+  watched it. That write now happens only for an explicitly sized view.
 
 ## Canvas containers — a standing rule
 
@@ -613,6 +621,13 @@ tested with no page in sight, which is where the container tests come from.
 
 `view/controls` `bindSliders` goes with them: every page was repeating the same
 range-input wiring.
+
+**Controls and picture share a screen.** A slider is useless if using it scrolls
+the drawing out of view, so `.bar` is sticky and laid out across rather than down
+— roof's five sliders are one row, not five — and `.viewport` is capped at
+`min(calc(100vh - 150px), 720px)` so the whole thing fits below the pinned bar.
+`.viewport` also carries `z-index: 0` to make its own stacking context; without
+it the layer canvases, which run up to z 200, paint straight over the bar.
 
 The split to keep making: DOM-free mathematics into `geometry/`, drawing into
 `view/`. `geometry/roof` (the lift) and `geometry/acceptance` (the perpendicular

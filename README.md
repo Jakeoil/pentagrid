@@ -134,7 +134,11 @@ relay one hop rather than two instances bouncing updates off each other forever.
 | `layers` | a callback for registering your own layers |
 
 Size comes from `data-width` / `data-height` on the container, or from the
-container's laid-out size.
+container's laid-out size. **Those two behave differently on resize**: naming a
+size pins the box and it stays put, while an implicitly sized view observes its
+container and follows it, redrawing as it goes. Only pin a size when the page
+really wants that exact number of pixels — a `width: 100%` viewport should say
+nothing and let the CSS decide.
 
 The handle is `{ redraw, setStep, getView, setView, setGamma, stack }`.
 
