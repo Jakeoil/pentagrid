@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentagrid — The Wieringa Roof</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #fafafa; color: #333; }
+        .page { max-width: 780px; }
+        h1 { margin-bottom: 4px; }
+        h2 { color: #555; font-weight: normal; margin-top: 0; font-size: 19px; }
+        p { line-height: 1.65; }
+        .eq {
+            font-family: "Times New Roman", serif; font-size: 17px; text-align: center;
+            background: #f0f0f0; border-radius: 4px; padding: 10px; margin: 14px 0;
+        }
+        .viewport {
+            position: relative; width: 720px; height: 560px; background: #fff;
+            border: 1px solid #ddd; border-radius: 4px; touch-action: none; overflow: hidden;
+        }
+        .layer-canvas { position: absolute; top: 0; left: 0; }
+        .controls {
+            display: grid; grid-template-columns: auto 1fr auto; gap: 6px 12px;
+            align-items: center; margin: 16px 0 10px; max-width: 520px;
+            font-size: 13px; color: #444;
+        }
+        .controls input[type=range] { width: 100%; }
+        .controls .val { font-family: monospace; font-size: 12px; color: #666; min-width: 40px; text-align: right; }
+        .hint { font-size: 12px; color: #999; margin-top: 6px; }
+        footer {
+            margin-top: 32px; padding-top: 12px; border-top: 1px solid #e0e0e0;
+            font-size: 13px; color: #888;
+        }
+        footer a { color: #457b9d; }
+    </style>
+</head>
+<body>
+<div class="page">
+    <h1>The Wieringa roof</h1>
+    <h2>The same tiling, folded into golden rhombi</h2>
+
+    <p>The height was in the data all along. Give every vertex a <i>z</i> of half
+    its de Bruijn index &mdash; half the sum of its five
+    <i>K<sub>j</sub></i> &mdash; and the flat tiling stands up:</p>
+
+    <p class="eq"><b>E</b><sub><i>j</i></sub>&thinsp;=&thinsp;<b>v</b><sub><i>j</i></sub>&thinsp;+&thinsp;&frac12;<b>&zcaron;</b>
+    &nbsp;&nbsp;&rArr;&nbsp;&nbsp; <i>z</i>&thinsp;=&thinsp;(&sum;&thinsp;<i>K<sub>j</sub></i>)&thinsp;/&thinsp;2</p>
+
+    <p>Every face becomes the <em>same</em> golden rhombus &mdash; edge
+    &radic;5&thinsp;/&thinsp;2, diagonals in ratio &phi;, angles 63.43&deg; and
+    116.57&deg;. Thick and thin stop being different shapes and become the same
+    shape lying at different tilts; which one you see depends only on which corner
+    sits at the shared vertex. Every edge rises or falls by exactly &frac12;, the
+    index only ever takes the values 1, 2, 3, 4, and so the whole roof stands on
+    four levels.</p>
+
+    <div class="controls">
+        <label for="roof-t">grow</label>
+        <input type="range" id="roof-t" min="0" max="1" step="0.005" value="1">
+        <span class="val" id="roof-t-value">1.00</span>
+
+        <label for="roof-fold">fold</label>
+        <input type="range" id="roof-fold" min="0" max="1" step="0.01" value="1">
+        <span class="val" id="roof-fold-value">100%</span>
+
+        <label for="roof-band">band</label>
+        <input type="range" id="roof-band" min="0" max="1" step="0.02" value="0.5">
+        <span class="val" id="roof-band-value">50%</span>
+
+        <label for="roof-az">spin</label>
+        <input type="range" id="roof-az" min="0" max="6.283" step="0.01" value="0.35">
+        <span class="val" id="roof-az-value">20&deg;</span>
+
+        <label for="roof-el">tilt</label>
+        <input type="range" id="roof-el" min="0.05" max="1.5707" step="0.005" value="0.95">
+        <span class="val" id="roof-el-value">54&deg;</span>
+    </div>
+
+    <div class="viewport" id="roof-view" data-width="720" data-height="560"></div>
+    <p class="hint">Drag to pan, scroll to zoom. <b>fold</b> at 0 lays the roof flat
+    &mdash; the ordinary tiling &mdash; and <b>grow</b> still runs the whole assembly
+    from the pentagrid, now in three dimensions.</p>
+
+    <p>Because <i>z</i> is affine in a tile's own coordinates, each face stays
+    exactly planar and the surface is a height field, so the faces can simply be
+    sorted by depth: no 3D library, and the ordering is exact. The ribbons run
+    over the roof rather than through it, following the same edge midpoints they
+    did in the plane &mdash; which is what turns the five flat pencils of grid
+    lines into strips lying across a folded surface.</p>
+
+    <footer>
+        <a href="./">&larr; Pentagrid</a> &nbsp;·&nbsp;
+        <a href="grow.html">Growing the tiling</a> &nbsp;·&nbsp;
+        <a href="method.html">The Method</a>
+    </footer>
+    <script type="module" src="./dist/app/roof.js"></script>
+</div>
+</body>
+</html>
