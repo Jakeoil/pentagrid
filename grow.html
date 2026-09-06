@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentagrid — Growing the Tiling</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #fafafa; color: #333; }
+        .page { max-width: 760px; }
+        h1 { margin-bottom: 4px; }
+        h2 { color: #555; font-weight: normal; margin-top: 0; font-size: 19px; }
+        p { line-height: 1.65; }
+        .viewport {
+            position: relative; width: 700px; height: 560px; background: #fff;
+            border: 1px solid #ddd; border-radius: 4px; touch-action: none; overflow: hidden;
+        }
+        .layer-canvas { position: absolute; top: 0; left: 0; }
+        .controls-row {
+            display: flex; align-items: center; gap: 12px; margin: 16px 0 8px;
+            font-size: 14px; color: #444;
+        }
+        .controls-row input[type=range] { width: 340px; }
+        #grow-t-value { font-family: monospace; font-size: 13px; color: #666; min-width: 34px; }
+        .hint { font-size: 12px; color: #999; margin-top: 6px; }
+        footer {
+            margin-top: 32px; padding-top: 12px; border-top: 1px solid #e0e0e0;
+            font-size: 13px; color: #888;
+        }
+        footer a { color: #457b9d; }
+    </style>
+</head>
+<body>
+<div class="page">
+    <h1>Growing the tiling</h1>
+    <h2>The pentagrid does not vanish &mdash; it gets dragged into shape</h2>
+
+    <p>At <i>t</i>&thinsp;=&thinsp;0 every tile is a point, sitting on the crossing
+    that produced it, coloured by mixing the two families whose lines met there.
+    So what you are looking at is the pentagrid, with a dot on every intersection.</p>
+
+    <p>Push <i>t</i> up and the tiles grow. They cannot all grow in place &mdash;
+    they are crowded in with their neighbours &mdash; so each slides to where the
+    dual map sends it. The grid lines are never redrawn: <b>each stays fastened
+    to the midpoints of the two tile edges it passes between</b>, so it is pulled
+    along, bending as the tiles separate. At <i>t</i>&thinsp;=&thinsp;1 the tiles
+    are full size and edge to edge, every line has closed up seamlessly, and the
+    five straight families have become the wandering ribbons of the tiling.</p>
+
+    <div class="controls-row">
+        <label>grow <input type="range" id="grow-t" min="0" max="1" step="0.005" value="0"></label>
+        <span id="grow-t-value">0.00</span>
+    </div>
+    <div class="viewport" id="grow-view" data-width="700" data-height="560"></div>
+    <p class="hint">Drag to pan, scroll to zoom.</p>
+
+    <p>Nothing is faked in the middle. The attachment points start exactly on the
+    straight grid line, and each tile's exit meets the next tile's entry exactly
+    when <i>t</i> reaches 1 &mdash; the gap between them closes in a straight line
+    at a constant rate. The wandering you end up with is not drift; it is the
+    bounded wobble in <i>f</i>&thinsp;(<b>x</b>)&thinsp;=&thinsp;(5/2)<b>x</b>
+    &plus; const &plus; wobble, and it never exceeds a rhomb edge or so.</p>
+
+    <footer>
+        <a href="./">&larr; Pentagrid</a> &nbsp;·&nbsp;
+        <a href="method.html">The Method</a> &nbsp;·&nbsp;
+        <a href="wiggle.html">Wiggle room</a>
+    </footer>
+    <script type="module" src="./dist/app/grow.js"></script>
+</div>
+</body>
+</html>
