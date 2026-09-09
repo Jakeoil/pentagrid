@@ -808,7 +808,52 @@ just sits on FIVE levels instead of four. The roof's restriction is n = 5, which
 is a different thing from Sigma-gamma integer, and it is easy to slide between
 them.
 
-**The star / sun / decagon question — answered, and the answer is "no star".**
+**VOCABULARY CORRECTION (Jake, 2026-09-09).** Everything in the next paragraph
+was written in the wrong language and its conclusion is misframed. The names
+star / sun / deca are **P1 mother-patch** names, not P3 vertex figures:
+
+| patch | is the | contains |
+|---|---|---|
+| `Pe5` | **sun** | a *star rhomb group* (5 thick) at its centre |
+| `St5` | **star** | five *diamond rhomb groups* (1 thick + 2 thin each) |
+| `deca` = `queen` | the mirror-symmetric patch | a queen is one `Pe3` with two `Pe1` |
+
+The patch names are as intended: `Pe5` is the sun even though a *star rhomb
+group* sits at its centre, and `St5` is the star even though what it contains
+are diamonds. The rhomb-group names and the patch names are different
+vocabularies and must not be crossed. See [[penrose-mosaic-rhomb-groups]] and
+[[wieringa-cluster-definitions]], and `expandSun` / `expandStarComposite` in
+`wieringa-roof/src/geometry.ts`.
+
+So the "5 fat rhombs at the origin" measured below is the **star rhomb group**,
+which is the centre of a `Pe5` — meaning every uniform c gives a **SUN**, and the
+measurement never had anything to say about the star. The conclusion "there is no
+star" is wrong; what is true is that the sun is the only thing the uniform family
+puts at the origin *as a vertex*.
+
+**What the star actually is.** `expandStar` emits nothing only at its gen-1
+bottom-out — "that is not a failure, it is what a gap *is*". From **gen 2 on it
+does emit**: it places a central `St5(gen-1)` plus, in five slots, a `Pe1` and an
+`St3`, and those five `Pe1` are exactly the five **diamond rhomb groups**. The
+source gives both composites outright:
+
+    Sun  = one Pe5 ringed by five Pe3   - a blue star inside five yellow boats
+    Star = five Pe1 ringed by five Pe3  - five orange diamonds inside five boats,
+                                          around a central star-shaped gap
+
+So the star's centre is a star-shaped *gap* ringed by diamonds, not a vertex
+figure — which is why probing P3 vertex configurations for it found nothing. The
+angle argument below is true but answers a question nobody asked.
+
+**Restated open question.** Which gamma centres the origin on an `St5` gap rather
+than a `Pe5`? That is the Sun/Star pair — the only two Penrose tilings with
+global five-fold symmetry, distinguished exactly by choice of centre
+([[penrose-mosaic-rhomb-groups]], TODO 4a). Answering it needs cluster
+recognition, which `pentagrid` does not have and `penrose-mosaic` /
+`wieringa-roof` do. Until then this stays open, and the sun/deca/flower results
+below stand only as vertex measurements.
+
+**The star / sun / decagon question — MISFRAMED, see the correction above.**
 For the uniform family, what sits at the origin-centred vertex:
 
     c = 0        SINGULAR, all ten triples   DECAGON, 10 tiles (5 fat + 5 thin)
@@ -825,11 +870,9 @@ rhombs drawn *around* a sun vertex — the ink makes a five-pointed star, the ve
 is five fat rhombs. Verified by cropping the centre of that patch.
 
 So "0 doesn't make a star" because 0 makes a *decagon*, and every regular
-neighbour of it makes a sun. Open: is there any gamma at all whose origin-centred
-cap is a star (5 thin)? Angle arithmetic says a vertex of five thin rhombs needs
-5 corners summing to 360 from {36, 144}, and no combination works — so a "5 thin"
-vertex may simply not exist, and the honest names are decagon / sun / flower.
-Worth settling before building any UI around it.
+neighbour of it makes a sun. The angle arithmetic — five corners from {36, 144} cannot sum to 360, so no
+five-thin vertex exists — is true but answers the wrong question, since `St5`
+emits no rhombs and was never going to appear as a vertex figure at all.
 
 **n = 7 has no Penrose-like cap.** At exact integers and halves:
 
@@ -862,6 +905,103 @@ appears to have no analogue at seven, which is worth saying on grow7.html.
 - Corner 0 of a rhomb spans v_j to v_k, so its angle is 72 for Delta = 1 and
   **144** for Delta = 2 — not 36. Getting it backwards makes every vertex fail
   the 360-degree check and collapses the type count to one or two.
+
+### A hall of mirrors, and telling the mirrors apart (2026-09-09)
+
+Jake's framing: aperiodic tiling is a hall of mirrors — dichotomies, duals,
+conjugates, parity, involutions everywhere — and **P1 is the ground truth.
+Everything falls from there.** P3 rhombs are the derived view. That is a stance
+about the project, not just about the maths: when the two disagree about what a
+thing is called, P1 wins, which is exactly what the `Pe5` / `St5` correction
+above was about.
+
+The discipline the hall of mirrors demands is telling structural resemblance from
+accidental. Three kinds turned up, and they behave differently:
+
+**1. Real involutions.** `Sigma-gamma -> -Sigma-gamma` on R/Z. Its fixed points
+are exactly 0 and 1/2 — arithmetic, since 2x = 0 mod 1 — and those are precisely
+the two distinguished values measured above: 0 is the vertex-type cap (Penrose),
+1/2 is the flower. **That is why there is no harmonic at 1/3 or 2/3**: they are
+not fixed points. The symmetric flower staircase is the same involution seen
+sideways. (Empirically, comparing vertex-type multisets at c and 1-c gives 4-10%
+mismatch in a +-15 window — sampling noise on rare types, so the fixed-point
+argument is structural and the measurement only consistent with it.)
+
+**2. Truncated ladders wearing a dichotomy.** Thick/thin is not a pair, it is
+floor(n/2) — a ladder of length n, which dissolved into three at n = 7 exactly as
+predicted. Large/small rhomb groups are *one inflation apart*
+([[penrose-mosaic-rhomb-groups]]), so that ladder is Z; it looks binary only
+because `shape-modes.js` builds two generations (`i < 2`), which is also why
+`drawDualRhombusPattern`'s `[gen + 1]` throws at gen 1. The parked idea of a
+generation index on `penta` / `star` / `deca` is the move that exposes the ladder.
+
+**3. Two points in one class.** Sun/Star is not a structural pairing at all —
+both are Penrose and mutually LI, differing only by which centre you sit on,
+`Pe5` or `St5`. Nothing is exchanged. The rhomb-groups memory already warns this
+is not a dual, "a dual exchanges vertices and faces", and warns off blanket
+renaming `goThickDual`.
+
+**Where the binary structure comes from.** Most of the two-ness is one fact in
+costume: **Q(sqrt 5) has degree 2**, so there is exactly one non-trivial Galois
+involution, sqrt5 <-> -sqrt5 and phi <-> -1/phi. From it come the two conjugate
+planes E-parallel / E-perp (literally the two embeddings — the "conjugate"), the
+two rhombs, and the exact regularity criterion, where `u + phi*v = 0` forces
+`u = v = 0` because one real equation splits into *two* rational ones. The test
+is n = 7: the real subfield of Q(zeta_7) has degree **3**, and the dichotomies
+became trichotomies on cue — three rhomb classes, and a regularity split needing
+three equations, which is why de Bruijn's criterion does not generalise and
+Lutfalla does not try.
+
+**The anomaly.** Category-1 structure should survive a change of n, and
+Sigma-gamma = 1/2 does (it is the 14-fold point at n = 7, and one of the two
+type-count minima). But the *other* fixed point, Sigma-gamma = 0, is **not** a cap
+at n = 7: 23, 21, 20, 25 types at sums 0, 1, 2, 3, no dip. So being a fixed point
+of the involution is not sufficient for distinction, and Penrose's minimality at
+five needs something the involution does not supply. Unexplained.
+
+### Reverse-engineering a patch back to a pentagrid (Jake, 2026-09-09)
+
+**The question.** Start from a gen-0 core — `Pe5`, `St5` or `deca` — draw the
+pentagrid lines that produce it, then step to the next generation and narrow the
+lines again. Do the gammas converge asymptotically?
+
+**Yes, and most of the machinery is already built.** `geometry/acceptance.ts` is
+exactly this map run backwards: `vertexRealised(pg, K)` asks whether a K-tuple
+survives, each surviving vertex is a linear condition on gamma, so the admissible
+set is convex, and `convexBoundary` traces it by ray casting from any interior
+point. `wiggle.html` already draws it. What Jake is proposing is to drive that
+machinery from the *deflation tower* rather than from a hand-picked patch.
+
+**Measured convergence.** Anchoring at a known gamma and growing the patch through
+phi-spaced radii:
+
+    radius  vertices   admissible area   area ratio   linear ratio
+      1.20         6         1.991e-1         -            -
+      1.94        16         6.141e-2       3.243        1.801
+      3.14        36         2.350e-2       2.613        1.617
+      5.08        93         8.909e-3       2.638        1.624
+      8.22       253         3.421e-3       2.604        1.614
+
+The region contracts by **phi in linear size and phi^2 in area per generation** —
+2.618 and 1.618 to three figures after the first step settles. So convergence is
+geometric with ratio 1/phi = 0.618, which is about 0.209 decimal digits per
+generation: pinning gamma to the denominator we carry (1e-4) takes roughly
+**17-18 generations**. Worth knowing before building a UI that promises to
+converge.
+
+**What it would settle.** Seeding from each of the three cores should converge to
+three different gammas — and the `St5` seed is a *constructive* answer to the
+open Sun/Star centring question above, which vertex probing could not reach
+because a star's centre is a star-shaped gap rather than a vertex figure. That is
+the payoff, and it is the reason to build it.
+
+**What is missing.** Two dimensions of gamma never shrink: sliding along
+E-parallel translates the pentagrid and leaves the tiling alone, so what converges
+is the E-perp position plus Sigma-gamma, and the tower pins gamma only up to that
+slide. And `pentagrid` has no cluster recognition — it knows rhombs, not `Pe5` /
+`St5` / `deca` — so the seeding has to come from `penrose-mosaic` or
+`wieringa-roof`, or a recogniser has to be written here. That is the real cost of
+the idea, and it is worth scoping before starting.
 
 **Also worth having.** Lutfalla notes de Bruijn's exact characterisation of
 regular pentagrids covers only the Penrose case, Σγ ∈ ℤ. Ours was verified against
