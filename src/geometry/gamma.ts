@@ -98,6 +98,32 @@ export interface GammaSet {
     onChange: (cb: () => void) => void;
 }
 
+/**
+ * What a value of Σγ means, in words.
+ *
+ * Two independent facts, and it is worth giving both: the central figure the
+ * offsets make, and which family of tilings you are in. The family turns on
+ * Σγ **mod 1**, not on Σγ — integer is Penrose, half-integer is the one that
+ * grows ten-thin-rhomb flowers, anything else is generalised without them.
+ *
+ * `nudged` matters only at zero: the even split there is all zeros, which is
+ * singular, so with the guard on you get a 10⁻⁴ pentagon rather than a point.
+ */
+export function describeSum(sum: number, nudged = false): string {
+    const figure =
+        Math.abs(sum) < 1e-9
+            ? (nudged ? "just off concurrent (force regular)"
+                      : "all five lines meet at a point")
+        : Math.abs(sum - 2.5) < 1e-9
+            ? "largest pentagon · Lutfalla's P₅(½), global 10-fold"
+        : "";
+    const frac = ((sum % 1) + 1) % 1;
+    const cls = frac < 1e-9 || frac > 1 - 1e-9 ? "Penrose"
+        : Math.abs(frac - 0.5) < 1e-9 ? "generalised (Σγ ≡ ½) — thin-rhomb flowers"
+        : "generalised";
+    return figure ? `${figure} · ${cls}` : cls;
+}
+
 export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     const den = options.denominator ?? 10000;
     let sumQ = Math.round((options.sum ?? 0) * den);
