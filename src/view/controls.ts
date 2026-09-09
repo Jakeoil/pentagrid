@@ -1,6 +1,10 @@
 // Sliders wired to a view's state. Small, but every page was repeating it.
 
 import type { GrowthHandle, GrowthState } from "./growth.js";
+import type { GammaSet } from "../geometry/gamma.js";
+import { describeSum } from "../geometry/gamma.js";
+import { createGammaBank } from "../ui/dials.js";
+import type { GammaBank } from "../ui/dials.js";
 
 /** The state fields a range input can drive. */
 type NumericKey = {
@@ -25,6 +29,65 @@ export interface ToggleSpec {
     /** Element id of the checkbox. */
     id: string;
     key: BooleanKey;
+}
+
+/**
+ * Mount the γ controls — five linked dials and a total — and wire them to a set.
+ *
+ * This is the seam between a page and the model: `ui/dials.ts` stays a pure view
+ * that reports moves and renders what it is told, `geometry/gamma.ts` stays a
+ * DOM-free model, and this is the only place that knows about both. A page
+ * wanting γ controls calls this rather than building sliders of its own — which
+ * is what three separate hand-wired Σγ sliders were about to become.
+ */
+export function mountGammaControls(
+    set: GammaSet,
+    container: HTMLElement,
+    opts: { colors: readonly string[]; sum?: boolean },
+): GammaBank {
+    const bank = createGammaBank({
+        count: set.values().length,
+        colors: opts.colors,
+        onChange: (j, v) => set.setValue(j, v),
+        onLock: (j) => set.setLocked(j),
+        // Spreading is what makes a total control mean anything: without it the
+        // locked index absorbs the whole change and you get one huge offset.
+        onSum: opts.sum === false ? undefined : (v) => set.setSum(v, true),
+    });
+    container.appendChild(bank.element);
+
+    const render = () => bank.sync({
+        values: set.values(),
+        locked: set.getLocked(),
+        sum: set.values().reduce((a, b) => a + b, 0),
+        sumNote: describeSum(set.getSum(), set.nudged()),
+    });
+    set.onChange(render);
+    render();
+    return bank;
+}
+
+/**
+ * Bind one range input to an arbitrary setter. `bindSliders` covers a growth
+ * view's own state; this is for controls that drive something else — the γ set,
+ * say, which the view holds but does not own.
+ */
+export function bindRange(
+    id: string,
+    onChange: (v: number) => void,
+    format?: (v: number) => string,
+) {
+    const input = document.getElementById(id) as HTMLInputElement | null;
+    if (!input) return;
+    const label = document.getElementById(`${id}-value`);
+    const apply = () => {
+        const v = parseFloat(input.value);
+        if (!Number.isFinite(v)) return;
+        onChange(v);
+        if (label && format) label.textContent = format(v);
+    };
+    input.addEventListener("input", apply);
+    apply();
 }
 
 /** Bind range inputs to a growth view, and push their initial values in. */

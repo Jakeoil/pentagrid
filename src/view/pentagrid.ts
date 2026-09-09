@@ -7,11 +7,11 @@ import {
 } from "../geometry/pentagrid.js";
 import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/regularity.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
-import { createGammaSet } from "../geometry/gamma.js";
+import { createGammaSet, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
-import { createGammaBank } from "../ui/dials.js";
+import { mountGammaControls } from "./controls.js";
 import { createLoupe } from "../ui/loupe.js";
 import type { LoupeTarget } from "../ui/loupe.js";
 import type { Layer, LayerContext } from "./layers.js";
@@ -479,13 +479,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // which label was clicked, and renders what it is told. The constraint —
     // that one index is computed from the others so Σγ = 0 — is ours, not its.
 
-    const bank = createGammaBank({
-        count: NUM_GRIDS,
-        colors: COLORS,
-        onChange: (j, value) => gammaSet.setValue(j, value),
-        onLock: (j) => gammaSet.setLocked(j),
-    });
-    controlsDiv.appendChild(bank.element);
+    mountGammaControls(gammaSet, controlsDiv, { colors: COLORS });
 
     // ── Regularity meter ──────────────────────────────────────────────
     //
@@ -626,17 +620,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stepNavDiv.appendChild(stepIndicator);
     stepNavDiv.appendChild(nextBtn);
     stepNavDiv.appendChild(buildTag);
-
-    // ── Gamma / slider logic ──────────────────────────────────────────
-
-    /** Render the bank from the set. The set derives; this only shows. */
-    function updateLockedGamma() {
-        bank.sync({
-            values: gamma,
-            locked: gammaSet.getLocked(),
-            sum: gamma.reduce((a, b) => a + b, 0),
-        });
-    }
 
     // ── Step navigation logic ─────────────────────────────────────────
 
@@ -1541,56 +1524,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             gammaSet.setSymmetry(v);
         });
 
-        // Σγ. Zero gives the Penrose tilings, other values the generalised ones —
-        // the same two rhombs, not locally isomorphic to Penrose. It spreads the
-        // offsets evenly, because that is the family the sum is interesting for:
-        // all equal to s/5, which at s = 0 puts every line through the origin and
-        // at s = 5/2 opens the largest pentagon. (Lutfalla writes the latter
-        // G5(½), counting per offset rather than summing.)
-        const sumRow = row(det, "Σγ");
-        const sumInput = document.createElement("input");
-        sumInput.type = "range";
-        sumInput.min = "0";
-        sumInput.max = "2.5";
-        sumInput.step = "0.05";
-        sumInput.value = String(gammaSet.getSum());
-        sumInput.className = "thickness";
-        const sumOut = document.createElement("span");
-        sumOut.className = "regularity-meter";
-        const sumNote = document.createElement("span");
-        sumNote.className = "regularity-meter";
-        const showSum = () => {
-            const s = gammaSet.getSum();
-            sumOut.textContent = s.toFixed(2);
-            // Two separate facts, and the label used to give only the first: what
-            // the central figure looks like, and which family of tilings it is.
-            // Σγ = 5/2 is the largest pentagon AND not Penrose, and saying only
-            // the former hid the more interesting half.
-            //
-            // At Σγ = 0 the even split is all zeros, which is singular, so with
-            // the guard on you get a 1e-4 pentagon rather than a point.
-            const figure =
-                Math.abs(s) < 1e-9
-                    ? (gammaSet.nudged() ? "just off concurrent (force regular)"
-                                         : "all five lines meet at a point")
-                : Math.abs(s - 2.5) < 1e-9
-                    ? "largest pentagon · Lutfalla's P₅(½), global 10-fold" : "";
-            // The class turns on Σγ mod 1, not on Σγ. Half-integer is the one
-            // that grows ten-thin-rhomb flowers, which Penrose has none of.
-            const frac = ((s % 1) + 1) % 1;
-            const cls = frac < 1e-9 || frac > 1 - 1e-9 ? "Penrose"
-                : Math.abs(frac - 0.5) < 1e-9 ? "generalised (Σγ ≡ ½) — thin-rhomb flowers"
-                : "generalised";
-            sumNote.textContent = `— ${figure ? figure + " · " : ""}${cls}`;
-        };
-        sumInput.addEventListener("input", () => {
-            gammaSet.setSum(parseFloat(sumInput.value), true);
-            showSum();
-        });
-        showSum();
-        sumRow.appendChild(sumInput);
-        sumRow.appendChild(sumOut);
-        sumRow.appendChild(sumNote);
 
         const tRow = row(det, "gridline width");
         const thick = document.createElement("input");
@@ -2066,13 +1999,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // guard lands here rather than each call site remembering to redraw.
     gammaSet.onChange(() => {
         rhombCache = null;
-        updateLockedGamma();
         draw();
     });
 
     buildLayerPanel();
     restackPenrose();
-    updateLockedGamma();
     updateStepUI();
     draw();
 

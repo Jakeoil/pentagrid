@@ -12,6 +12,8 @@ export interface GammaBankState {
     locked: number;
     /** Shown alongside; the page decides what it means. */
     sum: number;
+    /** Optional words for the sum — again the page's business, not the bank's. */
+    sumNote?: string;
 }
 
 export interface GammaBankOptions {
@@ -25,6 +27,13 @@ export interface GammaBankOptions {
     onChange: (index: number, value: number) => void;
     /** The user asked for `index` to become the computed one. */
     onLock: (index: number) => void;
+    /**
+     * Supply this and the bank grows a slider for the total. Like the rest of it,
+     * the bank only reports the move — what a total means, and whether changing
+     * it should redistribute the values, is the page's business.
+     */
+    onSum?: (sum: number) => void;
+    sumRange?: { min: number; max: number; step: number };
 }
 
 export interface GammaBank {
@@ -81,6 +90,30 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
     sumSpan.textContent = "Σ = 0.00";
     element.appendChild(sumSpan);
 
+    let sumInput: HTMLInputElement | null = null;
+    let sumNote: HTMLElement | null = null;
+    if (opts.onSum) {
+        const r = opts.sumRange ?? { min: 0, max: 2.5, step: 0.05 };
+        const wrap = document.createElement("div");
+        wrap.className = "dial sum-dial";
+        sumInput = document.createElement("input");
+        sumInput.type = "range";
+        sumInput.min = String(r.min);
+        sumInput.max = String(r.max);
+        sumInput.step = String(r.step);
+        sumInput.value = "0";
+        sumInput.addEventListener("input", () => opts.onSum!(parseFloat(sumInput!.value)));
+        sumNote = document.createElement("div");
+        sumNote.className = "sum-note";
+        const cap = document.createElement("div");
+        cap.className = "sum-cap";
+        cap.textContent = "Σγ";
+        wrap.appendChild(cap);
+        wrap.appendChild(sumInput);
+        wrap.appendChild(sumNote);
+        element.appendChild(wrap);
+    }
+
     function sync(s: GammaBankState) {
         for (let j = 0; j < count; j++) {
             displays[j].textContent = s.values[j].toFixed(2);
@@ -91,6 +124,12 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
             if (j === s.locked) inputs[j].value = s.values[j].toFixed(2);
         }
         sumSpan.textContent = `Σ = ${s.sum.toFixed(4)}`;
+        // Only written when the user is not holding it, same reason as the
+        // computed slider: writing back mid-drag fights the drag.
+        if (sumInput && document.activeElement !== sumInput) {
+            sumInput.value = s.sum.toFixed(2);
+        }
+        if (sumNote) sumNote.textContent = s.sumNote ?? "";
     }
 
     return { element, sync };
