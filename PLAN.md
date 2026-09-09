@@ -622,6 +622,13 @@ tested with no page in sight, which is where the container tests come from.
 `view/controls` `bindSliders` goes with them: every page was repeating the same
 range-input wiring.
 
+**Gestures beat sliders for a camera.** roof.html's spin and tilt were sliders;
+they are a right-button drag on the picture now, the same gesture as the
+left-button pan. `createPentagrid` takes an `onOrbit(dx, dy)` callback and
+suppresses the context menu when one is given — it has no camera of its own and
+does not interpret the numbers. Orbit defaults on wherever there is a lift to
+see, so a stray right-drag cannot tilt the flat page.
+
 **Controls and picture share a screen.** A slider is useless if using it scrolls
 the drawing out of view, so `.bar` is sticky and laid out across rather than down
 — roof's five sliders are one row, not five — and `.viewport` is capped at

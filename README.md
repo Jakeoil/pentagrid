@@ -199,14 +199,12 @@ import { bindSliders } from "../view/controls.js";
 const view = createGrowthView({
     container: document.getElementById("view")!,
     lift: true,            // the Wieringa roof; false for the flat assembly
-    ribbons: "quads",      // "stroke" is one continuous polyline per grid line —
-                           // better flat, but it cannot be depth sorted
+    orbit: true,           // right-drag to spin and tilt; defaults to `lift`
 });
 
 bindSliders(view, [
-    { id: "t",    key: "grow",      format: (v) => v.toFixed(2) },
-    { id: "fold", key: "fold",      format: (v) => `${Math.round(v * 100)}%` },
-    { id: "az",   key: "azimuth",   format: (v) => `${Math.round(v * 180 / Math.PI)}°` },
+    { id: "t",    key: "grow", format: (v) => v.toFixed(2) },
+    { id: "fold", key: "fold", format: (v) => `${Math.round(v * 100)}%` },
 ]);
 
 view.set({ grow: 1, band: 0.5 });   // patches state, leaves the rest alone
@@ -214,9 +212,15 @@ view.get().fold;                    // a copy, not the live object
 view.pentagrid;                     // pan/zoom, γ and the layer stack underneath
 ```
 
-State is `{ grow, fold, band, azimuth, elevation }`. `bindSliders` wires range
-inputs to it and writes the formatted value into `#<id>-value` if that element
-exists.
+State is `{ grow, fold, band, azimuth, elevation, boldEdges }`. `bindSliders`
+wires range inputs to it and writes the formatted value into `#<id>-value` if that
+element exists; `bindToggles` does the same for checkboxes.
+
+**The camera is a gesture, not a slider.** Left-drag pans, right-drag spins and
+tilts, and the two feel like one control because they are. Underneath,
+`createPentagrid` takes an `onOrbit(dx, dy)` callback and suppresses the context
+menu when one is given — it has no camera of its own and does not interpret the
+numbers.
 
 #### `createRegionPanel` — a region and a point in it
 
