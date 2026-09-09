@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Heptagrid — Growing the Tiling</title>
+    <link rel="stylesheet" href="./site.css">
+</head>
+<body>
+<div class="wrap">
+    <h1>Growing the tiling, with seven</h1>
+    <h2>The same construction, one number changed &mdash; and it is not Penrose any more</h2>
+
+    <p>Everything on this page is the <a href="grow.html">growing pentagrid</a> with
+    <i>n</i>&thinsp;=&thinsp;7. Seven families of parallel lines instead of five,
+    turned 2&pi;/7 apart; every crossing still becomes a tile; every line still stays
+    fastened to the edge midpoints it passes between and gets dragged into a ribbon.
+    Not a line of the drawing code knows which it is running.</p>
+
+    <p>What changes is worth watching for. <b>There are three rhombs, not two.</b>
+    A grid of order <i>n</i> makes &lfloor;<i>n</i>/2&rfloor; shapes, one for each
+    way two families can be separated, with corner angle 2&pi;<i>c</i>/<i>n</i>.
+    Five gives the familiar pair at 72&deg; and 144&deg;. Seven gives
+    <b>51.43&deg;</b>, <b>102.86&deg;</b> and <b>154.29&deg;</b> &mdash; and they do
+    not appear equally often. In the limit each class shows up in proportion to
+    |sin&thinsp;2&pi;<i>c</i>/<i>n</i>|, the rate at which two families at that
+    angle cross, which works out at 35.7%, 44.5% and 19.8%.</p>
+
+    <div class="bar">
+        <label><span class="cap">grow <span class="val" id="grow7-t-value">0.00</span></span>
+            <input type="range" id="grow7-t" min="0" max="1" step="0.005" value="0"></label>
+        <label><span class="cap">band <span class="val" id="grow7-w-value">50%</span></span>
+            <input type="range" id="grow7-w" min="0" max="1.5" step="0.02" value="0.5"></label>
+        <label class="check"><input type="checkbox" id="grow7-edges"> bold edges</label>
+    </div>
+    <div id="grow7-gamma"></div>
+    <p class="hint" style="margin:0 0 12px">band at 0 leaves bare lines &middot; 100% fills the tile &middot; beyond that the ribbons overlap</p>
+    <div class="viewport" id="grow7-view"></div>
+    <p class="hint">Drag to pan, scroll to zoom.</p>
+
+    <h3>Where to put &Sigma;&gamma;</h3>
+    <p>The page opens at <b>&Sigma;&gamma;&thinsp;=&thinsp;1</b>, which with the
+    offsets split evenly is every &gamma;<sub><i>j</i></sub>&thinsp;=&thinsp;1/7.
+    That is the one setting with genuine <b>seven-fold</b> symmetry about the origin.
+    Push the total to its far end, <b>7/2</b>, and every offset is &frac12; instead:
+    that one is <b>fourteen-fold</b>. Both are Lutfalla's Theorem 1, and both are
+    claims about the offsets being <em>equal</em> &mdash; dualization commutes with
+    rotation about the origin, so the tiling inherits whatever symmetry the grid has,
+    and spreading the dials apart leaves it with none. Move a single dial and watch
+    the note stop claiming it.</p>
+
+    <h3>What does not come along</h3>
+    <p>This is not a Penrose tiling and there is no inflation rule waiting to be
+    found. It is a cut-and-project tiling, quasiperiodic and edge-to-edge, and that
+    is all &mdash; de Bruijn's pentagrid theory is about five. Two other things stay
+    behind. The <a href="roof.html">Wieringa roof</a> does not exist here: lifting
+    works at five because &#8477;<sup>5</sup> splits into the plane, one perpendicular
+    direction and the all-ones line, so a single height
+    <i>z</i>&thinsp;=&thinsp;&frac12;&thinsp;&sum;<i>K</i> does the job. In
+    &#8477;<sup>7</sup> the perpendicular space is five-dimensional and there is no
+    height function to find. And the <b>exact</b> regularity test stays at five: the
+    pentagrid criterion works because the coefficients live in &#8477;(&phi;), a
+    quadratic field, so one real equation forces two rational ones. At seven the
+    field is cubic and there are 35 triples rather than 10. Lutfalla remarks that de
+    Bruijn's characterisation &ldquo;is not easily generalised&rdquo;, and does not
+    try &mdash; his Theorem 2 gives a sufficient condition instead, which is what the
+    <span style="font-family:monospace">force regular</span> guard uses here: keep
+    every offset a non-integer rational and an odd-order grid is regular. So the
+    meter can promise you regularity, but it can no longer name the guilty triples
+    when you switch the guard off.</p>
+
+    <p>One thing that does generalise cleanly is the registration gain. The tiling
+    is drawn <i>n</i>/2 times the size of the grid that makes it, because
+    &sum;<b>v</b><sub><i>j</i></sub><b>v</b><sub><i>j</i></sub><sup>T</sup>&thinsp;=&thinsp;(<i>n</i>/2)<i>I</i>
+    for any <i>n</i> equally spaced unit vectors. The pentagrid's 5/2 becomes 7/2,
+    and the tiles still start life exactly on the crossings that made them.</p>
+
+    <footer>
+        <a href="./">&larr; Pentagrid</a> &nbsp;&middot;&nbsp;
+        <a href="grow.html">Growing the tiling (n = 5)</a> &nbsp;&middot;&nbsp;
+        <a href="method.html">The Method</a>
+    </footer>
+    <script type="module" src="./dist/app/grow7.js"></script>
+</div>
+</body>
+</html>

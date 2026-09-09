@@ -12,7 +12,7 @@
 
 import type { Pentagrid, Vec2 } from "./types.js";
 import { NUM_GRIDS, makeDirections } from "./pentagrid.js";
-import { singularTriples } from "./regularity.js";
+import { noIntegerGamma, singularTriples } from "./regularity.js";
 
 export interface GammaSetOptions {
     /** γ is integer numerators over this. 10⁴ matches a 0.01 slider with room. */
@@ -29,6 +29,15 @@ export interface GammaSetOptions {
     symmetry?: boolean;
     /** Hold γ off the singular set, so every dual tile stays a rhomb. */
     guard?: boolean;
+    /**
+     * How many line families. Five is the pentagrid; seven is Lutfalla's P7.
+     *
+     * Note the denominator: γ is carried as exact rationals over it, and the
+     * distinguished uniform offset is 1/n, so `den` must be a multiple of n or
+     * the most interesting setting is not representable. 10000 is fine for 5 and
+     * useless for 7 — hence the default below scales with n.
+     */
+    n?: number;
 }
 
 export interface GammaSet {
@@ -90,8 +99,24 @@ export interface GammaSet {
     /** All as equal as possible for the current sum, then guarded. */
     reset: () => void;
 
-    /** Exactly which triples are singular. Empty means provably regular. */
+    /** How many line families this set has. */
+    readonly n: number;
+
+    /**
+     * Exactly which triples are singular — PENTAGRID ONLY, and empty there means
+     * provably regular. For other n no such characterization is available, so
+     * this is always empty and says nothing; ask `provenRegular`.
+     */
     singular: () => string[];
+
+    /**
+     * Whether the grid is *proved* regular, by whichever result applies.
+     *
+     * n = 5 has an exact criterion, so this is regularity itself — false means
+     * genuinely singular. For other n it rests on Lutfalla's Theorem 2, which is
+     * sufficient and not necessary: false means unproved, not singular.
+     */
+    provenRegular: () => boolean;
     /** Whether the last change had to be nudged off the singular set. */
     nudged: () => boolean;
 
@@ -122,8 +147,9 @@ const sub = (k: number) => String(k).split("").map((d) => SUB[+d]).join("");
  * `nudged` matters only at zero: the even split there is all zeros, which is
  * singular, so with the guard on you get a 10⁻⁴ pentagon rather than a point.
  */
-export function describeSum(sum: number, nudged = false, uniform = true): string {
-    const n = NUM_GRIDS;
+export function describeSum(
+    sum: number, nudged = false, uniform = true, n: number = NUM_GRIDS,
+): string {
     const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
     const P = `P${sub(n)}`;
 
@@ -133,31 +159,51 @@ export function describeSum(sum: number, nudged = false, uniform = true): string
     // his symmetry argument is that dualization commutes with rotation about the
     // origin, so the tiling inherits whatever symmetry the GRID has. Unequal
     // offsets leave the grid with none. Σγ = n·r, so the totals are n/2 and 1.
+    // "Penrose" is de Bruijn's n = 5 family and the thin-rhomb flowers are its
+    // half-integer signature — the vertex of ten thin rhombs and no fat ones.
+    // Neither survives a change of n: a heptagrid's dual is not a Penrose tiling
+    // and it has three rhombs, not two. So the names are spent only at five.
+    const penrose = n === 5;
+    const poly = penrose ? "pentagon" : n === 7 ? "heptagon" : `${n}-gon`;
+
     if (uniform) {
         // n/2 is a half-integer, so the generic clause below would apply too —
         // and saying "½" twice ran the line to 94 characters. Name it once.
         if (near(sum, n / 2))
-            return `largest pentagon · generalised ${P}(½) — global ${2 * n}-fold, thin-rhomb flowers`;
+            return penrose
+                ? `largest pentagon · generalised ${P}(½) — global 10-fold, thin-rhomb flowers`
+                : `largest ${poly} · ${P}(½) — global ${2 * n}-fold`;
         if (near(sum, 1))
-            return `global ${n}-fold · Penrose ${P}(1/${n})`;
+            return penrose
+                ? `global 5-fold · Penrose ${P}(1/5)`
+                : `global ${n}-fold · ${P}(1/${n})`;
     }
 
     const figure =
         uniform && Math.abs(sum) < 1e-9
             ? (nudged ? "just off concurrent (force regular)"
-                      : "all five lines meet at a point")
+                      : `all ${penrose ? "five" : n} lines meet at a point`)
         : "";
     const frac = ((sum % 1) + 1) % 1;
-    const cls = frac < 1e-9 || frac > 1 - 1e-9 ? "Penrose"
-        : Math.abs(frac - 0.5) < 1e-9 ? "generalised (Σγ ≡ ½) — thin-rhomb flowers"
-        : "generalised";
+    const integral = frac < 1e-9 || frac > 1 - 1e-9;
+    const half = Math.abs(frac - 0.5) < 1e-9;
+    const cls = penrose
+        ? (integral ? "Penrose"
+            : half ? "generalised (Σγ ≡ ½) — thin-rhomb flowers"
+            : "generalised")
+        : (integral ? "Σγ ≡ 0 (mod 1)"
+            : half ? "Σγ ≡ ½ (mod 1)"
+            : "Σγ generic");
     return figure ? `${figure} · ${cls}` : cls;
 }
 
 export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
-    const den = options.denominator ?? 10000;
+    const n = options.n ?? NUM_GRIDS;
+    // 1/n has to land on an integer numerator, and so does 1/2; 2000n does both
+    // and keeps the pentagrid's historical 10000.
+    const den = options.denominator ?? 2000 * n;
     let sumQ = Math.round((options.sum ?? 0) * den);
-    let locked = options.locked ?? NUM_GRIDS - 1;
+    let locked = options.locked ?? n - 1;
     let symmetry = options.symmetry ?? true;
     let guard = options.guard ?? true;
     let didNudge = false;
@@ -170,24 +216,24 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     const listeners: (() => void)[] = [];
 
     let isolatedFamily: number | null = null;
-    const enabled: boolean[] = new Array(NUM_GRIDS).fill(true);
-    const singleLine: (number | null)[] = new Array(NUM_GRIDS).fill(null);
-    const q: number[] = new Array(NUM_GRIDS).fill(0);
+    const enabled: boolean[] = new Array(n).fill(true);
+    const singleLine: (number | null)[] = new Array(n).fill(null);
+    const q: number[] = new Array(n).fill(0);
     const directions: Vec2[] = [];
-    const gamma: number[] = new Array(NUM_GRIDS).fill(0);
-    const model: Pentagrid = { directions, gamma };
+    const gamma: number[] = new Array(n).fill(0);
+    const model: Pentagrid = { n, directions, gamma };
 
     function rebuildDirections() {
-        const next = makeDirections(symmetry);
-        for (let j = 0; j < NUM_GRIDS; j++) directions[j] = next[j];
+        const next = makeDirections(symmetry, n);
+        for (let j = 0; j < n; j++) directions[j] = next[j];
     }
 
     /** Re-derive the locked index from the rest, then the floats from the exact. */
     function relock() {
         let rest = 0;
-        for (let i = 0; i < NUM_GRIDS; i++) if (i !== locked) rest += q[i];
+        for (let i = 0; i < n; i++) if (i !== locked) rest += q[i];
         q[locked] = sumQ - rest;
-        for (let j = 0; j < NUM_GRIDS; j++) gamma[j] = q[j] / den;
+        for (let j = 0; j < n; j++) gamma[j] = q[j] / den;
     }
 
     /**
@@ -201,19 +247,33 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
      *
      * The offsets differ per family so the pair sums cannot stay integral either.
      */
+    /**
+     * Whether the guard still has work to do.
+     *
+     * At n = 5 the exact criterion answers it, so the guard nudges only when the
+     * grid really is singular. Elsewhere the target is Lutfalla's hypothesis —
+     * every offset a non-integer rational — which is what the nudge below
+     * establishes and is sufficient for regularity at any odd n.
+     */
+    function needsNudge(): boolean {
+        return n === 5
+            ? singularTriples(q, den).length > 0
+            : !noIntegerGamma(q, den);
+    }
+
     function applyGuard() {
         didNudge = false;
         if (!guard) return;
         for (let attempt = 0; attempt < 8; attempt++) {
-            if (singularTriples(q, den).length === 0) return;
+            if (!needsNudge()) return;
             didNudge = true;
-            for (let j = 0; j < NUM_GRIDS; j++) {
+            for (let j = 0; j < n; j++) {
                 if (j === locked) continue;
                 if (q[j] % den === 0) q[j] += j + 1;
             }
             relock();
             if (q[locked] % den === 0) {
-                q[(locked + 1) % NUM_GRIDS] += 1;
+                q[(locked + 1) % n] += 1;
                 relock();
             }
         }
@@ -229,9 +289,9 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         uniformIntent = true;
         // As equal as possible: the share each, with the remainder spread over the
         // first few so the exact sum is still hit.
-        const share = Math.trunc(sumQ / NUM_GRIDS);
-        let left = sumQ - share * NUM_GRIDS;
-        for (let j = 0; j < NUM_GRIDS; j++) {
+        const share = Math.trunc(sumQ / n);
+        let left = sumQ - share * n;
+        for (let j = 0; j < n; j++) {
             q[j] = share;
             if (left > 0) { q[j] += 1; left -= 1; }
             else if (left < 0) { q[j] -= 1; left += 1; }
@@ -255,7 +315,7 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
             settle();
         },
         setValues: (values) => {
-            for (let j = 0; j < NUM_GRIDS; j++) q[j] = Math.round((values[j] ?? 0) * den);
+            for (let j = 0; j < n; j++) q[j] = Math.round((values[j] ?? 0) * den);
             // Handed a whole vector, so believe it rather than the history.
             uniformIntent = q.every((v) => v === q[0]);
             settle();
@@ -275,7 +335,16 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         getGuard: () => guard,
 
         reset,
-        singular: () => singularTriples(q, den),
+        n,
+        singular: () => (n === 5 ? singularTriples(q, den) : []),
+        provenRegular: () => {
+            // n = 5: exact, in both directions.
+            if (n === 5) return singularTriples(q, den).length === 0;
+            // Thm 2.2: any odd n, every offset a non-integer rational.
+            if (n % 2 === 1) return noIntegerGamma(q, den);
+            // Thm 2.1: any n, but only for the uniform grid Gn(r).
+            return uniformIntent && noIntegerGamma(q, den);
+        },
         nudged: () => didNudge,
         isUniform: () => uniformIntent,
         setFamilyEnabled: (index, on) => {

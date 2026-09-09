@@ -18,9 +18,17 @@
 // it does not test it — which is why γ has to be carried as exact rationals.
 
 import type { Concurrency, Pentagrid, SmallRegion, Vec2, ViewRect } from "./types.js";
-import { NUM_GRIDS, lineRange, solveIntersection } from "./pentagrid.js";
+import { lineRange, solveIntersection } from "./pentagrid.js";
 
-/** [key, lone family, the other two] for each triple, from the coefficients. */
+/**
+ * [key, lone family, the other two] for each triple, from the coefficients.
+ *
+ * PENTAGRID ONLY. The split exists because dividing by sin 144 leaves the
+ * coefficients in Z[phi], a quadratic field, so one equation over the reals
+ * forces two over the rationals. At n = 7 the field is cubic and there are 35
+ * triples; Lutfalla remarks that de Bruijn's characterization "is not easily
+ * generalized". Ask `noIntegerGamma` for a sufficient condition that is.
+ */
 export const TRIPLES: readonly [string, number, [number, number]][] = [
     ["012", 1, [0, 2]], ["013", 3, [0, 1]], ["014", 0, [1, 4]], ["023", 0, [2, 3]],
     ["024", 2, [0, 4]], ["034", 4, [0, 3]], ["123", 2, [1, 3]], ["124", 4, [1, 2]],
@@ -89,11 +97,11 @@ export function scanRegions(pg: Pentagrid, vis: ViewRect, opts: ScanOptions = {}
     const small: SmallRegion[] = [];
     const degenerate: Vec2[] = [];
     const ranges: [number, number][] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) ranges.push(lineRange(pg, j, vis));
+    for (let j = 0; j < pg.n; j++) ranges.push(lineRange(pg, j, vis));
 
-    for (let a = 0; a < NUM_GRIDS; a++) {
-        for (let b = a + 1; b < NUM_GRIDS; b++) {
-            for (let c = b + 1; c < NUM_GRIDS; c++) {
+    for (let a = 0; a < pg.n; a++) {
+        for (let b = a + 1; b < pg.n; b++) {
+            for (let c = b + 1; c < pg.n; c++) {
                 for (let na = ranges[a][0]; na <= ranges[a][1]; na++) {
                     for (let nb = ranges[b][0]; nb <= ranges[b][1]; nb++) {
                         const P = solveIntersection(pg, a, b, na, nb);
@@ -145,7 +153,7 @@ export function scanRegions(pg: Pentagrid, vis: ViewRect, opts: ScanOptions = {}
     for (const [x, y] of degenerate) {
         if (concurrencies.some((p) => Math.hypot(p.x - x, p.y - y) < cluster)) continue;
         let lines = 0;
-        for (let j = 0; j < NUM_GRIDS; j++) {
+        for (let j = 0; j < pg.n; j++) {
             const d = pg.directions[j][0] * x + pg.directions[j][1] * y + pg.gamma[j];
             if (Math.abs(d - Math.round(d)) < cluster) lines++;
         }

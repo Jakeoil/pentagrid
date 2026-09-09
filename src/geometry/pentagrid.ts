@@ -2,6 +2,7 @@
 
 import type { Pentagrid, Rhomb, Vec2, ViewRect } from "./types.js";
 
+/** The pentagrid's n. Grids of other orders pass their own; this is the default. */
 export const NUM_GRIDS = 5;
 
 /** The tie-break in the ceiling, so a point exactly on a line resolves to one
@@ -9,19 +10,20 @@ export const NUM_GRIDS = 5;
 export const K_EPS = 1e-9;
 
 /**
- * Five unit vectors at 72°.
+ * n unit vectors at 2*pi/n — five at 72 degrees for the pentagrid.
  *
  * With verticalSymmetry the star is turned a quarter turn, so v0 points up and
- * family 0's LINES are horizontal; the five directions are then mirror symmetric
- * about the vertical axis (90, 162, 234, 306, 18 degrees). It cannot disturb
- * regularity — that depends only on angle differences, which a common rotation
- * preserves.
+ * family 0's LINES are horizontal. For odd n the bare direction set is mirror
+ * symmetric about the x-axis (j and n-j reflect onto each other), so the quarter
+ * turn moves that symmetry onto the vertical axis — at n = 5, angles 90, 162,
+ * 234, 306, 18. It cannot disturb regularity: that depends only on angle
+ * differences, which a common rotation preserves.
  */
-export function makeDirections(verticalSymmetry: boolean): Vec2[] {
+export function makeDirections(verticalSymmetry: boolean, n: number = NUM_GRIDS): Vec2[] {
     const offset = verticalSymmetry ? Math.PI / 2 : 0;
     const out: Vec2[] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        const a = (2 * Math.PI * j) / NUM_GRIDS + offset;
+    for (let j = 0; j < n; j++) {
+        const a = (2 * Math.PI * j) / n + offset;
         out.push([Math.cos(a), Math.sin(a)]);
     }
     return out;
@@ -43,7 +45,7 @@ export function solveIntersection(
 /** K_j(x) = ceil(x·v_j + γ_j), the pentagrid coordinates of a point. */
 export function computeKTuple(pg: Pentagrid, x: number, y: number): number[] {
     const K: number[] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) {
+    for (let j = 0; j < pg.n; j++) {
         const dot = pg.directions[j][0] * x + pg.directions[j][1] * y;
         K.push(Math.ceil(dot + pg.gamma[j] - K_EPS));
     }
@@ -53,7 +55,7 @@ export function computeKTuple(pg: Pentagrid, x: number, y: number): number[] {
 /** The dual vertex f(x) = Σ K_j·v_j for a K-tuple. */
 export function dualVertex(pg: Pentagrid, K: readonly number[]): Vec2 {
     let fx = 0, fy = 0;
-    for (let j = 0; j < NUM_GRIDS; j++) {
+    for (let j = 0; j < pg.n; j++) {
         fx += K[j] * pg.directions[j][0];
         fy += K[j] * pg.directions[j][1];
     }
@@ -67,7 +69,7 @@ export function computeRhomb(
 ): Rhomb {
     const baseK: number[] = [];
     let fx = 0, fy = 0;
-    for (let i = 0; i < NUM_GRIDS; i++) {
+    for (let i = 0; i < pg.n; i++) {
         let Ki: number;
         if (i === j) Ki = nj;
         else if (i === k) Ki = nk;
@@ -98,8 +100,8 @@ export function computeRhomb(
         baseK.map((v, i) => (i === k ? v + 1 : v)),
     ];
 
-    const d = Math.min(k - j, NUM_GRIDS - (k - j));
-    return { vertices, kTuples, thick: d === 1, j, k, nj, nk, x0, y0 };
+    const d = Math.min(k - j, pg.n - (k - j));
+    return { vertices, kTuples, cls: d, thick: d === 1, j, k, nj, nk, x0, y0 };
 }
 
 export interface CollectOptions {
@@ -160,10 +162,10 @@ export function collectRhombs(
     const only = opts.only ?? null;
 
     const rhombs: Rhomb[] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) {
+    for (let j = 0; j < pg.n; j++) {
         if (active && !active[j]) continue;
         const [jLo, jHi] = range(j);
-        for (let k = j + 1; k < NUM_GRIDS; k++) {
+        for (let k = j + 1; k < pg.n; k++) {
             if (active && !active[k]) continue;
             if (only !== null && j !== only && k !== only) continue;
             const [kLo, kHi] = range(k);

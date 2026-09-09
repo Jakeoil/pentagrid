@@ -19,7 +19,10 @@ import type { Layer, LayerContext } from "./layers.js";
 import { METHOD_STEPS } from "../app/method-steps.js";
 
 // Grid line colors
-const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
+// Five for the pentagrid, then two more so a heptagrid has one per family. The
+// first five are unchanged, so every existing page keeps its exact palette.
+const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
+                "#e07a5f", "#3d5a80"];
 
 // Rhomb fill colors
 const THICK_FILL = "#e8c170";
@@ -74,6 +77,11 @@ export interface PentagridConfig {
     features?: Partial<Features>;
     /** Starting offsets. Omitted means all zero, which the guard then moves off. */
     gamma?: readonly number[];
+    /**
+     * How many line families. Five is the pentagrid, and everything the method
+     * page shows is written for it; seven gives Lutfalla's heptagrid.
+     */
+    n?: number;
     /** Fired whenever the user pans or zooms this instance. Not fired by
      *  setView, so linking two instances does not loop. */
     onViewChange?: (v: View) => void;
@@ -129,7 +137,7 @@ export interface PentagridHandle {
 export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // The γ cluster owns the directions, the offsets, the sum constraint and the
     // regularity guard. See geometry/gamma.ts — this file is a view over it.
-    const gammaSet = createGammaSet();
+    const gammaSet = createGammaSet({ n: config.n ?? NUM_GRIDS });
     const directions = gammaSet.model.directions;
     const gamma = gammaSet.model.gamma;
     // "Sometimes you just have to see them."
@@ -257,16 +265,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let viewH = canvas.h;
     let viewMargin = canvas.margin;
 
-    // The dual map has gain 5/2: f(x) = (5/2)x + const + bounded wobble, because
-    // Sum_j v_j v_j^T = (5/2)I. So the tiling is drawn 2.5x the pentagrid that makes
+    // The dual map has gain n/2: f(x) = (n/2)x + const + bounded wobble, because
+    // Sum_j v_j v_j^T = (n/2)I for n unit vectors equally spaced. At n = 5 that is
+    // 5/2. So the tiling is drawn 2.5x the pentagrid that makes
     // it, and the two do not register. Displaying the grid under x -> (5/2)x puts
     // every rhomb back on the crossing that generated it. It is not a fudge: the
-    // projection R^5 -> E_par sends each basis vector to length sqrt(2/5), and with
-    // that normalisation the gain is exactly 1 — the 5/2 is the price of unit
+    // projection R^n -> E_par sends each basis vector to length sqrt(2/n), and with
+    // that normalisation the gain is exactly 1 — the n/2 is the price of unit
     // rhombs. See PLAN.md item 3.
     // Permanent, not a toggle. The grid and the tiling share one coordinate system;
     // showing or hiding the tiling is what the Penrose layers are for.
-    const REGISTER_GAIN = 5 / 2;
+    const REGISTER_GAIN = model.n / 2;
 
     function gridGain(): number {
         return REGISTER_GAIN;
@@ -399,7 +408,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     });
 
     const gridLayers: Layer[] = [];
-    for (let j = 0; j < NUM_GRIDS; j++) {
+    for (let j = 0; j < model.n; j++) {
         gridLayers.push(stack.add({
             id: `grid-${j}`, label: `${j}`, z: 10 + j, group: "Pentagrid",
             visible: () => features.gridLines && gammaSet.familyEnabled(j),
@@ -597,6 +606,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
         const nudged = gammaSet.nudged()
             ? ` · γ nudged ${(1 / gammaSet.denominator).toExponential(0)}` : "";
+        // An empty triple list is a proof only where the criterion is exact. Off
+        // the pentagrid it means "found nothing", and Lutfalla's Theorem 2 is
+        // the only thing that can promise anything — when its hypothesis fails
+        // the honest report is that neither verdict is established.
+        if (!gammaSet.provenRegular()) {
+            meterSpan.textContent = `regularity unproved (n = ${gammaSet.n}) · ${tail}`;
+            meterSpan.style.color = "#d4a017";
+            return;
+        }
         meterSpan.textContent = `regular, proved${nudged} · ${tail}`;
         meterSpan.style.color = under === 0 ? "#5a8f5a" : "#c07d00";
     }
@@ -959,8 +977,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     const pairColors: Map<string, string> = new Map();
-    for (let j = 0; j < NUM_GRIDS; j++) {
-        for (let k = j + 1; k < NUM_GRIDS; k++) {
+    for (let j = 0; j < model.n; j++) {
+        for (let k = j + 1; k < model.n; k++) {
             const [r1, g1, b1] = hexToRgb(COLORS[j]);
             const [r2, g2, b2] = hexToRgb(COLORS[k]);
             const r = Math.round((r1 + r2) / 2);
@@ -977,10 +995,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         );
         const maxN = Math.min(Math.ceil(maxCoord) + 3, 50);
 
-        for (let j = 0; j < NUM_GRIDS; j++) {
+        for (let j = 0; j < model.n; j++) {
             const layerJ = stack.get(`grid-${j}`);
             if (layerJ && !layerJ.userVisible) continue;
-            for (let k = j + 1; k < NUM_GRIDS; k++) {
+            for (let k = j + 1; k < model.n; k++) {
                 const layerK = stack.get(`grid-${k}`);
                 if (layerK && !layerK.userVisible) continue;
                 tc.fillStyle = pairColors.get(`${j},${k}`)!;
@@ -1138,7 +1156,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
                 // Hash full K-tuple to a hue
                 let hash = 0;
-                for (let j = 0; j < NUM_GRIDS; j++) {
+                for (let j = 0; j < model.n; j++) {
                     hash = ((hash << 5) - hash + K[j] + 50) | 0;
                 }
                 const hue = (((hash * 137) % 360) + 360) % 360;
@@ -1170,7 +1188,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const labels: LabelInfo[] = [];
 
         // Pass 1: gradient-filled parallelograms, collect label positions
-        for (let j = 0; j < NUM_GRIDS; j++) {
+        for (let j = 0; j < model.n; j++) {
             const layer = stack.get(`grid-${j}`);
             if (layer && !layer.userVisible) continue;
             const [vx, vy] = directions[j];
@@ -1439,7 +1457,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (group === "Pentagrid") {
                 // One line, or all of them, per family. Blank means all.
                 const lineRow = row(layerPanelDiv, "single line");
-                for (let j = 0; j < NUM_GRIDS; j++) {
+                for (let j = 0; j < model.n; j++) {
                     const wrap = document.createElement("label");
                     wrap.className = "layer-toggle";
                     wrap.title = `Show only one line of family ${j}. `
@@ -1588,7 +1606,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         lctx.stroke();
                     }
                 }
-                for (let j = 0; j < NUM_GRIDS; j++) {
+                for (let j = 0; j < model.n; j++) {
                     if (!gridLayers[j].userVisible) continue;
                     drawGridFamily(lctx, j, lsize, lsize, lcx, lcy);
                 }
@@ -1856,7 +1874,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
             // Derive dark version of the region's color
             let hash = 0;
-            for (let j = 0; j < NUM_GRIDS; j++) {
+            for (let j = 0; j < model.n; j++) {
                 hash = ((hash << 5) - hash + K[j] + 50) | 0;
             }
             const hue = (((hash * 137) % 360) + 360) % 360;
@@ -1865,7 +1883,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
             // Compute dual vertex f = Σ K_j · v_j
             let fx = 0, fy = 0;
-            for (let j = 0; j < NUM_GRIDS; j++) {
+            for (let j = 0; j < model.n; j++) {
                 fx += K[j] * directions[j][0];
                 fy += K[j] * directions[j][1];
             }

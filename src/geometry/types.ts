@@ -4,8 +4,15 @@
 
 export type Vec2 = [number, number];
 
-/** A pentagrid: five unit directions and their five offsets. */
+/**
+ * A multigrid: n unit directions and their n offsets.
+ *
+ * `n` is carried rather than read off `directions.length` so that every consumer
+ * says what it means. The arrays are mutated in place and never replaced, so the
+ * three always agree.
+ */
 export interface Pentagrid {
+    readonly n: number;
     readonly directions: readonly Vec2[];
     readonly gamma: readonly number[];
 }
@@ -18,6 +25,17 @@ export interface ViewRect {
 export interface Rhomb {
     vertices: Vec2[];        // 4 vertices in parallelogram order
     kTuples: number[][];     // K-tuple for each of the 4 vertices
+    /**
+     * How far apart the two families are, 1..floor(n/2) — the rhomb's shape.
+     * Its corner angle is 2*pi*cls/n, so an n-fold grid makes floor(n/2) shapes:
+     * two for the pentagrid, three for a heptagrid.
+     */
+    cls: number;
+    /**
+     * The n = 5 reading of `cls`: at 72 degrees the rhomb is the fat one. Only
+     * meaningful for the pentagrid — at n = 7, cls 1 is the most acute of the
+     * three, not the fattest.
+     */
     thick: boolean;
     // Provenance: the crossing that generated this rhomb.
     j: number; k: number;    // the two families whose lines crossed

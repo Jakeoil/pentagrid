@@ -33,7 +33,7 @@ let panel: ReturnType<typeof createRegionPanel> | null = null;
 
 /** Every realised vertex within `radius` of the origin, at the current γ. */
 function capturePatch() {
-    const pg = { directions: dirs, gamma: gammaOf(p, q) };
+    const pg = { n: dirs.length, directions: dirs, gamma: gammaOf(p, q) };
     const seen = new Set<string>();
     const out: number[][] = [];
     for (let x = -radius - 1; x <= radius + 1; x += 0.06) {
@@ -50,7 +50,7 @@ function capturePatch() {
 }
 
 const holds = (pp: number, qq: number) => {
-    const pg = { directions: dirs, gamma: gammaOf(pp, qq) };
+    const pg = { n: dirs.length, directions: dirs, gamma: gammaOf(pp, qq) };
     for (const K of patch) if (!vertexRealised(pg, K)) return false;
     return true;
 };
@@ -88,7 +88,7 @@ if (gridHost && perpHost) {
                 id: "patch", label: "Patch", z: 45, group: "Exploration",
                 draw: ({ ctx, cx, cy }) => {
                     const v = getView();
-                    const pg = { directions: dirs, gamma: gammaOf(p, q) };
+                    const pg = { n: dirs.length, directions: dirs, gamma: gammaOf(p, q) };
                     for (const K of patch) {
                         const f = dualVertex(pg, K);
                         const sx = cx + (f[0] - v.x) * v.scale;

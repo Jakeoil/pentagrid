@@ -704,7 +704,7 @@ Three consequences for us:
   integer ⟹ regular. Lutfalla proves it for all odd n.
 - **Our statement is under-qualified.** The split `u + φv = 0 ⟹ u = v = 0` needs
   u and v *rational*, so the corollary holds for **rational γ**. The code is safe
-  — γ is exact rationals over 10⁴ by construction — but the claim as written in
+  — γ is exact rationals over 2000n by construction — but the claim as written in
   item 1 is stronger than the derivation supports and should say so.
 - **n = 7 is much easier than this plan assumed.** The note that the ℚ(ζ₇) split
   would need a real rederivation is wrong in practice: for odd n the guard is just
@@ -712,6 +712,38 @@ Three consequences for us:
   *not* generalise is the **exact** criterion — knowing *which* triples are
   singular, which the meter reports. That stays n = 5 for now. And for **even** n
   only the all-equal case is covered, not arbitrary tuples.
+
+**Done — n is a parameter (2026-09-09).** `NUM_GRIDS` is no longer a module
+constant that everything reads: `Pentagrid` carries `n`, every family loop in the
+geometry and the view reads `pg.n`, and `createGammaSet({ n })` /
+`createPentagrid({ n })` take it. n = 5 is unchanged in every observable way —
+same denominator, same wording, same palette — and a test pins that, because
+method.html must not move under this.
+
+What the threading turned up:
+
+- **The denominator has to be a multiple of n.** γ is carried as exact rationals
+  so the guard can *decide*, and the distinguished uniform offset is 1/n — but
+  10000/7 is not an integer, so P₇(1/7) was not representable at all. The default
+  is now `2000n`, which is 10000 at n = 5 (unchanged) and 14000 at n = 7, and
+  keeps both 1/n and ½ exact.
+- **`thick` is an n = 5 name.** A grid of order n makes ⌊n/2⌋ rhombs, corner
+  angle 2πc/n, so a heptagrid has three. `Rhomb.cls` carries that separation;
+  `thick` stays as the pentagrid reading of it (cls 1 is the fat one at 72°,
+  but the most *acute* of the three at n = 7).
+- **"Regular" needed splitting from "proved regular".** An empty triple list is a
+  proof only where the criterion is exact. `provenRegular()` now picks the result
+  that applies — exact at n = 5, Thm 2.2 for odd n, Thm 2.1 (uniform only) for
+  even n — and the meter says *regularity unproved* rather than *regular, proved*
+  when nothing covers the case. `singular()` returns [] off the pentagrid and
+  documents that this means "no characterization exists", not "regular".
+- **Theorem 2.1 is `isUniform() && noIntegerGamma()`**, which the Σγ-note work had
+  already built for a different reason.
+
+Still n = 5 only, and not needed by a grow page: the Wieringa lift (ℝ⁷ has a
+5-dimensional perpendicular space, so there is no height function), the Penrose
+decorations, `perpBasis` (returns the first of n = 7's two perpendicular planes),
+and the exact `TRIPLES` criterion.
 
 **Also worth having.** Lutfalla notes de Bruijn's exact characterisation of
 regular pentagrids covers only the Penrose case, Σγ ∈ ℤ. Ours was verified against

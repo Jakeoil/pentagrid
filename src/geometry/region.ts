@@ -1,7 +1,7 @@
 // Recovering a pentagrid region from its K-tuple: the dual map, run backwards.
 
 import type { Pentagrid, Vec2, ViewRect } from "./types.js";
-import { NUM_GRIDS, K_EPS } from "./pentagrid.js";
+import { K_EPS } from "./pentagrid.js";
 
 /** Clip a polygon to the half-plane a·x + b·y + c ≥ 0 (Sutherland–Hodgman). */
 export function clipPoly(poly: Vec2[], a: number, b: number, c: number): Vec2[] {
@@ -33,7 +33,7 @@ export function regionPoly(pg: Pentagrid, K: readonly number[], vis: ViewRect): 
         [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
         [vis.xMax, vis.yMax], [vis.xMin, vis.yMax],
     ];
-    for (let j = 0; j < NUM_GRIDS; j++) {
+    for (let j = 0; j < pg.n; j++) {
         const [vx, vy] = pg.directions[j];
         const lo = K[j] - 1 + K_EPS; // x·v + γ > K_j - 1
         const hi = K[j] + K_EPS;     // x·v + γ ≤ K_j

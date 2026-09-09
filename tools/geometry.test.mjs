@@ -22,7 +22,7 @@ import { regionPoly } from "../dist/geometry/region.js";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const dirs = makeDirections(true);
-const pg = (gamma) => ({ directions: dirs, gamma });
+const pg = (gamma) => ({ n: dirs.length, directions: dirs, gamma });
 const GENERIC = [0.13, -0.37, 0.51, -0.08, -0.19];
 const near = (a, b, eps = 1e-9) => Math.abs(a - b) < eps;
 
@@ -520,4 +520,58 @@ test("adjacent tiles on a ribbon share an attachment midpoint exactly", () => {
     assert.ok(totalStraddled > 0, "no straddled pair anywhere — is the guard needed?");
     assert.ok(totalStraddled < totalSealed * 0.01,
               `${totalStraddled} straddled against ${totalSealed} sealed`);
+});
+
+test("a heptagrid dualises to three rhombs, not two", () => {
+    // floor(n/2) shapes, corner angle 2*pi*cls/n. The pentagrid's two are the
+    // special case, and `thick` is a name only it can carry.
+    const dirs7 = makeDirections(false, 7);
+    const g7 = { n: 7, directions: dirs7, gamma: [.1, .2, .3, .15, .25, .05, .12] };
+    const tiles = collectRhombs(g7, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 });
+    assert.ok(tiles.length > 100);
+
+    const classes = new Set(tiles.map((t) => t.cls));
+    assert.deepEqual([...classes].sort(), [1, 2, 3]);
+
+    for (const t of tiles) {
+        // The corner at vertex 0 spans v_j to v_k, which are 2*pi*cls/n apart.
+        const [a, b] = [t.vertices[1], t.vertices[3]].map((v) =>
+            [v[0] - t.vertices[0][0], v[1] - t.vertices[0][1]]);
+        const cos = (a[0] * b[0] + a[1] * b[1]) / (Math.hypot(...a) * Math.hypot(...b));
+        const deg = Math.acos(Math.max(-1, Math.min(1, cos))) * 180 / Math.PI;
+        assert.ok(Math.abs(deg - 360 * t.cls / 7) < 1e-9,
+                  `cls ${t.cls} should be ${360 * t.cls / 7}deg, got ${deg}`);
+    }
+
+    // and the pentagrid still makes exactly two, with cls 1 the fat one
+    const g5 = pg([.1, .2, .3, .15, .25]);
+    const five = collectRhombs(g5, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 });
+    assert.deepEqual([...new Set(five.map((t) => t.cls))].sort(), [1, 2]);
+    assert.ok(five.every((t) => t.thick === (t.cls === 1)));
+});
+
+test("rhomb classes appear in proportion to |sin 2*pi*c/n|", () => {
+    // Two families at angle theta cross at a rate proportional to |sin theta|,
+    // and every crossing is one tile — so that is the frequency of the shape.
+    // This is the number quoted on grow7.html, so it is pinned here.
+    const dirs = makeDirections(false, 7);
+    const gamma = new Array(7).fill(1 / 7);
+    const tiles = collectRhombs({ n: 7, directions: dirs, gamma },
+                                { xMin: -30, xMax: 30, yMin: -30, yMax: 30 },
+                                { maxNCap: 200 });
+    assert.ok(tiles.length > 4000, `only ${tiles.length} tiles`);
+
+    const s = (c) => Math.abs(Math.sin(2 * Math.PI * c / 7));
+    const total = s(1) + s(2) + s(3);
+    const seen = { 1: 0, 2: 0, 3: 0 };
+    for (const t of tiles) seen[t.cls]++;
+
+    for (const c of [1, 2, 3]) {
+        const got = 100 * seen[c] / tiles.length;
+        const want = 100 * s(c) / total;
+        assert.ok(Math.abs(got - want) < 0.6,
+                  `class ${c}: ${got.toFixed(2)}% vs predicted ${want.toFixed(2)}%`);
+    }
+    // and the ordering the page states: cls 2 commonest, cls 3 rarest
+    assert.ok(seen[2] > seen[1] && seen[1] > seen[3]);
 });

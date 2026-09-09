@@ -43,11 +43,19 @@ export interface ToggleSpec {
 export function mountGammaControls(
     set: GammaSet,
     container: HTMLElement,
-    opts: { colors: readonly string[]; sum?: boolean },
+    opts: {
+        colors: readonly string[];
+        sum?: boolean;
+        /** Defaults to 0 … n/2, which is every family the total can name. */
+        sumRange?: { min: number; max: number; step: number };
+    },
 ): GammaBank {
     const bank = createGammaBank({
         count: set.values().length,
         colors: opts.colors,
+        // n/2 is the uniform offset ½ — the largest total worth reaching, since
+        // Σγ = n·r and r is an offset mod 1. A page should not have to know that.
+        sumRange: opts.sumRange ?? { min: 0, max: set.n / 2, step: 0.05 },
         onChange: (j, v) => set.setValue(j, v),
         onLock: (j) => set.setLocked(j),
         // Spreading is what makes a total control mean anything: without it the
@@ -62,7 +70,7 @@ export function mountGammaControls(
         sum: set.values().reduce((a, b) => a + b, 0),
         // The figures describeSum can offer depend on the offsets being equal,
         // not just on their total — so it has to be told.
-        sumNote: describeSum(set.getSum(), set.nudged(), set.isUniform()),
+        sumNote: describeSum(set.getSum(), set.nudged(), set.isUniform(), set.n),
     });
     set.onChange(render);
     render();

@@ -10,15 +10,21 @@
 // point find the whole boundary: one crossing per ray, no more.
 
 import type { Pentagrid, Vec2 } from "./types.js";
-import { NUM_GRIDS } from "./pentagrid.js";
 import { regionPoly } from "./region.js";
 
 const unit = (u: number[]) => { const n = Math.hypot(...u); return u.map((x) => x / n); };
 
-/** The two E⊥ basis vectors for a set of directions. */
+/**
+ * The two E⊥ basis vectors for a set of directions.
+ *
+ * PENTAGRID ONLY as a complete perpendicular space: R^5 splits as E-parallel,
+ * one E-perp and the all-ones line, so two coordinates are the whole story. At
+ * n = 7 there are two perpendicular planes (angles doubled and tripled) and this
+ * returns only the first of them.
+ */
 export function perpBasis(dirs: readonly Vec2[]): [number[], number[]] {
     const ang = (j: number) => Math.atan2(dirs[j][1], dirs[j][0]);
-    const idx = [...Array(NUM_GRIDS).keys()];
+    const idx = [...Array(dirs.length).keys()];
     return [
         unit(idx.map((j) => Math.cos(2 * ang(j)))),
         unit(idx.map((j) => Math.sin(2 * ang(j)))),
@@ -28,7 +34,7 @@ export function perpBasis(dirs: readonly Vec2[]): [number[], number[]] {
 /** A γ with these perpendicular coordinates and no E∥ part. Sums to zero. */
 export function gammaFromPerp(basis: [number[], number[]], p: number, q: number): number[] {
     const [e3, e4] = basis;
-    return [...Array(NUM_GRIDS).keys()].map((j) => p * e3[j] + q * e4[j]);
+    return [...Array(e3.length).keys()].map((j) => p * e3[j] + q * e4[j]);
 }
 
 /** Where a γ sits in the perpendicular plane. */

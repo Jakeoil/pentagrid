@@ -545,3 +545,15 @@ test("the growth view's gamma set is reachable and drives the picture", () => {
     assert.ok(zero > 0 && pent > 0);
     assert.notEqual(pent, zero, "changing the sum redrew the identical tiling");
 });
+
+test("createPentagrid builds a heptagrid when asked, layers and all", () => {
+    // The view had eleven family loops written against a module constant. This
+    // is the end that would still say five after the geometry had stopped.
+    const h = createPentagrid({ container: sizedHost(600, 600), n: 7 });
+    assert.equal(h.gamma.n, 7);
+    assert.equal(h.gamma.model.directions.length, 7);
+    for (let j = 0; j < 7; j++)
+        assert.ok(h.stack.get(`grid-${j}`), `no layer for family ${j}`);
+    assert.equal(h.stack.get("grid-7"), undefined, "an eighth family appeared");
+    h.redraw();
+});

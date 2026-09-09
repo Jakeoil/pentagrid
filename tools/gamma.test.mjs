@@ -515,3 +515,80 @@ test("describeSum gives the figure and the family, and the family is mod 1", () 
                             `${s} is not half-integer and grows no flowers`);
     }
 });
+
+// ── n is a parameter ──────────────────────────────────────────────
+
+test("n = 5 is untouched by the threading: same denominator, same words", () => {
+    // method.html is written for the pentagrid and must not shift under a
+    // refactor whose whole point is other n. This pins the parts it shows.
+    const g = createGammaSet();
+    assert.equal(g.n, 5);
+    assert.equal(g.denominator, 10000, "the pentagrid's denominator changed");
+    assert.equal(g.model.directions.length, 5);
+
+    const say = () => describeSum(g.getSum(), g.nudged(), g.isUniform(), g.n);
+    g.setSum(0, true);
+    assert.equal(say(), "just off concurrent (force regular) · Penrose");
+    g.setSum(1, true);
+    assert.equal(say(), "global 5-fold · Penrose P₅(1/5)");
+    g.setSum(2.5, true);
+    assert.equal(say(),
+        "largest pentagon · generalised P₅(½) — global 10-fold, thin-rhomb flowers");
+});
+
+test("a heptagrid represents 1/7 exactly, which 10000 could not", () => {
+    // The guard decides rather than measures, so the distinguished uniform
+    // offset has to land on an integer numerator. 10000/7 does not.
+    const g = createGammaSet({ n: 7 });
+    assert.equal(g.n, 7);
+    assert.equal(g.denominator, 14000, "must be a multiple of n");
+    assert.equal(g.getLocked(), 6, "the locked index follows n");
+
+    g.setSum(1, true);                                  // uniform r = 1/7
+    assert.deepEqual(g.exact(), new Array(7).fill(2000));
+    assert.ok(g.exact().every((q) => q / g.denominator === 1 / 7));
+    assert.ok(g.provenRegular(), "Thm 2.2: odd n, non-integer rational offsets");
+
+    g.setSum(3.5, true);                                // uniform r = 1/2
+    assert.deepEqual(g.exact(), new Array(7).fill(7000));
+    assert.ok(g.provenRegular());
+});
+
+test("the Penrose names are spent only at n = 5", () => {
+    // A heptagrid's dual is not a Penrose tiling and has three rhombs, not two,
+    // so neither "Penrose" nor the thin-rhomb flowers mean anything there.
+    const seven = describeSum(3.5, false, true, 7);
+    assert.match(seven, /heptagon/);
+    assert.match(seven, /global 14-fold/);
+    assert.doesNotMatch(seven, /Penrose/);
+    assert.doesNotMatch(seven, /flowers/);
+    assert.doesNotMatch(seven, /pentagon/);
+    assert.match(describeSum(1, false, true, 7), /global 7-fold/);
+});
+
+test("provenRegular leans on the result that applies, and says so by refusing", () => {
+    // n = 5 is exact in both directions, so an integer offset is a real verdict.
+    const five = createGammaSet({ guard: false });
+    five.setValues([0, 0, 0, 0, 0]);
+    assert.ok(!five.provenRegular());
+    assert.equal(five.singular().length, 10, "exact criterion still reports triples");
+
+    // n = 7 has no exact criterion. Integer offsets fail Thm 2's hypothesis, so
+    // nothing is proved — but that is "unproved", not "singular", and the triple
+    // list must not pretend otherwise by coming back empty and confident.
+    const seven = createGammaSet({ n: 7, guard: false });
+    seven.setValues(new Array(7).fill(0));
+    assert.ok(!seven.provenRegular());
+    assert.deepEqual(seven.singular(), [], "no exact characterization exists at n = 7");
+
+    seven.setSum(1, true);
+    assert.ok(seven.provenRegular());
+});
+
+test("the guard clears a heptagrid off the integers", () => {
+    const g = createGammaSet({ n: 7 });      // Σγ = 0 → all zeros → integers
+    assert.ok(g.nudged(), "all zeros must have been nudged");
+    assert.ok(g.exact().every((q) => q % g.denominator !== 0),
+              "every offset must be a non-integer rational");
+    assert.ok(g.provenRegular());
+});

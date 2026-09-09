@@ -12,11 +12,13 @@
 
 import { createPentagrid } from "./pentagrid.js";
 import type { PentagridHandle } from "./pentagrid.js";
-import { NUM_GRIDS } from "../geometry/pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
 import type { Rhomb, Vec2 } from "../geometry/types.js";
 
-export const FAMILY_COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
+// Five for the pentagrid, then two more for a heptagrid; the first five are
+// unchanged so every existing page keeps its exact palette.
+export const FAMILY_COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
+                              "#e07a5f", "#3d5a80"];
 
 type RGB = [number, number, number];
 const rgbOf = (hex: string): RGB => {
@@ -35,6 +37,8 @@ export type Vec3 = [number, number, number];
 export interface GrowthConfig {
     container: HTMLElement;
     gamma?: readonly number[];
+    /** How many line families. Five is the pentagrid, seven a heptagrid. */
+    n?: number;
     /** Stand the surface up into golden rhombi. Needs the camera to be visible. */
     lift?: boolean;
     /**
@@ -112,11 +116,15 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     /** A tile's local (a,b), at the current grow and fold, in world space. */
     function world(r: Rhomb, dirs: readonly Vec2[], a: number, b: number): Vec3 {
         const { grow, fold } = state;
+        // The registration gain, so a tile at grow = 0 sits on the crossing that
+        // made it. It is n/2 because Sum_j v_j v_j^T = (n/2)I — 5/2 here for the
+        // pentagrid, 7/2 for a heptagrid — and dirs already knows n.
+        const gain = dirs.length / 2;
         const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
         const cx = v0[0] + (vj[0] + vk[0]) / 2, cy = v0[1] + (vj[1] + vk[1]) / 2;
-        const x = (1 - grow) * 2.5 * r.x0 + grow * cx
+        const x = (1 - grow) * gain * r.x0 + grow * cx
             + grow * ((a - 0.5) * vj[0] + (b - 0.5) * vk[0]);
-        const y = (1 - grow) * 2.5 * r.y0 + grow * cy
+        const y = (1 - grow) * gain * r.y0 + grow * cy
             + grow * ((a - 0.5) * vj[1] + (b - 0.5) * vk[1]);
         const m = vertexIndex(r.kTuples[0]);
         return [x, y, fold * grow * RISE * (m + a + b)];
@@ -199,7 +207,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     /** Tiles grouped by the grid line they sit on, ordered along it. */
     function ribbonsOf(rhombs: readonly Rhomb[], dirs: readonly Vec2[]) {
         const out: { fam: number; px: number; py: number; tiles: Rhomb[] }[] = [];
-        for (let fam = 0; fam < NUM_GRIDS; fam++) {
+        for (let fam = 0; fam < dirs.length; fam++) {
             const [vx, vy] = dirs[fam];
             const px = -vy, py = vx;
             const byLine = new Map<number, Rhomb[]>();
@@ -228,6 +236,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     const pentagrid = createPentagrid({
         container: config.container,
         gamma: config.gamma,
+        n: config.n,
         steps: [],
         features: { gridLines: false, axes: false },
         // What fills the canvas under a camera is not what fills it flat. Tilting
