@@ -49,20 +49,45 @@ test("reports a lock request without acting on it", () => {
 test("sync renders the state it is given", () => {
     const { b, dials, inputs } = bank();
     b.sync({ values: [0.1, -0.2, 0.3, -0.4, 0.2], locked: 4, sum: 0 });
-    assert.equal(dials[0].children[2].textContent, "0.10");
+    assert.equal(dials[0].children[2].textContent, "0.100");
     assert.equal(dials[4].className, "dial computed");
     assert.equal(dials[0].className, "dial");
     assert.equal(inputs[4].disabled, true);
     assert.equal(inputs[0].disabled, false);
 });
 
-test("sync writes back only to the computed slider", () => {
+test("sync writes back to every slider except the one under a held pointer", () => {
+    // It used to write back only the computed one, which was right while dragging
+    // was the only input. A wheel notch changes a value without touching its
+    // thumb, so every other slider now has to follow or it drifts from its number.
     const { b, inputs } = bank();
+    inputs[0].on.pointerdown[0]();          // this one is being dragged
     inputs[0].value = "MIDDRAG";
+    inputs[2].value = "stale";
     inputs[4].value = "stale";
-    b.sync({ values: [1, 0, 0, 0, -1], locked: 4, sum: 0 });
-    assert.equal(inputs[0].value, "MIDDRAG", "wrote back over a slider being dragged");
-    assert.equal(inputs[4].value, "-1.00");
+    b.sync({ values: [1, 0, 0.25, 0, -1], locked: 4, sum: 0.25 });
+
+    assert.equal(inputs[0].value, "MIDDRAG", "wrote back over the slider under the thumb");
+    assert.equal(inputs[2].value, "0.250000", "an idle slider must follow the model");
+    // the thumb shows the offset modulo 1, so the computed -1 sits at 0
+    assert.equal(inputs[4].value, "0.000000");
+
+    inputs[0].on.pointerup[0]();            // released — it must rejoin the model
+    b.sync({ values: [0.5, 0, 0.25, 0, -0.75], locked: 4, sum: 0 });
+    assert.equal(inputs[0].value, "0.500000", "a released slider must follow again");
+});
+
+test("a slider that merely has focus still follows the wheel", () => {
+    // The bug this replaced: focus was used as the test for "being dragged", but a
+    // slider stays FOCUSED after you let go. So one click on a dial froze its thumb
+    // for the rest of the session while the wheel went on changing the number.
+    const { b, inputs } = bank();
+    b.sync({ values: [0.2, 0, 0, 0, 0], locked: 4, sum: 0.2 });
+    globalThis.document.activeElement = inputs[0];      // clicked once, still focused
+    b.sync({ values: [0.21, 0, 0, 0, 0], locked: 4, sum: 0.21 });
+    globalThis.document.activeElement = undefined;
+    assert.equal(inputs[0].value, "0.210000",
+                 "focus is not a drag — the thumb must follow the value");
 });
 
 test("the bank knows nothing about what the constraint is", () => {
@@ -182,12 +207,147 @@ test("sync renders the total and its note, but not over a drag", () => {
     const note = b.element.children[7];
     b.sync({ values: [0.5, 0.5, 0.5, 0.5, 0.5], locked: 4, sum: 2.5,
              sumNote: "largest pentagon" });
-    assert.equal(input.value, "2.50");
+    assert.equal(input.value, "2.500000");
     assert.equal(note.textContent, "largest pentagon");
 
     // while the user holds it, leave it alone
-    globalThis.document.activeElement = input;
+    input.on.pointerdown[0]();
     b.sync({ values: [0, 0, 0, 0, 0], locked: 4, sum: 0, sumNote: "x" });
-    assert.equal(input.value, "2.50", "wrote back over a slider being dragged");
-    globalThis.document.activeElement = undefined;
+    assert.equal(input.value, "2.500000", "wrote back over a slider being dragged");
+    input.on.pointerup[0]();
+    b.sync({ values: [0, 0, 0, 0, 0], locked: 4, sum: 0, sumNote: "x" });
+    assert.equal(input.value, "0.000000", "released, the total must follow again");
+});
+
+// ── the wheel ─────────────────────────────────────────────────────
+
+const wheelEvt = (deltaY, shiftKey = false) => ({
+    deltaY, shiftKey, preventDefault() { this.defaulted = true; }, defaulted: false,
+});
+
+/** Spin the wheel over dial j and return what the bank reported. */
+function spin(bank, j, e) {
+    const dial = bank.element.children[j];
+    dial.on.wheel[0](e);
+}
+
+test("the wheel nudges by hundredths, and by thousandths with shift", () => {
+    const moves = [];
+    const b = createGammaBank({
+        count: 5, colors: COLORS,
+        onChange: (i, v) => moves.push([i, v]), onLock: () => {},
+    });
+    b.sync({ values: [0.3, 0, 0, 0, 0], locked: 4, sum: 0.3 });
+
+    spin(b, 0, wheelEvt(-1));            // wheel up
+    assert.equal(moves.length, 1);
+    assert.equal(moves[0][0], 0);
+    assert.ok(Math.abs(moves[0][1] - 0.31) < 1e-9, `got ${moves[0][1]}`);
+
+    spin(b, 0, wheelEvt(1));             // wheel down
+    assert.ok(Math.abs(moves[1][1] - 0.29) < 1e-9, `got ${moves[1][1]}`);
+
+    spin(b, 0, wheelEvt(-1, true));      // shift = a tenth of the step
+    assert.ok(Math.abs(moves[2][1] - 0.301) < 1e-9, `got ${moves[2][1]}`);
+});
+
+test("the wheel reports a continuous value; only the display wraps mod 1", () => {
+    // Wrapping the stored value looks equivalent and is not. With an index holding
+    // the sum, recording 0.99 + 0.01 as 0.00 keeps Σγ nominally put and makes the
+    // locked offset absorb -0.99 — a real move of another family. That was the
+    // bank jumping once per lap.
+    const moves = [];
+    const b = createGammaBank({
+        count: 5, colors: COLORS,
+        onChange: (i, v) => moves.push(v), onLock: () => {},
+    });
+
+    b.sync({ values: [0.995, 0, 0, 0, 0], locked: 4, sum: 0.995 });
+    spin(b, 0, wheelEvt(-1));
+    assert.ok(Math.abs(moves[0] - 1.005) < 1e-9,
+              `the value must run on past 1, got ${moves[0]}`);
+
+    // but a value past the turn is SHOWN, and placed, modulo 1
+    b.sync({ values: [1.005, 0, 0, 0, 0], locked: 4, sum: 1.005 });
+    const dial = b.element.children[0];
+    assert.equal(dial.children[2].textContent, "0.005", "readout must wrap");
+    assert.equal(dial.children[1].value, "0.005000", "thumb must wrap");
+    assert.equal(dial.children[2].title, "1.005000",
+                 "hover must admit the true unwrapped value");
+});
+
+test("one offset wheeled a full turn never jerks another", () => {
+    // The regression this replaced: at the wrap the locked offset leapt 0.99.
+    const seen = [];
+    const b = createGammaBank({
+        count: 5, colors: COLORS,
+        onChange: (i, v) => seen.push(v), onLock: () => {},
+    });
+    let v = 0.9;
+    for (let i = 0; i < 30; i++) {
+        b.sync({ values: [v, 0, 0, 0, 0], locked: 4, sum: v });
+        spin(b, 0, wheelEvt(-1));
+        const next = seen[seen.length - 1];
+        assert.ok(Math.abs(next - v - 0.01) < 1e-9,
+                  `notch ${i} moved ${next - v}, not 0.01`);
+        v = next;
+    }
+    assert.ok(v > 1.1, "should have run past a full turn without wrapping");
+});
+
+test("the wheel does not drive the computed dial, and eats the page scroll", () => {
+    const moves = [];
+    const b = createGammaBank({
+        count: 5, colors: COLORS,
+        onChange: (i, v) => moves.push(i), onLock: () => {},
+    });
+    b.sync({ values: [0, 0, 0, 0, 0], locked: 4, sum: 0 });
+
+    const onLocked = wheelEvt(-1);
+    spin(b, 4, onLocked);
+    assert.deepEqual(moves, [], "the locked dial is computed, not driven");
+    assert.equal(onLocked.defaulted, false, "should let the page scroll over it");
+
+    const onFree = wheelEvt(-1);
+    spin(b, 1, onFree);
+    assert.deepEqual(moves, [1]);
+    assert.ok(onFree.defaulted, "must swallow the scroll it acted on");
+});
+
+test("the readout shows thousandths and the exact value on hover", () => {
+    const b = createGammaBank({
+        count: 5, colors: COLORS, onChange: () => {}, onLock: () => {},
+    });
+    b.sync({ values: [0.1234, 0, 0, 0, 0], locked: 4, sum: 0.1234 });
+    const display = b.element.children[0].children[2];
+    // two places would have hidden a shift-wheel notch entirely
+    assert.equal(display.textContent, "0.123");
+    assert.equal(display.title, "0.123400", "hover must carry the exact value");
+});
+
+test("a wheel-set value survives the write-back to the slider", () => {
+    // The slider snaps `.value` onto its step grid, and it used only to be written
+    // for the locked index. A thousandth had to survive both.
+    const b = createGammaBank({
+        count: 5, colors: COLORS, onChange: () => {}, onLock: () => {},
+    });
+    b.sync({ values: [0.007, 0, 0, 0, 0], locked: 4, sum: 0.007 });
+    assert.equal(b.element.children[0].children[1].value, "0.007000");
+});
+
+test("the total clamps at its ends instead of wrapping", () => {
+    // The sum is not an offset: its distinguished values are spread over 0..n/2,
+    // so wrapping would jump between them.
+    const sums = [];
+    const b = createGammaBank({
+        count: 5, colors: COLORS, onChange: () => {}, onLock: () => {},
+        onSum: (v) => sums.push(v), sumRange: { min: 0, max: 2.5, step: 0.001 },
+    });
+    b.sync({ values: [0.5, 0.5, 0.5, 0.5, 0.5], locked: 4, sum: 2.5 });
+    b.element.children[6].on.wheel[0](wheelEvt(-1));
+    assert.equal(sums[0], 2.5, "must not wrap past the top");
+
+    b.sync({ values: [0, 0, 0, 0, 0], locked: 4, sum: 0 });
+    b.element.children[6].on.wheel[0](wheelEvt(1));
+    assert.equal(sums[1], 0, "must not wrap below zero");
 });

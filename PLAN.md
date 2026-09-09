@@ -906,6 +906,31 @@ appears to have no analogue at seven, which is worth saying on grow7.html.
   **144** for Delta = 2 — not 36. Getting it backwards makes every vertex fail
   the 360-degree check and collapses the type count to one or two.
 
+### The gamma cluster wants a revamp (Jake, 2026-09-09) — parked
+
+The dial bank is the wrong instrument and Jake has said so. `method.html` is a
+mess: `createPentagrid` is a proper container and the controls beside it are an
+instrument cluster, but the gamma bank grew by accretion — five vertical dials, a
+total slider bolted on, a note underneath, a lock, per-family enable, single-line
+and isolation, all in one strip.
+
+What `sunstar.html` demonstrates as an alternative, and what a revamp should
+probably take from it:
+
+- **One line at a time.** Roll the wheel over a line to slide it along its own
+  direction. No dial, no drag target, no fixed range.
+- **Shift for fine.** 0.01 a notch, 0.001 with shift.
+- **Everything modulo 1.** Only the fractional part moves the grid, so that is
+  what the readout should show.
+- **One free index, marked as such.** The locked offset absorbs whatever the
+  others do; calling it "free" and dimming it says more than "locked" did.
+- **Named caps as buttons**, not values to hunt for at slider resolution — the
+  "tweaking mode" idea. `sunstar.html` has five.
+
+Not started, and deliberately not folded into `method.html` yet: the new page is
+the place to find out whether the interaction is actually better before anything
+that works is disturbed.
+
 ### A hall of mirrors, and telling the mirrors apart (2026-09-09)
 
 Jake's framing: aperiodic tiling is a hall of mirrors — dichotomies, duals,
@@ -995,7 +1020,49 @@ open Sun/Star centring question above, which vertex probing could not reach
 because a star's centre is a star-shaped gap rather than a vertex figure. That is
 the payoff, and it is the reason to build it.
 
-**What is missing.** Two dimensions of gamma never shrink: sliding along
+**Done — the cluster recogniser (`geometry/clusters.ts`, 2026-09-09), and it
+settles Sun/Star.**
+
+The rule is local and exact. Lift every vertex to its Wieringa index; a rhomb's
+corners carry m, m+1, m+2, m+1, and Penrose uses exactly four levels, so a rhomb
+spans either the bottom three or the top three and touches **exactly one**
+extreme. Grouping rhombs by that vertex partitions the patch with nothing over:
+
+    5 thick + 0 thin   star rhomb group     centre of a Pe5  (the SUN)
+    3 thick + 1 thin   boat rhomb group     centre of a Pe3
+    1 thick + 2 thin   diamond rhomb group  centre of a Pe1
+
+Measured on 1958 rhombs: no rhomb without an extreme, none with two, and 100% of
+groups away from the patch edge are one of those three at every radius tried.
+Off the integers the index takes five levels, a rhomb can span the middle three
+and touch no extreme, and 1451 of 1952 rhombs go unassigned — so `defined` is
+false and the reason says "not Penrose". That is correct, not a gap: P1
+pentagons are a Penrose structure.
+
+**Sun and Star, answered.** All four origin-centred Penrose caps show FIVE FAT
+rhombs at the origin, so the vertex configuration cannot tell them apart — the
+earlier reading in this plan called them all suns on exactly that evidence and
+was **wrong**. The index decides. The origin's K-tuple is (1,1,1,1,1) for a
+uniform offset in (0,1), so its index is always 5, while the patch range is
+[Sigma-gamma + 1, Sigma-gamma + 4]. Five is an extreme, hence a Pe5 centre, only
+at the ends:
+
+    Sum-gamma = 1  origin index 5, range 2..5   MAX -> Pe5 -> SUN
+    Sum-gamma = 2  origin index 5, range 3..6   middle -> no cluster -> STAR
+    Sum-gamma = 3  origin index 5, range 4..7   middle -> no cluster -> STAR
+    Sum-gamma = 4  origin index 5, range 5..8   MIN -> Pe5 -> SUN
+
+So **Sun is the uniform offset 1/5 or 4/5, Star is 2/5 or 3/5**, and the pairing
+1<->4, 2<->3 is the Sigma-gamma <-> -Sigma-gamma mirror again. A star's centre
+belongs to no cluster because it is an `St5` gap, which is why vertex probing
+could never find it and why this needed the recogniser.
+
+Lesson worth keeping: a five-fat-rhomb vertex is the *star rhomb group* wherever
+it occurs, but it is a **Pe5 centre** only when its index is extreme. Middle-index
+sun-shaped vertices exist (7 at index 3 and 5 at index 4 in one patch) and are not
+cluster centres.
+
+**What is still missing.** Two dimensions of gamma never shrink: sliding along
 E-parallel translates the pentagrid and leaves the tiling alone, so what converges
 is the E-perp position plus Sigma-gamma, and the tower pins gamma only up to that
 slide. And `pentagrid` has no cluster recognition — it knows rhombs, not `Pe5` /

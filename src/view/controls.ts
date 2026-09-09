@@ -55,7 +55,7 @@ export function mountGammaControls(
         colors: opts.colors,
         // n/2 is the uniform offset ½ — the largest total worth reaching, since
         // Σγ = n·r and r is an offset mod 1. A page should not have to know that.
-        sumRange: opts.sumRange ?? { min: 0, max: set.n / 2, step: 0.05 },
+        sumRange: opts.sumRange ?? { min: 0, max: set.n / 2, step: 0.001 },
         onChange: (j, v) => set.setValue(j, v),
         onLock: (j) => set.setLocked(j),
         // Spreading is what makes a total control mean anything: without it the

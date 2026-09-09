@@ -34,6 +34,15 @@ export interface GammaBankOptions {
      */
     onSum?: (sum: number) => void;
     sumRange?: { min: number; max: number; step: number };
+    /**
+     * Wheel over a dial to nudge it. A slider is hopeless at hundredths — the
+     * whole -2..2 range is a couple of hundred pixels — and the offsets that
+     * matter sit at exact rationals like 1/5, so there has to be a way to walk
+     * onto one rather than aim for it.
+     */
+    wheelStep?: number;
+    /** With shift held. */
+    wheelFine?: number;
 }
 
 export interface GammaBank {
@@ -42,14 +51,49 @@ export interface GammaBank {
     sync: (s: GammaBankState) => void;
 }
 
+/** Enough decimals to show the exact value: gamma is rationals over 10^4. */
+const EXACT_DP = 6;
+
 export function createGammaBank(opts: GammaBankOptions): GammaBank {
     const { count, colors } = opts;
+    const step = opts.wheelStep ?? 0.01;
+    const fine = opts.wheelFine ?? 0.001;
     const element = document.createElement("div");
     element.className = "controls";
 
     const inputs: HTMLInputElement[] = [];
     const displays: HTMLSpanElement[] = [];
     const wraps: HTMLDivElement[] = [];
+    /** Last synced values, so a wheel notch knows what it is nudging from. */
+    let current: readonly number[] = new Array(count).fill(0);
+    let lockedNow = count - 1;
+    let active = -1;
+    /**
+     * Which slider is under a held pointer, or -1.
+     *
+     * This used to ask `document.activeElement`, which is wrong: a slider stays
+     * FOCUSED after you let go of it, so once you had clicked a dial its thumb
+     * never followed the model again — the wheel moved the number and left the
+     * thumb behind. Focus is not the question; a held pointer is.
+     */
+    let dragging = -1;
+    let sumDragging = false;
+
+    /** One notch: hundredths, thousandths with shift. */
+    const notch = (e: WheelEvent) => (e.deltaY > 0 ? -1 : 1) * (e.shiftKey ? fine : step);
+
+    /**
+     * Offsets are shown modulo 1, because that is all of an offset there is:
+     * K_j = ceil(x·v_j + γ_j), so a whole turn renumbers that family's lines and
+     * leaves the grid exactly where it was.
+     *
+     * Only the DISPLAY wraps. The stored value runs on. Wrapping the value itself
+     * looks equivalent and is not, once an index is holding the sum: wheeling γ₀
+     * from 0.99 to 1.00 is a harmless notch, but recording it as 0.00 keeps Σγ
+     * nominally put and makes the locked offset absorb -0.99 — a real move of
+     * another family, which showed up as the whole bank jumping once per lap.
+     */
+    const mod1 = (x: number) => ((x % 1) + 1) % 1;
 
     for (let j = 0; j < count; j++) {
         const div = document.createElement("div");
@@ -63,17 +107,32 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
 
         const input = document.createElement("input");
         input.type = "range";
-        input.min = String(opts.min ?? -2);
-        input.max = String(opts.max ?? 2);
-        input.step = String(opts.step ?? 0.01);
+        // One full turn, and no more: -2..2 spent three quarters of the travel on
+        // offsets indistinguishable from ones already in [0,1).
+        input.min = String(opts.min ?? 0);
+        input.max = String(opts.max ?? 1);
+        // Fine enough that a wheel-set thousandth survives being written back:
+        // a range input snaps `.value` onto its step grid.
+        input.step = String(opts.step ?? 0.001);
         input.value = "0";
         input.style.accentColor = colors[j];
         input.addEventListener("input", () => opts.onChange(j, parseFloat(input.value)));
+        input.addEventListener("pointerdown", () => { dragging = j; });
+        input.addEventListener("pointerup", () => { dragging = -1; });
+        input.addEventListener("pointercancel", () => { dragging = -1; });
 
         const display = document.createElement("span");
         display.className = "value";
         display.style.color = colors[j];
         display.textContent = "0.00";
+
+        div.addEventListener("wheel", (e) => {
+            const w = e as WheelEvent;
+            if (j === lockedNow) return;      // computed from the others; not driven
+            w.preventDefault();               // and do not scroll the page with it
+            active = j;
+            opts.onChange(j, current[j] + notch(w));
+        }, { passive: false });
 
         div.appendChild(label);
         div.appendChild(input);
@@ -103,6 +162,19 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
         sumInput.step = String(r.step);
         sumInput.value = "0";
         sumInput.addEventListener("input", () => opts.onSum!(parseFloat(sumInput!.value)));
+        sumInput.addEventListener("pointerdown", () => { sumDragging = true; });
+        sumInput.addEventListener("pointerup", () => { sumDragging = false; });
+        sumInput.addEventListener("pointercancel", () => { sumDragging = false; });
+        wrap.addEventListener("wheel", (e) => {
+            const w = e as WheelEvent;
+            w.preventDefault();
+            active = -1;
+            // Not wrapped: the sum is not an offset. Its distinguished values are
+            // spread over 0..n/2 and wrapping would jump between them.
+            const lo = parseFloat(sumInput!.min), hi = parseFloat(sumInput!.max);
+            const next = parseFloat(sumInput!.value) + notch(w);
+            opts.onSum!(Math.min(hi, Math.max(lo, next)));
+        }, { passive: false });
         const cap = document.createElement("div");
         cap.className = "sum-cap";
         cap.textContent = "Σγ";
@@ -120,20 +192,30 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
     }
 
     function sync(s: GammaBankState) {
+        current = s.values;
+        lockedNow = s.locked;
         for (let j = 0; j < count; j++) {
-            displays[j].textContent = s.values[j].toFixed(2);
-            wraps[j].className = j === s.locked ? "dial computed" : "dial";
+            // Three places, because a shift-wheel notch moves the third one and a
+            // control whose number does not answer the gesture reads as broken.
+            displays[j].textContent = mod1(s.values[j]).toFixed(3);
+            // Hover gives the exact value as carried — unwrapped, so a γ that has
+            // been wheeled past a turn admits it rather than pretending to be
+            // small. The readout above is the same number modulo 1.
+            displays[j].title = s.values[j].toFixed(EXACT_DP);
+            wraps[j].className = "dial"
+                + (j === s.locked ? " computed" : "")
+                + (j === active ? " active" : "");
             inputs[j].disabled = j === s.locked;
-            // Only the computed slider is driven from the model. Writing back to
-            // the one under the user's thumb would fight the drag.
-            if (j === s.locked) inputs[j].value = s.values[j].toFixed(2);
+            // Write back to every slider except the one actually being dragged, so
+            // a wheel notch moves the thumb as well as the number.
+            // The thumb tracks the offset modulo 1, so it wraps round the ends of
+            // its travel like a compass instead of running off them.
+            if (dragging !== j) inputs[j].value = mod1(s.values[j]).toFixed(EXACT_DP);
         }
         sumSpan.textContent = `Σ = ${s.sum.toFixed(4)}`;
-        // Only written when the user is not holding it, same reason as the
-        // computed slider: writing back mid-drag fights the drag.
-        if (sumInput && document.activeElement !== sumInput) {
-            sumInput.value = s.sum.toFixed(2);
-        }
+        // Same rule: only a held pointer stops the write-back.
+        if (sumInput && !sumDragging) sumInput.value = s.sum.toFixed(EXACT_DP);
+        sumSpan.title = s.sum.toFixed(EXACT_DP);
         if (sumNote) sumNote.textContent = s.sumNote ?? "";
     }
 

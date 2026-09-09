@@ -154,6 +154,8 @@ a { color: var(--accent); }
 .dial .value { font-family: ui-monospace, Menlo, monospace; font-size: 11px; margin-top: 3px; }
 .dial.computed input[type=range] { opacity: 0.5; }
 .sum-display { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink-faint); }
+/* The dial the wheel last moved. Enough to find it again, not enough to shout. */
+.dial.active { outline: 1px solid #bbb; outline-offset: 2px; border-radius: 3px; }
 .sum-dial { align-items: stretch; width: 210px; }
 .sum-dial input[type=range] { writing-mode: horizontal-tb; direction: ltr; width: 100%; height: auto; }
 .sum-cap { font-size: 15px; font-family: "Times New Roman", serif; font-style: italic; }

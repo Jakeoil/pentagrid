@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sun and Star</title>
+    <link rel="stylesheet" href="./site.css">
+    <style>
+        .instrument {
+            display: flex;
+            gap: 22px;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            margin: 14px 0 10px;
+        }
+        .line-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 8px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+            cursor: ns-resize;
+            user-select: none;
+        }
+        .line-row:hover { background: #f0f0f0; }
+        .line-row.active { border-color: #888; background: #f6f6f6; }
+        .line-row.free { opacity: 0.55; cursor: default; }
+        .line-swatch { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #aaa; }
+        .line-name { font-family: "Times New Roman", serif; font-style: italic; font-size: 15px; width: 20px; }
+        .line-val { font-family: monospace; font-size: 13px; width: 46px; text-align: right; }
+        .line-tag { font-size: 11px; color: #999; width: 40px; }
+        .verdict {
+            font-size: 15px;
+            font-weight: bold;
+            padding: 7px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            background: #fafafa;
+        }
+        .verdict.sun  { background: #eef0fc; border-color: #9292e3; color: #3b3b8f; }
+        .verdict.star { background: #fdf6e6; border-color: #d4a017; color: #7a5c00; }
+        .verdict.deca { background: #fdeaea; border-color: #e63946; color: #8f1f28; }
+        .verdict.none { color: #777; }
+        .caps button {
+            font: inherit;
+            font-size: 13px;
+            padding: 5px 11px;
+            margin-right: 6px;
+            border: 1px solid #ccc;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .caps button:hover { background: #eee; }
+        .sum-read { font-family: monospace; font-size: 13px; color: #666; margin-left: 4px; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>Sun and Star</h1>
+    <h2>Two Penrose tilings, one involution, and a decagon between them</h2>
+
+    <p>Give all five families the same offset <i>c</i> and the pentagrid keeps its
+    five-fold symmetry, so the tiling does too. Sliding <i>c</i> from 0 to 1 walks
+    the whole family &mdash; and it passes through <b>exactly two Suns and two
+    Stars</b>, paired by the mirror &Sigma;&gamma;&nbsp;&harr;&nbsp;&minus;&Sigma;&gamma;.</p>
+
+    <div class="caps">
+        <button data-c="0">deca &nbsp;c = 0</button>
+        <button data-c="0.2">sun &nbsp;c = 1/5</button>
+        <button data-c="0.4">star &nbsp;c = 2/5</button>
+        <button data-c="0.6">star &nbsp;c = 3/5</button>
+        <button data-c="0.8">sun &nbsp;c = 4/5</button>
+        <span class="sum-read" id="ss-sum"></span>
+    </div>
+
+    <div class="instrument">
+        <div id="ss-lines"></div>
+        <div id="ss-verdict" class="verdict"></div>
+    </div>
+    <p class="hint" style="margin:0 0 12px">Roll the wheel over a line to slide it
+    along its own direction &mdash; hold shift for a tenth of the step. One line is
+    <b>free</b>: it absorbs whatever the others do, holding &Sigma;&gamma;. All
+    offsets are read modulo 1, since only the fractional part moves the grid.</p>
+
+    <div class="viewport" id="ss-view"></div>
+    <p class="hint">Drag to pan, scroll to zoom. Tiles are coloured by the P1
+    pentagon that owns them &mdash; <span style="color:#5b5bc0">Pe5</span>,
+    <span style="color:#9a8f2e">Pe3</span>,
+    <span style="color:#c08a52">Pe1</span> &mdash; and the black ring marks the origin.</p>
+
+    <h3>What you are looking for</h3>
+    <p>Every one of these caps shows <b>five fat rhombs at the origin</b>. That is
+    why the vertex tells you nothing: a five-fat vertex is a <i>star rhomb
+    group</i> wherever it appears, but it is a <b>Pe5 centre</b> only when its
+    Wieringa index is an extreme of the tiling's four levels. The origin's
+    K-tuple is (1,1,1,1,1), so its index is always 5, while the levels run
+    [&Sigma;&gamma;&plus;1, &Sigma;&gamma;&plus;4]:</p>
+
+    <ul class="plain" style="font-family:monospace;font-size:13.5px;line-height:1.9">
+        <li>&Sigma;&gamma; = 1 &nbsp; index 5, levels 2..5 &nbsp; <b>max</b> &rarr; Pe5 &rarr; SUN</li>
+        <li>&Sigma;&gamma; = 2 &nbsp; index 5, levels 3..6 &nbsp; middle &rarr; no cluster &rarr; STAR</li>
+        <li>&Sigma;&gamma; = 3 &nbsp; index 5, levels 4..7 &nbsp; middle &rarr; no cluster &rarr; STAR</li>
+        <li>&Sigma;&gamma; = 4 &nbsp; index 5, levels 5..8 &nbsp; <b>min</b> &rarr; Pe5 &rarr; SUN</li>
+    </ul>
+
+    <p>A Star's centre belongs to no cluster at all, because it sits inside an
+    <b>St5</b> &mdash; a star-shaped gap. That is why hunting for a &ldquo;star
+    vertex&rdquo; never finds one, and why this needed a cluster recogniser rather
+    than a look at the rhombs.</p>
+
+    <p>At <i>c</i>&thinsp;=&thinsp;0 all five lines pass through the origin. That
+    is <b>singular</b> &mdash; no three lines may be concurrent, let alone five
+    &mdash; and the dual of a five-fold crossing is not a rhomb but a
+    <b>decagon</b>. It is the one cap that is not a tiling at all, and the guard
+    is switched off on this page so you can visit it.</p>
+
+    <p>Slide a single line off the others and the five-fold symmetry breaks: the
+    grid is no longer the same seen from five directions, so the tiling inherits
+    no rotation and the verdict stops applying. Everything here is a statement
+    about <em>equal</em> offsets.</p>
+
+    <footer>
+        <a href="./">&larr; Pentagrid</a> &nbsp;&middot;&nbsp;
+        <a href="method.html">The Method</a> &nbsp;&middot;&nbsp;
+        <a href="wiggle.html">Wiggle room</a>
+    </footer>
+    <script type="module" src="./dist/app/sunstar.js"></script>
+</div>
+</body>
+</html>
