@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 import { singularTriples } from "../dist/geometry/regularity.js";
 import { collectRhombs, computeKTuple } from "../dist/geometry/pentagrid.js";
+import { liftLocal } from "../dist/geometry/roof.js";
 
 const near = (a, b, eps = 1e-12) => Math.abs(a - b) < eps;
 const sumOf = (a) => a.reduce((x, y) => x + y, 0);
@@ -154,4 +155,84 @@ test("values and exact hand back copies", () => {
     const q = g.exact(); q[0] = 99;
     assert.notEqual(g.values()[0], 99);
     assert.notEqual(g.exact()[0], 99);
+});
+
+// ── the sum control ───────────────────────────────────────────────
+
+test("setSum without spread lets the locked index absorb the change", () => {
+    const g = createGammaSet({ sum: 0 });
+    const before = g.exact().slice();
+    g.setSum(2.5);
+    assert.ok(near(sumOf(g.values()), 2.5, 1e-9));
+    const q = g.exact();
+    // the four free offsets are untouched; the locked one carries it
+    for (let j = 0; j < 5; j++) {
+        if (j === g.getLocked()) continue;
+        assert.equal(q[j], before[j], `offset ${j} moved when it should not have`);
+    }
+});
+
+test("setSum with spread gives the symmetric family, which is the point of it", () => {
+    const g = createGammaSet({ sum: 0 });
+    g.setSum(2.5, true);
+    for (const v of g.values()) assert.ok(near(v, 0.5, 1e-9), `offset ${v}, wanted 0.5`);
+    assert.ok(near(sumOf(g.values()), 2.5, 1e-9));
+});
+
+test("the two named configurations are what they claim", () => {
+    // s = 0: every offset zero, so every line passes through the origin —
+    // ten singular triples, before the guard has an opinion.
+    const concurrent = createGammaSet({ sum: 0, guard: false });
+    assert.deepEqual(concurrent.exact(), [0, 0, 0, 0, 0]);
+    assert.equal(concurrent.singular().length, 10);
+
+    // s = 5/2: every offset a half. Lutfalla's G5(1/2), and regular untouched.
+    const pentagon = createGammaSet({ sum: 2.5, guard: false });
+    for (const v of pentagon.values()) assert.ok(near(v, 0.5, 1e-9));
+    assert.deepEqual(pentagon.singular(), []);
+});
+
+test("spreading to a singular sum still comes back regular", () => {
+    const g = createGammaSet({ sum: 2.5 });
+    g.setSum(0, true);                    // lands on all zeros, which is singular
+    assert.deepEqual(g.singular(), [], "the guard did not run after a spread");
+    assert.ok(g.nudged());
+    assert.ok(near(sumOf(g.values()), 0, 1e-9), "the nudge broke the sum");
+});
+
+test("sweeping the sum never leaves a singular configuration behind", () => {
+    const g = createGammaSet();
+    for (let s = 0; s <= 2.5 + 1e-9; s += 0.05) {
+        g.setSum(Math.round(s * 100) / 100, true);
+        assert.deepEqual(g.singular(), [], `singular at Σγ = ${s.toFixed(2)}`);
+        assert.ok(near(sumOf(g.values()), Math.round(s * 100) / 100, 1e-9),
+                  `sum drifted at ${s.toFixed(2)}`);
+    }
+});
+
+test("the roof's level count follows the sum, but the rhombus never changes", () => {
+    // roof.html used to claim four levels as if it were a property of the
+    // construction. It is a property of Σγ.
+    const seen = new Set();
+    for (const s of [0, 0.5, 1, 1.25, 2, 2.5]) {
+        const g = createGammaSet({ sum: s });
+        const rhombs = collectRhombs(g.model, { xMin: -14, xMax: 14, yMin: -14, yMax: 14 },
+                                     { gain: 2.5 });
+        const idx = new Set();
+        for (const r of rhombs) for (const K of r.kTuples) idx.add(sumOf(K));
+        seen.add(Math.max(...idx) - Math.min(...idx) + 1);
+
+        // whatever the sum, every lifted face is the same golden rhombus
+        for (const r of rhombs.slice(0, 60)) {
+            const A = liftLocal(g.model, r, 0, 0), B = liftLocal(g.model, r, 1, 0);
+            const C = liftLocal(g.model, r, 1, 1), D = liftLocal(g.model, r, 0, 1);
+            const d1 = Math.hypot(C[0] - A[0], C[1] - A[1], C[2] - A[2]);
+            const d2 = Math.hypot(D[0] - B[0], D[1] - B[1], D[2] - B[2]);
+            const ratio = Math.max(d1, d2) / Math.min(d1, d2);
+            assert.ok(near(ratio, (1 + Math.sqrt(5)) / 2, 1e-9),
+                      `Σγ ${s}: diagonal ratio ${ratio}`);
+        }
+    }
+    assert.ok(seen.size > 1, `the level count never varied: ${[...seen]}`);
+    assert.ok(seen.has(4), "Σγ = 0 should still give four levels");
 });

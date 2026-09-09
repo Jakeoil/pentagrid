@@ -807,8 +807,31 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    the other side: **an even split only needs the guard when it lands on the
    integers.** Sums of ½, 1, 5/2 and −5/4 divide into five non-integer offsets and
    are regular untouched; 0, 5 and −5 do not, and get nudged.
-3. Generalise the sum *in the UI*, with presets: *all lines concurrent* (s = 0),
-   *largest pentagon* (γ = ½ each, s = 5/2), and a free value.
+3. ~~Generalise the sum in the UI.~~ **DONE 2026-09-09.** A Σγ slider in the
+   settings, 0 to 5/2, labelled with what the number means: *all five lines meet
+   at a point*, *largest pentagon*, *Penrose* for an integer sum, *generalised
+   Penrose* otherwise.
+
+   **It spreads evenly**, and that was the design decision. `setSum` alone lets
+   the locked index absorb the whole change, leaving four tiny offsets and one
+   enormous one — valid, but not the symmetric family the sum is interesting for.
+   `setSum(s, true)` redistributes, so the control moves between the canonical
+   configurations rather than producing lopsided ones.
+
+   **Two things measured while wiring it, both corrections.** At Σγ = 0 with the
+   guard on you do *not* get concurrent lines — the even split is all zeros, which
+   is singular, so the guard opens a 10⁻⁴ pentagon. The label now says "just off
+   concurrent (force regular)" rather than claiming the picture the number
+   implies. And **the roof's level count follows the sum**: 1…4 at Σγ = 0, but
+   1…5, 2…5, 2…6 and 3…7 elsewhere, so four or five levels depending. `roof.html`
+   and `geometry/roof.ts` both stated four as if it were a property of the
+   construction; both now say it is a property of the offsets. The golden rhombus
+   is untouched — a face is spanned by two E_j, which know nothing about γ — so
+   the relief changes and the shape never does. That is a test.
+
+   Presets as buttons were dropped: the slider snaps to both canonical points and
+   names them, so a button would only be a second way to reach a value already one
+   drag away.
 4. Per-family enable, then single-line.
 5. Then decide what `roof.html` says about levels.
 
