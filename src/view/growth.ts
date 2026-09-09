@@ -38,16 +38,16 @@ export interface GrowthConfig {
     /** Stand the surface up into golden rhombi. Needs the camera to be visible. */
     lift?: boolean;
     /**
-     * How the grid lines are drawn.
-     *  "stroke" — one continuous polyline per line, thickening as it grows. Reads
-     *             as the pentagrid being dragged into shape, but cannot be depth
-     *             sorted, so it is the flat choice.
-     *  "quads"  — the in-tile band as a filled quad per tile, with strokes only
-     *             across the gaps. Sorts correctly in 3D.
+     * Kept for callers that named it; there is only one mode now. The bands are
+     * quads inside each tile and quads across the gaps, which is exact flat and
+     * folded alike and sorts correctly in 3D.
+     * @deprecated has no effect
      */
     ribbons?: "stroke" | "quads";
     /** Lambert shading off the true face normal, so creases read. */
     shaded?: boolean;
+    /** Right-drag to spin and tilt. Defaults on wherever there is a lift to see. */
+    orbit?: boolean;
 }
 
 export interface GrowthState {
@@ -105,7 +105,6 @@ export function projectToScreen(
 export function createGrowthView(config: GrowthConfig): GrowthHandle {
     const state: GrowthState = { ...DEFAULTS };
     if (config.lift) { state.fold = 1; state.grow = 1; state.elevation = 0.95; state.azimuth = 0.35; }
-    const style = config.ribbons ?? (config.lift ? "quads" : "stroke");
     const shaded = config.shaded ?? !!config.lift;
 
     let handle: PentagridHandle | null = null;
@@ -150,6 +149,53 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         return { sx: xr, sy: -(yr * se + p[2] * ce), depth: yr * ce - p[2] * se };
     }
 
+    /**
+     * Where a family's ribbon meets one edge of a tile, at full size — used to
+     * decide whether two tiles are really edge-adjacent. Sorting a ribbon by
+     * position along its line gives consecutive tiles, but consecutive is not
+     * adjacent: collectRhombs culls tiles at the edge of the patch, so a pair can
+     * straddle a missing one. Their final attachment points then differ, and a
+     * gap quad drawn between them spans the hole instead of sealing a seam.
+     */
+    function finalSeam(r: Rhomb, fam: number, dirs: readonly Vec2[], rib: { px: number; py: number }) {
+        const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+        const at = (a: number, b: number): Vec2 =>
+            [v0[0] + a * vj[0] + b * vk[0], v0[1] + a * vj[1] + b * vk[1]];
+        const pair = fam === r.j ? [at(0.5, 0), at(0.5, 1)] : [at(0, 0.5), at(1, 0.5)];
+        const proj = (p: Vec2) => p[0] * rib.px + p[1] * rib.py;
+        return proj(pair[0]) <= proj(pair[1])
+            ? { entry: pair[0], exit: pair[1] }
+            : { entry: pair[1], exit: pair[0] };
+    }
+
+    /**
+     * The two corners of a family's band where it meets one edge of a tile —
+     * the leaving edge if `exit`, the entering one otherwise. Ordered along the
+     * grid line so consecutive tiles pair corner-to-corner without crossing.
+     */
+    function bandEdge(
+        r: Rhomb, fam: number, dirs: readonly Vec2[], lo: number, hi: number,
+        rib: { px: number; py: number }, exit: boolean,
+    ): [Vec3, Vec3] {
+        const along = fam === r.j
+            ? ([[lo, 0], [hi, 0]] as const)      // the b = 0 edge
+            : ([[0, lo], [0, hi]] as const);     // the a = 0 edge
+        const far = fam === r.j
+            ? ([[lo, 1], [hi, 1]] as const)
+            : ([[1, lo], [1, hi]] as const);
+        const near = along.map(([a, b]) => world(r, dirs, a, b)) as [Vec3, Vec3];
+        const away = far.map(([a, b]) => world(r, dirs, a, b)) as [Vec3, Vec3];
+        const proj = (p: Vec3) => p[0] * rib.px + p[1] * rib.py;
+        // which of the two edges is downstream along the line
+        const pair = (proj(near[0]) + proj(near[1]) <= proj(away[0]) + proj(away[1]))
+            ? (exit ? away : near)
+            : (exit ? near : away);
+        // and order the two corners consistently across the gap
+        const dj = dirs[fam];
+        return (pair[0][0] * dj[0] + pair[0][1] * dj[1])
+            <= (pair[1][0] * dj[0] + pair[1][1] * dj[1]) ? pair : [pair[1], pair[0]];
+    }
+
     /** Tiles grouped by the grid line they sit on, ordered along it. */
     function ribbonsOf(rhombs: readonly Rhomb[], dirs: readonly Vec2[]) {
         const out: { fam: number; px: number; py: number; tiles: Rhomb[] }[] = [];
@@ -173,11 +219,55 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         return out;
     }
 
+    // Radians per pixel. A drag across a 700px view turns about a half turn,
+    // which is enough to get round the roof without being twitchy.
+    const SPIN_PER_PX = 0.008;
+    const TILT_PER_PX = 0.006;
+    const orbit = config.orbit ?? !!config.lift;
+
     const pentagrid = createPentagrid({
         container: config.container,
         gamma: config.gamma,
         steps: [],
         features: { gridLines: false, axes: false },
+        // What fills the canvas under a camera is not what fills it flat. Tilting
+        // squashes world-y onto the screen by sin(elevation), so the same rect
+        // covers less and less of the picture as the roof lies back; spinning
+        // turns the region. Undo both, then take the axis-aligned bound.
+        collectRect: (base) => {
+            const { azimuth: az, elevation: el, fold, grow } = state;
+            const se = Math.max(Math.sin(el), 0.08);
+            const ce = Math.cos(el);
+            const hw = (base.xMax - base.xMin) / 2;
+            const hh = (base.yMax - base.yMin) / 2;
+            const cx = (base.xMin + base.xMax) / 2;
+            const cy = (base.yMin + base.yMax) / 2;
+            // the roof's own relief lifts the far side up the screen
+            const zMax = fold * grow * RISE * 6;
+            // screen extents, back through the tilt
+            const xr = hw;
+            const yr = (hh + zMax * ce) / se;
+            // and back through the spin: the rotated box's own bound
+            const ca = Math.cos(az), sa = Math.sin(az);
+            const bx = Math.abs(xr * ca) + Math.abs(yr * sa);
+            const by = Math.abs(xr * sa) + Math.abs(yr * ca);
+            // A grazing view wants an unbounded region; cap it, and accept that
+            // the far edge thins out rather than paying for the whole plane.
+            const capX = Math.min(bx, hw * 6);
+            const capY = Math.min(by, hh * 6);
+            return {
+                xMin: cx - capX, xMax: cx + capX,
+                yMin: cy - capY, yMax: cy + capY,
+            };
+        },
+        onOrbit: orbit ? (dx, dy) => {
+            state.azimuth += dx * SPIN_PER_PX;
+            // Drag down to drop toward the horizon, up to rise overhead. Clamped
+            // short of both, since edge-on is a line and straight down is flat.
+            state.elevation = Math.max(0.05, Math.min(Math.PI / 2,
+                state.elevation - dy * TILT_PER_PX));
+            handle!.redraw();
+        } : undefined,
         layers: ({ stack, model, currentRhombs, getView }) => {
             stack.add({
                 id: "growth", label: "Growth", z: 40, group: "Exploration",
@@ -221,7 +311,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             ctx.fillStyle = tint([255, 255, 255], k);
                             ctx.fill();
                         }
-                        if (style === "quads" && band > 0.001 && grow > 0.02) {
+                        if (band > 0.001 && grow > 0.02) {
                             trace(r, [[lo, 0], [hi, 0], [hi, 1], [lo, 1]]);
                             ctx.fillStyle = tint(rgbOf(FAMILY_COLORS[r.j]), k);
                             ctx.fill();
@@ -250,50 +340,44 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         }
                     }
 
-                    // The grid lines, still attached. In "stroke" mode one polyline
-                    // carries a whole line; in "quads" mode the in-tile part is
-                    // already drawn above and only the gaps remain.
-                    const gaps = style === "quads";
-                    if (!gaps || grow < 0.995) {
-                        ctx.lineWidth = gaps
-                            ? Math.max(1, band * grow * v.scale * 0.5)
-                            : Math.max(1, band * grow * v.scale);
-                        ctx.lineCap = "butt";
-                        ctx.lineJoin = "round";
+                    // The grid lines, still attached. Each tile's band is
+                    // already drawn above; what remains is the gap to the next
+                    // tile, and that is a quad rather than a stroke.
+                    //
+                    // A stroke cannot be right: the in-tile band spans `band`
+                    // ALONG v_j, so its perpendicular width is band·sinθ — 0.951
+                    // on a thick tile, 0.588 on a thin one. No constant width
+                    // matches both. Joining the two bands' own corner points
+                    // does, exactly, and it collapses to nothing at grow = 1.
+                    if (grow > 0.02 && band > 0.001 && grow < 0.999) {
                         for (const rib of ribbonsOf(rhombs, dirs)) {
-                            ctx.strokeStyle = FAMILY_COLORS[rib.fam];
-                            ctx.beginPath();
-                            let started = false;
-                            for (const r of rib.tiles) {
-                                const pr: number[][] = r.j === rib.fam
-                                    ? [[0.5, 0], [0.5, 1]] : [[0, 0.5], [1, 0.5]];
-                                const w0 = world(r, dirs, pr[0][0], pr[0][1]);
-                                const w1 = world(r, dirs, pr[1][0], pr[1][1]);
-                                const ord = (w0[0] * rib.px + w0[1] * rib.py)
-                                    <= (w1[0] * rib.px + w1[1] * rib.py) ? [w0, w1] : [w1, w0];
-                                const a = S(ord[0]), b = S(ord[1]);
-                                if (!started) { ctx.moveTo(a.x, a.y); started = true; }
-                                else ctx.lineTo(a.x, a.y);
-                                if (gaps) ctx.moveTo(b.x, b.y); else ctx.lineTo(b.x, b.y);
+                            ctx.fillStyle = FAMILY_COLORS[rib.fam];
+                            for (let i = 1; i < rib.tiles.length; i++) {
+                                const a = finalSeam(rib.tiles[i - 1], rib.fam, dirs, rib);
+                                const b = finalSeam(rib.tiles[i], rib.fam, dirs, rib);
+                                // only seal a seam these two actually share
+                                if (Math.hypot(a.exit[0] - b.entry[0], a.exit[1] - b.entry[1]) > 1e-6) continue;
+                                const prev = bandEdge(rib.tiles[i - 1], rib.fam, dirs, lo, hi, rib, true);
+                                const next = bandEdge(rib.tiles[i], rib.fam, dirs, lo, hi, rib, false);
+                                const q = [prev[0], prev[1], next[1], next[0]].map(S);
+                                ctx.beginPath();
+                                ctx.moveTo(q[0].x, q[0].y);
+                                for (let n = 1; n < 4; n++) ctx.lineTo(q[n].x, q[n].y);
+                                ctx.closePath();
+                                ctx.fill();
                             }
-                            ctx.stroke();
                         }
                     }
 
-                    // The crossing itself: the two families mixed. A dot while the
-                    // tiles are still points, the centre patch once they are not.
-                    if (style === "stroke") {
-                        for (const r of rhombs) {
+                    // The crossing itself: the two families mixed. A dot while
+                    // the tiles are still points, the centre patch once they are not.
+                    for (const r of rhombs) {
+                        if (grow < 0.04) {
                             ctx.fillStyle = tint(MIX[r.j][r.k], 1);
-                            if (grow < 0.04) {
-                                const c = S(world(r, dirs, 0.5, 0.5));
-                                ctx.beginPath();
-                                ctx.arc(c.x, c.y, 2.5, 0, 2 * Math.PI);
-                                ctx.fill();
-                            } else if (band > 0.001) {
-                                trace(r, [[lo, lo], [hi, lo], [hi, hi], [lo, hi]]);
-                                ctx.fill();
-                            }
+                            const c = S(world(r, dirs, 0.5, 0.5));
+                            ctx.beginPath();
+                            ctx.arc(c.x, c.y, 2.5, 0, 2 * Math.PI);
+                            ctx.fill();
                         }
                     }
                 },
