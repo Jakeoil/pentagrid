@@ -8,6 +8,7 @@ import {
 import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/regularity.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
 import { createGammaSet } from "../geometry/gamma.js";
+import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
 import { createGammaBank } from "../ui/dials.js";
@@ -120,6 +121,8 @@ export interface PentagridHandle {
      *  linked instances cannot bounce updates off each other forever. */
     setView: (v: View) => void;
     setGamma: (g: readonly number[]) => void;
+    /** The γ cluster: offsets, the sum, the guard, and which lines are in play. */
+    gamma: GammaSet;
     stack: LayerStack;
 }
 
@@ -189,7 +192,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function collectRhombs(vis: ViewRect): Rhomb[] {
         return geoCollectRhombs(model, vis, {
             gain: gridGain(),
-            active: gridLayers.map((l) => l.userVisible),
+            active: gammaSet.enabledFlags(),
+            lines: gammaSet.lineFlags(),
+            only: gammaSet.isolated(),
         });
     }
 
@@ -364,6 +369,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // recollect when the camera moves, and nothing else here would notice.
         const key = [
             scale, viewX, viewY, gammaSet.exact().join(","),
+            gammaSet.enabledFlags().map((b) => (b ? 1 : 0)).join(""),
+            gammaSet.lineFlags().map((n) => (n === null ? "*" : n)).join(","),
+            String(gammaSet.isolated()),
             gridLayers.map((l) => (l.userVisible ? 1 : 0)).join(""),
             vis.xMin.toFixed(3), vis.xMax.toFixed(3),
             vis.yMin.toFixed(3), vis.yMax.toFixed(3),
@@ -394,7 +402,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     for (let j = 0; j < NUM_GRIDS; j++) {
         gridLayers.push(stack.add({
             id: `grid-${j}`, label: `${j}`, z: 10 + j, group: "Pentagrid",
-            visible: () => features.gridLines,
+            visible: () => features.gridLines && gammaSet.familyEnabled(j),
             opacity: () => gridAlphas[Math.min(currentStep, gridAlphas.length - 1)],
             draw: (c) => withView(gridView(), () =>
                 drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy)),
@@ -1470,6 +1478,29 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     wrap.appendChild(box);
                     lineRow.appendChild(wrap);
                 }
+
+                // Keep only one family's tiles. With a single line set on the
+                // same family, that leaves one ribbon and nothing else.
+                const solo = document.createElement("label");
+                solo.className = "layer-toggle";
+                solo.title = "Keep only the tiles one family takes part in. "
+                    + "With a single line on that family, exactly one ribbon.";
+                solo.appendChild(document.createTextNode("only "));
+                const sel = document.createElement("select");
+                sel.className = "line-pick";
+                for (const [value, text] of
+                    [["", "all"] as [string, string],
+                     ...COLORS.map((_, j) => [String(j), String(j)] as [string, string])]) {
+                    const opt = document.createElement("option");
+                    opt.value = value;
+                    opt.textContent = text;
+                    sel.appendChild(opt);
+                }
+                sel.addEventListener("change", () => {
+                    gammaSet.setIsolated(sel.value === "" ? null : Number(sel.value));
+                });
+                solo.appendChild(sel);
+                lineRow.appendChild(solo);
             }
             if (group === "Penrose") {
                 checkbox(r, "in front", penroseInFront, (v) => {
@@ -2051,6 +2082,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             draw();
         },
         setGamma: (g) => gammaSet.setValues(g),
+        gamma: gammaSet,
         stack,
     };
 }
