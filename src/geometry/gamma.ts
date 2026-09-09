@@ -41,7 +41,13 @@ export interface GammaSet {
 
     setValue: (index: number, value: number) => void;
     setValues: (values: readonly number[]) => void;
-    setSum: (sum: number) => void;
+    /**
+     * Retarget Σγ. With `spread`, also redistribute evenly — which is usually
+     * what you want from a sum control: without it the locked index absorbs the
+     * whole change, leaving four tiny offsets and one enormous one. Valid, but
+     * not the symmetric family the sum is interesting for.
+     */
+    setSum: (sum: number, spread?: boolean) => void;
     getSum: () => number;
     setLocked: (index: number) => void;
     getLocked: () => number;
@@ -154,7 +160,10 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
             for (let j = 0; j < NUM_GRIDS; j++) q[j] = Math.round((values[j] ?? 0) * den);
             settle();
         },
-        setSum: (s) => { sumQ = Math.round(s * den); settle(); },
+        setSum: (s, spread) => {
+            sumQ = Math.round(s * den);
+            if (spread) reset(); else settle();
+        },
         getSum: () => sumQ / den,
         setLocked: (index) => { locked = index; settle(); },
         getLocked: () => locked,

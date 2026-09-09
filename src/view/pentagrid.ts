@@ -1473,6 +1473,47 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             gammaSet.setSymmetry(v);
         });
 
+        // Σγ. Zero gives the Penrose tilings, other values the generalised ones —
+        // the same two rhombs, not locally isomorphic to Penrose. It spreads the
+        // offsets evenly, because that is the family the sum is interesting for:
+        // all equal to s/5, which at s = 0 puts every line through the origin and
+        // at s = 5/2 opens the largest pentagon. (Lutfalla writes the latter
+        // G5(½), counting per offset rather than summing.)
+        const sumRow = row(det, "Σγ");
+        const sumInput = document.createElement("input");
+        sumInput.type = "range";
+        sumInput.min = "0";
+        sumInput.max = "2.5";
+        sumInput.step = "0.05";
+        sumInput.value = String(gammaSet.getSum());
+        sumInput.className = "thickness";
+        const sumOut = document.createElement("span");
+        sumOut.className = "regularity-meter";
+        const sumNote = document.createElement("span");
+        sumNote.className = "regularity-meter";
+        const showSum = () => {
+            const s = gammaSet.getSum();
+            sumOut.textContent = s.toFixed(2);
+            // At Σγ = 0 the even split is all zeros, which is singular, so with
+            // the guard on you get a 1e-4 pentagon rather than a point. Say so
+            // rather than claiming the picture the number implies.
+            sumNote.textContent =
+                Math.abs(s) < 1e-9
+                    ? (gammaSet.nudged() ? "— just off concurrent (force regular)"
+                                         : "— all five lines meet at a point")
+                : Math.abs(s - 2.5) < 1e-9 ? "— largest pentagon"
+                : Number.isInteger(Math.round(s * 1e6) / 1e6) ? "— Penrose"
+                : "— generalised Penrose";
+        };
+        sumInput.addEventListener("input", () => {
+            gammaSet.setSum(parseFloat(sumInput.value), true);
+            showSum();
+        });
+        showSum();
+        sumRow.appendChild(sumInput);
+        sumRow.appendChild(sumOut);
+        sumRow.appendChild(sumNote);
+
         const tRow = row(det, "gridline width");
         const thick = document.createElement("input");
         thick.type = "range";
