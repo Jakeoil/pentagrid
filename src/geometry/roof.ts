@@ -11,8 +11,12 @@
 // corner sits at the shared vertex.
 //
 // Because all five E_j share the same z, a vertex's height is just its de Bruijn
-// index scaled: z = RISE·ΣK. Every edge therefore rises or falls by exactly RISE,
-// and since the index only takes the values 1..4 the roof stands on four levels.
+// index scaled: z = RISE·ΣK. Every edge therefore rises or falls by exactly RISE.
+//
+// How MANY levels there are depends on Σγ, not on the construction. At Σγ = 0 the
+// index runs 1..4 and the roof stands on four; other sums shift the range and it
+// can be five. The golden rhombus is unaffected — the face is spanned by E_j and
+// E_k, which know nothing about γ — so only the relief changes, never the shape.
 //
 // Agrees with wieringa-roof's independently verified numbers, including the fold
 // angles: thick|thick 36°, thick|thin 36° or 72°, thin|thin 108°, never flat.
