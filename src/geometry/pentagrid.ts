@@ -120,6 +120,14 @@ export interface CollectOptions {
      * the tiles where the chosen lines cross.
      */
     lines?: readonly (number | null | undefined)[];
+    /**
+     * Keep only tiles that family takes part in. No combination of `active` and
+     * `lines` can do this — enabling two families necessarily admits their pair —
+     * so isolating a ribbon needs its own idea.
+     *
+     * With `lines[j] = n` as well, what is left is exactly line n's ribbon.
+     */
+    only?: number | null;
     /** Hard cap on the index range, to bound the work when zoomed far out. */
     maxNCap?: number;
     /** How far outside vis a vertex may be and still count as visible. */
@@ -149,12 +157,15 @@ export function collectRhombs(
             ? [-maxN, maxN] : [fixed, fixed];
     };
 
+    const only = opts.only ?? null;
+
     const rhombs: Rhomb[] = [];
     for (let j = 0; j < NUM_GRIDS; j++) {
         if (active && !active[j]) continue;
         const [jLo, jHi] = range(j);
         for (let k = j + 1; k < NUM_GRIDS; k++) {
             if (active && !active[k]) continue;
+            if (only !== null && j !== only && k !== only) continue;
             const [kLo, kHi] = range(k);
             for (let nj = jLo; nj <= jHi; nj++) {
                 for (let nk = kLo; nk <= kHi; nk++) {

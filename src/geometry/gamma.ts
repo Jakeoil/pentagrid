@@ -79,6 +79,14 @@ export interface GammaSet {
     /** All families, as collectRhombs wants them. */
     lineFlags: () => (number | null)[];
 
+    /**
+     * Keep only the tiles one family takes part in, or null for all of them.
+     * Together with a single line that leaves exactly one ribbon, which enable
+     * and line cannot do between them: enabling two families admits their pair.
+     */
+    setIsolated: (index: number | null) => void;
+    isolated: () => number | null;
+
     /** All as equal as possible for the current sum, then guarded. */
     reset: () => void;
 
@@ -99,6 +107,7 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     let didNudge = false;
     const listeners: (() => void)[] = [];
 
+    let isolatedFamily: number | null = null;
     const enabled: boolean[] = new Array(NUM_GRIDS).fill(true);
     const singleLine: (number | null)[] = new Array(NUM_GRIDS).fill(null);
     const q: number[] = new Array(NUM_GRIDS).fill(0);
@@ -206,6 +215,12 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         },
         familyEnabled: (index) => enabled[index],
         enabledFlags: () => enabled.slice(),
+
+        setIsolated: (index) => {
+            isolatedFamily = index;
+            for (const cb of listeners) cb();
+        },
+        isolated: () => isolatedFamily,
 
         setFamilyLine: (index, line) => {
             singleLine[index] = line;
