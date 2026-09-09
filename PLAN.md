@@ -850,10 +850,23 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    ribbon. The ribbon is the *part* of the result involving the restricted
    family, and all three places now say so.
 
-   **Still missing, if a ribbon alone is ever wanted:** no combination of enable
-   and line isolates one, because enabling two families necessarily admits their
-   pair. That needs a third idea — "only pairs involving family j" — which is a
-   small addition to `collectRhombs` and is what E1 would have used.
+   **Ribbon isolation — added 2026-09-09.** No combination of enable and line
+   reaches it, because enabling two families necessarily admits their pair, so it
+   needed its own idea: `collectRhombs` takes `only`, and the γ set carries
+   `setIsolated`. Isolate a family and you keep just its tiles; add a single line
+   on the same family and what is left is exactly that line's ribbon. A small
+   `only` selector sits at the end of the single-line row. This is what E1 would
+   have used.
+
+   **A wiring failure worth recording.** Three of the four view edits for the
+   family controls were never written: the patch batch asserted its way out
+   partway through, and everything after was skipped. Nothing caught it, because
+   every test at the time called `collectRhombs` directly — the geometry was
+   right and the view was not connected to it, so the single-line inputs did
+   nothing at all. There are now four tests that go through the *view*
+   (`createPentagrid`, then count what the tiles layer fills), and the handle
+   exposes the γ set so that is possible. The lesson for patching: check the file
+   afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
 ## Site structure

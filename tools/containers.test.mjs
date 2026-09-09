@@ -474,3 +474,55 @@ test("the guard is decided exactly, not by a tolerance", () => {
     assert.deepEqual(singularTriples(nudged, den), [],
                      "one unit off the integers must clear every triple");
 });
+
+// ── the γ set reaches the picture ─────────────────────────────────
+// These go through the VIEW, not the geometry. Three of the wiring edits for the
+// family controls were silently never written — a patch batch aborted partway —
+// and every test at the time called collectRhombs directly, so nothing noticed.
+
+test("the handle exposes the γ set", () => {
+    const h = createPentagrid({ container: host(), steps: [] });
+    assert.ok(h.gamma, "no γ set on the handle");
+    assert.equal(h.gamma.enabledFlags().length, 5);
+});
+
+test("turning a family off through the set changes what is drawn", () => {
+    const h = createPentagrid({
+        container: host(700, 500), steps: [], features: { penroseTiles: true },
+    });
+    const before = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    h.gamma.setFamilyEnabled(2, false);
+    const after = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    assert.ok(before > 0, "nothing drawn to begin with");
+    assert.ok(after < before, `family off drew as many tiles: ${after} vs ${before}`);
+});
+
+test("a single line through the set changes what is drawn", () => {
+    const h = createPentagrid({
+        container: host(700, 500), steps: [], features: { penroseTiles: true },
+    });
+    const before = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    h.gamma.setFamilyLine(1, 0);
+    const after = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    assert.ok(after < before, `single line drew as many tiles: ${after} vs ${before}`);
+});
+
+test("isolating a family, then one of its lines, leaves a ribbon", () => {
+    const h = createPentagrid({
+        container: host(700, 500), steps: [], features: { penroseTiles: true },
+    });
+    const all = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    h.gamma.setIsolated(1);
+    const solo = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    h.gamma.setFamilyLine(1, 0);
+    const ribbon = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+
+    assert.ok(solo < all, "isolating drew as many tiles");
+    assert.ok(ribbon < solo, "restricting the isolated family drew as many again");
+    assert.ok(ribbon > 2, `a ribbon of only ${ribbon} tiles`);
+
+    h.gamma.setIsolated(null);
+    h.gamma.setFamilyLine(1, null);
+    assert.equal(tilesDrawn(h, "penrose-tiles", () => h.redraw()), all,
+                 "clearing both did not restore the tiling");
+});

@@ -241,7 +241,8 @@ test("the roof's level count follows the sum, but the rhombus never changes", ()
 
 const BOX = { xMin: -12, xMax: 12, yMin: -12, yMax: 12 };
 const tiles = (g, opts) => collectRhombs(g.model, BOX,
-    { gain: 2.5, active: g.enabledFlags(), lines: g.lineFlags(), ...opts });
+    { gain: 2.5, active: g.enabledFlags(), lines: g.lineFlags(),
+      only: g.isolated(), ...opts });
 
 test("families are all in play to begin with", () => {
     const g = createGammaSet();
@@ -327,4 +328,52 @@ test("family changes notify, so nothing has to remember to redraw", () => {
     g.onChange(() => { n++; });
     g.setFamilyEnabled(0, false); assert.equal(n, 1);
     g.setFamilyLine(0, 3);        assert.equal(n, 2);
+});
+
+test("isolating keeps only one family's tiles", () => {
+    const g = createGammaSet();
+    const all = tiles(g);
+    g.setIsolated(3);
+    const solo = tiles(g);
+    assert.ok(solo.length > 0 && solo.length < all.length);
+    for (const r of solo)
+        assert.ok(r.j === 3 || r.k === 3, `a tile ${r.j}${r.k} survived isolation`);
+    // and every tile of family 3 is still there
+    const expect = all.filter((r) => r.j === 3 || r.k === 3);
+    const key = (r) => `${r.j}${r.k}:${r.nj},${r.nk}`;
+    assert.deepEqual(solo.map(key).sort(), expect.map(key).sort());
+});
+
+test("isolate plus a single line is exactly one ribbon", () => {
+    // This is the combination neither option can reach alone: enabling two
+    // families necessarily admits their pair, so isolation needed its own idea.
+    const g = createGammaSet();
+    const all = tiles(g);
+    g.setIsolated(1);
+    g.setFamilyLine(1, 2);
+    const ribbon = tiles(g);
+
+    const expect = all.filter((r) => (r.j === 1 && r.nj === 2) || (r.k === 1 && r.nk === 2));
+    const key = (r) => `${r.j}${r.k}:${r.nj},${r.nk}`;
+    assert.deepEqual(ribbon.map(key).sort(), expect.map(key).sort());
+    assert.ok(ribbon.length > 4, `ribbon of only ${ribbon.length}`);
+
+    // a ribbon's tiles all share the isolated family's edge direction
+    for (const r of ribbon) assert.ok(r.j === 1 || r.k === 1);
+});
+
+test("isolation clears back to the whole tiling", () => {
+    const g = createGammaSet();
+    const all = tiles(g).length;
+    g.setIsolated(0);
+    assert.ok(tiles(g).length < all);
+    g.setIsolated(null);
+    assert.equal(tiles(g).length, all);
+});
+
+test("isolating a disabled family leaves nothing, which is consistent", () => {
+    const g = createGammaSet();
+    g.setFamilyEnabled(2, false);
+    g.setIsolated(2);
+    assert.equal(tiles(g).length, 0);
 });
