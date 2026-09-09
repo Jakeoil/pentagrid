@@ -8,7 +8,7 @@
     "stamp": "node tools/stamp.mjs",
     "serve": "python3 -m http.server 8001",
     "check": "node tools/pagecheck.mjs",
-    "test": "node --test tools/geometry.test.mjs tools/layers.test.mjs tools/factory.test.mjs tools/ui.test.mjs tools/containers.test.mjs"
+    "test": "node --test tools/geometry.test.mjs tools/gamma.test.mjs tools/layers.test.mjs tools/factory.test.mjs tools/ui.test.mjs tools/containers.test.mjs"
   },
   "keywords": [],
   "author": "Jeff Coyle",

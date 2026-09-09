@@ -792,11 +792,23 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
 
 ### Order
 
-1. Delete the duplicate checkbox. One switch, `allow singularities`.
-2. Extract `geometry/gamma.ts` with the sum still fixed at 0 — pure move, no
-   behaviour change, everything green.
-3. Generalise the sum, with presets: *all lines concurrent* (s = 0), *largest
-   pentagon* (γ = ½ each), and a free value.
+1. ~~Delete the duplicate checkbox.~~ **DONE** — one switch, `force regular`.
+2. ~~Extract `geometry/gamma.ts`.~~ **DONE 2026-09-09.** `createGammaSet` owns the
+   directions, the offsets, the sum constraint, the lock and the guard; the whole
+   of `pentagrid.ts` is now a view over it, and `ui/dials.ts` a view over that.
+   Behaviour-neutral: the default still lands on `[1,2,3,4,−10]/10⁴`, which is a
+   test. The sum is a field from the start and already works — only the UI for it
+   is missing.
+
+   One subscription replaced the scattered redraws: `gammaSet.onChange` clears the
+   rhomb cache, re-syncs the bank and draws, so no call site has to remember.
+
+   A property fell out of the tests, and it is Lutfalla's Theorem 2.1 seen from
+   the other side: **an even split only needs the guard when it lands on the
+   integers.** Sums of ½, 1, 5/2 and −5/4 divide into five non-integer offsets and
+   are regular untouched; 0, 5 and −5 do not, and get nudged.
+3. Generalise the sum *in the UI*, with presets: *all lines concurrent* (s = 0),
+   *largest pentagon* (γ = ½ each, s = 5/2), and a free value.
 4. Per-family enable, then single-line.
 5. Then decide what `roof.html` says about levels.
 
