@@ -1562,16 +1562,26 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const showSum = () => {
             const s = gammaSet.getSum();
             sumOut.textContent = s.toFixed(2);
+            // Two separate facts, and the label used to give only the first: what
+            // the central figure looks like, and which family of tilings it is.
+            // Σγ = 5/2 is the largest pentagon AND not Penrose, and saying only
+            // the former hid the more interesting half.
+            //
             // At Σγ = 0 the even split is all zeros, which is singular, so with
-            // the guard on you get a 1e-4 pentagon rather than a point. Say so
-            // rather than claiming the picture the number implies.
-            sumNote.textContent =
+            // the guard on you get a 1e-4 pentagon rather than a point.
+            const figure =
                 Math.abs(s) < 1e-9
-                    ? (gammaSet.nudged() ? "— just off concurrent (force regular)"
-                                         : "— all five lines meet at a point")
-                : Math.abs(s - 2.5) < 1e-9 ? "— largest pentagon"
-                : Number.isInteger(Math.round(s * 1e6) / 1e6) ? "— Penrose"
-                : "— generalised Penrose";
+                    ? (gammaSet.nudged() ? "just off concurrent (force regular)"
+                                         : "all five lines meet at a point")
+                : Math.abs(s - 2.5) < 1e-9
+                    ? "largest pentagon · Lutfalla's P₅(½), global 10-fold" : "";
+            // The class turns on Σγ mod 1, not on Σγ. Half-integer is the one
+            // that grows ten-thin-rhomb flowers, which Penrose has none of.
+            const frac = ((s % 1) + 1) % 1;
+            const cls = frac < 1e-9 || frac > 1 - 1e-9 ? "Penrose"
+                : Math.abs(frac - 0.5) < 1e-9 ? "generalised (Σγ ≡ ½) — thin-rhomb flowers"
+                : "generalised";
+            sumNote.textContent = `— ${figure ? figure + " · " : ""}${cls}`;
         };
         sumInput.addEventListener("input", () => {
             gammaSet.setSum(parseFloat(sumInput.value), true);
