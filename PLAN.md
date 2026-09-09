@@ -832,7 +832,28 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    Presets as buttons were dropped: the slider snaps to both canonical points and
    names them, so a button would only be a second way to reach a value already one
    drag away.
-4. Per-family enable, then single-line.
+4. ~~Per-family enable, then single-line.~~ **DONE 2026-09-09.** Both live in the
+   γ set, which is now the single home for "which lines are in play": the grid
+   layer's `visible` predicate reads it, and the panel checkbox drives it. Family
+   visibility was previously the *layer's* `userVisible`, doing double duty as
+   both "don't draw" and "don't generate tiles" — the same two-homes-for-one-fact
+   shape that produced the duplicate regularity checkbox.
+
+   `collectRhombs` gained a `lines` option, and a row of per-family pickers sits
+   under the family toggles: blank for all, a number for one.
+
+   **A correction, found by a failing test.** I had written — in the option's
+   doc, in the tooltip and in the test — that restricting a family to one line
+   leaves that line's ribbon. It does not. It restricts only the pairs *involving*
+   that family; what the other four make between themselves is untouched. With
+   family 1 pinned to one line the result is 614 tiles, of which 36 are the
+   ribbon. The ribbon is the *part* of the result involving the restricted
+   family, and all three places now say so.
+
+   **Still missing, if a ribbon alone is ever wanted:** no combination of enable
+   and line isolates one, because enabling two families necessarily admits their
+   pair. That needs a third idea — "only pairs involving family j" — which is a
+   small addition to `collectRhombs` and is what E1 would have used.
 5. Then decide what `roof.html` says about levels.
 
 ## Site structure

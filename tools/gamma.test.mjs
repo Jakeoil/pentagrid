@@ -236,3 +236,95 @@ test("the roof's level count follows the sum, but the rhombus never changes", ()
     assert.ok(seen.size > 1, `the level count never varied: ${[...seen]}`);
     assert.ok(seen.has(4), "Σγ = 0 should still give four levels");
 });
+
+// ── per-family enable, and single lines ───────────────────────────
+
+const BOX = { xMin: -12, xMax: 12, yMin: -12, yMax: 12 };
+const tiles = (g, opts) => collectRhombs(g.model, BOX,
+    { gain: 2.5, active: g.enabledFlags(), lines: g.lineFlags(), ...opts });
+
+test("families are all in play to begin with", () => {
+    const g = createGammaSet();
+    assert.deepEqual(g.enabledFlags(), [true, true, true, true, true]);
+    assert.deepEqual(g.lineFlags(), [null, null, null, null, null]);
+});
+
+test("turning a family off drops exactly the tiles it took part in", () => {
+    const g = createGammaSet();
+    const before = tiles(g);
+    g.setFamilyEnabled(2, false);
+    const after = tiles(g);
+    assert.ok(after.length < before.length, "nothing was dropped");
+    for (const r of after) {
+        assert.notEqual(r.j, 2, "a tile of family 2 survived");
+        assert.notEqual(r.k, 2);
+    }
+    // and only those: everything left was already there
+    const was = new Set(before.map((r) => `${r.j}${r.k}:${r.nj},${r.nk}`));
+    for (const r of after) assert.ok(was.has(`${r.j}${r.k}:${r.nj},${r.nk}`));
+});
+
+test("two families off leaves only the pairs among the remaining three", () => {
+    const g = createGammaSet();
+    g.setFamilyEnabled(0, false);
+    g.setFamilyEnabled(3, false);
+    const pairs = new Set(tiles(g).map((r) => `${r.j}${r.k}`));
+    assert.deepEqual([...pairs].sort(), ["12", "14", "24"]);
+});
+
+test("a single line restricts that family's pairs, and only those", () => {
+    // It does not isolate a ribbon: the tiles the other families make between
+    // themselves are untouched, so the ribbon is the part of the result that
+    // involves the restricted family.
+    const g = createGammaSet();
+    const all = tiles(g);
+    g.setFamilyLine(1, 2);
+    const one = tiles(g);
+    const key = (r) => `${r.j}${r.k}:${r.nj},${r.nk}`;
+    const uses1 = (r) => (r.j === 1 ? r.nj : (r.k === 1 ? r.nk : null));
+
+    assert.ok(one.length < all.length, "nothing was restricted");
+
+    // every survivor that uses family 1 is on line 2 of it
+    for (const r of one) {
+        const n = uses1(r);
+        if (n !== null) assert.equal(n, 2, `a tile on line ${n} survived`);
+    }
+    // the part involving family 1 is exactly the ribbon
+    const ribbon = all.filter((r) => uses1(r) === 2);
+    assert.deepEqual(one.filter((r) => uses1(r) !== null).map(key).sort(),
+                     ribbon.map(key).sort());
+    assert.ok(ribbon.length > 4, `ribbon of only ${ribbon.length}`);
+
+    // and the pairs not involving family 1 came through untouched
+    const without = (list) => list.filter((r) => uses1(r) === null).map(key).sort();
+    assert.deepEqual(without(one), without(all));
+});
+
+test("restricting every family leaves only where the chosen lines cross", () => {
+    const g = createGammaSet();
+    for (let j = 0; j < 5; j++) g.setFamilyLine(j, 0);
+    const t = tiles(g);
+    // one tile per pair of families, at most
+    assert.ok(t.length <= 10, `${t.length} tiles for ten pairs`);
+    const pairs = new Set(t.map((r) => `${r.j}${r.k}`));
+    assert.equal(pairs.size, t.length, "a pair produced more than one tile");
+    for (const r of t) { assert.equal(r.nj, 0); assert.equal(r.nk, 0); }
+});
+
+test("null puts a family's lines back", () => {
+    const g = createGammaSet();
+    const all = tiles(g).length;
+    g.setFamilyLine(4, -1);
+    assert.ok(tiles(g).length < all);
+    g.setFamilyLine(4, null);
+    assert.equal(tiles(g).length, all, "clearing the restriction did not restore it");
+});
+
+test("family changes notify, so nothing has to remember to redraw", () => {
+    const g = createGammaSet();
+    let n = 0;
+    g.onChange(() => { n++; });
+    g.setFamilyEnabled(0, false); assert.equal(n, 1);
+    g.setFamilyLine(0, 3);        assert.equal(n, 2);
+});
