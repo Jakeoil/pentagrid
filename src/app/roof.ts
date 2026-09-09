@@ -13,8 +13,6 @@ if (host) {
         { id: "roof-t", key: "grow", format: (v) => v.toFixed(2) },
         { id: "roof-fold", key: "fold", format: (v) => `${Math.round(v * 100)}%` },
         { id: "roof-band", key: "band", format: (v) => `${Math.round(v * 100)}%` },
-        { id: "roof-az", key: "azimuth", format: (v) => `${Math.round(v * 180 / Math.PI)}°` },
-        { id: "roof-el", key: "elevation", format: (v) => `${Math.round(v * 180 / Math.PI)}°` },
     ]);
     bindToggles(view, [{ id: "roof-edges", key: "boldEdges" }]);
 }

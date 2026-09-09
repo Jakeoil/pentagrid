@@ -79,6 +79,19 @@ export interface PentagridConfig {
      *  tool for inspecting near-singular configurations, and it gets in the way
      *  of simply looking at the picture. */
     loupe?: boolean;
+    /**
+     * Right-button drag, in pixels since the last move. A view with a camera uses
+     * it to orbit; the pentagrid itself has no camera and does not interpret it.
+     * Supplying this also suppresses the context menu over the canvas.
+     */
+    onOrbit?: (dx: number, dy: number) => void;
+    /**
+     * Widen the region tiles are collected from. The pentagrid works out what is
+     * visible for a flat, straight-down view; a host with a camera sees a
+     * different region and says so here. Returning the rect unchanged is the
+     * default.
+     */
+    collectRect?: (base: ViewRect) => ViewRect;
 }
 
 /** What a registered layer callback is handed. */
@@ -366,12 +379,18 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let rhombCacheKey = "";
 
     function currentRhombs(): Rhomb[] {
+        const base = getVisibleRect();
+        const vis = config.collectRect ? config.collectRect(base) : base;
+        // The rect is part of the key: a host that widens it for a camera must
+        // recollect when the camera moves, and nothing else here would notice.
         const key = [
             scale, viewX, viewY, gammaQ.join(","), verticalSymmetry ? 1 : 0,
             gridLayers.map((l) => (l.userVisible ? 1 : 0)).join(""),
+            vis.xMin.toFixed(3), vis.xMax.toFixed(3),
+            vis.yMin.toFixed(3), vis.yMax.toFixed(3),
         ].join("|");
         if (rhombCache && key === rhombCacheKey) return rhombCache;
-        rhombCache = collectRhombs(getVisibleRect());
+        rhombCache = collectRhombs(vis);
         rhombCacheKey = key;
         return rhombCache;
     }
@@ -776,14 +795,43 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         zoomAtScreen(e.offsetX, e.offsetY, factor);
     }, { passive: false });
 
+    // Right-drag orbits, left-drag pans, and they use the same gesture so the
+    // camera is handled where the picture is rather than off in a slider.
+    let isOrbiting = false;
+    let orbitLastX = 0;
+    let orbitLastY = 0;
+
     eventCanvas.addEventListener("mousedown", (e) => {
         if (e.button === 0) {
             isPanning = true;
             panLastX = e.offsetX;
             panLastY = e.offsetY;
             eventCanvas.style.cursor = "grabbing";
+        } else if (e.button === 2 && config.onOrbit) {
+            isOrbiting = true;
+            orbitLastX = e.offsetX;
+            orbitLastY = e.offsetY;
+            eventCanvas.style.cursor = "move";
+            e.preventDefault();
         }
     });
+
+    if (config.onOrbit) {
+        eventCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
+        eventCanvas.addEventListener("mousemove", (e) => {
+            if (!isOrbiting) return;
+            config.onOrbit!(e.offsetX - orbitLastX, e.offsetY - orbitLastY);
+            orbitLastX = e.offsetX;
+            orbitLastY = e.offsetY;
+        });
+        const stopOrbit = () => {
+            if (!isOrbiting) return;
+            isOrbiting = false;
+            eventCanvas.style.cursor = "grab";
+        };
+        eventCanvas.addEventListener("mouseup", stopOrbit);
+        eventCanvas.addEventListener("mouseleave", stopOrbit);
+    }
 
     eventCanvas.addEventListener("mousemove", (e) => {
         if (!isPanning) return;

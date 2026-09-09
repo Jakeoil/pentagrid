@@ -33,15 +33,12 @@
             <input type="range" id="roof-fold" min="0" max="1" step="0.01" value="1"></label>
         <label><span class="cap">band <span class="val" id="roof-band-value">50%</span></span>
             <input type="range" id="roof-band" min="0" max="1" step="0.02" value="0.5"></label>
-        <label><span class="cap">spin <span class="val" id="roof-az-value">20&deg;</span></span>
-            <input type="range" id="roof-az" min="0" max="6.283" step="0.01" value="0.35"></label>
-        <label><span class="cap">tilt <span class="val" id="roof-el-value">54&deg;</span></span>
-            <input type="range" id="roof-el" min="0.05" max="1.5707" step="0.005" value="0.95"></label>
         <label class="check"><input type="checkbox" id="roof-edges"> bold edges</label>
     </div>
 
     <div class="viewport" id="roof-view"></div>
-    <p class="hint">Drag to pan, scroll to zoom. <b>fold</b> at 0 lays the roof flat
+    <p class="hint"><b>Drag to pan, right-drag to spin and tilt</b>, scroll to zoom.
+    <b>fold</b> at 0 lays the roof flat
     &mdash; the ordinary tiling &mdash; and <b>grow</b> still runs the whole assembly
     from the pentagrid, now in three dimensions.</p>
 
