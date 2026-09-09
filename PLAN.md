@@ -761,6 +761,44 @@ of Σγ = 0, not of the construction, and `roof.html` should either say so or pi
 the sum. Whichever, `geometry/roof.ts` should stop implying four levels are
 universal.
 
+### The flowers — Σγ ≡ ½ is not Penrose, and we reproduce Figure 4(d)
+
+Jake, looking at Σγ = 5/2: *"I see the flowers of thin rhombs. We're not in
+Penrose anymore there."* Both halves check out, and the second is sharper than
+"non-integer sum".
+
+**A vertex census over a ±20 patch**, counting only vertices whose corner angles
+sum to 360:
+
+| Σγ | mod 1 | vertex types | all-thin vertices |
+|---|---|---|---|
+| 0, 1, 2 | 0 | 7 | **0** |
+| 0.25, 0.75, 1.25 | ¼, ¾ | 11 | **0** |
+| 0.5, 1.5, 2.5 | ½ | 11–12 | **16–25** |
+
+So the flower is the signature of a **half-integer** sum specifically, not of any
+non-integer one. Every one of them is `0 thick + 10 thin` — ten thin rhombs at
+their 36° corners, 10 × 36 = 360. Penrose has none.
+
+The class turns on **Σγ mod 1**: 0/1/2 share a vertex-type set, 0.5/1.5 share
+another, and 0.25 groups with 0.75 by the γ ↔ 1−γ reflection.
+
+**And Σγ = 5/2 is Lutfalla's P₅(½)** — his `Gn(x)` is every offset equal to x, so
+G₅(½) is our sum of 5/2. It is Figure 4(d) of the paper, captioned *10-fold*, and
+visibly covered in the same blue rosettes. Checked: rotating our tiling by 36°
+about the origin maps **100.0%** of vertices onto vertices, which is Theorem 1
+confirmed on this implementation. Guarded Σγ = 0 manages only 92.6%, because
+all-zeros is singular and forcing regularity costs the exact symmetry.
+
+That is the second independent source this project has agreed with from the other
+direction, after wieringa-roof's fold angles.
+
+**One accounting error worth recording.** The first census gave vertices summing
+to 576° and 792°, which is impossible in the plane. The corner angle at vertex 0
+is the angle *between* v_j and v_k — 72° for |Δ|=1 but **144°** for |Δ|=2 — and I
+had written the thin rhomb's angles the other way round, so its 36° and 144°
+corners were swapped. The impossible totals are what caught it.
+
 ### Shape
 
 ```ts
