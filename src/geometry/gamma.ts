@@ -56,6 +56,29 @@ export interface GammaSet {
     setGuard: (on: boolean) => void;
     getGuard: () => boolean;
 
+    /**
+     * Whether a family takes part at all. Off removes its lines *and* the tiles
+     * they generate, which is the honest reading of turning a γ index off — the
+     * dual of a line is a ribbon of tiles, so you cannot drop one and keep the
+     * other.
+     */
+    setFamilyEnabled: (index: number, on: boolean) => void;
+    familyEnabled: (index: number) => boolean;
+    /** All families, as collectRhombs wants them. */
+    enabledFlags: () => boolean[];
+
+    /**
+     * Show one line of a family instead of all of them. null restores all.
+     *
+     * It restricts only the pairs that family takes part in; what the others make
+     * between themselves is unaffected. The chosen line's ribbon is therefore the
+     * part of the result involving that family, not the whole of it.
+     */
+    setFamilyLine: (index: number, line: number | null) => void;
+    familyLine: (index: number) => number | null;
+    /** All families, as collectRhombs wants them. */
+    lineFlags: () => (number | null)[];
+
     /** All as equal as possible for the current sum, then guarded. */
     reset: () => void;
 
@@ -76,6 +99,8 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     let didNudge = false;
     const listeners: (() => void)[] = [];
 
+    const enabled: boolean[] = new Array(NUM_GRIDS).fill(true);
+    const singleLine: (number | null)[] = new Array(NUM_GRIDS).fill(null);
     const q: number[] = new Array(NUM_GRIDS).fill(0);
     const directions: Vec2[] = [];
     const gamma: number[] = new Array(NUM_GRIDS).fill(0);
@@ -175,6 +200,20 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         reset,
         singular: () => singularTriples(q, den),
         nudged: () => didNudge,
+        setFamilyEnabled: (index, on) => {
+            enabled[index] = on;
+            for (const cb of listeners) cb();
+        },
+        familyEnabled: (index) => enabled[index],
+        enabledFlags: () => enabled.slice(),
+
+        setFamilyLine: (index, line) => {
+            singleLine[index] = line;
+            for (const cb of listeners) cb();
+        },
+        familyLine: (index) => singleLine[index],
+        lineFlags: () => singleLine.slice(),
+
         onChange: (cb) => { listeners.push(cb); },
     };
 }

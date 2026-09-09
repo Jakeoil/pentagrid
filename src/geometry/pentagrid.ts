@@ -109,6 +109,17 @@ export interface CollectOptions {
     gain?: number;
     /** Which families participate. Omitted means all of them. */
     active?: readonly boolean[];
+    /**
+     * Restrict a family to one of its lines. `lines[j] = n` keeps only line n of
+     * family j; null or omitted keeps all of them.
+     *
+     * This restricts the *pairs involving that family*, and nothing else: the
+     * tiles the other families make between themselves are untouched. So it does
+     * not isolate a ribbon on its own — the ribbon is the part of the result that
+     * involves the restricted family. Restricting every family does leave only
+     * the tiles where the chosen lines cross.
+     */
+    lines?: readonly (number | null | undefined)[];
     /** Hard cap on the index range, to bound the work when zoomed far out. */
     maxNCap?: number;
     /** How far outside vis a vertex may be and still count as visible. */
@@ -130,13 +141,23 @@ export function collectRhombs(
     ) / gain;
     const maxN = Math.min(Math.ceil(maxCoord) + 5, cap);
 
+    const lines = opts.lines;
+    /** The line indices family j contributes: all of them, or just the one. */
+    const range = (j: number): [number, number] => {
+        const fixed = lines?.[j];
+        return (fixed === null || fixed === undefined)
+            ? [-maxN, maxN] : [fixed, fixed];
+    };
+
     const rhombs: Rhomb[] = [];
     for (let j = 0; j < NUM_GRIDS; j++) {
         if (active && !active[j]) continue;
+        const [jLo, jHi] = range(j);
         for (let k = j + 1; k < NUM_GRIDS; k++) {
             if (active && !active[k]) continue;
-            for (let nj = -maxN; nj <= maxN; nj++) {
-                for (let nk = -maxN; nk <= maxN; nk++) {
+            const [kLo, kHi] = range(k);
+            for (let nj = jLo; nj <= jHi; nj++) {
+                for (let nk = kLo; nk <= kHi; nk++) {
                     const pt = solveIntersection(pg, j, k, nj, nk);
                     if (!pt) continue;
                     const rhomb = computeRhomb(pg, j, k, nj, nk, pt[0], pt[1]);
