@@ -4,7 +4,8 @@
 // live. The difference between the two pages is a config object.
 
 import { createGrowthView } from "../view/growth.js";
-import { bindSliders, bindToggles } from "../view/controls.js";
+import { bindSliders, bindToggles, mountGammaControls } from "../view/controls.js";
+import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("roof-view");
 if (host) {
@@ -15,4 +16,11 @@ if (host) {
         { id: "roof-band", key: "band", format: (v) => `${Math.round(v * 100)}%` },
     ]);
     bindToggles(view, [{ id: "roof-edges", key: "boldEdges" }]);
+
+    // Σγ shifts the de Bruijn index range, so here it also changes how many
+    // levels the surface stands on — see the note under the viewport.
+    const gammaHost = document.getElementById("roof-gamma");
+    if (gammaHost) {
+        mountGammaControls(view.pentagrid.gamma, gammaHost, { colors: FAMILY_COLORS });
+    }
 }
