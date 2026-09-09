@@ -472,3 +472,52 @@ test("fold angles are 36, 72 or 108 and never flat", () => {
     assert.deepEqual([...byKind.get("thick|thin")].sort((a,b)=>a-b), [36, 72]);
     assert.deepEqual([...byKind.get("thin|thin")].sort((a,b)=>a-b), [108]);
 });
+
+test("adjacent tiles on a ribbon share an attachment midpoint exactly", () => {
+    // What the growth renderer seals its gaps against. Note "consecutive along
+    // the line" is not the same as "adjacent": collectRhombs culls tiles at the
+    // edge of a patch, so a consecutive pair can straddle a missing one — which
+    // is why the renderer checks before drawing a seam. Whether that happens
+    // depends on where the boundary falls, so this sweeps several windows.
+    const P = pg(GENERIC);
+    let totalSealed = 0, totalStraddled = 0, worst = 0;
+    for (const R of [4, 8, 16, 30]) {
+        const rhombs = collectRhombs(P, { xMin: -R, xMax: R, yMin: -R, yMax: R },
+                                     { gain: 2.5 });
+        for (let fam = 0; fam < NUM_GRIDS; fam++) {
+            const [vx, vy] = dirs[fam], px = -vy, py = vx;
+            const byLine = new Map();
+            for (const r of rhombs) {
+                const n = r.j === fam ? r.nj : (r.k === fam ? r.nk : null);
+                if (n === null) continue;
+                if (!byLine.has(n)) byLine.set(n, []);
+                byLine.get(n).push(r);
+            }
+            const seam = (r) => {
+                const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+                const at = (a, b) => [v0[0] + a * vj[0] + b * vk[0], v0[1] + a * vj[1] + b * vk[1]];
+                const pair = fam === r.j ? [at(0.5, 0), at(0.5, 1)] : [at(0, 0.5), at(1, 0.5)];
+                const proj = (p) => p[0] * px + p[1] * py;
+                return proj(pair[0]) <= proj(pair[1])
+                    ? { entry: pair[0], exit: pair[1] } : { entry: pair[1], exit: pair[0] };
+            };
+            for (const tiles of byLine.values()) {
+                if (tiles.length < 2) continue;
+                tiles.sort((a, b) => (a.x0 * px + a.y0 * py) - (b.x0 * px + b.y0 * py));
+                for (let i = 1; i < tiles.length; i++) {
+                    const a = seam(tiles[i - 1]), b = seam(tiles[i]);
+                    const d = Math.hypot(a.exit[0] - b.entry[0], a.exit[1] - b.entry[1]);
+                    if (d > 1e-6) { totalStraddled++; continue; }
+                    totalSealed++;
+                    worst = Math.max(worst, d);
+                }
+            }
+        }
+    }
+    assert.ok(totalSealed > 5000, `only ${totalSealed} seams found`);
+    assert.ok(worst < 1e-12, `seams do not meet: worst ${worst}`);
+    // the guard has to earn its place, but it should be rare
+    assert.ok(totalStraddled > 0, "no straddled pair anywhere — is the guard needed?");
+    assert.ok(totalStraddled < totalSealed * 0.01,
+              `${totalStraddled} straddled against ${totalSealed} sealed`);
+});

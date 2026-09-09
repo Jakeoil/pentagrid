@@ -314,3 +314,127 @@ test("a container that is already positioned is left alone", () => {
         globalThis.getComputedStyle = saved;
     }
 });
+
+// ── orbiting ──────────────────────────────────────────────────────
+
+/** Fire a right-button drag on the view's input surface. */
+function rightDrag(handle, moves) {
+    // Found by capability, not position: the loupe canvas is appended after the
+    // event surface, so "last child" is the wrong one.
+    const canvas = handle.container.children.find((c) => c.on && c.on.mousedown);
+    assert.ok(canvas, "no input surface found in the container");
+    const on = canvas.on;
+    on.mousedown.forEach((f) => f({ button: 2, offsetX: 0, offsetY: 0, preventDefault() {} }));
+    let x = 0, y = 0;
+    for (const [dx, dy] of moves) {
+        x += dx; y += dy;
+        on.mousemove.forEach((f) => f({ button: 2, offsetX: x, offsetY: y, preventDefault() {} }));
+    }
+    on.mouseup.forEach((f) => f({}));
+}
+
+test("right-drag spins and tilts a lifted view", () => {
+    const c = host();
+    const v = createGrowthView({ container: c, lift: true });
+    v.pentagrid.container = c;                       // for the helper
+    const before = v.get();
+    rightDrag({ container: c }, [[60, 0]]);
+    assert.ok(v.get().azimuth > before.azimuth, "dragging right did not spin");
+
+    const mid = v.get();
+    rightDrag({ container: c }, [[0, 40]]);
+    assert.ok(v.get().elevation < mid.elevation, "dragging down did not lower the camera");
+});
+
+test("tilt is clamped short of edge-on and straight down", () => {
+    const c = host();
+    const v = createGrowthView({ container: c, lift: true });
+    rightDrag({ container: c }, [[0, 5000]]);        // far past the horizon
+    assert.ok(v.get().elevation >= 0.05, `elevation ran to ${v.get().elevation}`);
+    rightDrag({ container: c }, [[0, -5000]]);       // far past overhead
+    assert.ok(v.get().elevation <= Math.PI / 2 + 1e-9, `elevation ran to ${v.get().elevation}`);
+});
+
+test("a flat view does not orbit unless asked", () => {
+    const c = host();
+    const v = createGrowthView({ container: c, lift: false });
+    const before = v.get();
+    rightDrag({ container: c }, [[80, 80]]);
+    assert.equal(v.get().azimuth, before.azimuth, "a flat view tilted on a stray right-drag");
+    assert.equal(v.get().elevation, before.elevation);
+});
+
+test("orbit can be turned on for a flat view explicitly", () => {
+    const c = host();
+    const v = createGrowthView({ container: c, lift: false, orbit: true });
+    const before = v.get();
+    rightDrag({ container: c }, [[80, 0]]);
+    assert.notEqual(v.get().azimuth, before.azimuth);
+});
+
+/** Count how many tiles a layer fills on one redraw. */
+function tilesDrawn(handle, layerId, redraw) {
+    const layer = handle.stack.get(layerId);
+    assert.ok(layer, `no ${layerId} layer`);
+    let n = 0;
+    const real = layer.ctx.fill;
+    layer.ctx.fill = () => { n++; };
+    try { redraw(); } finally { layer.ctx.fill = real; }
+    return n;
+}
+
+test("the collected region follows the camera, and costs nothing when flat", () => {
+    // Tilting squashes world-y onto the screen by sin(elevation), so a rect sized
+    // for a flat view stops reaching the edges. The host widens it; the pentagrid
+    // has no camera and would not know to.
+    const v = createGrowthView({ container: host(720, 560), lift: true });
+
+    v.set({ fold: 1, grow: 1, azimuth: 0, elevation: Math.PI / 2 });
+    const flat = tilesDrawn(v.pentagrid, "growth", () => v.redraw());
+
+    v.set({ elevation: 0.5 });
+    const tilted = tilesDrawn(v.pentagrid, "growth", () => v.redraw());
+
+    v.set({ elevation: 0.2 });
+    const grazing = tilesDrawn(v.pentagrid, "growth", () => v.redraw());
+
+    assert.ok(flat > 0, "nothing drawn at all");
+    assert.ok(tilted > flat, `tilting collected no more: ${tilted} vs ${flat}`);
+    assert.ok(grazing > tilted, `grazing collected no more: ${grazing} vs ${tilted}`);
+});
+
+test("a flat view collects no more than it needs", () => {
+    // grow.html must not pay for the roof's camera.
+    const flat = createGrowthView({ container: host(720, 560), lift: false });
+    const roof = createGrowthView({ container: host(720, 560), lift: true });
+    flat.set({ grow: 1 });
+    roof.set({ grow: 1, fold: 1, elevation: Math.PI / 2, azimuth: 0 });
+    const a = tilesDrawn(flat.pentagrid, "growth", () => flat.redraw());
+    const b = tilesDrawn(roof.pentagrid, "growth", () => roof.redraw());
+    assert.equal(a, b, "flat and straight-down should collect the same region");
+});
+
+test("collectRect is consulted, and its result keys the rhomb cache", () => {
+    // Without the rect in the cache key an orbit would redraw the old tiles.
+    let asked = 0;
+    let widen = 1;
+    const h = createPentagrid({
+        container: host(600, 400),
+        steps: [],
+        features: { penroseTiles: true },
+        collectRect: (base) => {
+            asked++;
+            const cx = (base.xMin + base.xMax) / 2, cy = (base.yMin + base.yMax) / 2;
+            const hw = ((base.xMax - base.xMin) / 2) * widen;
+            const hh = ((base.yMax - base.yMin) / 2) * widen;
+            return { xMin: cx - hw, xMax: cx + hw, yMin: cy - hh, yMax: cy + hh };
+        },
+    });
+    assert.ok(asked > 0, "collectRect was never consulted");
+
+    const one = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    widen = 3;
+    const three = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    assert.ok(one > 0, "no tiles drawn at all");
+    assert.ok(three > one, `widening drew no more tiles (${three} vs ${one})`);
+});
