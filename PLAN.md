@@ -155,7 +155,10 @@ optimistic, not conservative, when it happens.
 **Concurrencies are a separate finding and must be reported separately.** A small
 triangle has an interior and the loupe can open it up. Three or more lines
 actually meeting have no interior at all, and no magnification will ever help —
-that is where de Bruijn's construction is undefined, not merely inconvenient. The
+that is where the dual stops being a rhombus tiling — the construction is not
+undefined there, which is what an earlier draft of this said. Lutfalla: *the dual
+of an intersection point where k lines meet is a 2k-gon with unit sides.* Three
+lines through a point give a hexagon, not three rhombs. The
 scan's triangle test misses them by construction (the triangle degenerates and
 falls out of the perimeter guard), so they need their own branch: inradius below
 a tolerance in **math units**, then dedupe by position and count how many
@@ -664,6 +667,57 @@ Neither syncs to the other, so toggling one leaves the other showing the
 opposite of the truth. I inverted the control when the settings panel was added
 and never removed the original. One control, and `allow singularities` is the
 better name — it says what unchecking gets you.
+
+### What the literature says — Lutfalla 2021
+
+V. H. Lutfalla, *An Effective Construction for Cut-And-Project Rhombus Tilings
+with Global n-Fold Rotational Symmetry*, AUTOMATA 2021,
+[doi:10.4230/OASIcs.AUTOMATA.2021.9](https://doi.org/10.4230/OASIcs.AUTOMATA.2021.9);
+SageMath companion at [doi:10.5281/zenodo.4698387](https://doi.org/10.5281/zenodo.4698387).
+Jake has it locally as `multigrids.pdf`, deliberately not committed — the Pages
+workflow publishes the repo root, and republishing someone else's paper on the
+site is not ours to decide. It settles the ½ question and corrects two things
+recorded here.
+
+**Notation.** Lutfalla writes `H(ξ, γ) = {z : Re(z·ξ̄) − γ ∈ ℤ}` — offset
+*subtracted*, and restricted to γ ∈ [0,1). Ours adds it, so their γ is our −γ mod
+1. Nothing that matters turns on it, but translations should watch the sign.
+`Gn(x)` means **all n offsets equal to x**.
+
+**So the ½ is per-offset, not the sum.** `G5(½)` is five offsets of ½ each, which
+in our terms is Σγ = 5/2 — the largest pentagon. The measurement above was right
+and the sketch's "sum of ½" was not. This also generalises, which a sum cannot:
+`Gn(½)` means the same thing for every n.
+
+**Theorem 1.** `Pn(½)` has global **2n**-fold symmetry for any n ≥ 4; `Pn(1/n)`
+has global **n**-fold symmetry for odd n ≥ 5. So for genuine 7-fold symmetry the
+target is **P₇(1/7)**, not P₇(½) — that one gives 14-fold.
+
+**Theorem 2, the regularity result.** For any n ≥ 3 and any non-zero rational
+r ∈ (0,1), `Gn(r)` is regular; and for **odd** n ≥ 3, *any tuple* of non-zero
+rational offsets is regular. Proved via Conway–Jones on trigonometric diophantine
+equations — vanishing sums of roots of unity.
+
+Three consequences for us:
+
+- **At n = 5 that is exactly our corollary**, arrived at independently: no γⱼ an
+  integer ⟹ regular. Lutfalla proves it for all odd n.
+- **Our statement is under-qualified.** The split `u + φv = 0 ⟹ u = v = 0` needs
+  u and v *rational*, so the corollary holds for **rational γ**. The code is safe
+  — γ is exact rationals over 10⁴ by construction — but the claim as written in
+  item 1 is stronger than the derivation supports and should say so.
+- **n = 7 is much easier than this plan assumed.** The note that the ℚ(ζ₇) split
+  would need a real rederivation is wrong in practice: for odd n the guard is just
+  "every offset a non-zero rational", which is trivially enforceable. What does
+  *not* generalise is the **exact** criterion — knowing *which* triples are
+  singular, which the meter reports. That stays n = 5 for now. And for **even** n
+  only the all-equal case is covered, not arbitrary tuples.
+
+**Also worth having.** Lutfalla notes de Bruijn's exact characterisation of
+regular pentagrids covers only the Penrose case, Σγ ∈ ℤ. Ours was verified against
+brute force at sums of 0.5, 0.9 and 2.5 as well, so it appears to cover the
+generalised case too — for rational γ. Worth stating carefully rather than
+claiming priority.
 
 ### The sum, and what it buys
 
