@@ -189,6 +189,7 @@ test("height only moves things when the camera is tilted off vertical", () => {
 
 import { LayerStack } from "../dist/view/layers.js";
 import { createPentagrid } from "../dist/view/pentagrid.js";
+import { singularTriples } from "../dist/geometry/regularity.js";
 import { fireResize } from "./domstub.mjs";
 
 test("LayerStack.resize reaches drawn and raw canvases alike", () => {
@@ -437,4 +438,39 @@ test("collectRect is consulted, and its result keys the rhomb cache", () => {
     const three = tilesDrawn(h, "penrose-tiles", () => h.redraw());
     assert.ok(one > 0, "no tiles drawn at all");
     assert.ok(three > one, `widening drew no more tiles (${three} vs ${one})`);
+});
+
+test("there is exactly one regularity control, and it reads positively", () => {
+    // It was briefly two — "keep γ regular" and "allow singularities" — bound to
+    // the same flag with opposite senses and no syncing.
+    const c = host();
+    createPentagrid({ container: c, controls: makeStub(), panel: makeStub() });
+
+    const labels = [];
+    const walk = (el, depth = 0) => {
+        if (depth > 6 || !el || !el.children) return;
+        for (const kid of el.children) {
+            if (typeof kid.textContent === "string" && kid.textContent) labels.push(kid.textContent);
+            walk(kid, depth + 1);
+        }
+    };
+    // the guard lives in the settings panel; sweep everything the page was given
+    walk(c);
+    const guardish = labels.filter((t) =>
+        /regular|singular/i.test(String(t)));
+    assert.ok(guardish.length <= 1,
+              `more than one regularity control: ${JSON.stringify(guardish)}`);
+});
+
+test("the guard is decided exactly, not by a tolerance", () => {
+    // A shift far below any float epsilon still counts, because the decision is
+    // ten integer comparisons on γ as rationals.
+    const den = 10000;
+    const onIntegers = [0, 0, 0, 0, 0];
+    assert.equal(singularTriples(onIntegers, den).length, 10,
+                 "all-integer γ must be singular in every triple");
+    const nudged = [1, 2, 3, 4, -10];              // one unit of the denominator
+    assert.equal(nudged.reduce((a, b) => a + b, 0), 0, "the sum must survive");
+    assert.deepEqual(singularTriples(nudged, den), [],
+                     "one unit off the integers must clear every triple");
 });

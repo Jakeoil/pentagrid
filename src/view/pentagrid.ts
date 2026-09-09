@@ -572,21 +572,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const meterDiv = document.createElement("div");
     meterDiv.className = "regularity-control";
 
-    const guardLabel = document.createElement("label");
-    guardLabel.className = "layer-toggle";
-    guardLabel.title = "Keep γ off the singular set. Uncheck to sit on a singularity.";
-    const guardCb = document.createElement("input");
-    guardCb.type = "checkbox";
-    guardCb.checked = guardRegular;
-    guardCb.addEventListener("change", () => {
-        guardRegular = guardCb.checked;
-        updateLockedGamma();
-        draw();
-    });
-    guardLabel.appendChild(guardCb);
-    guardLabel.appendChild(document.createTextNode(" keep γ regular"));
-    meterDiv.appendChild(guardLabel);
-
     const meterSpan = document.createElement("div");
     meterSpan.className = "regularity-meter";
     meterDiv.appendChild(meterSpan);
@@ -1538,11 +1523,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         det.appendChild(sum);
 
         const sRow = row(det, "");
-        checkbox(sRow, "allow singularities", !guardRegular, (v) => {
-            guardRegular = !v;
+        // One control, stated positively. It was briefly two — this one and a
+        // "keep γ regular" beside the meter — bound to the same flag with
+        // opposite senses and no syncing, so either would show the opposite of
+        // the truth once the other was touched.
+        const guardBox = checkbox(sRow, "force regular", guardRegular, (v) => {
+            guardRegular = v;
             updateLockedGamma();
             draw();
         });
+        guardBox.title = "No three lines ever meet at a point. Decided exactly on "
+            + "γ as rationals — ten integer comparisons, no tolerance.";
         checkbox(sRow, "loupe on tiny regions", loupeEnabled, (v) => {
             loupeEnabled = v;
             if (!v) closeLoupe();
