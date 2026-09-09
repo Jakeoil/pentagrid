@@ -377,3 +377,78 @@ test("isolating a disabled family leaves nothing, which is consistent", () => {
     g.setIsolated(2);
     assert.equal(tiles(g).length, 0);
 });
+
+test("the tiling family turns on Σγ mod 1, and half-integer grows flowers", () => {
+    // Jake spotted "flowers" of thin rhombs at Σγ = 5/2 and said we are not in
+    // Penrose there. Both halves check out — and the flower is the signature of a
+    // HALF-integer sum specifically, not of any non-integer one.
+    const census = (sum) => {
+        const g = createGammaSet({ sum });
+        const rhombs = collectRhombs(g.model, { xMin: -20, xMax: 20, yMin: -20, yMax: 20 },
+                                     { gain: 2.5 });
+        const at = new Map();
+        for (const r of rhombs) {
+            const d = Math.min(Math.abs(r.j - r.k), 5 - Math.abs(r.j - r.k));
+            const a = d === 1 ? 72 : 144;          // the angle BETWEEN v_j and v_k
+            const ang = [a, 180 - a, a, 180 - a];
+            r.vertices.forEach((v, i) => {
+                const k = `${Math.round(v[0] * 1e6)},${Math.round(v[1] * 1e6)}`;
+                if (!at.has(k)) at.set(k, { deg: 0, thick: 0, thin: 0 });
+                const e = at.get(k);
+                e.deg += ang[i];
+                if (r.thick) e.thick++; else e.thin++;
+            });
+        }
+        const full = [...at.values()].filter((v) => Math.abs(v.deg - 360) < 1e-6);
+        return {
+            complete: full.length,
+            flowers: full.filter((v) => v.thick === 0).length,
+            allThinSize: new Set(full.filter((v) => v.thick === 0).map((v) => v.thin)),
+        };
+    };
+
+    for (const s of [0, 1, 2]) {
+        const c = census(s);
+        assert.ok(c.complete > 1000, `only ${c.complete} complete vertices at Σγ = ${s}`);
+        assert.equal(c.flowers, 0, `Penrose should have no all-thin vertex, Σγ = ${s}`);
+    }
+    for (const s of [0.25, 0.75, 1.25]) {
+        assert.equal(census(s).flowers, 0,
+                     `Σγ = ${s} is not half-integer and should grow no flowers`);
+    }
+    for (const s of [0.5, 1.5, 2.5]) {
+        const c = census(s);
+        assert.ok(c.flowers > 5, `Σγ = ${s} should grow flowers, found ${c.flowers}`);
+        // ten thin rhombs at their 36° corners: 10 x 36 = 360
+        assert.deepEqual([...c.allThinSize], [10],
+                         `a flower should be ten thin rhombs, got ${[...c.allThinSize]}`);
+    }
+});
+
+test("Σγ = 5/2 is Lutfalla's P5(1/2), with exact global 10-fold symmetry", () => {
+    // Theorem 1: Pn(1/2) has global 2n-fold rotational symmetry. His Gn(x) means
+    // every offset equal to x, so G5(1/2) is our Σγ = 5/2 — and it is Figure 4(d)
+    // of the paper, the 10-fold one covered in thin-rhomb flowers.
+    const key = (p) => `${Math.round(p[0] * 1e5)},${Math.round(p[1] * 1e5)}`;
+    const spin = (sum, turns, R = 12) => {
+        const g = createGammaSet({ sum });
+        const rhombs = collectRhombs(g.model,
+            { xMin: -R - 6, xMax: R + 6, yMin: -R - 6, yMax: R + 6 }, { gain: 2.5 });
+        const have = new Set();
+        for (const r of rhombs) for (const v of r.vertices) have.add(key(v));
+        const a = 2 * Math.PI / turns, c = Math.cos(a), sn = Math.sin(a);
+        let hit = 0, total = 0;
+        for (const r of rhombs) for (const v of r.vertices) {
+            if (Math.hypot(v[0], v[1]) > R) continue;
+            total++;
+            if (have.has(key([v[0] * c - v[1] * sn, v[0] * sn + v[1] * c]))) hit++;
+        }
+        return hit / total;
+    };
+    assert.ok(spin(2.5, 10) > 0.9999, "Σγ = 5/2 should be exactly 10-fold");
+    assert.ok(spin(2.5, 5) > 0.9999, "and therefore 5-fold too");
+
+    // Σγ = 0 is not, because the guard has to move off the symmetric point:
+    // all-zeros is singular, so forcing regularity costs the exact symmetry.
+    assert.ok(spin(0, 5) < 0.99, "guarded Σγ = 0 should not be exactly 5-fold");
+});
