@@ -933,8 +933,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (d < minDot) minDot = d;
             if (d > maxDot) maxDot = d;
         }
-        const nLo = Math.floor(minDot + gamma[j]) - 1;
-        const nHi = Math.ceil(maxDot + gamma[j]) + 1;
+        // A family restricted to one line draws only that line. Its dual is that
+        // line's ribbon — though the tiling still carries whatever the other
+        // families make among themselves, which the restriction does not touch.
+        const only = gammaSet.familyLine(j);
+        const nLo = only !== null ? only : Math.floor(minDot + gamma[j]) - 1;
+        const nHi = only !== null ? only : Math.ceil(maxDot + gamma[j]) + 1;
 
         tc.strokeStyle = COLORS[j];
         tc.lineWidth = gridLineWidth;
@@ -1427,12 +1431,45 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 const swatch = layer.id.startsWith("grid-")
                     ? COLORS[Number(layer.id.slice(5))]
                     : undefined;
-                checkbox(r, layer.label, layer.userVisible, (v) => {
-                    layer.userVisible = v;
-                    // the rhomb set depends on which families are in play
-                    if (layer.id.startsWith("grid-")) rhombCache = null;
-                    draw();
-                }, swatch);
+                const family = layer.id.startsWith("grid-")
+                    ? Number(layer.id.slice(5)) : null;
+                checkbox(r, layer.label,
+                    family === null ? layer.userVisible : gammaSet.familyEnabled(family),
+                    (v) => {
+                        // A family's visibility belongs to the γ set, not to the
+                        // layer: turning one off drops the tiles it generates as
+                        // well as its lines, since the dual of a line is a ribbon
+                        // of tiles. Two homes for that is how the duplicate
+                        // regularity checkbox happened.
+                        if (family !== null) gammaSet.setFamilyEnabled(family, v);
+                        else { layer.userVisible = v; draw(); }
+                    }, swatch);
+            }
+            if (group === "Pentagrid") {
+                // One line, or all of them, per family. Blank means all.
+                const lineRow = row(layerPanelDiv, "single line");
+                for (let j = 0; j < NUM_GRIDS; j++) {
+                    const wrap = document.createElement("label");
+                    wrap.className = "layer-toggle";
+                    wrap.title = `Show only one line of family ${j}. `
+                        + "The tiles it makes are that line's ribbon; the other "
+                        + "families keep making tiles between themselves.";
+                    const sw = document.createElement("span");
+                    sw.className = "layer-swatch";
+                    sw.style.background = COLORS[j];
+                    const box = document.createElement("input");
+                    box.type = "number";
+                    box.className = "line-pick";
+                    box.placeholder = "all";
+                    box.addEventListener("input", () => {
+                        const raw = box.value.trim();
+                        const n = raw === "" ? null : parseInt(raw, 10);
+                        gammaSet.setFamilyLine(j, Number.isFinite(n as number) ? n : null);
+                    });
+                    wrap.appendChild(sw);
+                    wrap.appendChild(box);
+                    lineRow.appendChild(wrap);
+                }
             }
             if (group === "Penrose") {
                 checkbox(r, "in front", penroseInFront, (v) => {
