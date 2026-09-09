@@ -745,6 +745,124 @@ Still n = 5 only, and not needed by a grow page: the Wieringa lift (ℝ⁷ has a
 decorations, `perpBasis` (returns the first of n = 7's two perpendicular planes),
 and the exact `TRIPLES` criterion.
 
+### Caps, the index, and the star/sun/decagon question (2026-09-09)
+
+Prompted by Levochik's `Penrose_LI_classes.svg` on Wikipedia's *Aperiodic tiling*
+(CC BY-SA 3.0, so we should redraw rather than embed). Eighteen patches, 6 across
+and 3 down — the SVG is internally 3x6 with `matrix(0,1,-1,0,8833.5,-0.5)`
+rotating it. Rendering note: `qlmanage` forces a square and silently gives a 3x3
+crop; ImageMagick has no SVG delegate here; headless Chrome is correct.
+
+**Measured: all eighteen are origin-centred.** 72 and 144 degree self-agreement
+0.70-0.85 against a 0.21-0.28 control at 30/50/100 degrees. Five-fold symmetry
+about the origin forces every offset equal — rotating by 72 sends v_j to v_{j+1},
+so family j's lines land on family j+1's only if gamma_{j+1} = gamma_j mod 1. So
+the figure is the *uniform* family Gn(c), one parameter.
+
+**Sum arithmetic.** With every offset equal to c, Sigma-gamma = 5c. If c runs over
+[0,1) then Sigma-gamma runs over [0,5) and the LI-class circle is traversed FIVE
+times. One lap — the complete gamut — is c in [0, 1/5). The eighteen are a finite
+sample of a continuum, and *origin-centred* is a second restriction: for a fixed
+Sigma-gamma you can spread the dials and get a different tiling in the SAME LI
+class with no symmetry at all. They are the symmetric representatives.
+
+**Jake was right about mod 1.** Sigma-gamma = 2.5 and 0.5 are the same LI class.
+Confirmed: flowers at both, none at integers or generic values.
+
+**Cap = a minimum of the vertex-type count.** Sweeping Sigma-gamma at n = 5, in a
++-12 window:
+
+    Sum  0.000  types  7   <== MIN      Sum  1.000  types  7   <== MIN
+    Sum  0.375  types 12               Sum  2.000  types  7   <== MIN
+    Sum  0.500  types 11               Sum  2.500  types 10
+
+A sharp dip to 7 (classically 8; rare types need a bigger window) exactly at
+integer Sigma-gamma, 10-12 everywhere else. Penrose is the minimum-complexity
+member of the family, which is exactly the cap idea.
+
+**No harmonics at 1/3 or 2/3.** The only distinguished points in [0,1) are
+Sigma-gamma = 0, the type-count cap, and 1/2, where the ten-thin flower appears.
+The flower band is Sigma-gamma in [0.34, 0.64], a symmetric staircase peaking at
+1/2 (density 0, 5, 11, 21, 11, 5, 0) — the symmetry about 1/2 is the mirror
+identification Sigma-gamma <-> 1 - Sigma-gamma. Nothing happens at 1/3.
+
+**The index runs 4 values at integer Sigma-gamma and 5 otherwise.** The sharpest
+Penrose test in the whole family:
+
+    c     Sum   types  flowers  index    levels
+    0.00  0.00    7      0      1..4       4    integer
+    0.05  0.25   11      0      1..5       5
+    0.10  0.50   12      9      1..5       5
+    0.20  1.00    8      0      2..5       4    integer
+    0.40  2.00    8      0      3..6       4    integer
+    0.50  2.50   13     10      3..7       5
+
+Reason: Sum_j v_j = 0, so Sum_j (x . v_j) = 0 and the index Sum K is a sum of five
+ceilings of numbers totalling Sigma-gamma. An integer total collapses one case.
+That is de Bruijn's index result, arrived at by measurement here.
+
+**Correction — the Wieringa roof is NOT Penrose-only.** Checked at Sigma-gamma =
+0, 0.5, 1, 1.23, 2.5: every lifted edge is exactly sqrt(5)/2 (max deviation 2e-15)
+and every index step is +-1. The roof stands for the generalised tilings too; it
+just sits on FIVE levels instead of four. The roof's restriction is n = 5, which
+is a different thing from Sigma-gamma integer, and it is easy to slide between
+them.
+
+**The star / sun / decagon question — answered, and the answer is "no star".**
+For the uniform family, what sits at the origin-centred vertex:
+
+    c = 0        SINGULAR, all ten triples   DECAGON, 10 tiles (5 fat + 5 thin)
+    c = 1/5,2/5,3/5,4/5 (Penrose)            SUN, 5 fat
+    c = 1/10, 3/10, and every other c        SUN, 5 fat
+    c = 1/2                                  FLOWER, 10 thin
+
+Approaching c = 0 from both sides (+-0.001, +-0.01, +-0.1) gives a SUN either way.
+So the decagon's two resolutions are not sun-and-star: within the uniform family
+the origin is *always* inside a small pentagon whose five corners are Delta = 1
+crossings, and Delta = 1 is the fat rhomb. **The star is not an origin-centred cap
+at all.** What looks like a star at the centre of r3c4 is the ring of dark thin
+rhombs drawn *around* a sun vertex — the ink makes a five-pointed star, the vertex
+is five fat rhombs. Verified by cropping the centre of that patch.
+
+So "0 doesn't make a star" because 0 makes a *decagon*, and every regular
+neighbour of it makes a sun. Open: is there any gamma at all whose origin-centred
+cap is a star (5 thin)? Angle arithmetic says a vertex of five thin rhombs needs
+5 corners summing to 360 from {36, 144}, and no combination works — so a "5 thin"
+vertex may simply not exist, and the honest names are decagon / sun / flower.
+Worth settling before building any UI around it.
+
+**n = 7 has no Penrose-like cap.** At exact integers and halves:
+
+    Sum   0.0  0.5  1.0  1.5  2.0  2.5  3.0  3.5
+    types  23   24   21   25   20   23   25   20
+    levels  6    6    6    5    6    6    6    5
+
+No dip at the integers — the type count wanders in 20-25 with minima at 2.0 and
+3.5 that are not obviously structural. The index span is 6 (= n-1) at most sums
+and 5 at 1.5 and 3.5, which does *not* follow the n = 5 pattern of "integer gives
+n-1". Measured, not explained. So the thing that makes Penrose special at five
+appears to have no analogue at seven, which is worth saying on grow7.html.
+
+**Ideas, not yet built.**
+
+- A *tweaking mode* for the dials: snap or nudge Sigma-gamma to the distinguished
+  values (integers for the cap, n/2 for the flower/10-fold) instead of hunting for
+  them at 0.05 resolution. Jake's phrase: "it could tweak to a sun".
+- Our own version of the LI-class grid: a row of patches across Sigma-gamma in
+  [0,1), same even split, so the flowers appear and disappear as you sweep. All
+  the geometry exists; it is a layout job.
+- Read Figure 3 of `multigrids.pdf` — "Some possible intersection points in G5(γ)
+  and their dual tiles" — against the decagon case above.
+
+**Two measurement gotchas that cost time here.**
+
+- Vertex keys built with `toFixed` split the origin across buckets, because
+  `(-1e-16).toFixed(6)` is `"-0.000000"` and `(1e-16).toFixed(6)` is
+  `"0.000000"`. Key on rounded integers with an explicit `r === 0 ? 0 : r`.
+- Corner 0 of a rhomb spans v_j to v_k, so its angle is 72 for Delta = 1 and
+  **144** for Delta = 2 — not 36. Getting it backwards makes every vertex fail
+  the 360-degree check and collapses the type count to one or two.
+
 **Also worth having.** Lutfalla notes de Bruijn's exact characterisation of
 regular pentagrids covers only the Penrose case, Σγ ∈ ℤ. Ours was verified against
 brute force at sums of 0.5, 0.9 and 2.5 as well, so it appears to cover the

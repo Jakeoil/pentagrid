@@ -3,3 +3,7 @@ dist/
 .DS_Store
 src/build-id.ts
 multigrids.pdf
+
+# Third-party figure, CC BY-SA. Pages publishes the repo root, so committing
+# it would republish someone else own work on the site. Same reason as multigrids.pdf.
+Penrose_LI_classes.svg
