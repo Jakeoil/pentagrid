@@ -7,6 +7,7 @@ import {
 } from "../geometry/pentagrid.js";
 import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/regularity.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
+import { createGammaSet } from "../geometry/gamma.js";
 import { rhombArcs } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
 import { createGammaBank } from "../ui/dials.js";
@@ -123,22 +124,13 @@ export interface PentagridHandle {
 }
 
 export function createPentagrid(config: PentagridConfig): PentagridHandle {
-    // Unit vectors at 72°.
-    //
-    // With verticalSymmetry the whole star is turned a quarter turn, so v0 points
-    // up and family 0's LINES are horizontal; the five directions are then mirror
-    // symmetric about the vertical axis. It cannot disturb the regularity
-    // criterion, which depends only on angle differences.
-    let verticalSymmetry = true;
+    // The γ cluster owns the directions, the offsets, the sum constraint and the
+    // regularity guard. See geometry/gamma.ts — this file is a view over it.
+    const gammaSet = createGammaSet();
+    const directions = gammaSet.model.directions;
+    const gamma = gammaSet.model.gamma;
     // "Sometimes you just have to see them."
     let gridLineWidth = 1;
-    const directions: Vec2[] = [];
-
-    function rebuildDirections() {
-        const next = makeDirections(verticalSymmetry);
-        for (let j = 0; j < NUM_GRIDS; j++) directions[j] = next[j];
-    }
-    rebuildDirections();
 
     // ── Canvas size ───────────────────────────────────────────────────
     //
@@ -178,23 +170,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const canvas = readCanvasSpec();
 
-    // State.
-    //
-    // gamma is kept twice: as exact rationals in gammaQ (integer numerators over
-    // GAMMA_DEN) and as floats in gamma for the drawing code. The exact copy is the
-    // source of truth, because regularity is decidable exactly and only in exact
-    // arithmetic — see singularTriples().
-    const GAMMA_DEN = 10000;
-    const gammaQ = [0, 0, 0, 0, 0];
-    const gamma = [0, 0, 0, 0, 0];
-
     // ── Geometry adapters ─────────────────────────────────────────────
     //
     // The geometry layer takes the pentagrid explicitly, which is what makes it
     // testable; the page keeps it in module state. `model` is built once and stays
     // current because directions and gamma are const arrays mutated in place.
 
-    const model: Pentagrid = { directions, gamma };
+    const model: Pentagrid = gammaSet.model;
 
     function solveIntersection(j: number, k: number, nj: number, nk: number): Vec2 | null {
         return geoSolveIntersection(model, j, k, nj, nk);
@@ -216,9 +198,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return geoRegionPoly(model, K, getVisibleRect());
     }
 
-    function singularTriples(): string[] {
-        return geoSingularTriples(gammaQ, GAMMA_DEN);
-    }
+    const singularTriples = () => gammaSet.singular();
 
     /** The visible rect in GRID coordinates, whatever the current view is. */
     function gridVisibleRect(): ViewRect {
@@ -254,7 +234,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // Narration and its presets are the page's, not this file's.
     const stepContent = config.steps ?? METHOD_STEPS;
     const STEP_COUNT = stepContent.length;
-    let lockedIndex = 4;
 
     // View state. These are the "current view" the drawing functions read
     // implicitly. The loupe is a second view, so it swaps them via withView()
@@ -384,7 +363,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // The rect is part of the key: a host that widens it for a camera must
         // recollect when the camera moves, and nothing else here would notice.
         const key = [
-            scale, viewX, viewY, gammaQ.join(","), verticalSymmetry ? 1 : 0,
+            scale, viewX, viewY, gammaSet.exact().join(","),
             gridLayers.map((l) => (l.userVisible ? 1 : 0)).join(""),
             vis.xMin.toFixed(3), vis.xMax.toFixed(3),
             vis.yMin.toFixed(3), vis.yMax.toFixed(3),
@@ -495,17 +474,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const bank = createGammaBank({
         count: NUM_GRIDS,
         colors: COLORS,
-        onChange: (j, value) => {
-            if (j === lockedIndex) return;
-            gammaQ[j] = Math.round(value * GAMMA_DEN);
-            updateLockedGamma();
-            draw();
-        },
-        onLock: (j) => {
-            lockedIndex = j;
-            updateLockedGamma();
-            draw();
-        },
+        onChange: (j, value) => gammaSet.setValue(j, value),
+        onLock: (j) => gammaSet.setLocked(j),
     });
     controlsDiv.appendChild(bank.element);
 
@@ -566,8 +536,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let smallRegions: SmallRegion[] = [];
     let concurrencies: Concurrency[] = [];
 
-    let guardRegular = true;
-    let guardActed = false;
 
     const meterDiv = document.createElement("div");
     meterDiv.className = "regularity-control";
@@ -625,7 +593,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             meterSpan.style.color = "#e63946";
             return;
         }
-        const nudged = guardActed ? ` · γ nudged ${(1 / GAMMA_DEN).toExponential(0)}` : "";
+        const nudged = gammaSet.nudged()
+            ? ` · γ nudged ${(1 / gammaSet.denominator).toExponential(0)}` : "";
         meterSpan.textContent = `regular, proved${nudged} · ${tail}`;
         meterSpan.style.color = under === 0 ? "#5a8f5a" : "#c07d00";
     }
@@ -652,48 +621,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // ── Gamma / slider logic ──────────────────────────────────────────
 
-    /** Re-derive the locked γ from the others, then the float copy from the exact. */
-    function relock() {
-        let sumQ = 0;
-        for (let i = 0; i < NUM_GRIDS; i++) if (i !== lockedIndex) sumQ += gammaQ[i];
-        gammaQ[lockedIndex] = -sumQ;
-        for (let j = 0; j < NUM_GRIDS; j++) gamma[j] = gammaQ[j] / GAMMA_DEN;
-    }
-
-    /**
-     * Move γ off the singular set, if it is on it.
-     *
-     * By the criterion above a triple can only be singular when its lone γ is an
-     * integer, so taking every γ off the integers is enough to make the whole
-     * pentagrid provably regular. One unit of GAMMA_DEN does it: correctness here is
-     * about rationality class, not magnitude, which is exactly what the old 5e-9
-     * nudge got wrong. The offsets differ per family so the pair sums cannot stay
-     * integral either — being symmetric is how the old nudge preserved γ₁ + γ₄ = 0.
-     */
-    function guardRegularity() {
-        guardActed = false;
-        if (!guardRegular) return;
-        for (let attempt = 0; attempt < 8; attempt++) {
-            if (singularTriples().length === 0) return;
-            guardActed = true;
-            for (let j = 0; j < NUM_GRIDS; j++) {
-                if (j === lockedIndex) continue;
-                if (gammaQ[j] % GAMMA_DEN === 0) gammaQ[j] += j + 1;
-            }
-            relock();
-            if (gammaQ[lockedIndex] % GAMMA_DEN === 0) {
-                gammaQ[(lockedIndex + 1) % NUM_GRIDS] += 1;
-                relock();
-            }
-        }
-    }
-
+    /** Render the bank from the set. The set derives; this only shows. */
     function updateLockedGamma() {
-        relock();
-        guardRegularity();
         bank.sync({
             values: gamma,
-            locked: lockedIndex,
+            locked: gammaSet.getLocked(),
             sum: gamma.reduce((a, b) => a + b, 0),
         });
     }
@@ -1527,10 +1459,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // "keep γ regular" beside the meter — bound to the same flag with
         // opposite senses and no syncing, so either would show the opposite of
         // the truth once the other was touched.
-        const guardBox = checkbox(sRow, "force regular", guardRegular, (v) => {
-            guardRegular = v;
-            updateLockedGamma();
-            draw();
+        const guardBox = checkbox(sRow, "force regular", gammaSet.getGuard(), (v) => {
+            gammaSet.setGuard(v);
         });
         guardBox.title = "No three lines ever meet at a point. Decided exactly on "
             + "γ as rationals — ten integer comparisons, no tolerance.";
@@ -1539,11 +1469,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (!v) closeLoupe();
             draw();
         });
-        checkbox(sRow, "vertical-axis symmetry", verticalSymmetry, (v) => {
-            verticalSymmetry = v;
-            rebuildDirections();
-            rhombCache = null;
-            draw();
+        checkbox(sRow, "vertical-axis symmetry", gammaSet.getSymmetry(), (v) => {
+            gammaSet.setSymmetry(v);
         });
 
         const tRow = row(det, "gridline width");
@@ -2014,11 +1941,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         ro.observe(container);
     }
 
-    if (config.gamma) {
-        for (let j = 0; j < NUM_GRIDS; j++) {
-            gammaQ[j] = Math.round((config.gamma[j] ?? 0) * GAMMA_DEN);
-        }
-    }
+    if (config.gamma) gammaSet.setValues(config.gamma);
+
+    // One subscription: any change to γ, the lock, the sum, the symmetry or the
+    // guard lands here rather than each call site remembering to redraw.
+    gammaSet.onChange(() => {
+        rhombCache = null;
+        updateLockedGamma();
+        draw();
+    });
 
     buildLayerPanel();
     restackPenrose();
@@ -2041,14 +1972,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             viewY = v.y;
             draw();
         },
-        setGamma: (g) => {
-            for (let j = 0; j < NUM_GRIDS; j++) {
-                gammaQ[j] = Math.round((g[j] ?? 0) * GAMMA_DEN);
-            }
-            updateLockedGamma();
-            rhombCache = null;
-            draw();
-        },
+        setGamma: (g) => gammaSet.setValues(g),
         stack,
     };
 }
