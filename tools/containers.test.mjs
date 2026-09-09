@@ -526,3 +526,22 @@ test("isolating a family, then one of its lines, leaves a ribbon", () => {
     assert.equal(tilesDrawn(h, "penrose-tiles", () => h.redraw()), all,
                  "clearing both did not restore the tiling");
 });
+
+test("the growth view's gamma set is reachable and drives the picture", () => {
+    // The Sigma-gamma slider on grow.html and roof.html goes through here. Wiring
+    // that only the geometry tests cover is wiring that can silently not exist.
+    const v = createGrowthView({ container: host(700, 500), lift: false });
+    v.set({ grow: 1 });
+    const g = v.pentagrid.gamma;
+    assert.ok(g, "no gamma set behind the growth view");
+
+    const at = () => tilesDrawn(v.pentagrid, "growth", () => v.redraw());
+    const zero = at();
+    g.setSum(2.5, true);
+    assert.ok(Math.abs(g.getSum() - 2.5) < 1e-9, "the sum did not take");
+    for (const val of g.values()) assert.ok(Math.abs(val - 0.5) < 1e-9,
+        `spread should give every offset a half, got ${val}`);
+    const pent = at();
+    assert.ok(zero > 0 && pent > 0);
+    assert.notEqual(pent, zero, "changing the sum redrew the identical tiling");
+});

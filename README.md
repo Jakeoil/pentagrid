@@ -216,6 +216,21 @@ State is `{ grow, fold, band, azimuth, elevation, boldEdges }`. `bindSliders`
 wires range inputs to it and writes the formatted value into `#<id>-value` if that
 element exists; `bindToggles` does the same for checkboxes.
 
+**γ controls are a cluster, not markup.** A page that wants the five linked dials
+and the total mounts them; it does not build sliders of its own.
+
+```ts
+import { mountGammaControls } from "../view/controls.js";
+import { FAMILY_COLORS } from "../view/growth.js";
+
+mountGammaControls(view.pentagrid.gamma, document.getElementById("gamma")!,
+                   { colors: FAMILY_COLORS });
+```
+
+`ui/dials.ts` stays a pure view — it reports which slider moved and renders what
+it is told — and `geometry/gamma.ts` stays a DOM-free model. `mountGammaControls`
+is the only thing that knows about both.
+
 **The camera is a gesture, not a slider.** Left-drag pans, right-drag spins and
 tilts, and the two feel like one control because they are. Underneath,
 `createPentagrid` takes an `onOrbit(dx, dy)` callback and suppresses the context

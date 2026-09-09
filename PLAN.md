@@ -867,6 +867,24 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    is untouched — a face is spanned by two E_j, which know nothing about γ — so
    the relief changes and the shape never does. That is a test.
 
+   **On grow.html and roof.html too — and as the cluster, not as markup.** The
+   first attempt hand-wired a Σγ slider into each page's bar, which would have
+   been three copies of the same control and straight past the rule this plan
+   already set: the γ bank in `ui/dials.ts` is the cluster, and a page mounts it
+   rather than building sliders.
+
+   So the total is part of `createGammaBank` — supply `onSum` and it grows one.
+   The bank stays a pure view: it reports the move and renders what it is told,
+   and never decides what a total means or whether changing it should redistribute.
+   `mountGammaControls(set, container, {colors})` in `view/controls.ts` is the
+   seam that wires bank to set, and is the only place that knows about both.
+   `pentagrid.ts` now uses it as well, which removed its own bank wiring and the
+   separate sum control from the settings panel.
+
+   The wording lives in `describeSum` in `geometry/gamma.ts` — pure, so it is
+   tested directly rather than through a page. On the roof the sum also moves the
+   index range, which is what changes how many levels the surface stands on.
+
    Presets as buttons were dropped: the slider snaps to both canonical points and
    names them, so a button would only be a second way to reach a value already one
    drag away.

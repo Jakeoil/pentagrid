@@ -4,7 +4,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGammaSet } from "../dist/geometry/gamma.js";
+import { createGammaSet, describeSum } from "../dist/geometry/gamma.js";
 import { singularTriples } from "../dist/geometry/regularity.js";
 import { collectRhombs, computeKTuple } from "../dist/geometry/pentagrid.js";
 import { liftLocal } from "../dist/geometry/roof.js";
@@ -451,4 +451,23 @@ test("Σγ = 5/2 is Lutfalla's P5(1/2), with exact global 10-fold symmetry", () 
     // Σγ = 0 is not, because the guard has to move off the symmetric point:
     // all-zeros is singular, so forcing regularity costs the exact symmetry.
     assert.ok(spin(0, 5) < 0.99, "guarded Σγ = 0 should not be exactly 5-fold");
+});
+
+test("describeSum gives the figure and the family, and the family is mod 1", () => {
+    assert.match(describeSum(0, false), /all five lines meet/);
+    assert.match(describeSum(0, true), /just off concurrent/);
+    assert.match(describeSum(0, false), /Penrose$/);
+
+    assert.match(describeSum(2.5), /largest pentagon/);
+    assert.match(describeSum(2.5), /P₅\(½\)/);
+    assert.match(describeSum(2.5), /flowers/);
+
+    // the family turns on the sum mod 1, not the sum
+    for (const s of [0, 1, 2, 3]) assert.match(describeSum(s), /Penrose/);
+    for (const s of [0.5, 1.5, 2.5]) assert.match(describeSum(s), /flowers/);
+    for (const s of [0.25, 0.75, 1.25]) {
+        assert.match(describeSum(s), /generalised/);
+        assert.doesNotMatch(describeSum(s), /flowers/,
+                            `${s} is not half-integer and grows no flowers`);
+    }
 });
