@@ -453,6 +453,50 @@ test("Σγ = 5/2 is Lutfalla's P5(1/2), with exact global 10-fold symmetry", () 
     assert.ok(spin(0, 5) < 0.99, "guarded Σγ = 0 should not be exactly 5-fold");
 });
 
+test("the symmetry figures are claims about equal offsets, not about the total", () => {
+    // Lutfalla Thm 1 is stated for the uniform multigrid Gn(r). Σγ = 5/2 with the
+    // offsets spread unevenly is still a half-integer generalised tiling with
+    // flowers, but the grid has no rotational symmetry, so neither does its dual.
+    const spread = describeSum(2.5, false, false);
+    assert.match(spread, /flowers/, "the family survives; it is a fact about Σγ mod 1");
+    assert.doesNotMatch(spread, /10-fold/, "claimed a symmetry the offsets do not have");
+    assert.doesNotMatch(spread, /largest pentagon/);
+
+    assert.doesNotMatch(describeSum(0, false, false), /lines meet/,
+        "the lines only all meet when the offsets are equal");
+    assert.doesNotMatch(describeSum(1, false, false), /5-fold/);
+});
+
+test("Σγ = 1 evenly split is P₅(1/5), exactly and regularly", () => {
+    // Thm 1.2: for odd n, the uniform Gn(1/n) is globally n-fold. Σγ = n·r, so
+    // that is a total of 1 — and it has to land on the exact rational, since the
+    // regularity guard decides rather than measures.
+    const g = createGammaSet();
+    g.setSum(1, true);
+    assert.deepEqual(g.exact(), [2000, 2000, 2000, 2000, 2000], "not exactly 1/5 each");
+    assert.equal(g.denominator, 10000);
+    assert.ok(g.isUniform());
+    assert.deepEqual(g.singular(), [], "1/5 is not an integer, so nothing is singular");
+    assert.match(describeSum(g.getSum(), g.nudged(), g.isUniform()), /global 5-fold/);
+});
+
+test("uniformity is intent, so the guard's nudge does not end it but a dial does", () => {
+    const g = createGammaSet();
+    // The even split at Σγ = 0 is all zeros, which is singular; the guard moves
+    // it to [1,2,3,4,-10]. Measured, that is wildly unequal. It is still Gn(0).
+    assert.ok(g.nudged());
+    assert.ok(g.isUniform(), "the guard's own nudge must not read as a user spread");
+
+    g.setValue(0, 0.3);
+    assert.ok(!g.isUniform(), "moving a dial is a spread");
+    g.reset();
+    assert.ok(g.isUniform(), "reset restores the even split");
+
+    // Without spread the locked index absorbs the whole change — lopsided.
+    g.setSum(2.5, false);
+    assert.ok(!g.isUniform());
+});
+
 test("describeSum gives the figure and the family, and the family is mod 1", () => {
     assert.match(describeSum(0, false), /all five lines meet/);
     assert.match(describeSum(0, true), /just off concurrent/);

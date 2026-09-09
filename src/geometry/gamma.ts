@@ -95,8 +95,21 @@ export interface GammaSet {
     /** Whether the last change had to be nudged off the singular set. */
     nudged: () => boolean;
 
+    /**
+     * Whether every offset is the same — Lutfalla's Gn(r), the only case his
+     * symmetry results speak about.
+     *
+     * "Same" as intended, not as measured: an even split is still uniform after
+     * the guard has nudged it off the integers, even though that leaves the
+     * locked index holding the negated rest. Moving a single dial ends it.
+     */
+    isUniform: () => boolean;
+
     onChange: (cb: () => void) => void;
 }
+
+const SUB = "₀₁₂₃₄₅₆₇₈₉";
+const sub = (k: number) => String(k).split("").map((d) => SUB[+d]).join("");
 
 /**
  * What a value of Σγ means, in words.
@@ -109,14 +122,28 @@ export interface GammaSet {
  * `nudged` matters only at zero: the even split there is all zeros, which is
  * singular, so with the guard on you get a 10⁻⁴ pentagon rather than a point.
  */
-export function describeSum(sum: number, nudged = false): string {
-    // 2.5 is a half-integer, so the generic clause below would apply too — and
-    // saying "½" twice ran the line to 94 characters. Name it once instead.
-    if (Math.abs(sum - 2.5) < 1e-9)
-        return "largest pentagon · generalised P₅(½) — global 10-fold, thin-rhomb flowers";
+export function describeSum(sum: number, nudged = false, uniform = true): string {
+    const n = NUM_GRIDS;
+    const near = (a: number, b: number) => Math.abs(a - b) < 1e-9;
+    const P = `P${sub(n)}`;
+
+    // Every figure below is a claim about the offsets being EQUAL, not about
+    // their total. Lutfalla's Theorem 1 is stated for the uniform multigrid
+    // Gn(r) — global n-fold at r = 1/n for odd n, global 2n-fold at r = ½ — and
+    // his symmetry argument is that dualization commutes with rotation about the
+    // origin, so the tiling inherits whatever symmetry the GRID has. Unequal
+    // offsets leave the grid with none. Σγ = n·r, so the totals are n/2 and 1.
+    if (uniform) {
+        // n/2 is a half-integer, so the generic clause below would apply too —
+        // and saying "½" twice ran the line to 94 characters. Name it once.
+        if (near(sum, n / 2))
+            return `largest pentagon · generalised ${P}(½) — global ${2 * n}-fold, thin-rhomb flowers`;
+        if (near(sum, 1))
+            return `global ${n}-fold · Penrose ${P}(1/${n})`;
+    }
 
     const figure =
-        Math.abs(sum) < 1e-9
+        uniform && Math.abs(sum) < 1e-9
             ? (nudged ? "just off concurrent (force regular)"
                       : "all five lines meet at a point")
         : "";
@@ -134,6 +161,12 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     let symmetry = options.symmetry ?? true;
     let guard = options.guard ?? true;
     let didNudge = false;
+    // Whether the offsets are all equal — Lutfalla's Gn(r). Tracked rather than
+    // measured, because the guard's nudge makes them unequal on purpose and the
+    // locked index then absorbs the negated rest: an even split at Σγ = 0 comes
+    // out [1,2,3,4,-10], which no honest tolerance calls uniform. What the note
+    // wants to know is whether the user spread them, and that is intent.
+    let uniformIntent = true;
     const listeners: (() => void)[] = [];
 
     let isolatedFamily: number | null = null;
@@ -193,6 +226,7 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     }
 
     function reset() {
+        uniformIntent = true;
         // As equal as possible: the share each, with the remainder spread over the
         // first few so the exact sum is still hit.
         const share = Math.trunc(sumQ / NUM_GRIDS);
@@ -217,15 +251,20 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         setValue: (index, value) => {
             if (index === locked) return;
             q[index] = Math.round(value * den);
+            uniformIntent = false;
             settle();
         },
         setValues: (values) => {
             for (let j = 0; j < NUM_GRIDS; j++) q[j] = Math.round((values[j] ?? 0) * den);
+            // Handed a whole vector, so believe it rather than the history.
+            uniformIntent = q.every((v) => v === q[0]);
             settle();
         },
         setSum: (s, spread) => {
             sumQ = Math.round(s * den);
-            if (spread) reset(); else settle();
+            // Without spread the locked index takes the whole change, which is
+            // exactly the lopsided case the note must not call symmetric.
+            if (spread) { reset(); } else { uniformIntent = false; settle(); }
         },
         getSum: () => sumQ / den,
         setLocked: (index) => { locked = index; settle(); },
@@ -238,6 +277,7 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         reset,
         singular: () => singularTriples(q, den),
         nudged: () => didNudge,
+        isUniform: () => uniformIntent,
         setFamilyEnabled: (index, on) => {
             enabled[index] = on;
             for (const cb of listeners) cb();

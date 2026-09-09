@@ -60,7 +60,9 @@ export function mountGammaControls(
         values: set.values(),
         locked: set.getLocked(),
         sum: set.values().reduce((a, b) => a + b, 0),
-        sumNote: describeSum(set.getSum(), set.nudged()),
+        // The figures describeSum can offer depend on the offsets being equal,
+        // not just on their total — so it has to be told.
+        sumNote: describeSum(set.getSum(), set.nudged(), set.isUniform()),
     });
     set.onChange(render);
     render();
