@@ -103,15 +103,20 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
         sumInput.step = String(r.step);
         sumInput.value = "0";
         sumInput.addEventListener("input", () => opts.onSum!(parseFloat(sumInput!.value)));
-        sumNote = document.createElement("div");
-        sumNote.className = "sum-note";
         const cap = document.createElement("div");
         cap.className = "sum-cap";
         cap.textContent = "Σγ";
         wrap.appendChild(cap);
         wrap.appendChild(sumInput);
-        wrap.appendChild(sumNote);
         element.appendChild(wrap);
+
+        // The note is a sibling of the dials, not a child of one. Inside the
+        // flex item its text length set the item's width, and the text changes
+        // length as the slider moves — so the whole bar reflowed on every step.
+        // On its own row it can say what it likes.
+        sumNote = document.createElement("div");
+        sumNote.className = "sum-note";
+        element.appendChild(sumNote);
     }
 
     function sync(s: GammaBankState) {

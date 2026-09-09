@@ -110,12 +110,15 @@ export interface GammaSet {
  * singular, so with the guard on you get a 10⁻⁴ pentagon rather than a point.
  */
 export function describeSum(sum: number, nudged = false): string {
+    // 2.5 is a half-integer, so the generic clause below would apply too — and
+    // saying "½" twice ran the line to 94 characters. Name it once instead.
+    if (Math.abs(sum - 2.5) < 1e-9)
+        return "largest pentagon · generalised P₅(½) — global 10-fold, thin-rhomb flowers";
+
     const figure =
         Math.abs(sum) < 1e-9
             ? (nudged ? "just off concurrent (force regular)"
                       : "all five lines meet at a point")
-        : Math.abs(sum - 2.5) < 1e-9
-            ? "largest pentagon · Lutfalla's P₅(½), global 10-fold"
         : "";
     const frac = ((sum % 1) + 1) % 1;
     const cls = frac < 1e-9 || frac > 1 - 1e-9 ? "Penrose"

@@ -54,6 +54,32 @@
             color: #888;
             align-self: center;
         }
+        .sum-dial {
+            align-items: stretch;
+            width: 210px;
+        }
+        .sum-dial input[type="range"] {
+            writing-mode: horizontal-tb;
+            direction: ltr;
+            width: 100%;
+            height: auto;
+        }
+        .sum-cap {
+            font-size: 15px;
+            font-family: "Times New Roman", serif;
+            font-style: italic;
+            text-align: center;
+        }
+        /* Its own row, so the text cannot stretch the dials, and a reserved
+           height so going from one line to two does not shift what is below. */
+        .sum-note {
+            flex: 1 0 100%;
+            font-size: 11.5px;
+            color: #888;
+            line-height: 1.45;
+            min-height: 2.9em;
+            margin-top: 2px;
+        }
         .regularity-control {
             margin-top: 4px;
         }

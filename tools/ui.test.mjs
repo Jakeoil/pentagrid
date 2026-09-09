@@ -161,7 +161,7 @@ test("the bank grows a total slider only when asked, and stays a pure view", () 
         onSum: (v) => seen.push(v),
     });
     assert.equal(plain.element.children.length, 6, "five dials and a readout");
-    assert.equal(withSum.element.children.length, 7, "and a total when asked");
+    assert.equal(withSum.element.children.length, 8, "a total, and its note");
 
     // it reports the move; it does not decide what a total means
     const dial = withSum.element.children[6];
@@ -177,7 +177,9 @@ test("sync renders the total and its note, but not over a drag", () => {
         onSum: () => {},
     });
     const input = b.element.children[6].children[1];
-    const note = b.element.children[6].children[2];
+    // The note is a sibling of the dial, not a child of it: inside the dial its
+    // text length set the flex item's width, so the bar reflowed on every step.
+    const note = b.element.children[7];
     b.sync({ values: [0.5, 0.5, 0.5, 0.5, 0.5], locked: 4, sum: 2.5,
              sumNote: "largest pentagon" });
     assert.equal(input.value, "2.50");
