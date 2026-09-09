@@ -643,6 +643,109 @@ are tested directly.
 
 Documented in the README under *Canvas containers*.
 
+## The γ cluster — planned 2026-09-09
+
+A self-contained thing holding *all* the pentagrid: five directions, five
+offsets, the constraint tying them together, and the rules about what counts as a
+legal configuration. DOM-free, so it belongs in `geometry/`, not `view/` — the
+γ bank in `ui/dials.ts` is a *view over* it and should stay that way.
+
+### First, a bug, and the answer to "what's the difference"
+
+**There is no difference. They are one switch, and having two is my mistake.**
+`pentagrid.ts` builds two checkboxes bound to the same `guardRegular`:
+
+| where | label | sense |
+|---|---|---|
+| the controls area | `keep γ regular` | checked = guard on |
+| the settings panel | `allow singularities` | checked = guard **off** |
+
+Neither syncs to the other, so toggling one leaves the other showing the
+opposite of the truth. I inverted the control when the settings panel was added
+and never removed the original. One control, and `allow singularities` is the
+better name — it says what unchecking gets you.
+
+### The sum, and what it buys
+
+Σγ = 0 is hardwired: `relock()` sets the locked index to minus the sum of the
+rest. Generalising it to Σγ = s is a small change and opens up real ground.
+
+**Measured, with all five γ equal to g (so s = 5g):**
+
+| s | g | central figure | index range | thick : thin |
+|---|---|---|---|---|
+| 0 | 0 | inradius 0 — all five lines concurrent | 0…4 | 1.686 |
+| 0.5 | 0.1 | pentagon, inradius 0.1 | 1…5 | 1.656 |
+| 1 | 0.2 | pentagon, inradius 0.2 | 2…5 | 1.638 |
+| **2.5** | **0.5** | **pentagon, inradius 0.5 — the largest** | 3…7 | 1.589 |
+
+**One correction to the sketch.** The largest pentagon is **γ = ½ each, which
+makes the sum 5/2**, not a sum of ½. A *sum* of ½ puts each γ at 0.1 and gives a
+small pentagon. Both are worth presets; they are different pictures and it is
+worth deciding which "½" the control means. Recommended: the control sets the
+**sum**, and the presets are named for what they show rather than for a number.
+
+Beyond g = ½ the pentagon shrinks again — the lines are at `x·v ∈ ℤ − γ`, so g and
+1 − g give the same figure. The useful range for the "all equal" preset is g ∈
+[0, ½], i.e. s ∈ [0, 5/2].
+
+Worth knowing: **Σγ ∈ ℤ gives Penrose tilings; other sums give the generalised
+Penrose tilings.** Still the same two rhombs — thick:thin stays near φ across the
+whole range — but not locally isomorphic to Penrose. That is a feature, not a
+hazard, and it is most of the reason to want the control.
+
+### Two consequences to plan around
+
+**The regularity criterion does not care about the sum.** The derivation is
+per-triple and only ever involves three γ; it never used Σγ = 0. Verified against
+brute force at sums of 0, 0.5, 0.9 and 2.5 — 5/5 agree. So the guard, the meter
+and `singularTriples` all keep working untouched.
+
+**The index range does.** It is {1,2,3,4} only when Σγ = 0; at other sums it
+shifts and can narrow. The Wieringa roof's "four levels" is therefore a property
+of Σγ = 0, not of the construction, and `roof.html` should either say so or pin
+the sum. Whichever, `geometry/roof.ts` should stop implying four levels are
+universal.
+
+### Shape
+
+```ts
+// src/geometry/gamma.ts
+createGammaSet({
+    denominator?: number,     // 10000; γ is exact rationals, see item 1
+    sum?: number,             // target Σγ, default 0
+    locked?: number,          // which index is computed, default 4
+    symmetry?: boolean,       // vertical axis, default true
+    guard?: boolean,          // hold off the singular set, default true
+}) → GammaSet
+```
+
+with
+
+- `model` — a live `Pentagrid` (directions + γ floats) to hand the geometry
+- `values()`, `setValue(j, v)`, `setSum(s)`, `setLocked(j)`
+- `reset()` — all as equal as possible: `s/5` each, the remainder spread over the
+  first few so the exact sum is hit. At s = 0 that is all zeros, which is singular,
+  so the guard then nudges — the current default of `[1,2,3,4,−10]/10⁴`.
+- `singular()` — the exact criterion, unchanged
+- `family(j)` — `{ enabled, line }`: hide a family, or show **one** of its lines
+  rather than all of them
+- `onChange(cb)`
+
+The single-line case needs `collectRhombs` to take a per-family line filter. It
+already carries the provenance to do it (`r.nj`, `r.nk`), so this is a predicate,
+not a redesign — and it is the same hook E1 wanted for "strips in one direction".
+
+### Order
+
+1. Delete the duplicate checkbox. One switch, `allow singularities`.
+2. Extract `geometry/gamma.ts` with the sum still fixed at 0 — pure move, no
+   behaviour change, everything green.
+3. Generalise the sum, with presets: *all lines concurrent* (s = 0), *largest
+   pentagon* (γ = ½ each), and a free value.
+4. Per-family enable, then single-line.
+5. Then decide what `roof.html` says about levels.
+
 ## Site structure
 
 Three top-level pages, following the shape wieringa-roof uses.
