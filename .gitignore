@@ -7,3 +7,7 @@ multigrids.pdf
 # Third-party figure, CC BY-SA. Pages publishes the repo root, so committing
 # it would republish someone else own work on the site. Same reason as multigrids.pdf.
 Penrose_LI_classes.svg
+
+# Working scratch and reference figures, some third-party (the AMS feature
+# column gif among them). Stays untracked: Pages publishes the repo root.
+jake/

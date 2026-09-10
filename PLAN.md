@@ -931,6 +931,62 @@ Not started, and deliberately not folded into `method.html` yet: the new page is
 the place to find out whether the interaction is actually better before anything
 that works is disturbed.
 
+### Inflation — nothing implemented, and the open question (2026-09-10)
+
+Reference images, both in `jake/` (untracked):
+
+- `levelonetiling.gif`, from the AMS feature column on Penrose tilings. The
+  **Robinson** step: each rhomb is cut into half-triangles (grey) and the pieces
+  reassembled into rhombs **phi** times larger (black). Linear ratio phi.
+- `next-gen-penrose-type-1.gif`. The **P1** step: heavy black outlines mark the
+  next generation's pentagons and star laid over the small P1 tiles. Linear ratio
+  **phi^2**, and the new generation is visibly **turned over** relative to its
+  children — a Pe5 contains a smaller Pe5 upside down.
+
+**Jake's observation, and why it matters here.** Under Robinson inflation a **Pe5
+rhomb group becomes a smaller St5 rhomb group**, ratio phi. That is the Sun/Star
+relationship in motion, and it makes a prediction this plan can already state
+sharply. Sun and Star are not different LI classes — every Penrose tiling is LI
+with every other — they differ only by what sits at the centre, and we now know
+which gamma gives which: Sigma-gamma = 1 and 4 are Suns (origin index 5 is an
+extreme), 2 and 3 are Stars (origin index 5 is a middle level). So **inflating a
+Sun should produce a Star**, and the map on Sigma-gamma ought to be visible in
+those four values. Untested — there is no inflation to test it with.
+
+**Settled: big rhombs and little rhombs are TWO inflations apart**, i.e. one full
+P1 generation, phi^2 — not the intermediate phi level. That closes the question
+left open in the nomenclature section below, and kills the guess made there that
+`penrose-mosaic`'s small/large rhomb pair might already be the missing half step.
+It is not; it is a whole P1 generation. [[penrose-mosaic-rhomb-groups]] updated.
+
+**The open question: what does inflation do to the pentagrid?** Is there a
+formula taking gamma to gamma-prime for each of the two steps? Penrose only, so
+Sigma-gamma = 0 throughout (or any integer — same LI class).
+
+What can be said without doing the work:
+
+- Inflation is a linear map on R^5. On E-parallel it multiplies by phi; on
+  E-perp it must act by the **Galois conjugate**, -1/phi, since that is the
+  other embedding of Q(sqrt 5) and E-perp is the conjugate plane. So the
+  expected shape is that gamma's perpendicular coordinates **contract by 1/phi
+  and change sign** each Robinson step.
+- Sigma-gamma is preserved: Penrose maps to Penrose.
+- **The sign may be the "upside down".** A negative factor on E-perp reverses
+  orientation there, which is a candidate explanation for the turned-over
+  generation Jake sees. But it does not close: two Robinson steps give
+  (-1/phi)^2 = +1/phi^2, so a phi^2 P1 generation should come back the right way
+  up — and it does not. Either the flip has another source (the standard Penrose
+  inflation is often stated with a 36 degree rotation, and twice that is 72,
+  a pentagon symmetry), or this accounting is wrong. Unresolved, and worth
+  settling before writing any code that assumes a sign.
+
+**Nothing is implemented.** `pentagrid` has no inflation and no deflation. What
+it does have is half the picture in one direction: `geometry/clusters.ts` reads a
+rhomb patch up into P1 clusters (Pe5/Pe3/Pe1), which is one P1 generation of
+recognition. Missing is the map itself, the Robinson half-step, and any way to
+iterate. TODO, and it is the prerequisite for the deflation-tower idea above —
+that proposal drives `acceptance.ts` from a tower nobody can currently build.
+
 ### Nomenclature: which inflation, phi or phi squared (Jake, 2026-09-09)
 
 Shared vocabulary, so "one generation" stops being ambiguous. There are **two
@@ -965,8 +1021,10 @@ usual way to expose it (they are MLD with the rhombs). The interesting question
 is what that intermediate level looks like written back in the six P1 shapes.
 `penrose-mosaic` may already contain it unlabelled: the small rhomb groups centre
 on **every** pentagon type (Pe5, Pe3, Pe1) while the large ones centre only on the
-blue Pe5. A clean phi^2 hierarchy would not produce that lopsidedness; a half step
-would. Not verified — `wieringa-roof` indexes `wheels.s[gen]` and `wheels.t[gen]`,
+blue Pe5. **ANSWERED 2026-09-10 and the guess was wrong** — Jake: big rhombs and
+little rhombs are **two** inflations apart, a full P1 generation of phi^2, so the
+small/large pair is not the missing half step and the lopsidedness has some other
+cause. The intermediate phi level is still unfound. Not verified — `wieringa-roof` indexes `wheels.s[gen]` and `wheels.t[gen]`,
 so the ratio of wheel magnitudes between consecutive generations would settle
 whether the code's generations step by phi or phi^2. Nobody has measured it.
 
