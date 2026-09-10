@@ -34,6 +34,49 @@ State of play, verified 2026-09-05. Working tree clean and in sync with origin.
 
 ---
 
+## The math is diffusing — a standing concern (Jake, 2026-09-10)
+
+Jake: *penrose-mosaic was my source of truth, but it has kind of moved to
+wieringa, especially as far as the real is concerned. It's getting diffused, the
+math is.*
+
+Not a vague worry. The same mathematics now has independent implementations in
+three repositories:
+
+| what | where | note |
+|---|---|---|
+| the Wieringa lift | `pentagrid/src/geometry/roof.ts` (RISE, `vertexIndex`, `vertexHeight`, `generator`) **and** `wieringa-roof` (`computeLift`, `getLift`, `pos3D`, `GOLDEN_SIDE`) | derived separately, cross-validated against each other's fold-angle table **once**, and not since |
+| the cluster definitions | `wieringa-roof`'s `emitRhombs` **and** `pentagrid/src/geometry/clusters.ts` | star = 5 thick, boat = 3 thick + 1 thin, diamond = 1 thick + 2 thin, encoded twice. The pentagrid one was written 2026-09-09 from the index rule without reference to the other — this session made the problem worse |
+| the wheels | `penrose-mosaic/wheels.js` **and** `wieringa-roof/src/geometry.ts` | `interpolateWheel` / `predecessorPoint` is literally the same function in both |
+| phi and the golden constants | everywhere | |
+
+**It has already bitten.** "One inflation apart" in
+[[penrose-mosaic-rhomb-groups]] was ambiguous precisely because the projects
+count generations differently — P1 generations at phi^2 in one, Robinson steps at
+phi in the other — and it took Jake's correction to resolve. That is what silent
+divergence looks like before anyone notices.
+
+**And this file is now part of it.** PLAN.md became the de facto hub for
+cross-project mathematics during this session: the nomenclature, the gen-2
+substitution, the wheel factor, the mosaic-is-primary stance. That is either the
+fix or a fourth place for the math to live, depending on whether any code ever
+points at it. Right now it is prose about three codebases, sitting inside one of
+them.
+
+**The cheap move, if one is wanted.** Not wholesale consolidation — that cuts
+across three working projects and is not obviously worth it. Pick an authority
+**per topic** instead:
+
+- the **lift** belongs to `wieringa-roof`
+- the **discrete wheels** to `penrose-mosaic` (it is the heart; see the wheel
+  section)
+- **de Bruijn** — the pentagrid, the regularity criterion, the gamma cluster —
+  to `pentagrid`
+
+Then the duplicates become deliberate copies with a named source, rather than
+parallel derivations that can quietly disagree. Nothing here is a decision;
+recorded so the drift is visible rather than discovered.
+
 ## Open items
 
 These come first because they are cheap, and because items 4 and 5 gate the
