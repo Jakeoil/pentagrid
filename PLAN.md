@@ -985,6 +985,43 @@ What can be said without doing the work:
   generations turn by 72, a pentagon symmetry, so orientation returns. Nothing is
   anomalous and no code should be written expecting a reflection.
 
+**The round trip, and what it would buy (Jake, 2026-09-10).** The six P1 shapes
+— Pe5, Pe3, Pe1, St5, St3, St1 — each convert to a rhomb group of small rhombs,
+and the conversion goes the other way too. That is mutual local derivability
+made concrete, and it gives a *visual* conversion in both directions.
+
+The payoff Jake names: with both directions in hand you can **see the Robinson
+inflation of P1**. Since P1 generations are phi^2 apart and a Robinson step is
+phi, the chain
+
+    P1(n) -> rhombs -> one Robinson step -> rhombs -> P1
+
+lands *between* P1 generations. That is the intermediate phi level, expressed
+back in the six P1 shapes — exactly the thing the nomenclature section below
+calls unfound. It turns an open question into a construction.
+
+**State of the two directions.**
+
+- **P1 -> rhombs: implemented**, in `wieringa-roof`'s `emitRhombs` — star group 5
+  thick, boat 3 thick + 1 thin, diamond 1 thick + 2 thin.
+- **rhombs -> P1: half implemented.** `geometry/clusters.ts` recovers the **Pe**
+  family and only that. Measured on a patch of 546 interior vertices: the 146
+  extreme-index vertices own a cluster, all of them, and of the 400 middle-index
+  vertices **none** does. So Pe* centres are exactly the extreme-index vertices —
+  which is the rule the recogniser is built on, seen from the other side.
+- **The St family is invisible to it**, because St tiles own no rhombs. Nothing
+  is left over for them: the recogniser partitions *every* rhomb into a Pe group.
+  So a full rhombs -> P1 conversion has to *place* the stars, boats and diamonds
+  rather than read them off the rhombs.
+
+**Lead for finding the St tiles.** They are the gaps in the Pe layout, and the
+Sun/Star result says where to look: at Sigma-gamma = 2 and 3 the origin has a
+middle index, owns no cluster, and sits inside an **St5**. So St centres live
+among the middle-index vertices. Not all of them — 400 middle-index vertices in
+that patch is far more than the St tiles it can hold — so the open part is which
+subset, and by what local rule. That is the next concrete thing to work out, and
+it is the last piece of the round trip.
+
 **Nothing is implemented.** `pentagrid` has no inflation and no deflation. What
 it does have is half the picture in one direction: `geometry/clusters.ts` reads a
 rhomb patch up into P1 clusters (Pe5/Pe3/Pe1), which is one P1 generation of
