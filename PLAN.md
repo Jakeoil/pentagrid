@@ -940,8 +940,8 @@ Reference images, both in `jake/` (untracked):
   reassembled into rhombs **phi** times larger (black). Linear ratio phi.
 - `next-gen-penrose-type-1.gif`. The **P1** step: heavy black outlines mark the
   next generation's pentagons and star laid over the small P1 tiles. Linear ratio
-  **phi^2**, and the new generation is visibly **turned over** relative to its
-  children — a Pe5 contains a smaller Pe5 upside down.
+  **phi^2**, and the child group sits **inside** the ancestor pentagon, which is
+  what makes it look turned over.
 
 **Jake's observation, and why it matters here.** Under Robinson inflation a **Pe5
 rhomb group becomes a smaller St5 rhomb group**, ratio phi. That is the Sun/Star
@@ -971,14 +971,19 @@ What can be said without doing the work:
   expected shape is that gamma's perpendicular coordinates **contract by 1/phi
   and change sign** each Robinson step.
 - Sigma-gamma is preserved: Penrose maps to Penrose.
-- **The sign may be the "upside down".** A negative factor on E-perp reverses
-  orientation there, which is a candidate explanation for the turned-over
-  generation Jake sees. But it does not close: two Robinson steps give
-  (-1/phi)^2 = +1/phi^2, so a phi^2 P1 generation should come back the right way
-  up — and it does not. Either the flip has another source (the standard Penrose
-  inflation is often stated with a 36 degree rotation, and twice that is 72,
-  a pentagon symmetry), or this accounting is wrong. Unresolved, and worth
-  settling before writing any code that assumes a sign.
+- **There is no flip, and an earlier draft of this section was wrong to look for
+  one.** Jake: the P1 generation does not really flip — the inflated group sits
+  *inside* the ancestor pentagon, and an inscribed pentagon is simply turned. It
+  is the pentagram relation, measured here to be sure: outer/inner circumradius
+  **phi^2 = 2.618034**, turned **exactly 36 degrees**, determinant +1. A rotation,
+  not a reflection. Point-up becomes point-down, which reads as upside down and
+  is not.
+
+  That removes the tension the draft recorded. Two Robinson steps give
+  (-1/phi)^2 = +1/phi^2 on E-perp, orientation preserved, and the P1 step's
+  apparent flip is the 36 degree nesting rotation rather than a sign. Two P1
+  generations turn by 72, a pentagon symmetry, so orientation returns. Nothing is
+  anomalous and no code should be written expecting a reflection.
 
 **Nothing is implemented.** `pentagrid` has no inflation and no deflation. What
 it does have is half the picture in one direction: `geometry/clusters.ts` reads a
