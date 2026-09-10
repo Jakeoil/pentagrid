@@ -1626,8 +1626,12 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
 
 A square, medium-size control for the panel: a five-axis decagonal reticulum
 where each gamma sits **on its own grid direction** instead of on an unrelated
-horizontal slider. Replaces the dial bank; see the revamp note above, which this
-supersedes.
+horizontal slider.
+
+**A plugin replacement, not a removal (Jake, 2026-09-10).** The dial bank stays
+and remains usable on other pages — the two are interchangeable, chosen per page.
+That is an architectural requirement, not just a migration courtesy, and it
+shapes everything below.
 
 ### What exists, and what to reuse
 
@@ -1645,8 +1649,7 @@ Inspected before designing, as asked. **Nothing about the model changes.**
   what it is told, never computes the locked value. The reticulum keeps that
   contract exactly.
 - `view/controls.ts` — `mountGammaControls(set, container, opts)` is the seam
-  that wires bank to set and subscribes `set.onChange`. The reticulum gets
-  `mountReticulum(set, container, opts)` beside it, same shape.
+  that wires bank to set and subscribes `set.onChange`.
 - Four mount sites: `view/pentagrid.ts:491` (method), `app/grow.ts`,
   `app/roof.ts`, `app/grow7.ts`. All pass `{ colors }` and nothing else, so
   swapping one page at a time is a one-line change per page.
@@ -1709,12 +1712,32 @@ the list.
 `Sigma-gamma mod 1` alongside when they differ — that difference is exactly the
 LI-class parameter, so it earns its place.
 
-### Architecture
+### Architecture — two controls, one interface
 
-`createReticulum(config) -> handle` in `src/ui/reticulum.ts`, following the
-container rule already in this plan and in MODULES.md. Pure view, DOM-only, no
-pentagrid mathematics inside it; `mountReticulum` in `view/controls.ts` is the
-only place that knows about both it and `GammaSet`.
+Because both survive, they must be **interchangeable**, and the existing type is
+already the right shape:
+
+    GammaBank      { element, sync(state) }
+    GammaBankState { values, locked, sum, sumNote }
+
+`createReticulum(config)` returns **the same handle type**, so a page swaps one
+for the other without knowing anything else. Worth renaming the type to something
+implementation-neutral — `GammaControl` — once there are two of them; `GammaBank`
+reads as the dial one specifically.
+
+The seam stays single rather than forking. `mountGammaControls(set, container,
+opts)` gains a `control?: "dials" | "reticulum"` option defaulting to `"dials"`,
+so the four existing mount sites keep working untouched and a page opts in with
+one word. One place still knows about both the view and `GammaSet`.
+
+Construction options may differ even though the handle does not: the reticulum
+needs the **axis directions**, which the bank has no use for. `mountReticulum`
+has the set, so it passes `set.model.directions` — and since the model's arrays
+are mutated in place and never replaced, the reticulum can hold that reference
+and read it every draw, so `setSymmetry` turning the star just works.
+
+`src/ui/reticulum.ts`, following the container rule already in this plan and in
+MODULES.md. Pure view, DOM-only, no pentagrid mathematics inside it.
 
 **SVG**, as Jake suggests — this is 2-D vector geometry that needs crisp scaling
 and hit-testing, and it lives in the controls area rather than the canvas layer
@@ -1727,9 +1750,11 @@ responsive.
 
 ### Staging, and one known risk
 
-Build it **alongside** the dial bank so the two can be compared before anything
-is removed — mount both on one page first, probably `method.html` since that is
-where the bank is worst.
+Nothing is removed at any point. Mount both on one page first — probably
+`method.html`, since that is where the bank is worst — so they can be compared
+side by side, then let each page choose. Plausible split: the reticulum where
+there is room and the five families matter (method, sunstar), the bank where
+vertical space is tight or the control is incidental (grow, roof, grow7).
 
 **Risk worth knowing before starting:** `tools/domstub.mjs` has `createElement`
 but **no `createElementNS`**, which is what SVG needs. The Proxy will return
