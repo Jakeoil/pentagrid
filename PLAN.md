@@ -985,6 +985,149 @@ What can be said without doing the work:
   generations turn by 72, a pentagon symmetry, so orientation returns. Nothing is
   anomalous and no code should be written expecting a reflection.
 
+**The gen-2 substitution, in rhomb groups (Jake, 2026-09-10 — verified).** Jake
+gave the compositions and they check out exactly against `wieringa-roof`'s own
+expansion (`generatePatch(seed, true, 2)`, counting leaves that emitted rhombs):
+
+    gen 1                       gen 2                              rhombs
+    Pe5 = star                  Pe5 -> star + 5 boats                25
+    Pe3 = boat                  Pe3 -> star + 3 boats + 2 diamonds   23
+    Pe1 = diamond               Pe1 -> star + boat  + 4 diamonds     21
+    St5 = (nothing)             St5 -> 5 diamonds                    15
+
+Gen 1 is one group per tile, so gen 2 is where the **complete set** first
+appears and the substitution becomes visible. The St5 line confirms the earlier
+correction: a star does emit from gen 2 on, as five diamond groups, and those are
+its five `Pe1` children.
+
+As a matrix on rhomb groups, every pentagon makes **exactly six** groups:
+
+    Pe5 -> 1 star + 5 boat + 0 diamond
+    Pe3 -> 1 star + 3 boat + 2 diamond
+    Pe1 -> 1 star + 1 boat + 4 diamond
+
+The Pe-only block therefore has dominant eigenvalue exactly 6 — but that is not
+the growth rate, because the St family feeds back in (St5 makes five Pe1). The
+true rate is below.
+
+**Measured: a P1 generation is phi^4 in count, hence phi^2 linear.** Rhomb count
+seeded on Pe5, generation by generation:
+
+    gen     1     2      3      4       5        6        7
+    rhombs  5    25    140    835    5225    33820   223835
+    ratio    -  5.000  5.600  5.964  6.257    6.473    6.618      -> phi^4 = 6.854
+
+The shortfall from phi^4 falls by roughly 1/phi each generation, which is the
+boundary of a seeded patch. **This settles the nomenclature section's caveat that
+nothing there had been measured in this repo: it has been now.** One P1
+generation is linear phi^2, and the count/area factor is phi^4.
+
+**The mosaic is the heart; real was the expansion (Jake, 2026-09-10).** Worth
+having straight, because the natural assumption is backwards. The originating
+program was **penrose-mosaic** — the discrete tiling — not tiles, and the real
+geometry came later as an expansion of it. **Real does not even need the
+wheels**: five-fold symmetric coordinates are just sines, cosines and phi. The
+wheels exist for the *discrete* side, where the arithmetic is integer and exact.
+
+So "the wheels are an artifact of the discrete tiling" is exact, not loose, and
+the intermediate-level work below belongs in the discrete world by default rather
+than as a port to it.
+
+**Corollary: the Fibonacci extrapolation was applied across a skip.** The origin
+story ([[penrose-mosaic-wheels]]) is that the discrete wheels were
+reverse-engineered by counting squares on a mosaic printout, and once two
+generations were in hand a Fibonacci recurrence `k(n+2) = k(n) + k(n+1)`
+extrapolated the rest. But that recurrence has ratio **phi**, while a wheel
+generation steps by **phi^2** — so it was being applied to every *other* term.
+That is Jake's "so far off".
+
+Two ways to fix it, both checked:
+
+- **Stay on the phi^2 ladder** and use the right recurrence,
+  `a(n+2) = 3a(n+1) - a(n)`, since `phi^4 = 3phi^2 - 1`. On the skipped Fibonacci
+  numbers F(2n) = 0, 1, 3, 8, 21, 55, 144 it reproduces every term exactly, where
+  plain Fibonacci gives 1 for the term that should be 3.
+- **Or generate the intermediate** (the two-term sum above) and then plain
+  Fibonacci is correct, because the ladder is no longer skipping.
+
+**The wheels skip a level, and the missing one is a subtraction (Jake,
+2026-09-10 — verified).** Jake's diagnosis of why the Fibonacci-like series in
+the wheels reads "far off": it skips numbers. Confirmed from the recurrence
+itself, `wieringa-roof/src/geometry.ts:146`, which on a 10-spoke wheel is
+
+    next[k] = w[k-1] + w[k] + w[k+1]
+
+Three unit vectors 36 degrees apart sum to `(1 + 2cos36) * w[k]`, and
+`2cos36 = phi` exactly, so that factor is `1 + phi = phi^2`. **The wheels step by
+phi^2 per generation, and never rotate** — the sum is parallel to its middle term.
+So the sequence is every *other* Fibonacci index, which is exactly why fitting a
+Fibonacci recurrence to it looks wrong.
+
+Because consecutive wheels are parallel, the intermediate is trivial, and there
+are two equivalent one-liners for it:
+
+    drop the middle term   w[k-1] + w[k+1]   =  2cos36 * w[k]      = phi * w[k]
+    or subtract            next[k] - w[k]    =  (phi^2 - 1) * w[k] = phi * w[k]
+
+Both work for the same reason, `phi^2 = phi + 1`. Measured: 2.618034 for the
+three-term sum, 1.618034 for either intermediate, all on the same spoke
+direction. Jake's bet that this would be easy is correct — it is one subtraction.
+
+**This matters more than a tidy-up.** That intermediate wheel *is* the Robinson
+level, and in wheel terms it has a two-line construction.
+
+**Not unfound — already explored (Jake).** "There's a whole set of discrete tiles
+in between, ready to generate." `penrose-mosaic`'s wheels use the same three-term
+successor, written there as `s0 = p9 + p0 + p1`, and carry an **exact integer
+deflation**: `predecessorPoint` / `interpolateWheel`, the same function twice, with
+`interpolateWheel(successorPoint(v)) === v` verified over 20,000 random triples
+with no rounding slack (`wheels.js`, `docs/wheels.md`). Everything there is
+integer arithmetic on the discrete wheels.
+
+So the intermediate is not a research problem, it is a two-term sum instead of a
+three-term one, and on the discrete wheels it should be exact in integers the way
+the existing step is. **Inference, not yet verified**: I checked `2cos36 = phi` in
+the real geometry and read the discrete round-trip claim; nobody has actually run
+the two-term sum on the discrete wheels and looked at what comes out.
+
+Whether the resulting level lands as a clean set of the six P1 shapes is the
+separate question, and it is what the round trip above would answer.
+
+Two notes. `interpolateWheel` already builds wheel index 0 from the seeds, but
+that is a full generation *backwards*, not a half step — a different mechanism.
+And Jake's framing: the wheels are an artifact of the discrete tiling, so this
+connects to **E2**, the discrete pentagrid exploration.
+
+**The St* family are second-class citizens (Jake, 2026-09-10).** Not a figure of
+speech — it is structural, and it is why the round trip below is stuck:
+
+- **They own no rhombs.** At gen 1 an `St*` emits nothing at all; it is a gap.
+  From gen 2 it emits only through its `Pe` children.
+- **There is no St rhomb group.** The three groups — star, boat, diamond — all
+  centre on `Pe5`, `Pe3`, `Pe1`. Nothing centres on a star.
+- **`clusters.ts` is blind to them by construction**, since it partitions *every*
+  rhomb into a Pe group and leaves nothing over.
+- **They are outnumbered**, and the ratio converges on phi^2:
+
+        gen        4       5       6       7
+        pentagons  221   1406    9196   61261
+        stars       50    400    2965   21210
+        Pe:St     4.420  3.515   3.102   2.888     -> phi^2 = 2.618
+
+- Even the **naming** favours the other side: the *star rhomb group* lives at the
+  centre of a `Pe5`, which is the sun. See the vocabulary correction above.
+
+**The counterweight, and the way out.** [[penrose-mosaic-rhomb-groups]] records
+that the St family emits no small rhombs "— in the dual it is the other way
+around". So second-class is an artefact of looking from the rhomb side: in the
+dual construction the St family is the one that carries. That is the obvious lead
+for completing rhombs -> P1 — **recover the Pe tiles from the primary rhombs and
+the St tiles from the dual** — and it is the same thing as the parked **Sun/Star
+overlay** (TODO 4a), whose stated goal is that the overlaid pattern produces a P1
+tiling with one pattern on thick and the other on thin. Worth noting the warning
+attached to it: `goThickDual` / `thinDualRhomb` are built from the p and s wheels
+rather than t, *may* be a genuine dual, and must not be blanket-renamed.
+
 **The round trip, and what it would buy (Jake, 2026-09-10).** The six P1 shapes
 — Pe5, Pe3, Pe1, St5, St3, St1 — each convert to a rhomb group of small rhombs,
 and the conversion goes the other way too. That is mutual local derivability
@@ -1061,19 +1204,29 @@ there is no clean "large P1 tile made entirely of small P1 tiles" at the half
 step — but the intermediate phi level exists, and Robinson triangles are the
 usual way to expose it (they are MLD with the rhombs). The interesting question
 is what that intermediate level looks like written back in the six P1 shapes.
+**The wheels give it directly, and Jake has been here before** — see the wheel
+section above. The recurrence is a three-term sum with factor phi^2; dropping the
+middle term (or subtracting) gives phi, and `penrose-mosaic`'s discrete wheels do
+the whole thing in exact integer arithmetic. Jake: "a whole set of discrete tiles
+in between, ready to generate". So the intermediate level is not unfound — it is
+ungenerated. Whether it corresponds to a clean level in the six P1 shapes is the
+part still open.
+
 `penrose-mosaic` may already contain it unlabelled: the small rhomb groups centre
 on **every** pentagon type (Pe5, Pe3, Pe1) while the large ones centre only on the
 blue Pe5. **ANSWERED 2026-09-10 and the guess was wrong** — Jake: big rhombs and
 little rhombs are **two** inflations apart, a full P1 generation of phi^2, so the
 small/large pair is not the missing half step and the lopsidedness has some other
-cause. The intermediate phi level is still unfound. Not verified — `wieringa-roof` indexes `wheels.s[gen]` and `wheels.t[gen]`,
+cause. The intermediate phi level is **ungenerated rather than unfound** — see
+the wheel section, and Jake has explored it before. Not verified — `wieringa-roof` indexes `wheels.s[gen]` and `wheels.t[gen]`,
 so the ratio of wheel magnitudes between consecutive generations would settle
 whether the code's generations step by phi or phi^2. Nobody has measured it.
 
 Attribution: the phi/phi^2 distinction and the intermediate-level conjecture are
 Jake's, with a supporting reply from ChatGPT citing de Bruijn's scale factor of
-(1+sqrt5)/2 for the inflated rhomb pattern. Nothing here was measured in this
-repo.
+(1+sqrt5)/2 for the inflated rhomb pattern. **Since measured** — see the gen-2
+substitution above: rhomb counts seeded on Pe5 grow toward phi^4 = 6.854 per P1
+generation, confirming phi^2 linear.
 
 ### A hall of mirrors, and telling the mirrors apart (2026-09-09)
 
