@@ -1622,6 +1622,123 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## Reticulum — a replacement for the instrument cluster (planned 2026-09-10)
+
+A square, medium-size control for the panel: a five-axis decagonal reticulum
+where each gamma sits **on its own grid direction** instead of on an unrelated
+horizontal slider. Replaces the dial bank; see the revamp note above, which this
+supersedes.
+
+### What exists, and what to reuse
+
+Inspected before designing, as asked. **Nothing about the model changes.**
+
+- `geometry/gamma.ts` — `GammaSet` is the whole state and already has every
+  operation the reticulum needs: `values()`, `exact()`, `denominator`,
+  `setValue(i, v)`, `setSum(s, spread)`, `getSum()`, `setLocked(i)`,
+  `getLocked()`, `reset()`, `isUniform()`, `nudged()`, `provenRegular()`,
+  `onChange(cb)`, `n`, and `model.directions`. Jake's sketched props map straight
+  onto it: `gammas` = `values()`, `targetSum` = `getSum()`, `freeIndex` =
+  `getLocked()`, `onGammaChange` = `setValue`, `onTargetSumChange` =
+  `setSum(s, true)`.
+- `ui/dials.ts` — the current bank. A **pure view**: it reports moves and renders
+  what it is told, never computes the locked value. The reticulum keeps that
+  contract exactly.
+- `view/controls.ts` — `mountGammaControls(set, container, opts)` is the seam
+  that wires bank to set and subscribes `set.onChange`. The reticulum gets
+  `mountReticulum(set, container, opts)` beside it, same shape.
+- Four mount sites: `view/pentagrid.ts:491` (method), `app/grow.ts`,
+  `app/roof.ts`, `app/grow7.ts`. All pass `{ colors }` and nothing else, so
+  swapping one page at a time is a one-line change per page.
+
+### The crux: make it cyclic, not five radial sliders
+
+Jake's warning is the design constraint that matters — five axes arranged
+prettily, each with a hard endpoint, would be the old bank in a circle. The five
+axes say *which family*; something must say *where that family's phase lies mod
+1*, cyclically.
+
+**Proposal: draw each family's actual line positions along its axis, and slide
+them.** Family j's lines sit at `x . v_j = n - gamma_j`, so along axis j they
+cross at parameter `t = n - gamma_j` for every integer n — a periodic tick train
+of spacing 1. The centre is the origin and stays fixed; changing gamma_j slides
+that family's whole train along its axis.
+
+That makes mod 1 **structural rather than enforced**: after a full unit the
+picture is identical, and there is no end to hit because the train continues off
+the edge of the widget in both directions. Wrapping is not animated smoothly, it
+is *invisible*, which is stronger.
+
+It also makes the control honest — you are not dragging an abstraction, you are
+dragging that family's grid lines, which is exactly what gamma does.
+
+Reference structure without labels: between two consecutive ticks put minor
+divisions at fifths and a slightly stronger one at the half. That renders 0, 1/5,
+2/5, 1/2, 3/5, 4/5 recognisable by eye. Exact values on hover/selection only.
+
+Two things fall out for free:
+
+- **The free/dependent gamma shows the constraint working.** Its train visibly
+  slides when you move a different axis. Dim it and it reads as "this one is not
+  yours to drive" without a label.
+- **n-generality is free.** The axes come from `set.model.directions`, which is
+  already n-general, and the tick train does not care about n. Five stays the
+  default; a heptagrid needs no new code.
+
+### Interaction
+
+Instrument, not form. Wheel is primary.
+
+- **Wheel** over the reticulum adjusts the selected axis, or the nearest one if
+  none is selected. Hundredths a notch, thousandths with shift — the same steps
+  the dial bank now uses, so the feel carries over.
+- **Drag along an axis** slides that family's train directly.
+- **Hover or click** an axis to select it; the selected axis is emphasised.
+- **Touch**: tap to select, drag to change. Hit regions are angular wedges around
+  each axis, far larger than the drawn marks — no small handles anywhere.
+- Conventional sliders stay available as fallback and for accessibility.
+
+### Presets, kept separate from the geometry
+
+Buttons outside the reticulum, not marks on it: equal gamma at 0, 1/5, 2/5, 1/2,
+and the Penrose sum constraint. `setSum(5c, true)` already produces the equal
+split, so these are one call each. `sunstar.html` has the same five and can share
+the list.
+
+`Sigma-gamma` shown prominently enough to read while dragging, with
+`Sigma-gamma mod 1` alongside when they differ — that difference is exactly the
+LI-class parameter, so it earns its place.
+
+### Architecture
+
+`createReticulum(config) -> handle` in `src/ui/reticulum.ts`, following the
+container rule already in this plan and in MODULES.md. Pure view, DOM-only, no
+pentagrid mathematics inside it; `mountReticulum` in `view/controls.ts` is the
+only place that knows about both it and `GammaSet`.
+
+**SVG**, as Jake suggests — this is 2-D vector geometry that needs crisp scaling
+and hit-testing, and it lives in the controls area rather than the canvas layer
+stack, so it does not fight the existing architecture.
+
+Visual: thin construction lines, five stronger principal axes, small gamma
+indicators, selected axis emphasised. No gauges, chrome, gradients or shadows.
+Readable at the smallest useful size. Start 220-260 px square and make it
+responsive.
+
+### Staging, and one known risk
+
+Build it **alongside** the dial bank so the two can be compared before anything
+is removed — mount both on one page first, probably `method.html` since that is
+where the bank is worst.
+
+**Risk worth knowing before starting:** `tools/domstub.mjs` has `createElement`
+but **no `createElementNS`**, which is what SVG needs. The Proxy will return
+something callable rather than throwing, so `pagecheck` may pass while the
+control is structurally untested. Either teach the stub `createElementNS` with
+the same `children`/`on` plumbing, or accept that the reticulum's tests exercise
+it directly rather than through a page. Decide that first, because the existing
+harness catching blank pages is worth keeping.
+
 ## Site structure
 
 Three top-level pages, following the shape wieringa-roof uses.
