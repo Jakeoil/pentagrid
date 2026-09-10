@@ -931,6 +931,50 @@ Not started, and deliberately not folded into `method.html` yet: the new page is
 the place to find out whether the interaction is actually better before anything
 that works is disturbed.
 
+### Nomenclature: which inflation, phi or phi squared (Jake, 2026-09-09)
+
+Shared vocabulary, so "one generation" stops being ambiguous. There are **two
+natural notions of a step**, and they differ by a factor of phi:
+
+| step | linear scale | area scale |
+|---|---|---|
+| **P1 generation** — a pentagon made out of pentagons | **phi^2** | phi^4 |
+| **Robinson / P3 substitution** — rhombs cut and reassembled | **phi** | phi^2 |
+
+So **one P1 generation is two Robinson steps**: phi x phi = phi^2. The Pe1 / Pe3 /
+Pe5 generation numbers used across `penrose-mosaic` and `wieringa-roof` count P1
+generations, which means a patch labelled generation 3 or 4 is **twice as deep**
+in the elementary phi hierarchy as the number suggests. Worth remembering before
+comparing a generation number against anything quoted in Robinson steps.
+
+The phi^2 that turns up in the substitution matrix is the *area/count* eigenvalue
+of the Robinson step, not a linear factor — tile counts grow by phi^2 per step
+while edges grow by phi. Easy to mistake for the P1 linear factor, since it is
+the same number.
+
+**Consequence for this plan.** Wherever a note says "one inflation apart" without
+saying which, it is ambiguous. [[penrose-mosaic-rhomb-groups]] says exactly that
+about the large and small rhomb groups, and it matters: if they are a *Robinson*
+step apart they are the intermediate phi level, and if a *P1 generation* apart
+they are not. Say which from now on.
+
+**A lead, not a result.** The conventional P1 substitution jumps by phi^2 because
+there is no clean "large P1 tile made entirely of small P1 tiles" at the half
+step — but the intermediate phi level exists, and Robinson triangles are the
+usual way to expose it (they are MLD with the rhombs). The interesting question
+is what that intermediate level looks like written back in the six P1 shapes.
+`penrose-mosaic` may already contain it unlabelled: the small rhomb groups centre
+on **every** pentagon type (Pe5, Pe3, Pe1) while the large ones centre only on the
+blue Pe5. A clean phi^2 hierarchy would not produce that lopsidedness; a half step
+would. Not verified — `wieringa-roof` indexes `wheels.s[gen]` and `wheels.t[gen]`,
+so the ratio of wheel magnitudes between consecutive generations would settle
+whether the code's generations step by phi or phi^2. Nobody has measured it.
+
+Attribution: the phi/phi^2 distinction and the intermediate-level conjecture are
+Jake's, with a supporting reply from ChatGPT citing de Bruijn's scale factor of
+(1+sqrt5)/2 for the inflated rhomb pattern. Nothing here was measured in this
+repo.
+
 ### A hall of mirrors, and telling the mirrors apart (2026-09-09)
 
 Jake's framing: aperiodic tiling is a hall of mirrors — dichotomies, duals,
