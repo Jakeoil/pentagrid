@@ -23,7 +23,7 @@ export interface GammaSetOptions {
      * Lutfalla's Gn(x) is every offset equal to x, so his G5(½) is sum 5/2 here.
      */
     sum?: number;
-    /** Which index is computed from the others to hold the sum. */
+    /** Which index is computed from the others to hold the sum, or -1 for none. */
     locked?: number;
     /** Turn the star a quarter turn: v0 up, family 0's lines horizontal. */
     symmetry?: boolean;
@@ -58,6 +58,10 @@ export interface GammaSet {
      */
     setSum: (sum: number, spread?: boolean) => void;
     getSum: () => number;
+    /**
+     * Which offset is computed from the others to hold Σγ. Pass **-1** to hold
+     * nothing: every offset becomes free and the total floats.
+     */
     setLocked: (index: number) => void;
     getLocked: () => number;
     setSymmetry: (on: boolean) => void;
@@ -228,11 +232,22 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         for (let j = 0; j < n; j++) directions[j] = next[j];
     }
 
-    /** Re-derive the locked index from the rest, then the floats from the exact. */
+    /**
+     * Re-derive the locked index from the rest, then the floats from the exact.
+     *
+     * `locked < 0` means **nothing** is holding the total: every offset is free
+     * and Σγ is whatever they happen to add up to. That is a real configuration,
+     * not a disabled one — the sum constraint is itself a choice, and this is the
+     * state where it has been declined.
+     */
     function relock() {
-        let rest = 0;
-        for (let i = 0; i < n; i++) if (i !== locked) rest += q[i];
-        q[locked] = sumQ - rest;
+        if (locked < 0) {
+            sumQ = q.reduce((a, b) => a + b, 0);
+        } else {
+            let rest = 0;
+            for (let i = 0; i < n; i++) if (i !== locked) rest += q[i];
+            q[locked] = sumQ - rest;
+        }
         for (let j = 0; j < n; j++) gamma[j] = q[j] / den;
     }
 
@@ -272,7 +287,7 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
                 if (q[j] % den === 0) q[j] += j + 1;
             }
             relock();
-            if (q[locked] % den === 0) {
+            if (locked >= 0 && q[locked] % den === 0) {
                 q[(locked + 1) % n] += 1;
                 relock();
             }
@@ -322,6 +337,9 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         },
         setSum: (s, spread) => {
             sumQ = Math.round(s * den);
+            // With nothing holding the total there is no index to absorb a change,
+            // so the only sensible reading of "set the sum" is an even split.
+            if (locked < 0) { reset(); return; }
             // Without spread the locked index takes the whole change, which is
             // exactly the lopsided case the note must not call symmetric.
             if (spread) { reset(); } else { uniformIntent = false; settle(); }

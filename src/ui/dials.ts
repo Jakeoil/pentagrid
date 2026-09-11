@@ -144,9 +144,14 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
         wraps.push(div);
     }
 
+    // Sigma is the sixth member of the lock group, here as in the reticulum:
+    // click it and nothing holds the total, so every offset is free at once.
     const sumSpan = document.createElement("div");
     sumSpan.className = "sum-display";
     sumSpan.textContent = "Σ = 0.00";
+    sumSpan.title = "Release the total — every γ free";
+    sumSpan.style.cursor = "pointer";
+    sumSpan.addEventListener("click", () => opts.onLock(-1));
     element.appendChild(sumSpan);
 
     let sumInput: HTMLInputElement | null = null;
@@ -213,6 +218,8 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
             if (dragging !== j) inputs[j].value = mod1(s.values[j]).toFixed(EXACT_DP);
         }
         sumSpan.textContent = `Σ = ${s.sum.toFixed(4)}`;
+        // Greyed when it is the one being held free, matching the dials.
+        sumSpan.className = "sum-display" + (s.locked < 0 ? " computed" : "");
         // Same rule: only a held pointer stops the write-back.
         if (sumInput && !sumDragging) sumInput.value = s.sum.toFixed(EXACT_DP);
         sumSpan.title = s.sum.toFixed(EXACT_DP);

@@ -179,3 +179,43 @@ footer {
     font-size: 13px;
     color: var(--ink-faint);
 }
+
+/* ── Reticulum ─────────────────────────────────────────────────── */
+.reticulum-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.reticulum {
+    width: 100%;
+    max-width: 260px;
+    min-width: 170px;
+    aspect-ratio: 1 / 1;
+    display: block;
+    overflow: visible;
+    touch-action: none;      /* drags belong to the control, not the page */
+    cursor: crosshair;
+}
+/* only the target and the labels take input; the drawing is transparent to it */
+.ret-rim, .ret-axis, .ret-band, .ret-cross { pointer-events: none; }
+.ret-label { pointer-events: auto; cursor: pointer; }
+
+.ret-rim  { fill: none; stroke: #ccc; stroke-width: 0.008; }
+.ret-line { stroke-width: 0.005; opacity: 0.22; }
+.ret-grid { stroke-width: 0.022; stroke-linecap: round; opacity: 0.85; }
+.ret-axis.live .ret-grid { stroke-width: 0.034; }
+.ret-axis.dependent .ret-grid { opacity: 0.32; stroke-dasharray: 0.045 0.035; }
+.ret-axis.live .ret-line { opacity: 0.5; }
+
+/* the active gamma's full range, side to side — subordinate to the marker */
+.ret-band { opacity: 0; }   /* fill is the family colour, washed out */
+.ret-band.on { opacity: 0.55; }
+
+/* a reference mark, not a cursor */
+.ret-cross-active { stroke: #444; stroke-width: 0.012; }
+.ret-cross-dep    { stroke: #aaa; stroke-width: 0.012; }
+
+.ret-label {
+    font-size: 0.155px;
+    font-family: "Times New Roman", serif;
+    font-style: italic;
+}
+.ret-label.live { font-weight: bold; }
+.ret-readout { font-family: monospace; font-size: 12px; color: #666; }
+.ret-readout.released { color: #bbb; font-style: italic; }

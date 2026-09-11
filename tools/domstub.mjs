@@ -33,7 +33,15 @@ function makeStub(extra = {}) {
             if (name === "data-height") return String(SH);
             return null;
         },
-        appendChild: (c) => { children.push(c); return c; }, removeChild: noop,
+        appendChild: (c) => { children.push(c); return c; },
+        // Must really remove: code that empties a node by looping on
+        // `while (children.length) removeChild(last)` spins forever otherwise,
+        // which is a hang rather than a failure and takes a while to recognise.
+        removeChild: (c) => {
+            const i = children.indexOf(c);
+            if (i >= 0) children.splice(i, 1);
+            return c;
+        },
         addEventListener: (type, fn) => {
             handlers.push({ type, fn });
             (on[type] ??= []).push(fn);
@@ -69,6 +77,16 @@ globalThis.document = makeStub({
     getElementById: (id) => {
         if (!elements.has(id)) elements.set(id, makeStub());
         return elements.get(id);
+    },
+    // SVG needs createElementNS, and it has to build the same kind of stub —
+    // otherwise the Proxy hands back something callable, the control appears to
+    // construct, and pagecheck passes on a page that would render nothing.
+    createElementNS: (_ns, tag) => {
+        const el = makeStub({ tagName: tag, attrs: {} });
+        el.setAttribute = (k, v) => { el.attrs[k] = String(v); };
+        el.getAttribute = (k) => (k in el.attrs ? el.attrs[k] : null);
+        if (tag === "input") inputs.push(el);
+        return el;
     },
     createElement: (tag) => {
         const el = makeStub(

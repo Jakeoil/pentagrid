@@ -5,6 +5,16 @@ import type { GammaSet } from "../geometry/gamma.js";
 import { describeSum } from "../geometry/gamma.js";
 import { createGammaBank } from "../ui/dials.js";
 import type { GammaBank } from "../ui/dials.js";
+import { createReticulum } from "../ui/reticulum.js";
+
+/**
+ * What every gamma control is, whichever one a page picks.
+ *
+ * The dial bank and the reticulum are interchangeable — neither replaces the
+ * other, and a page chooses. `GammaBank` names the dial one specifically, so
+ * this is the name to use where either will do.
+ */
+export type GammaControl = GammaBank;
 
 /** The state fields a range input can drive. */
 type NumericKey = {
@@ -48,8 +58,15 @@ export function mountGammaControls(
         sum?: boolean;
         /** Defaults to 0 … n/2, which is every family the total can name. */
         sumRange?: { min: number; max: number; step: number };
+        /**
+         * Which control to build. The two are plugin-interchangeable and both
+         * stay: dials where space is tight or the control is incidental, the
+         * reticulum where the five families are the point.
+         */
+        control?: "dials" | "reticulum";
     },
-): GammaBank {
+): GammaControl {
+    if (opts.control === "reticulum") return mountReticulum(set, container, opts);
     const bank = createGammaBank({
         count: set.values().length,
         colors: opts.colors,
@@ -128,4 +145,59 @@ export function bindToggles(view: GrowthHandle, specs: readonly ToggleSpec[]) {
         input.addEventListener("change", apply);
         apply();
     }
+}
+
+/**
+ * Mount the reticulum against the same set, and hand back the same handle type.
+ *
+ * The set is passed `model.directions` live rather than copied: the model mutates
+ * its arrays in place and never replaces them, so turning the star with
+ * `setSymmetry` is picked up on the next draw with no re-mount.
+ */
+export function mountReticulum(
+    set: GammaSet,
+    container: HTMLElement,
+    opts: { colors: readonly string[] },
+): GammaControl {
+    const ret = createReticulum({
+        count: set.values().length,
+        directions: set.model.directions as readonly (readonly [number, number])[],
+        colors: opts.colors,
+        onChange: (j, v) => set.setValue(j, v),
+        // -1 is Sigma itself: hold nothing, and every offset goes free.
+        onLock: (j) => set.setLocked(j),
+    });
+
+    const wrap = document.createElement("div");
+    wrap.className = "reticulum-wrap";
+    wrap.appendChild(ret.element);
+
+    // Sigma is the (n+1)th member of the lock group, and this is where it lives:
+    // reading the total and releasing it are the same control. It was briefly a
+    // hub at the centre of the decagon, which put it in the way of the geometry
+    // and left nothing at the origin but clutter.
+    const readout = document.createElement("div");
+    readout.className = "ret-readout";
+    readout.style.cursor = "pointer";
+    readout.title = "Click to release the total — every γ free";
+    readout.addEventListener("click", () => set.setLocked(-1));
+    wrap.appendChild(readout);
+    container.appendChild(wrap);
+
+    const render = () => {
+        const values = set.values();
+        const sum = values.reduce((a, b) => a + b, 0);
+        const locked = set.getLocked();
+        ret.sync({ values, locked, sum });
+        const frac = ((sum % 1) + 1) % 1;
+        // Sigma-gamma mod 1 is the LI class, so it earns its place whenever it
+        // differs from the total itself.
+        const modPart = Math.abs(frac - sum) < 1e-9 ? "" : ` · mod 1 = ${frac.toFixed(3)}`;
+        readout.textContent = `Σγ = ${sum.toFixed(3)}${modPart}`;
+        // Greyed exactly when it is the dependent member, like a greyed label.
+        readout.className = "ret-readout" + (locked < 0 ? " released" : "");
+    };
+    set.onChange(render);
+    render();
+    return { element: wrap, sync: () => render() };
 }

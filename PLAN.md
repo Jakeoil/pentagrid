@@ -1748,6 +1748,41 @@ indicators, selected axis emphasised. No gauges, chrome, gradients or shadows.
 Readable at the smallest useful size. Start 220-260 px square and make it
 responsive.
 
+### Built 2026-09-11, and what changed in the doing
+
+`src/ui/reticulum.ts`, `mountReticulum` in `view/controls.ts`, both controls live
+on `method.html` against one gamma set.
+
+Two revisions from Jake once it was running:
+
+- **One line per family, not a train of hatch marks.** The reticulum draws the
+  single line of family j nearest the origin, as a chord perpendicular to its
+  axis at distance `frac(gamma_j) * SPACING`. Mod 1 survives the change — a whole
+  turn reproduces the chord exactly, and a test pins that at gamma = 0, 1, -2 and
+  7.25 — but the wrap is now a visible return rather than an invisible slide. A
+  clock hand passing twelve, which is the metaphor the labels ask for anyway.
+- **Labels round the rim, on their own axes**, coloured, with the dependent one
+  greyed. For an untwisted star they land at 0, 72, 144, 216, 288 degrees;
+  `setSymmetry` turns them with their axes, since they are placed from
+  `directions` rather than from fixed angles.
+
+**Sigma joins the lock group — a model change.** Clicking a coloured label makes
+that offset the dependent one. Clicking **Sigma at the hub** makes the *total*
+the dependent member: nothing holds it, and all n offsets are free at once.
+Exactly one of the n+1 is grey, always.
+
+That needed `GammaSet` to accept `setLocked(-1)`: `relock()` now recomputes
+`sumQ` from the offsets instead of writing a dependent one, and the guard skips
+its `q[locked]` check. `setSum` on an unconstrained set spreads evenly, since
+there is no index left to absorb a change. **The dial bank gets the same
+behaviour** — its Sigma readout is clickable and greys the same way — because the
+change is in the model, not in either view.
+
+**Shared now, separate later (Jake).** Both controls currently drive one
+`GammaSet`, which is what makes the side-by-side comparison meaningful. The
+reticulum will get its own copy eventually, so nothing should assume there is
+exactly one set per page.
+
 ### Staging, and one known risk
 
 Nothing is removed at any point. Mount both on one page first — probably

@@ -5,6 +5,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domstub.mjs";
 import { createGammaBank } from "../dist/ui/dials.js";
+import { createReticulum } from "../dist/ui/reticulum.js";
+import { createGammaSet } from "../dist/geometry/gamma.js";
+import { mountReticulum } from "../dist/view/controls.js";
 import { createLoupe } from "../dist/ui/loupe.js";
 
 const COLORS = ["#a", "#b", "#c", "#d", "#e"];
@@ -350,4 +353,92 @@ test("the total clamps at its ends instead of wrapping", () => {
     b.sync({ values: [0, 0, 0, 0, 0], locked: 4, sum: 0 });
     b.element.children[6].on.wheel[0](wheelEvt(1));
     assert.equal(sums[1], 0, "must not wrap below zero");
+});
+
+// ── the two instruments over one state ────────────────────────────
+
+test("the dial bank and the reticulum stay in step over one gamma set", () => {
+    // The requirement that breaks silently: two views, one source of truth. They
+    // disagree about the NUMBER — 0.8 in the bank is -0.2 on the reticulum — and
+    // must never disagree about the gamma.
+    const set = createGammaSet();
+    set.setSum(1, true);
+
+    const seen = [];
+    const bank = createGammaBank({
+        count: 5, colors: COLORS,
+        onChange: (j, v) => set.setValue(j, v), onLock: (j) => set.setLocked(j),
+    });
+    const ret = createReticulum({
+        count: 5, directions: set.model.directions, colors: COLORS,
+        onChange: (j, v) => { seen.push(v); set.setValue(j, v); },
+        onLock: (j) => set.setLocked(j),
+    });
+    const push = () => {
+        const values = set.values();
+        const state = { values, locked: set.getLocked(), sum: set.getSum() };
+        bank.sync(state);
+        ret.sync(state);
+    };
+    set.onChange(push);
+    push();
+
+    // drive the bank, read the reticulum
+    const dial = bank.element.children[1];        // the wrap carries the wheel
+    dial.on.wheel[0]({ deltaY: -1, shiftKey: false, preventDefault() {} });
+    const g1 = set.values()[1];
+    const line = ret.element.children.filter((c) =>
+        (c.getAttribute("class") || "").startsWith("ret-axis"))[1]
+        .children.filter((c) => c.getAttribute("class") === "ret-grid")[0];
+    assert.ok(line, "the reticulum drew no line for that family");
+    assert.ok(Math.abs(g1 - 0.21) < 1e-9, `the bank moved gamma-1 to ${g1}`);
+
+    // Drive the reticulum, read the bank. Aim straight up: with the star set for
+    // vertical symmetry that is family 0, and family 4 is the dependent one.
+    const hit = ret.element.children.filter(
+        (c) => (c.getAttribute("class") || "") === "ret-hit")[0];
+    const up = { clientX: 400, clientY: 100, preventDefault() {}, stopPropagation() {} };
+    hit.on.pointerdown[0](up);
+    hit.on.pointerup[0](up);
+    hit.on.wheel[0]({ ...up, deltaY: -1, shiftKey: false });
+    assert.ok(seen.length > 0, "the reticulum reported nothing");
+    assert.equal(bank.element.children[0].children[2].textContent,
+                 set.values()[0].toFixed(3), "the bank did not follow the reticulum");
+
+    // and the dependent index is shared, not reimplemented by either view
+    set.setLocked(-1);
+    push();
+    assert.equal(set.getLocked(), -1);
+    assert.match(bank.element.children[5].className, /computed/,
+                 "the bank must grey Sigma when nothing holds the total");
+    const axes = ret.element.children.filter((c) =>
+        (c.getAttribute("class") || "").startsWith("ret-axis"));
+    for (const a of axes) {
+        assert.doesNotMatch(a.getAttribute("class"), /dependent/,
+                            "no axis is dependent once the total is released");
+    }
+});
+
+test("the reticulum's readout is the Sigma control: it reads and releases", () => {
+    // Sigma was briefly a hub at the centre of the decagon, which put it in the
+    // way of the geometry. Reading the total and releasing it are one control.
+    const set = createGammaSet();
+    set.setSum(1, true);
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+
+    const wrap = host.children[0];
+    const readout = wrap.children[1];
+    assert.match(readout.textContent, /^Σγ = 1\.000/);
+    assert.equal(readout.className, "ret-readout", "not released yet");
+
+    readout.on.click[0]();
+    assert.equal(set.getLocked(), -1, "clicking Σ must release the total");
+    assert.match(readout.className, /released/);
+
+    // released means the total really does float
+    set.setValue(0, 0.9);
+    assert.ok(Math.abs(set.getSum() - (0.9 + 0.8)) < 1e-9,
+              `the total should follow the offsets, got ${set.getSum()}`);
+    assert.match(readout.textContent, /mod 1/, "Σγ and Σγ mod 1 now differ");
 });
