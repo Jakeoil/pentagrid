@@ -552,9 +552,11 @@ test("createPentagrid builds a heptagrid when asked, layers and all", () => {
     const h = createPentagrid({ container: sizedHost(600, 600), n: 7 });
     assert.equal(h.gamma.n, 7);
     assert.equal(h.gamma.model.directions.length, 7);
-    for (let j = 0; j < 7; j++)
-        assert.ok(h.stack.get(`grid-${j}`), `no layer for family ${j}`);
-    assert.equal(h.stack.get("grid-7"), undefined, "an eighth family appeared");
+    // One canvas for all seven, and the count lives in the γ set rather than in
+    // however many layers happen to exist.
+    assert.ok(h.stack.get("grid"), "no grid layer");
+    assert.equal(h.stack.get("grid-0"), undefined, "per-family canvases are gone");
+    assert.equal(h.gamma.enabledFlags().length, 7);
     h.redraw();
 });
 
@@ -566,7 +568,7 @@ test("axes are off by default and drawn in front of the grid and the tiling", ()
     assert.equal(axes.userVisible ?? true, true, "the layer itself stays available");
     assert.ok(axes.z > h.stack.get("dots").z, "axes must sit above the grid overlays");
     assert.ok(axes.z > h.stack.get("penrose-tiles").z, "and above the tiling");
-    assert.ok(axes.z > h.stack.get("grid-0").z, "and above the grid itself");
+    assert.ok(axes.z > h.stack.get("grid").z, "and above the grid itself");
     h.redraw();
 });
 
@@ -661,4 +663,84 @@ test("K-regions, its hover read-out and K-labels are one cluster", () => {
     assert.match(joined, /vertex from region \(hover\)/,
                  "the hover read-out belongs with K-regions, not the gamma controls");
     assert.match(joined, /K-labels/);
+});
+
+test("whether a family is on has ONE home: the gamma set", () => {
+    // It had two. The panel wrote gammaSet.setFamilyEnabled, the layer's own
+    // visibility read it, collectRhombs read it — but six drawing sites read
+    // stack.get(`grid-j`).userVisible, which nothing ever wrote. So the dots, the
+    // K-regions, the loupe and both K-tuple read-outs all went on treating a
+    // switched-off family as live.
+    const h = createPentagrid({ container: sizedHost(600, 600), steps: [] });
+    const grid = h.stack.get("grid");
+
+    h.gamma.setFamilyEnabled(2, false);
+    assert.equal(h.gamma.familyEnabled(2), false);
+    assert.equal(h.gamma.enabledFlags()[2], false, "rhomb collection must follow");
+    // the shared canvas stays up while anyone is left to draw on it
+    assert.equal(grid.visible(), true);
+
+    for (let j = 0; j < 5; j++) h.gamma.setFamilyEnabled(j, false);
+    assert.equal(grid.visible(), false, "with every family off there is nothing to draw");
+
+    // the layer's own flag is not a second opinion about families
+    grid.userVisible = false;
+    h.redraw();
+    grid.userVisible = true;
+    h.redraw();
+    assert.equal(h.gamma.familyEnabled(2), false,
+                 "the layer flag must not speak for a family");
+
+    h.gamma.setFamilyEnabled(2, true);
+    assert.equal(grid.visible(), true, "and the gamma set brings it back");
+});
+
+test("a family switched off in the panel is off everywhere at once", () => {
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(600, 600), panel });
+    const sw = panelSwitches(panel).find((s) => s.row === "Pentagrid" && s.label === "3");
+    assert.ok(sw, "no per-family switch for family 3");
+
+    sw.box.checked = false;
+    sw.box.on.change[0]();
+    assert.equal(h.gamma.familyEnabled(3), false, "the switch did not reach the model");
+    assert.equal(h.gamma.enabledFlags()[3], false, "and rhomb collection with it");
+    h.redraw();
+});
+
+test("all n families share one canvas, and the panel does not let on", () => {
+    // A canvas per family bought nothing: drawAll redraws every visible layer, so
+    // there was no selective redraw; all n shared one opacity expression; and they
+    // sat at contiguous z with nothing between. The cost was a full-size canvas
+    // each. What the user sees must be identical — one switch per family, swatch
+    // and all.
+    for (const n of [5, 7]) {
+        const panel = makeStub();
+        const h = createPentagrid({ container: sizedHost(600, 600), panel, n });
+        assert.ok(h.stack.get("grid"), `n=${n}: no grid layer`);
+        for (let j = 0; j < n; j++) {
+            assert.equal(h.stack.get(`grid-${j}`), undefined,
+                         `n=${n}: family ${j} still has its own canvas`);
+        }
+        const fam = panelSwitches(panel)
+            .filter((s) => s.row === "Pentagrid" && /^\d+$/.test(s.label));
+        assert.equal(fam.length, n, `n=${n}: ${fam.length} family switches, want ${n}`);
+        assert.deepEqual(fam.map((s) => s.label),
+                         [...Array(n).keys()].map(String), "families out of order");
+    }
+});
+
+test("the shared canvas draws only the families that are on", () => {
+    const h = createPentagrid({ container: sizedHost(600, 600), steps: [] });
+    const grid = h.stack.get("grid");
+    // stub contexts record nothing, so check the decision rather than the ink:
+    // every family off means the layer itself stands down.
+    assert.equal(grid.visible(), true);
+    for (let j = 0; j < 4; j++) h.gamma.setFamilyEnabled(j, false);
+    assert.equal(grid.visible(), true, "one family left is still worth a canvas");
+    h.gamma.setFamilyEnabled(4, false);
+    assert.equal(grid.visible(), false);
+    h.gamma.setFamilyEnabled(0, true);
+    assert.equal(grid.visible(), true);
+    h.redraw();
 });

@@ -33,7 +33,7 @@ const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
 
 
 export interface Features {
-    /** The pentagrid itself. Separate from a family's userVisible, which also
+    /** The pentagrid itself. Separate from a family being enabled, which also
      *  removes the rhombs that family generates. */
     gridLines: boolean;
     axes: boolean;
@@ -384,7 +384,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             gammaSet.enabledFlags().map((b) => (b ? 1 : 0)).join(""),
             gammaSet.lineFlags().map((n) => (n === null ? "*" : n)).join(","),
             String(gammaSet.isolated()),
-            gridLayers.map((l) => (l.userVisible ? 1 : 0)).join(""),
             vis.xMin.toFixed(3), vis.xMax.toFixed(3),
             vis.yMin.toFixed(3), vis.yMax.toFixed(3),
         ].join("|");
@@ -412,16 +411,25 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         draw: (c) => withView(gridView(), () => drawKRegions(c.ctx, c.cx, c.cy)),
     });
 
-    const gridLayers: Layer[] = [];
-    for (let j = 0; j < model.n; j++) {
-        gridLayers.push(stack.add({
-            id: `grid-${j}`, label: `${j}`, z: 10 + j, group: "Pentagrid",
-            visible: () => features.gridLines && gammaSet.familyEnabled(j),
-            opacity: () => gridAlphas[Math.min(currentStep, gridAlphas.length - 1)],
-            draw: (c) => withView(gridView(), () =>
-                drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy)),
-        }));
-    }
+    // ONE canvas for all n families, not one each.
+    //
+    // A canvas per family bought nothing measurable: `drawAll` redraws every
+    // visible layer anyway, so there was no selective redraw to gain; all n shared
+    // the same opacity expression; and they sat at contiguous z with nothing
+    // interleaved. What they cost was real — a full-size canvas each, five of
+    // thirteen at n = 5 and seven of fifteen at n = 7. Skipping a disabled family
+    // is an `if` in the loop, which is all the separate canvases were doing.
+    stack.add({
+        id: "grid", label: "Grid", z: 10, group: "Pentagrid",
+        visible: () => features.gridLines && gammaSet.enabledFlags().some(Boolean),
+        opacity: () => gridAlphas[Math.min(currentStep, gridAlphas.length - 1)],
+        draw: (c) => withView(gridView(), () => {
+            for (let j = 0; j < model.n; j++) {
+                if (!gammaSet.familyEnabled(j)) continue;
+                drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy);
+            }
+        }),
+    });
 
     const axesLayer = stack.add({
         // In FRONT of the grid and the tiling: an axis behind the thing it
@@ -1040,11 +1048,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const maxN = Math.min(Math.ceil(maxCoord) + 3, 50);
 
         for (let j = 0; j < model.n; j++) {
-            const layerJ = stack.get(`grid-${j}`);
-            if (layerJ && !layerJ.userVisible) continue;
+            if (!gammaSet.familyEnabled(j)) continue;
             for (let k = j + 1; k < model.n; k++) {
-                const layerK = stack.get(`grid-${k}`);
-                if (layerK && !layerK.userVisible) continue;
+                if (!gammaSet.familyEnabled(k)) continue;
                 tc.fillStyle = pairColors.get(`${j},${k}`)!;
                 for (let nj = -maxN; nj <= maxN; nj++) {
                     for (let nk = -maxN; nk <= maxN; nk++) {
@@ -1233,8 +1239,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // Pass 1: gradient-filled parallelograms, collect label positions
         for (let j = 0; j < model.n; j++) {
-            const layer = stack.get(`grid-${j}`);
-            if (layer && !layer.userVisible) continue;
+            if (!gammaSet.familyEnabled(j)) continue;
             const [vx, vy] = directions[j];
             const [r, g, b] = hexToRgb(COLORS[j]);
             const colorStr = `rgba(${r},${g},${b},0.2)`;
@@ -1501,26 +1506,24 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         for (const [group, group_layers] of stack.groups()) {
             const r = row(layerPanelDiv, group);
             for (const layer of group_layers) {
-                const swatch = layer.id.startsWith("grid-")
-                    ? COLORS[Number(layer.id.slice(5))]
-                    : undefined;
-                const family = layer.id.startsWith("grid-")
-                    ? Number(layer.id.slice(5)) : null;
+                if (layer.id === "grid") {
+                    // One switch per family even though they share a canvas. A
+                    // family's visibility belongs to the γ set, not to the layer:
+                    // turning one off drops the tiles it generates as well as its
+                    // lines, since the dual of a line is a ribbon of tiles.
+                    for (let j = 0; j < model.n; j++) {
+                        checkbox(r, String(j), gammaSet.familyEnabled(j),
+                            (v) => gammaSet.setFamilyEnabled(j, v), COLORS[j]);
+                    }
+                    continue;
+                }
                 const feat = LAYER_FEATURE[layer.id];
-                const initial = family !== null ? gammaSet.familyEnabled(family)
-                    : feat ? features[feat]
-                    : layer.userVisible;
-                const cb = checkbox(r, layer.label, initial, (v) => {
-                    // A family's visibility belongs to the γ set, not to the
-                    // layer: turning one off drops the tiles it generates as
-                    // well as its lines, since the dual of a line is a ribbon
-                    // of tiles. Two homes for that is how the duplicate
-                    // regularity checkbox happened.
-                    if (family !== null) { gammaSet.setFamilyEnabled(family, v); return; }
-                    if (feat) { features[feat] = v; syncPanel(); draw(); return; }
-                    layer.userVisible = v;
-                    draw();
-                }, swatch);
+                const cb = checkbox(r, layer.label,
+                    feat ? features[feat] : layer.userVisible, (v) => {
+                        if (feat) { features[feat] = v; syncPanel(); draw(); return; }
+                        layer.userVisible = v;
+                        draw();
+                    });
                 if (feat) featureBoxes.push({ key: feat, cb });
             }
             if (group === "Pentagrid") {
@@ -1696,7 +1699,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     }
                 }
                 for (let j = 0; j < model.n; j++) {
-                    if (!gridLayers[j].userVisible) continue;
+                    if (!gammaSet.familyEnabled(j)) continue;
                     drawGridFamily(lctx, j, lsize, lsize, lcx, lcy);
                 }
             });
@@ -1815,9 +1818,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     function formatKTooltip(K: number[]): string {
         const parts = K.map((v, j) => {
-            const layer = stack.get(`grid-${j}`);
-            const active = !layer || layer.userVisible;
-            const color = active ? "#fff" : "#999";
+            const color = gammaSet.familyEnabled(j) ? "#fff" : "#999";
             return `<span style="color:${color}">${v}</span>`;
         });
         const index = K.reduce((a, b) => a + b, 0);
@@ -2034,9 +2035,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (best) {
                 // Equation: f = Σ K_j · v_j
                 const terms = best.K.map((v, j) => {
-                    const layer = stack.get(`grid-${j}`);
-                    const active = !layer || layer.userVisible;
-                    const color = active ? "#fff" : "#999";
+                    const color = gammaSet.familyEnabled(j) ? "#fff" : "#999";
                     return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
                 });
                 tooltip.innerHTML =

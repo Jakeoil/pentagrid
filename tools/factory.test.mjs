@@ -165,7 +165,7 @@ test("features from the config survive when there are no steps to impose one", (
         features: { gridLines: false, axes: false, penroseTiles: true },
     });
     assert.equal(h.stack.get("penrose-tiles").canvas.style.display, "block");
-    assert.equal(h.stack.get("grid-0").canvas.style.display, "none");
+    assert.equal(h.stack.get("grid").canvas.style.display, "none");
     assert.equal(h.stack.get("axes").canvas.style.display, "none");
 });
 
