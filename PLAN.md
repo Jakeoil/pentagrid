@@ -1622,6 +1622,119 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## Nomenclature, and the Penrose condition (Jake, 2026-09-12)
+
+### Nomenclature
+
+| symbol | meaning |
+|---|---|
+| `zeta_n` | the fundamental n-fold direction / rotation |
+| `v_j` | normal vector of family j |
+| `gamma_j` | **phase** of family j |
+| `Gamma = (gamma_0 ... gamma_{n-1})` | the **phase vector** |
+| `lambda` | wavelength / grid spacing |
+
+The point of writing it this way is the move from five to seven: replace `zeta_5`
+with `zeta_7` and *nothing in the notation changes* — only the cyclotomic field
+underneath does. Worth adopting in code and comments; `ui/sumstrip.ts` already
+says phase rather than value.
+
+**`lambda` is currently 1 and need not be.** `phi^m` are the alternates, and
+choosing one lets two maps overlay. Parked deliberately: **study inflation
+first**, since the spacing and the inflation step are the same question asked
+twice.
+
+**Phase angle rather than thousandths** is under consideration for the read-outs.
+They run 000..999 now, which is already a phase in units of a milliturn; degrees
+would be the other natural unit.
+
+### The correction I keep needing (Jake)
+
+> *"Agents are always distinguishing between sum 0, 1, 2, 3, 4, but they are
+> identical mod 1. Answer: the sum is, but the gammas are 0, 1/5, 2/5, 3/5, 4/5."*
+
+Guilty, repeatedly, including in the Sun/Star section above. **Sigma-gamma is the
+same for all of them** — every one is 0 mod 1, every one is Penrose, every one is
+the same LI class. What actually differs is **`Gamma`**, the phase vector: the
+uniform offset `c = k/5`. So the honest statement is
+
+    Sun   c = 1/5, 4/5          Star  c = 2/5, 3/5          deca  c = 0
+
+and not "Sigma-gamma = 1 and 4 are Suns". The sum does not distinguish them and
+cannot; saying it does is what made the index argument look like a coincidence
+rather than the reason. The mirror `c <-> 1-c` pairs 1/5 with 4/5 and 2/5 with
+3/5 and fixes 0 — Jake's "symmetric sums 0, 1=4, 2=3", in the right coordinates.
+
+### Only one deliberate singularity, and that is provable
+
+Jake's intuition: with exact arithmetic there should be essentially **one**
+singularity available on purpose. It falls straight out of the exact criterion.
+
+A triple is singular iff `gamma_L` is an integer AND `gamma_P + gamma_Q` is an
+integer. On the **uniform** family every offset is `c`, so the two conditions
+become `c` in Z and `2c` in Z — and the first implies the second. Hence:
+
+> Within the symmetric family, `Gamma` is singular **iff c = 0 (mod 1)**, and then
+> all ten triples go at once.
+
+One configuration, the five-fold one, and nothing else. Everything else singular
+requires leaving the symmetric family. That is why the reticulum's symmetric mode
+can be swept without ever tripping over a singularity except at the origin.
+
+### Reserve the space for the resolution — verified
+
+k concurrent lines dualise to a 2k-gon, which decomposes into C(k,2) rhombs. For
+n = 5, enumerated over every subset:
+
+    3 lines -> hexagon,   3 rhombs    2 thick + 1 thin   x5   {012}{014}{034}{123}{234}
+                                      1 thick + 2 thin   x5   {013}{023}{024}{124}{134}
+    4 lines -> octagon,   6 rhombs    3 thick + 3 thin   x5
+    5 lines -> decagon,  10 rhombs    5 thick + 5 thin   x1   {01234}
+
+Jake's counts confirmed: the hexagon really does have exactly **two** combos, and
+the octagon is "a boat and two thins" — a boat being 3 thick + 1 thin, so
+3 + 1 + 2 = the 3 thick + 3 thin measured. The decagon's 5 + 5 is the
+configuration already measured at `c = 0`.
+
+The ten hexagon subsets are the same ten triples as `TRIPLES` in
+`geometry/regularity.ts`, split five and five by combo — a second reading of the
+same table.
+
+**Lutfalla states the rule and draws it** (`multigrids.pdf`, gitignored; DOI
+10.4230/OASIcs.AUTOMATA.2021.9):
+
+> "In this dualization process each cell or mesh of the multigrid is sent to a
+> vertex of the dual tiling [...] and each intersection point of the multigrid is
+> sent to a tile of the dual tiling. **The dual of an intersection point where k
+> lines intersect is a 2k-gon with unit sides** as shown in Figure 3 for the case
+> of 5-fold multigrids."
+
+Figure 3 draws the cases left to right: two lines to a rhomb, then three lines to
+a **hexagon**, then four lines to an **octagon**. The decagon is not drawn but is
+the same rule at k = 5. His definition of singular is ours: "at least one
+intersection point where at least 3 lines intersect".
+
+**And his Proposition 3 is the determinant condition in `regularity.ts`.** For
+odd n, with `r_j` in `Z - gamma_j`, a grid is regular when
+
+    r_0 sin(2(p-q)pi/n) + r_p sin(2q pi/n) - r_q sin(2p pi/n) != 0
+
+for every triple. That is exactly the expansion this repo's `regularity.ts`
+header derives from the 3x3 determinant, relabelled to families 0, q, p — so the
+exact n = 5 criterion here is **Proposition 3 specialised to five and then split
+over Q(phi)**, which is the step Lutfalla does not take and says does not
+generalise. Good to know the derivation agrees with the published one rather than
+merely not contradicting it.
+
+**What to build.** Detect a concurrency, and rather than drawing nothing, reserve
+and draw the 2k-gon it dualises to: the space the rhombs would occupy if the
+lines were pulled apart. The **bump then counts superpositions** — how many
+rhombs are stacked in that space — and each count is one of the combos above, so
+the read-out can name it (hexagon, 2 thick + 1 thin) instead of saying "3 lines".
+
+Not built. `Concurrency` already carries `families`, which is exactly what is
+needed to pick the combo.
+
 ## Reticulum — a replacement for the instrument cluster (planned 2026-09-10)
 
 A square, medium-size control for the panel: a five-axis decagonal reticulum
