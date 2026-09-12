@@ -8,7 +8,7 @@ import { createReticulum, signedGamma, lighten } from "../dist/ui/reticulum.js";
 
 const COLORS = ["#a", "#b", "#c", "#d", "#e", "#f", "#g"];
 // must track the module's constants
-const A = 1, CIRC = A / Math.cos(Math.PI / 10), LABEL_R = CIRC + 0.2;
+const A = 1, CIRC = A / Math.cos(Math.PI / 10), LABEL_R = CIRC + 0.1;
 const SPAN = 2 * LABEL_R + 0.28;
 
 const dirsFor = (n) => Array.from({ length: n }, (_, j) => {
@@ -211,16 +211,43 @@ test("with the total released, no axis is dependent", () => {
     for (const l of labels) assert.doesNotMatch(cls(l), /dependent/);
 });
 
-test("the dependent axis is marked, inert, and lets the page scroll", () => {
+test("the dependent axis is inert, and still swallows the wheel", () => {
+    // Doing nothing is fine; scrolling the page out from under an instrument you
+    // are aiming at is not "nothing".
     const moves = [];
-    const { r, hit, axes, labels } = ret(5, { onChange: (j) => moves.push(j) });
+    const { hit, axes, labels } = ret(5, { onChange: (j) => moves.push(j) });
     assert.match(cls(axes[4]), /dependent/);
     assert.equal(labels[4].getAttribute("fill"), "#aaa");
     const [dx, dy] = dirsFor(5)[4];
     const e = ev(400 + dx * 300, 400 - dy * 300, { deltaY: -1 });
     hit.on.wheel[0](e);
-    assert.deepEqual(moves, []);
-    assert.equal(e.dp, false, "must not swallow the page scroll");
+    assert.deepEqual(moves, [], "the dependent axis must not be driven");
+    assert.equal(e.dp, true, "but the page must not scroll either");
+});
+
+test("shift-wheel arrives on deltaX, and any modifier means fine", () => {
+    // Browsers turn shift+wheel into horizontal scroll: deltaY is flat zero and
+    // the movement is on deltaX. Reading only deltaY made the fine step do
+    // nothing, or work in one direction where the swap did not happen.
+    const moves = [];
+    const { hit } = ret(5, { onChange: (j, v) => moves.push(+v.toFixed(6)) });
+    hit.on.pointerdown[0](ev(760, 400));
+    hit.on.pointerup[0](ev(760, 400));
+
+    hit.on.wheel[0](ev(760, 400, { deltaY: 0, deltaX: -1, shiftKey: true }));
+    assert.equal(moves.at(-1), 0.201, "shift-wheel on deltaX must still register");
+    hit.on.wheel[0](ev(760, 400, { deltaY: 0, deltaX: 1, shiftKey: true }));
+    assert.equal(moves.at(-1), 0.199, "and in the other direction");
+
+    for (const mod of ["ctrlKey", "altKey", "metaKey"]) {
+        hit.on.wheel[0](ev(760, 400, { deltaY: -1, [mod]: true }));
+        assert.equal(moves.at(-1), 0.201, `${mod} should ask for the fine step`);
+        hit.on.wheel[0](ev(760, 400, { deltaY: 1, [mod]: true }));
+    }
+    // a wheel with no movement at all does nothing
+    const before = moves.length;
+    hit.on.wheel[0](ev(760, 400, { deltaY: 0, deltaX: 0 }));
+    assert.equal(moves.length, before);
 });
 
 test("n is a parameter: seven families give fourteen sides", () => {
@@ -282,4 +309,52 @@ test("the drawn line matches the map: raising gamma slides it along -v", () => {
     // and it is linear in gamma across the whole range, 2A per unit
     const a = posOf(-0.25), b = posOf(0.25);
     assert.ok(Math.abs((a - b) - A) < 1e-6, `half a unit should be A, got ${a - b}`);
+});
+
+test("each gamma shows its canonical thousandths opposite its own symbol", () => {
+    // 000..999, the same number the dial bank reports — the decagon places the
+    // line by the signed representative, but the two instruments must never
+    // disagree about what they are SAYING.
+    const { r, axes } = ret(5);
+    const valueOf = (j) => pick(r.element, "ret-value")[j];
+    const labelOf = (j) => pick(r.element, "ret-label")[j];
+
+    r.sync({ values: [0, 0.2, 0.5, 0.8, 0.999], locked: 4, sum: 2.499 });
+    assert.equal(valueOf(0).textContent, "000");
+    assert.equal(valueOf(1).textContent, "200");
+    assert.equal(valueOf(2).textContent, "500");
+    assert.equal(valueOf(3).textContent, "800");
+    assert.equal(valueOf(4).textContent, "999");
+
+    // whole turns and negatives read canonically too
+    r.sync({ values: [-0.2, 1.2, 0, 0, 0], locked: 4, sum: 1 });
+    assert.equal(valueOf(0).textContent, "800", "-0.2 is 800 thousandths");
+    assert.equal(valueOf(1).textContent, "200", "1.2 is 200");
+
+    // and it sits on the FAR side from its own symbol
+    for (let j = 0; j < 5; j++) {
+        const lx = +labelOf(j).getAttribute("x"), ly = +labelOf(j).getAttribute("y");
+        const vx = +valueOf(j).getAttribute("x"), vy = +valueOf(j).getAttribute("y");
+        assert.ok(lx * vx + ly * vy < 0, `family ${j}: value is not opposite its label`);
+    }
+});
+
+test("the subscript is its own tspan, not a Unicode subscript character", () => {
+    // The subscript characters are drawn too small to read at this size and
+    // cannot be sized independently.
+    const { r } = ret(5);
+    const label = pick(r.element, "ret-label")[3];
+    assert.equal(label.textContent, "γ", "the symbol itself is just gamma");
+    const sub = label.children.find((c) => (c.getAttribute("class") || "") === "ret-sub");
+    assert.ok(sub, "no subscript tspan");
+    assert.equal(sub.textContent, "3");
+});
+
+test("a push at the dependent axis is refused, visibly", () => {
+    const { r, hit } = ret(5);
+    const [dx, dy] = dirsFor(5)[4];                 // family 4 is dependent
+    const on4 = ev(400 + dx * 300, 400 - dy * 300, { deltaY: -1 });
+    hit.on.wheel[0](on4);
+    assert.equal(r.element.getAttribute("data-warn"), "1", "no refusal shown");
+    assert.equal(on4.dp, true, "and the page still must not scroll");
 });

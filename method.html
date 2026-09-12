@@ -86,10 +86,17 @@
         .ret-cross-dep    { stroke: #aaa; stroke-width: 0.012; }
 
         .ret-label {
-            font-size: 0.155px;
+            font-size: 0.21px;
             font-family: "Times New Roman", serif;
             font-style: italic;
         }
+        .ret-sub { font-size: 0.62em; font-style: normal; }
+        .ret-value {
+            font-size: 0.115px;
+            font-family: monospace;
+            opacity: 0.85;
+        }
+        .ret-value.live { font-weight: bold; opacity: 1; }
         .ret-label.live { font-weight: bold; }
         .ret-readout { font-family: monospace; font-size: 12px; color: #666; }
         .ret-readout.released { color: #bbb; font-style: italic; }
@@ -99,6 +106,83 @@
         .ret-bump { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #ccc;
                     background: #fff; border-radius: 3px; cursor: pointer; }
         .ret-bump:hover { background: #eee; }
+        /* ── Floating panel ────────────────────────────────────────────── */
+        .float-panel {
+            position: fixed;
+            z-index: 200;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+        }
+        .float-panel[hidden] { display: none; }
+        .float-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 5px 5px 5px 11px;
+            cursor: move;
+            user-select: none;
+            touch-action: none;          /* the bar owns the drag, not the page */
+            background: #f2f2f2;
+            border-bottom: 1px solid #ddd;
+            border-radius: 8px 8px 0 0;
+        }
+        .float-title { font-size: 12px; color: #555; }
+        .float-controls { display: flex; gap: 2px; }
+        .float-controls button {
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 13px;
+            font-family: inherit;
+            line-height: 1;
+            padding: 2px 5px;
+        }
+        .float-controls button:hover { color: #222; }
+        .float-body { padding: 10px; }
+        .float-panel.collapsed .float-body { display: none; }
+        /* ── Sigma strip ───────────────────────────────────────────────── */
+        .sumstrip { width: 100%; max-width: 260px; display: block; touch-action: none; }
+        /* The bed and its furniture are drawn OVER the target, so they have to be
+           transparent to the pointer — otherwise only the thin margins take a drag,
+           which is exactly how it felt. */
+        .ss-bed, .ss-ticks, .ss-marker, .ss-readout { pointer-events: none; }
+        .ss-sigma { pointer-events: auto; cursor: pointer; }
+        .ss-bed { fill: #ececec; }
+        .ss-tick { stroke: #fff; stroke-width: 0.7; }
+        .ss-marker { stroke: #444; stroke-width: 1.4; stroke-linecap: round; }
+        .sumstrip.released .ss-marker { stroke: #bbb; }
+        .ss-sigma {
+            font-size: 8.5px;
+            font-family: "Times New Roman", serif;
+            fill: #555;
+        }
+        .sumstrip.released .ss-sigma { fill: #bbb; font-style: italic; }
+        .ss-readout { font-size: 7.5px; font-family: monospace; fill: #555; }
+        .ss-hit { cursor: ew-resize; }
+
+        /* Refusing a push at a released total. Not the same language as "inactive". */
+        .sumstrip.warn .ss-bed { fill: #f6d0d4; }
+        .sumstrip.warn .ss-marker { stroke: #e63946; }
+        .sumstrip.warn .ss-sigma, .sumstrip.warn .ss-readout { fill: #e63946; }
+        .reticulum[data-warn] .ret-axis.dependent .ret-grid { stroke: #e63946; opacity: 0.9; }
+        .reticulum[data-warn] .ret-label.dependent { fill: #e63946; }
+        .reopen-panel, .fold-controls {
+            font: inherit;
+            font-size: 12px;
+            padding: 3px 9px;
+            border: 1px solid #ccc;
+            background: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #555;
+        }
+        .reopen-panel:hover, .fold-controls:hover { background: #eee; }
+        .controls.folded > * { display: none; }
+        .controls.folded { margin: 0; }
         .dial.active {
             outline: 1px solid #bbb;
             outline-offset: 2px;
@@ -286,7 +370,6 @@
     <div style="display: flex; gap: 30px; align-items: flex-start;">
         <div>
             <div class="controls" id="controls"></div>
-            <div id="reticulum" class="ret-host"></div>
             <div class="step-nav" id="step-nav"></div>
             <div id="layer-panel"></div>
             <div id="canvas-container"></div>

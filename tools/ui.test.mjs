@@ -419,28 +419,49 @@ test("the dial bank and the reticulum stay in step over one gamma set", () => {
     }
 });
 
-test("the reticulum's readout is the Sigma control: it reads and releases", () => {
-    // Sigma was briefly a hub at the centre of the decagon, which put it in the
-    // way of the geometry. Reading the total and releasing it are one control.
-    const set = createGammaSet();
+test("Sigma is a phase too: 000..999, graduated in fifths, same touch", () => {
+    // Gamma is a phase rather than a scalar, and so is the total. Sigma-gamma
+    // mod 1 is also the LI class, so the phase is the number worth showing; the
+    // unwrapped total is on hover.
+    const set = createGammaSet({ guard: false });
     set.setSum(1, true);
     const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
     mountReticulum(set, host, { colors: COLORS });
 
-    const wrap = host.children[0];
-    const readout = wrap.children[1];
-    assert.match(readout.textContent, /^Σγ = 1\.000/);
-    assert.equal(readout.className, "ret-readout", "not released yet");
+    const strip = host.children[0].children[1];
+    const cls = (c) => c.getAttribute("class") || "";
+    const kids = strip.children;
+    const hit = kids.find((c) => cls(c) === "ss-hit");
+    const bed = kids.find((c) => cls(c) === "ss-bed");
+    const ticks = kids.find((c) => cls(c) === "ss-ticks");
+    const sigma = kids.find((c) => cls(c) === "ss-sigma");
+    const readout = kids.find((c) => cls(c) === "ss-readout");
+    assert.ok(hit && bed && ticks && sigma && readout, "the strip is missing a part");
 
-    readout.on.click[0]();
-    assert.equal(set.getLocked(), -1, "clicking Σ must release the total");
-    assert.match(readout.className, /released/);
+    // one turn across, graduated at the four fifths
+    assert.equal(ticks.children.length, 4, "fifths only: 1/5, 2/5, 3/5, 4/5");
 
-    // released means the total really does float
-    set.setValue(0, 0.9);
-    assert.ok(Math.abs(set.getSum() - (0.9 + 0.8)) < 1e-9,
-              `the total should follow the offsets, got ${set.getSum()}`);
-    assert.match(readout.textContent, /mod 1/, "Σγ and Σγ mod 1 now differ");
+    // the phase, not the total
+    assert.equal(readout.textContent, "000", "Σγ = 1 is phase 000");
+    set.setSum(1.2, true);
+    assert.equal(readout.textContent, "200");
+    set.setSum(-0.2, true);
+    assert.equal(readout.textContent, "800", "and it wraps like a gamma");
+
+    // same touch as an axis: unclamped in both directions, modifier for fine
+    set.setSum(0, true);
+    hit.on.wheel[0]({ deltaY: 1, preventDefault() {} });
+    assert.ok(set.getSum() < 0, `must go below zero, got ${set.getSum()}`);
+    hit.on.wheel[0]({ deltaY: -1, preventDefault() {} });
+    assert.ok(Math.abs(set.getSum()) < 1e-9, "and back symmetrically");
+    hit.on.wheel[0]({ deltaY: 0, deltaX: -1, shiftKey: true, preventDefault() {} });
+    assert.ok(Math.abs(set.getSum() - 0.001) < 1e-9,
+              `shift-wheel on deltaX: ${set.getSum()}`);
+
+    // pressing Σ releases the total
+    sigma.on.pointerdown[0]({ stopPropagation() {} });
+    assert.equal(set.getLocked(), -1);
+    assert.match(strip.getAttribute("class"), /released/);
 });
 
 test("symmetric mode couples every gamma and releases the total", () => {
@@ -504,4 +525,43 @@ test("bump acts on the reticulum's selected axis, and does nothing with none", (
     plus.on.click[0]();
     assert.notDeepEqual(set.exact(), before, "the selected axis should have moved");
     assert.equal(set.exact()[0], before[0] + 1, "by exactly one unit");
+});
+
+test("the Sigma strip drags like an axis, one turn across the bed", () => {
+    const set = createGammaSet({ guard: false });
+    set.setSum(0, true);
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+    const strip = host.children[0].children[1];
+    const hit = strip.children.find((c) => c.getAttribute("class") === "ss-hit");
+
+    // the stub lays the svg out 800 wide; the bed runs from 12 to 79 of 100 units
+    const pd = (x) => ({ clientX: x, pointerId: 1, preventDefault() {} });
+    hit.on.pointerdown[0](pd(100));
+    hit.on.pointermove[0](pd(100 + 800 * (67 / 100) / 2));   // half the bed
+    assert.ok(Math.abs(set.getSum() - 0.5) < 0.02,
+              `half the bed should be half a turn, got ${set.getSum()}`);
+    hit.on.pointerup[0](pd(0));
+});
+
+test("a released total refuses a push instead of greying politely", () => {
+    // Greying said "fine, carry on" in the same language as everything merely
+    // inactive, so pushing against it looked like it worked. It did something
+    // too: setSum on a released set spreads the offsets evenly.
+    const set = createGammaSet({ guard: false });
+    set.setValues([0.1, 0.2, 0.3, 0.15, 0.05]);
+    set.setLocked(-1);
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+    const strip = host.children[0].children[1];
+    const hit = strip.children.find((c) => c.getAttribute("class") === "ss-hit");
+
+    const before = set.exact().slice();
+    hit.on.wheel[0]({ deltaY: -1, preventDefault() {} });
+    assert.deepEqual(set.exact(), before, "a released total must not be settable");
+    assert.match(strip.getAttribute("class"), /warn/, "and it must say so");
+
+    hit.on.pointerdown[0]({ clientX: 100, pointerId: 1, preventDefault() {} });
+    hit.on.pointermove[0]({ clientX: 400, pointerId: 1, preventDefault() {} });
+    assert.deepEqual(set.exact(), before, "nor dragged");
 });

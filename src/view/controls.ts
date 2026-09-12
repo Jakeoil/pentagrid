@@ -6,6 +6,7 @@ import { describeSum } from "../geometry/gamma.js";
 import { createGammaBank } from "../ui/dials.js";
 import type { GammaBank } from "../ui/dials.js";
 import { createReticulum } from "../ui/reticulum.js";
+import { createSumStrip } from "../ui/sumstrip.js";
 
 /**
  * What every gamma control is, whichever one a page picks.
@@ -185,16 +186,15 @@ export function mountReticulum(
     wrap.className = "reticulum-wrap";
     wrap.appendChild(ret.element);
 
-    // Sigma is the (n+1)th member of the lock group, and this is where it lives:
-    // reading the total and releasing it are the same control. It was briefly a
-    // hub at the centre of the decagon, which put it in the way of the geometry
-    // and left nothing at the origin but clutter.
-    const readout = document.createElement("div");
-    readout.className = "ret-readout";
-    readout.style.cursor = "pointer";
-    readout.title = "Click to release the total — every γ free";
-    readout.addEventListener("click", () => set.setLocked(-1));
-    wrap.appendChild(readout);
+    // Sigma gets a handle of its own, not a line of text: the offsets each have a
+    // whole axis to move along and the total is the same kind of quantity. The
+    // span is symmetric so 0 sits in the middle — the old 0..n/2 range clamped at
+    // the bottom, which made the wheel dead downwards at the default Σγ = 0.
+    const strip = createSumStrip({
+        onChange: (v) => set.setSum(v, true),
+        onRelease: () => set.setLocked(-1),
+    });
+    wrap.appendChild(strip.element);
 
     const tools = document.createElement("div");
     tools.className = "ret-tools";
@@ -248,14 +248,7 @@ export function mountReticulum(
         const sum = values.reduce((a, b) => a + b, 0);
         const locked = set.getLocked();
         ret.sync({ values, locked, sum });
-        const frac = ((sum % 1) + 1) % 1;
-        // Sigma-gamma mod 1 is the LI class, so it earns its place whenever it
-        // differs from the total itself.
-        const modPart = Math.abs(frac - sum) < 1e-9 ? "" : ` · mod 1 = ${frac.toFixed(3)}`;
-        readout.textContent = `Σγ = ${sum.toFixed(3)}${modPart}`;
-        // Greyed exactly when it is the dependent member, like a greyed label.
-        readout.className = "ret-readout" + (locked < 0 ? " released" : "");
-        readout.style.cursor = symmetric ? "default" : "pointer";
+        strip.sync({ sum, released: locked < 0 });
     };
     set.onChange(render);
     render();

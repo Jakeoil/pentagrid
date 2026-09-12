@@ -1,3 +1,5 @@
+import { wheelNotch } from "./wheel.js";
+
 // A bank of linked sliders, one of which is computed from the others.
 //
 // Knows nothing about pentagrids: it is a view over a vector of numbers with one
@@ -79,8 +81,8 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
     let dragging = -1;
     let sumDragging = false;
 
-    /** One notch: hundredths, thousandths with shift. */
-    const notch = (e: WheelEvent) => (e.deltaY > 0 ? -1 : 1) * (e.shiftKey ? fine : step);
+    /** One notch: hundredths, thousandths with a modifier. See ui/wheel.ts. */
+    const notch = (e: WheelEvent) => wheelNotch(e, { step, fine });
 
     /**
      * Offsets are shown modulo 1, because that is all of an offset there is:

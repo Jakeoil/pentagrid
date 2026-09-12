@@ -18,14 +18,18 @@
 // A pure view, like ui/dials.ts. It reports moves and renders what it is told; it
 // never computes the dependent value and knows nothing about pentagrids.
 
+import { wheelNotch } from "./wheel.js";
+
 const NS = "http://www.w3.org/2000/svg";
 
 /** Centre-to-side distance of the decagon. Gamma's full travel is 2A. */
 const A = 1;
 /** Centre-to-vertex. */
 const CIRC = A / Math.cos(Math.PI / 10);
-/** Where the family labels sit. */
-const LABEL_R = CIRC + 0.2;
+/** Where the family labels sit — just clear of the corners, not orbiting. */
+const LABEL_R = CIRC + 0.1;
+/** And the read-out, on the far side of the decagon from its own label. */
+const VALUE_R = CIRC + 0.13;
 /** Half-width of the active gamma's band, as a fraction of A. */
 const BAND = 0.26;
 
@@ -171,9 +175,11 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     const rim = attrs(el("polygon"), { class: "ret-rim", points: poly(corners()) });
     svg.appendChild(rim);
 
-    interface AxisParts { group: SVGElement; line: SVGElement; grid: SVGElement; label: SVGElement; }
+    interface AxisParts {
+        group: SVGElement; line: SVGElement; grid: SVGElement;
+        label: SVGElement; value: SVGElement;
+    }
     const axes: AxisParts[] = [];
-    const SUB = "₀₁₂₃₄₅₆₇₈₉";
 
     for (let j = 0; j < count; j++) {
         const group = attrs(el("g"), { class: "ret-axis", "data-j": j });
@@ -183,17 +189,32 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         group.appendChild(grid);
         svg.appendChild(group);
 
+        // gamma with a real subscript: a tspan dropped and shrunk, rather than the
+        // Unicode subscript characters, which are drawn too small to read at this
+        // size and cannot be sized independently.
         const label = attrs(el("text"), {
             class: "ret-label", "data-j": j,
             "text-anchor": "middle", "dominant-baseline": "middle",
         });
-        label.textContent = `γ${SUB[j] ?? j}`;
+        label.textContent = "γ";
+        const sub = attrs(el("tspan"), { class: "ret-sub", dx: 0.012, dy: 0.055 });
+        sub.textContent = String(j);
+        label.appendChild(sub);
         label.addEventListener("pointerdown", (e) => {
             (e as PointerEvent).stopPropagation?.();
             opts.onLock?.(j);
         });
         svg.appendChild(label);
-        axes.push({ group, line, grid, label });
+
+        // The value, opposite its own symbol. Canonical thousandths, 000..999 —
+        // the same number the dial bank shows, so the two instruments never
+        // disagree about what they are reporting even though the decagon places
+        // it by the signed representative.
+        const value = attrs(el("text"), {
+            class: "ret-value", "text-anchor": "middle", "dominant-baseline": "middle",
+        });
+        svg.appendChild(value);
+        axes.push({ group, line, grid, label, value });
     }
 
     // A tiny cross at the origin, no more: one arm along the active family's
@@ -211,6 +232,17 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     let hovered = -1;
     let dragging = -1;
     let dragFrom: [number, number] | null = null;
+    let warnTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /** Say no, rather than greying quietly and letting a push look like it worked. */
+    function refuse() {
+        svg.setAttribute("data-warn", "1");
+        if (warnTimer) clearTimeout(warnTimer);
+        warnTimer = setTimeout(() => {
+            warnTimer = null;
+            svg.removeAttribute?.("data-warn");
+        }, 420);
+    }
 
     function at(e: { clientX: number; clientY: number }): [number, number] {
         const r = svg.getBoundingClientRect();
@@ -235,17 +267,20 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     const target = (p: [number, number]) => (selected >= 0 ? selected : nearest(p));
 
     function drive(j: number, delta: number) {
-        if (j < 0 || j === lockedNow) return;
+        if (j < 0 || j === lockedNow || delta === 0) return;
         // Unwrapped: the state runs on, only the picture wraps.
         opts.onChange(j, current[j] + delta);
     }
 
     hit.addEventListener("wheel", (ev) => {
         const e = ev as WheelEvent;
-        const j = target(at(e));
-        if (j === lockedNow) return;
+        // Swallowed either way. A wheel over the dependent axis does nothing, but
+        // scrolling the page out from under the instrument is not "nothing".
         e.preventDefault();
-        drive(j, (e.deltaY > 0 ? -1 : 1) * (e.shiftKey ? fine : step));
+        const j = target(at(e));
+        if (wheelNotch(e, { step, fine }) === 0) return;
+        if (j === lockedNow) { refuse(); return; }
+        drive(j, wheelNotch(e, { step, fine }));
     }, { passive: false });
 
     hit.addEventListener("pointerdown", (ev) => {
@@ -254,7 +289,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         const j = nearest(p);
         selected = j;
         opts.onSelect?.(j);
-        if (j !== lockedNow) { dragging = j; dragFrom = p; }
+        if (j !== lockedNow) { dragging = j; dragFrom = p; } else { refuse(); }
         render();
     });
 
@@ -287,7 +322,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         const live = selected >= 0 ? selected : hovered;
 
         for (let j = 0; j < count; j++) {
-            const { group, line, grid, label } = axes[j];
+            const { group, line, grid, label, value } = axes[j];
             const u = axisVec(j), w = lineVec(j);
             const isLive = j === live;
             const isDependent = j === lockedNow;
@@ -317,6 +352,13 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
             label.setAttribute("class", "ret-label"
                 + (isDependent ? " dependent" : "") + (isLive ? " live" : ""));
             label.setAttribute("fill", isDependent ? "#aaa" : colors[j % colors.length]);
+
+            const thousandths = Math.round((((current[j] ?? 0) % 1) + 1) % 1 * 1000) % 1000;
+            value.textContent = String(thousandths).padStart(3, "0");
+            attrs(value, { x: -u[0] * VALUE_R, y: -u[1] * VALUE_R });
+            value.setAttribute("class", "ret-value"
+                + (isDependent ? " dependent" : "") + (isLive ? " live" : ""));
+            value.setAttribute("fill", isDependent ? "#bbb" : colors[j % colors.length]);
         }
 
         // The active gamma's range: a corridor along its axis, side to side.

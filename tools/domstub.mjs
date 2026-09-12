@@ -23,9 +23,22 @@ function makeStub(extra = {}) {
     // handlers, rather than only checking that construction did not throw.
     const on = {};
     const children = [];
+    // A real one, not two no-ops. `toggle` is the method a floating panel needs,
+    // and a classList that forgets what it was told cannot be asserted on either.
+    const classes = new Set();
+    const classList = {
+        add: (...c) => c.forEach((x) => classes.add(x)),
+        remove: (...c) => c.forEach((x) => classes.delete(x)),
+        contains: (c) => classes.has(c),
+        toggle: (c, force) => {
+            const want = force === undefined ? !classes.has(c) : !!force;
+            if (want) classes.add(c); else classes.delete(c);
+            return want;
+        },
+    };
     Object.assign(base, {
         on, children,
-        style: {}, classList: { add: noop, remove: noop },
+        style: {}, classList,
         getBoundingClientRect: () => ({ left: 0, top: 0, width: SW, height: SH }),
         getAttribute: (name) => {
             if (!USE_ATTR) return null;
