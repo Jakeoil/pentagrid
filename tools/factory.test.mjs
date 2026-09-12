@@ -8,6 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeStub } from "./domstub.mjs";
 import { createPentagrid } from "../dist/view/pentagrid.js";
+import { createNarrative } from "../dist/app/narrative.js";
 
 function host(w = 800, h = 800) {
     const el = makeStub({
@@ -36,20 +37,51 @@ test("two instances are independent", () => {
     assert.equal(a.stack.w, 800);
 });
 
-test("the page supplies its own narration, and step count follows", () => {
-    const steps = [
-        { title: "One", html: "<p>first</p>" },
-        { title: "Two", html: "<p>second</p>" },
+test("the view takes no pages, and a narrative drives it", () => {
+    // createPentagrid used to take the narration AND a parallel table of feature
+    // presets, so it had to know what a step was. Now a page carries its own
+    // `enter` and the view only offers the handles.
+    const h = createPentagrid({ container: host() });
+    assert.equal(typeof h.setFeatures, "function");
+    assert.equal(typeof h.setGridAlpha, "function");
+    assert.equal(typeof h.exposeRows, "function");
+    assert.equal(h.setStep, undefined, "the view should not own stepping any more");
+
+    const seen = [];
+    const pages = [
+        { title: "One", html: "<p>first</p>",
+          enter: (pg) => { seen.push(1); pg.setFeatures({ gridLines: true }); } },
+        { title: "Two", html: "<p>second</p>",
+          enter: (pg) => { seen.push(2); pg.setFeatures({ penroseTiles: true }); } },
     ];
-    const h = createPentagrid({
-        container: host(),
-        steps,
-        presets: [{}, { penroseTiles: true }],
-    });
-    h.setStep(1);
-    h.setStep(99);          // clamped, not thrown
-    h.setStep(-5);
-    assert.ok(true, "step navigation survived out-of-range input");
+    const explanation = makeStub();
+    const n = createNarrative({ pages, handle: h, nav: makeStub(), explanation });
+
+    assert.deepEqual(seen, [1], "the first page enters on construction");
+    assert.equal(n.count(), 2);
+    n.go(1);
+    assert.equal(n.current(), 1);
+    assert.deepEqual(seen.slice(-1), [2], "the page sets the view up itself");
+    assert.match(explanation.innerHTML, /second/);
+
+    n.go(99);  n.go(-5);           // clamped, not thrown
+    assert.ok(n.current() >= 0 && n.current() < 2);
+});
+
+test("the narrative can find the page a feature belongs to", () => {
+    // By asking the pages what they turn on, so the answer cannot drift from what
+    // they actually do.
+    const h = createPentagrid({ container: host() });
+    const pages = [
+        { title: "a", html: "", enter: (pg) => pg.setFeatures({ gridLines: true }) },
+        { title: "b", html: "", enter: (pg) => pg.setFeatures({ kRegions: true }) },
+        { title: "c", html: "", enter: (pg) => pg.setFeatures({ penroseTiles: true }) },
+    ];
+    const n = createNarrative({ pages, handle: h, nav: makeStub(), explanation: makeStub() });
+    assert.equal(n.pageFor("kRegions"), 1);
+    assert.equal(n.pageFor("penroseTiles"), 2);
+    assert.equal(n.pageFor("penroseDecor"), -1, "nothing turns it on");
+    assert.equal(n.current(), 0, "probing must not move the reader");
 });
 
 test("an exploration registers its own layer through the config", () => {
@@ -150,18 +182,18 @@ test("a different gamma gives a different tiling", () => {
     assert.notEqual(a, b);
 });
 
-test("a page with no steps ignores setStep instead of throwing", () => {
-    const h = createPentagrid({ container: host(), steps: [] });
-    h.setStep(3);
+test("a narrative with no pages is inert rather than broken", () => {
+    const h = createPentagrid({ container: host() });
+    const n = createNarrative({ pages: [], handle: h, nav: makeStub(), explanation: makeStub() });
+    n.go(3);
+    assert.equal(n.count(), 0);
     h.redraw();
-    assert.ok(true);
 });
 
 test("features from the config survive when there are no steps to impose one", () => {
     let drewTiles = 0;
     const h = createPentagrid({
         container: host(),
-        steps: [],
         features: { gridLines: false, axes: false, penroseTiles: true },
     });
     assert.equal(h.stack.get("penrose-tiles").canvas.style.display, "block");

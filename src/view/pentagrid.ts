@@ -16,7 +16,6 @@ import { createLoupe } from "../ui/loupe.js";
 import type { LoupeTarget } from "../ui/loupe.js";
 import type { Layer, LayerContext } from "./layers.js";
 
-import { METHOD_STEPS } from "../app/method-steps.js";
 
 // Grid line colors
 // Five for the pentagrid, then two more so a heptagrid has one per family. The
@@ -55,24 +54,15 @@ export interface ViewState {
     margin: number;
 }
 
-export interface StepSpec { title: string; html: string; }
-
 export interface PentagridConfig {
     /** Where the canvases go. Also the source of implicit sizing. */
     container: HTMLElement;
     controls?: HTMLElement;
-    stepNav?: HTMLElement;
     panel?: HTMLElement;
     explanation?: HTMLElement;
-    /** Narration. Omit for a page with no steps. */
-    steps?: StepSpec[];
-    /** Which features each step turns on. Must match steps in length. */
-    presets?: Partial<Features>[];
     /** Registered before the first draw, so an exploration gets its own layers
      *  without this file knowing anything about them. */
     layers?: (ctx: PentagridParts) => void;
-    /** A stamp to show beside the step indicator. */
-    buildId?: string;
     /** Starting feature set. Useful for a page with no steps to impose one. */
     features?: Partial<Features>;
     /** Starting offsets. Omitted means all zero, which the guard then moves off. */
@@ -122,7 +112,29 @@ export interface View { scale: number; x: number; y: number; }
 
 export interface PentagridHandle {
     redraw: () => void;
-    setStep: (i: number) => void;
+
+    /**
+     * Impose a feature set. This is how a narrative page configures the view —
+     * the view no longer knows what a page is, so it cannot configure itself.
+     *
+     * By default it REPLACES: every feature not named goes off, which is what a
+     * page wants when you arrive at it. Pass `{ merge: true }` to change a few
+     * and leave the rest alone.
+     */
+    setFeatures: (features: Partial<Features>, opts?: { merge?: boolean }) => void;
+    /** How strongly the grid shows. Pages fade it as the tiling takes over. */
+    setGridAlpha: (alpha: number) => void;
+    /**
+     * Which panel rows to show, by their label, or null for all of them. A page
+     * decides what is worth exposing on it.
+     */
+    exposeRows: (labels: readonly string[] | null) => void;
+    /**
+     * Fires when a panel switch turns a feature on. A narrative can use it to go
+     * to the page where that feature is the subject, instead of leaving the
+     * switch on with nothing to see.
+     */
+    onFeatureOn: (cb: (key: keyof Features) => void) => void;
     /** Read the current pan and zoom. */
     getView: () => View;
     /** Drive the pan and zoom from outside. Does NOT fire onViewChange, so two
@@ -246,10 +258,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         smallRegions = found.small;
         concurrencies = found.concurrencies;
     }
-    let currentStep = 0;
+
     // Narration and its presets are the page's, not this file's.
-    const stepContent = config.steps ?? METHOD_STEPS;
-    const STEP_COUNT = stepContent.length;
 
     // View state. These are the "current view" the drawing functions read
     // implicitly. The loupe is a second view, so it swaps them via withView()
@@ -312,7 +322,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // ── DOM elements ──────────────────────────────────────────────────
 
     const controlsDiv = config.controls ?? document.createElement("div");
-    const stepNavDiv = config.stepNav ?? document.createElement("div");
     const explanationDiv = config.explanation ?? document.createElement("div");
     const layerPanelDiv = config.panel ?? document.createElement("div");
     const container = config.container;
@@ -333,13 +342,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const stack = new LayerStack(container, canvas.w, canvas.h);
 
-    // ── Features, and the steps as presets over them ──────────────────
+    // ── Features ──────────────────────────────────────────────────────
     //
     // Capabilities used to be welded to the step that introduced them — eight
-    // switches on currentStep, so intersection dots existed only at step 2 and
-    // filled tiles only at step 6. They are flags now, and the steps set the flags.
-    // Prev/Next still walks the narrative; it is no longer the only way to reach
-    // anything. PLAN.md, "The method page, reorganised".
+    // switches on a step index, so intersection dots existed only at step 2 and
+    // filled tiles only at step 6. They are flags now.
+    //
+    // And the view no longer knows what a page IS. A narrative imposes a feature
+    // set through `setFeatures`, which is the whole of what a preset table used to
+    // do from in here, with the page rather than the view deciding.
 
     const NO_FEATURES: Features = {
         gridLines: true, axes: false,
@@ -348,22 +359,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         penroseDecor: false, hoverVertex: false, hoverTile: false,
     };
 
-    const STEP_PRESETS: Partial<Features>[] = config.presets ?? [
-        {},                                                        // 1 the pentagrid
-        { intersectionDots: true, hoverTile: true },               // 2 intersections
-        { kRegions: true, kLabels: true, hoverVertex: true },      // 3 regions
-        { penroseVertices: true, hoverVertex: true },              // 4 dual vertices
-        { penroseEdges: true, hoverTile: true },                   // 5 building rhombs
-        { penroseTiles: true },                                    // 6 the tiling
-    ];
+    let features: Features = { ...NO_FEATURES, ...config.features };
 
-    let features: Features = { ...NO_FEATURES, ...STEP_PRESETS[0], ...config.features };
+    /** How strongly the grid draws. A page fades it as the tiling takes over. */
+    let gridAlpha = 0.6;
 
-    function applyStepPreset() {
-        // With no steps the page's own feature set stands, untouched.
-        if (STEP_COUNT === 0) return;
-        features = { ...NO_FEATURES, ...STEP_PRESETS[currentStep] };
-    }
+    /** Panel rows by label, so a page can choose which are worth exposing. */
+    const panelRows = new Map<string, HTMLElement>();
+    const featureOnListeners: ((key: keyof Features) => void)[] = [];
 
     // ── The rhomb cache ───────────────────────────────────────────────
     //
@@ -401,7 +404,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // gets a panel toggle for free, which is what makes registering one from an
     // exploration page worth doing.
 
-    const gridAlphas = [0.6, 0.6, 0.4, 0.28, 0.24, 0.18];
 
     const bgLayer = stack.add({
         // No `group`: its switch is in the K-regions cluster, not on the
@@ -422,7 +424,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stack.add({
         id: "grid", label: "Grid", z: 10, group: "Pentagrid",
         visible: () => features.gridLines && gammaSet.enabledFlags().some(Boolean),
-        opacity: () => gridAlphas[Math.min(currentStep, gridAlphas.length - 1)],
+        opacity: () => gridAlpha,
         draw: (c) => withView(gridView(), () => {
             for (let j = 0; j < model.n; j++) {
                 if (!gammaSet.familyEnabled(j)) continue;
@@ -663,54 +665,25 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         meterSpan.style.color = under === 0 ? "#5a8f5a" : "#c07d00";
     }
 
-    // ── Build step navigation ─────────────────────────────────────────
+    // ── Narrative hooks ───────────────────────────────────────────────
+    //
+    // The view used to own Prev/Next, the step indicator and the explanation, and
+    // took the pages as config. It owns none of that now: a narrative drives it
+    // through these, which is why `steps` and `presets` are gone.
 
-    const prevBtn = document.createElement("button");
-    prevBtn.textContent = "\u2190 Previous";
-
-    const buildTag = document.createElement("span");
-    buildTag.className = "build-tag";
-    buildTag.textContent = config.buildId ? `build ${config.buildId}` : "";
-
-    const stepIndicator = document.createElement("span");
-    stepIndicator.className = "step-indicator";
-
-    const nextBtn = document.createElement("button");
-    nextBtn.textContent = "Next \u2192";
-
-    stepNavDiv.appendChild(prevBtn);
-    stepNavDiv.appendChild(stepIndicator);
-    stepNavDiv.appendChild(nextBtn);
-    stepNavDiv.appendChild(buildTag);
-
-    // ── Step navigation logic ─────────────────────────────────────────
-
-    function updateStepUI() {
-        applyStepPreset();
+    function setFeatures(next: Partial<Features>, opts?: { merge?: boolean }) {
+        features = opts?.merge
+            ? { ...features, ...next }
+            : { ...NO_FEATURES, ...next };
         syncPanel();
-        if (STEP_COUNT === 0) return;
-        stepIndicator.textContent = `Step ${currentStep + 1} of ${STEP_COUNT}`;
-        prevBtn.disabled = currentStep === 0;
-        nextBtn.disabled = currentStep === STEP_COUNT - 1;
-        const step = stepContent[currentStep];
-        explanationDiv.innerHTML = `<h3>${step.title}</h3>${step.html}`;
-        tooltip.style.display = "none";
-    }
-
-    /** Go to a step from anywhere, including a control that implies one. */
-    function goToStep(i: number) {
-        if (STEP_COUNT === 0) return;
-        currentStep = Math.max(0, Math.min(STEP_COUNT - 1, i));
-        updateStepUI();
         draw();
     }
 
-    prevBtn.addEventListener("click", () => {
-        if (currentStep > 0) { currentStep--; updateStepUI(); draw(); }
-    });
-    nextBtn.addEventListener("click", () => {
-        if (currentStep < STEP_COUNT - 1) { currentStep++; updateStepUI(); draw(); }
-    });
+    function exposeRows(labels: readonly string[] | null) {
+        for (const [label, el] of panelRows) {
+            el.hidden = labels !== null && !labels.includes(label);
+        }
+    }
 
     // ── View transforms ───────────────────────────────────────────────
 
@@ -1439,6 +1412,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             t.className = "panel-label";
             t.textContent = title;
             wrap.appendChild(t);
+            panelRows.set(title, wrap);      // so a page can expose a subset
         }
         parent.appendChild(wrap);
         return wrap;
@@ -1586,16 +1560,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // K-regions and the two things that only make sense beside them. Kept
         // together and away from the gamma controls: they belong to one step, not
         // to the offsets.
-        const kStep = STEP_PRESETS.findIndex((p) => p.kRegions);
         const kRow = row(layerPanelDiv, "K-regions");
         const kBox = checkbox(kRow, "K-regions", features.kRegions, (v) => {
-            // Ticking it used to leave the box on with nothing drawn, because the
-            // step preset owns the feature. Go to the step instead — the control
-            // now means what it says.
-            if (v && kStep >= 0 && currentStep !== kStep) { goToStep(kStep); return; }
             features.kRegions = v;
             syncPanel();
             draw();
+            // Ticking it used to leave the box on with nothing drawn, because a
+            // step preset owned the feature. The view no longer knows what a page
+            // is, so it says what happened and lets the narrative decide whether
+            // that means going somewhere.
+            if (v) for (const cb of featureOnListeners) cb("kRegions");
         });
         featureBoxes.push({ key: "kRegions", cb: kBox });
         featureToggle(kRow, "hoverVertex", "vertex from region (hover)");
@@ -2070,8 +2044,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // ── Init ──────────────────────────────────────────────────────────
 
-    if (config.buildId) console.log(`pentagrid build ${config.buildId}`);
-
     // An exploration's own layers go on before the panel is generated, so they
     // get their switches like anything else.
     config.layers?.({
@@ -2110,12 +2082,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     buildLayerPanel();
     restackPenrose();
-    updateStepUI();
     draw();
 
     return {
         redraw: draw,
-        setStep: goToStep,
+        setFeatures,
+        setGridAlpha: (a) => { gridAlpha = a; draw(); },
+        exposeRows,
+        onFeatureOn: (cb) => { featureOnListeners.push(cb); },
         getView: () => ({ scale, x: viewX, y: viewY }),
         setView: (v) => {
             scale = v.scale;

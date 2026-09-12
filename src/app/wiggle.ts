@@ -81,7 +81,6 @@ if (gridHost && perpHost) {
     view = createPentagrid({
         container: gridHost,
         gamma: gammaOf(p, q),
-        steps: [],
         features: { gridLines: false, axes: false, penroseEdges: true },
         layers: ({ stack, getView }) => {
             stack.add({

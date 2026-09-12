@@ -38,7 +38,6 @@ if (gridHost && tileHost) {
     lines = createPentagrid({
         container: gridHost,
         gamma,
-        steps: [],
         features: { gridLines: true, axes: false },
         onViewChange: relay(() => tiles),
     });
@@ -46,7 +45,6 @@ if (gridHost && tileHost) {
     tiles = createPentagrid({
         container: tileHost,
         gamma,
-        steps: [],
         // The grid is hidden rather than switched off: a family's userVisible
         // also removes the rhombs it generates, which would leave nothing here.
         features: { gridLines: false, axes: false, penroseTiles: true },

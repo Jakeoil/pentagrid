@@ -1,13 +1,14 @@
-// The six steps of the method page: title and prose, nothing else.
+// The six pages of the method: prose, and what each one makes of the view.
 //
-// Separated because a page's narration is content, not machinery — an
-// exploration supplies its own list, or none at all.
+// A page is not "title and prose" any more. It carries its own `enter`, which is
+// the only thing that decides what the page shows — the view has no preset table
+// behind it and does not know what a page is. See app/narrative.ts.
 
-import type { StepSpec } from "../view/pentagrid.js";
+import type { Page } from "./narrative.js";
 
 const THICK_FILL = "#e8c170";
 const THIN_FILL = "#7eb8da";
-export const METHOD_STEPS: StepSpec[] = [
+export const METHOD_PAGES: Page[] = [
     {
         title: "Step 1 &mdash; The Pentagrid",
         html: `<p>For <i>j</i>&thinsp;=&thinsp;0,&thinsp;&hellip;,&thinsp;4 let
@@ -26,6 +27,13 @@ export const METHOD_STEPS: StepSpec[] = [
             &gamma;<sub>0</sub>&thinsp;+&thinsp;&middot;&middot;&middot;&thinsp;+&thinsp;&gamma;<sub>4</sub>&thinsp;=&thinsp;0
             ensures the pentagrid is <em>regular</em>&thinsp;&mdash;&thinsp;generically,
             no more than two lines meet at any point.</p>`,
+        enter: (pg) => {
+            pg.setFeatures({ gridLines: true });
+            pg.setGridAlpha(0.6);
+            // Only what this page is about. The rest is still reachable from the
+            // panel; it is just not shouted about here.
+            pg.exposeRows(["Pentagrid", "single line"]);
+        },
     },
     {
         title: "Step 2 &mdash; Intersections",
@@ -39,6 +47,11 @@ export const METHOD_STEPS: StepSpec[] = [
             <em>simple crossings</em>&thinsp;&mdash;&thinsp;exactly two lines
             at each point. This is essential for the dual construction
             that follows.</p>`,
+        enter: (pg) => {
+            pg.setFeatures({ gridLines: true, intersectionDots: true, hoverTile: true });
+            pg.setGridAlpha(0.6);
+            pg.exposeRows(["Pentagrid", "single line", "On hover"]);
+        },
     },
     {
         title: "Step 3 &mdash; Pentagrid Regions",
@@ -58,6 +71,13 @@ export const METHOD_STEPS: StepSpec[] = [
             Regions between grid lines correspond to <em>vertices</em>,
             at positions
             <i>f</i>(<b>x</b>)&thinsp;=&thinsp;&sum;&thinsp;<i>K<sub>j</sub></i>&thinsp;&middot;&thinsp;<b>v</b><sub><i>j</i></sub>.</p>`,
+        enter: (pg) => {
+            pg.setFeatures({
+                gridLines: true, kRegions: true, kLabels: true, hoverVertex: true,
+            });
+            pg.setGridAlpha(0.4);
+            pg.exposeRows(["Pentagrid", "K-regions", "On hover"]);
+        },
     },
     {
         title: "Step 4 &mdash; Dual Vertices",
@@ -73,6 +93,11 @@ export const METHOD_STEPS: StepSpec[] = [
             <p>Each red dot is <i>f</i>&thinsp;(<b>x</b>) for one region.
             Adjacent regions (differing in one <i>K<sub>j</sub></i>)
             map to vertices one <b>v</b><sub><i>j</i></sub> apart.</p>`,
+        enter: (pg) => {
+            pg.setFeatures({ gridLines: true, penroseVertices: true, hoverVertex: true });
+            pg.setGridAlpha(0.28);
+            pg.exposeRows(["Pentagrid", "Penrose", "K-regions", "On hover"]);
+        },
     },
     {
         title: "Step 5 &mdash; Building Rhombs",
@@ -93,6 +118,11 @@ export const METHOD_STEPS: StepSpec[] = [
             </div>
             <p>Families whose index difference is 1 (mod&nbsp;5) yield
             thick rhombs; difference 2 yields thin.</p>`,
+        enter: (pg) => {
+            pg.setFeatures({ gridLines: true, penroseEdges: true, hoverTile: true });
+            pg.setGridAlpha(0.24);
+            pg.exposeRows(["Pentagrid", "Penrose", "On hover"]);
+        },
     },
     {
         title: "Step 6 &mdash; Penrose Tiling",
@@ -115,5 +145,10 @@ export const METHOD_STEPS: StepSpec[] = [
             Penrose&rsquo;s non-periodic tilings of the plane,&rdquo;
             <i>Kon. Nederl. Akad. Wetensch. Proc.</i> <b>84</b>
             (1981).</p>`,
+        enter: (pg) => {
+            pg.setFeatures({ gridLines: true, penroseTiles: true });
+            pg.setGridAlpha(0.18);
+            pg.exposeRows(null);     // the last page opens everything up
+        },
     },
 ];

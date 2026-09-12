@@ -237,7 +237,6 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         container: config.container,
         gamma: config.gamma,
         n: config.n,
-        steps: [],
         features: { gridLines: false, axes: false },
         // What fills the canvas under a camera is not what fills it flat. Tilting
         // squashes world-y onto the screen by sin(elevation), so the same rect
