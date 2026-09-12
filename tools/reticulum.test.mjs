@@ -88,14 +88,15 @@ test("the range is a signed full-width traverse, not a radial slider", () => {
     assert.ok(Math.abs(num(mid, "x1")) < 1e-9, "gamma 0 must pass through the centre");
     assert.ok(Math.abs(num(mid, "x2")) < 1e-9);
 
-    // and +1/2 / -1/2 sit on opposite sides, a full width apart
+    // and +1/2 / -1/2 sit on opposite sides, a full width apart. The line runs
+    // AGAINST gamma, because the model puts line n at x . v_j = n - gamma_j.
     r.sync({ values: [0.499999, 0.2, 0.2, 0.2, 0.2], locked: 4, sum: 1.1 });
     const plus = num(gridOf(axes[0]), "x1");
     r.sync({ values: [-0.5, 0.2, 0.2, 0.2, 0.2], locked: 4, sum: 0.3 });
     const minus = num(gridOf(axes[0]), "x1");
-    assert.ok(Math.abs(plus - A) < 1e-4, `+1/2 should reach +A, got ${plus}`);
-    assert.ok(Math.abs(minus + A) < 1e-9, `-1/2 should reach -A, got ${minus}`);
-    assert.ok(Math.abs((plus - minus) - 2 * A) < 1e-4, "full travel must be 2A");
+    assert.ok(Math.abs(plus + A) < 1e-4, `gamma +1/2 should reach -A, got ${plus}`);
+    assert.ok(Math.abs(minus - A) < 1e-9, `gamma -1/2 should reach +A, got ${minus}`);
+    assert.ok(Math.abs((minus - plus) - 2 * A) < 1e-4, "full travel must be 2A");
 });
 
 test("at the limits the line lies along the decagon side itself", () => {
@@ -185,13 +186,14 @@ test("dragging is 1:1 across the full width, and reports unwrapped state", () =>
 
     hit.on.pointerdown[0](ev(760, 400));
     hit.on.pointermove[0](ev(800, 400));
-    const expect = 0.2 + (40 / 800 * SPAN) / (2 * A);
+    // Dragging the line along +v LOWERS gamma, so the line stays under the finger.
+    const expect = 0.2 - (40 / 800 * SPAN) / (2 * A);
     assert.ok(Math.abs(moves.at(-1) - expect) < 1e-6,
               `got ${moves.at(-1)} want ${expect}`);
 
-    // and running well past +1/2 must not clamp or wrap the state
+    // and running well past the boundary must not clamp or wrap the state
     for (let i = 1; i <= 40; i++) hit.on.pointermove[0](ev(800 + i * 20, 400));
-    assert.ok(moves.at(-1) > 1, `state should run on, got ${moves.at(-1)}`);
+    assert.ok(moves.at(-1) < -1, `state should run on, got ${moves.at(-1)}`);
     assert.ok(Math.abs(signedGamma(moves.at(-1))) <= 0.5, "but the display stays signed");
 });
 
@@ -259,4 +261,25 @@ test("lighten mixes toward white and leaves anything it cannot parse alone", () 
     assert.equal(lighten("#000000", 1), "#ffffff");
     assert.equal(lighten("#e63946", 0.82), "#fbdbde");
     assert.equal(lighten("not a colour", 0.5), "not a colour");
+});
+
+test("the drawn line matches the map: raising gamma slides it along -v", () => {
+    // The convention, checked against the model rather than against itself.
+    // geometry/pentagrid.ts puts line n at x . v_j = n - gamma_j, so a rising
+    // gamma moves the family in MINUS v_j. Drawing it the other way made the
+    // reticulum a mirror of the thing it is a picture of.
+    const { r, axes } = ret(5);
+    const posOf = (g) => {
+        r.sync({ values: [g, 0.2, 0.2, 0.2, 0.2], locked: 4, sum: g + 0.8 });
+        const l = gridOf(axes[0]);
+        // axis 0 is +x here, so the signed offset is just x
+        return num(l, "x1");
+    };
+    assert.ok(Math.abs(posOf(0)) < 1e-9, "gamma 0 sits at the centre");
+    assert.ok(posOf(0.1) < 0, "raising gamma must move the line to -v");
+    assert.ok(posOf(-0.1) > 0, "lowering it must move the line to +v");
+
+    // and it is linear in gamma across the whole range, 2A per unit
+    const a = posOf(-0.25), b = posOf(0.25);
+    assert.ok(Math.abs((a - b) - A) < 1e-6, `half a unit should be A, got ${a - b}`);
 });

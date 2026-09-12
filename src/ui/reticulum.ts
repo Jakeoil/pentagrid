@@ -263,9 +263,11 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         const p = at(e);
         if (dragging >= 0 && dragFrom) {
             const [ux, uy] = axisVec(dragging);
-            // One unit of gamma is the full side-to-side width, 2A.
+            // One unit of gamma is the full side-to-side width, 2A, and the line
+            // runs against gamma — so dragging it along +v LOWERS gamma. The sign
+            // is what keeps the line under the finger.
             const along = (p[0] - dragFrom[0]) * ux + (p[1] - dragFrom[1]) * uy;
-            drive(dragging, along / (2 * A));
+            drive(dragging, -along / (2 * A));
             dragFrom = p;
             return;
         }
@@ -299,7 +301,12 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
 
             // The family's line, at the signed offset. -1/2 and +1/2 land on the
             // two opposite sides; 0 passes through the centre.
-            const d = signedGamma(current[j] ?? 0) * 2 * A;
+            //
+            // NEGATED, and that is the whole of it: the model puts line n at
+            // x . v_j = n - gamma_j, so raising gamma slides the family along
+            // MINUS v_j. Drawing it along +v_j made the reticulum move opposite to
+            // the grid it is a picture of.
+            const d = -signedGamma(current[j] ?? 0) * 2 * A;
             const [lo, hi] = span(d, u, w);
             attrs(grid, {
                 x1: u[0] * d + w[0] * lo, y1: u[1] * d + w[1] * lo,
