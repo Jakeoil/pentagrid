@@ -7,7 +7,7 @@ import {
 } from "../geometry/pentagrid.js";
 import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/regularity.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
-import { createGammaSet, describeSum } from "../geometry/gamma.js";
+import { createGammaSet, describeSum, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
@@ -137,7 +137,10 @@ export interface PentagridHandle {
 export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // The γ cluster owns the directions, the offsets, the sum constraint and the
     // regularity guard. See geometry/gamma.ts — this file is a view over it.
-    const gammaSet = createGammaSet({ n: config.n ?? NUM_GRIDS });
+    // Singular configurations are allowed, detected and shown — not silently
+    // corrected. Moving someone's offsets to keep a theorem tidy hides exactly
+    // the cases worth looking at. `force regular` is still there, opt-in.
+    const gammaSet = createGammaSet({ n: config.n ?? NUM_GRIDS, guard: false });
     const directions = gammaSet.model.directions;
     const gamma = gammaSet.model.gamma;
     // "Sometimes you just have to see them."
@@ -339,7 +342,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // anything. PLAN.md, "The method page, reorganised".
 
     const NO_FEATURES: Features = {
-        gridLines: true, axes: true,
+        gridLines: true, axes: false,
         kRegions: false, kLabels: false, intersectionDots: false,
         penroseTiles: false, penroseEdges: false, penroseVertices: false,
         penroseDecor: false, hoverVertex: false, hoverTile: false,
@@ -402,7 +405,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const gridAlphas = [0.6, 0.6, 0.4, 0.28, 0.24, 0.18];
 
     const bgLayer = stack.add({
-        id: "background", label: "K-regions", z: 5, group: "Pentagrid",
+        // No `group`: its switch is in the K-regions cluster, not on the
+        // Pentagrid row. One fact, one switch.
+        id: "background", label: "K-regions", z: 5,
         visible: () => features.kRegions,
         draw: (c) => withView(gridView(), () => drawKRegions(c.ctx, c.cx, c.cy)),
     });
@@ -419,7 +424,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     const axesLayer = stack.add({
-        id: "axes", label: "Axes", z: 20, group: "Pentagrid",
+        // In FRONT of the grid and the tiling: an axis behind the thing it
+        // measures is decoration, not a reference.
+        id: "axes", label: "Axes", z: 70, group: "Pentagrid",
         visible: () => features.axes,
         draw: (c) => drawAxes(c.ctx, c.w, c.h, c.cx, c.cy),
     });
@@ -432,7 +439,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     });
 
     stack.add({
-        id: "klabels", label: "K-labels", z: 51, group: "Pentagrid",
+        // Switched from the K-regions cluster, like the regions themselves.
+        id: "klabels", label: "K-labels", z: 51,
         visible: () => features.kLabels,
         draw: (c) => withView(gridView(), () => drawKEdgeLabels(c.ctx, c.cx, c.cy)),
     });
@@ -440,7 +448,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // The tiling. Its own group so the whole thing can move in front of the
     // pentagrid or behind it in one call.
     const PENROSE_Z_BACK = 6;    // above the K-regions, below the grid
-    const PENROSE_Z_FRONT = 30;  // above the axes, below the overlays
+    const PENROSE_Z_FRONT = 30;  // above the grid, below the overlays and axes
     let penroseInFront = true;
 
     stack.add({
@@ -554,7 +562,27 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const meterSpan = document.createElement("div");
     meterSpan.className = "regularity-meter";
     meterDiv.appendChild(meterSpan);
+
+    // Conservative by design: it says the OFFSETS meet de Bruijn's condition, not
+    // that the tiling is any particular representative of it.
+    const penroseSpan = document.createElement("span");
+    penroseSpan.className = "penrose-flag";
+    meterDiv.appendChild(penroseSpan);
     controlsDiv.appendChild(meterDiv);
+
+    function refreshPenroseFlag() {
+        const ok = penroseCondition(gammaSet.getSum(), gammaSet.n);
+        if (ok === null) {
+            penroseSpan.textContent = `· Penrose condition n/a (n = ${gammaSet.n})`;
+            penroseSpan.style.color = "#aaa";
+            penroseSpan.title = "Σγ ≡ 0 (mod 1) is de Bruijn's condition for n = 5.";
+            return;
+        }
+        penroseSpan.textContent = ok ? "· Penrose condition ✓" : "· Penrose condition ✗";
+        penroseSpan.style.color = ok ? "#2a9d8f" : "#aaa";
+        penroseSpan.title = "Σγ ≡ 0 (mod 1). Says the offsets satisfy the condition, "
+            + "not which representative — Σγ = 0 and Σγ = 2 both pass.";
+    }
 
     /** Range of line indices of family j that cross the visible rect. */
 
@@ -593,12 +621,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // The verdict is exact and global, so it leads. The float scan below only
         // says how big things are and where they are, never whether they are legal.
+        refreshPenroseFlag();
         const sing = singularTriples();
         if (sing.length > 0) {
             let worst = 0;
-            for (const c of concurrencies) if (c.lines > worst) worst = c.lines;
+            // Which families actually meet, not just how many lines — that is what
+            // you need in order to do something about it.
+            const who = new Set<number>();
+            for (const c of concurrencies) {
+                if (c.lines > worst) worst = c.lines;
+                for (const j of c.families) who.add(j);
+            }
             const where = concurrencies.length > 0
                 ? ` — ${concurrencies.length} in view, up to ${worst} lines`
+                  + ` (γ ${[...who].sort((a, b) => a - b).join(",")})`
                 : "";
             meterSpan.textContent = `SINGULAR: triples ${sing.join(" ")}${where} · ${tail}`;
             meterSpan.style.color = "#e63946";
@@ -651,6 +687,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const step = stepContent[currentStep];
         explanationDiv.innerHTML = `<h3>${step.title}</h3>${step.html}`;
         tooltip.style.display = "none";
+    }
+
+    /** Go to a step from anywhere, including a control that implies one. */
+    function goToStep(i: number) {
+        if (STEP_COUNT === 0) return;
+        currentStep = Math.max(0, Math.min(STEP_COUNT - 1, i));
+        updateStepUI();
+        draw();
     }
 
     prevBtn.addEventListener("click", () => {
@@ -1426,6 +1470,26 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         featureBoxes.push({ key, cb });
     }
 
+    /**
+     * Which feature flag actually decides a layer's visibility.
+     *
+     * These layers are `visible: () => features.X`, so a panel switch that writes
+     * only `userVisible` is a switch that lies: the box reads checked while the
+     * feature is off, and clicking it does nothing. Binding the switch to the
+     * feature is the fix, and it is the same two-homes-for-one-fact mistake the
+     * duplicate regularity checkbox was.
+     */
+    const LAYER_FEATURE: Record<string, keyof Features> = {
+        background: "kRegions",
+        axes: "axes",
+        dots: "intersectionDots",
+        klabels: "kLabels",
+        "penrose-tiles": "penroseTiles",
+        "penrose-edges": "penroseEdges",
+        "penrose-decor": "penroseDecor",
+        "penrose-vertices": "penroseVertices",
+    };
+
     function syncPanel() {
         for (const { key, cb } of featureBoxes) cb.checked = features[key];
     }
@@ -1442,17 +1506,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     : undefined;
                 const family = layer.id.startsWith("grid-")
                     ? Number(layer.id.slice(5)) : null;
-                checkbox(r, layer.label,
-                    family === null ? layer.userVisible : gammaSet.familyEnabled(family),
-                    (v) => {
-                        // A family's visibility belongs to the γ set, not to the
-                        // layer: turning one off drops the tiles it generates as
-                        // well as its lines, since the dual of a line is a ribbon
-                        // of tiles. Two homes for that is how the duplicate
-                        // regularity checkbox happened.
-                        if (family !== null) gammaSet.setFamilyEnabled(family, v);
-                        else { layer.userVisible = v; draw(); }
-                    }, swatch);
+                const feat = LAYER_FEATURE[layer.id];
+                const initial = family !== null ? gammaSet.familyEnabled(family)
+                    : feat ? features[feat]
+                    : layer.userVisible;
+                const cb = checkbox(r, layer.label, initial, (v) => {
+                    // A family's visibility belongs to the γ set, not to the
+                    // layer: turning one off drops the tiles it generates as
+                    // well as its lines, since the dual of a line is a ribbon
+                    // of tiles. Two homes for that is how the duplicate
+                    // regularity checkbox happened.
+                    if (family !== null) { gammaSet.setFamilyEnabled(family, v); return; }
+                    if (feat) { features[feat] = v; syncPanel(); draw(); return; }
+                    layer.userVisible = v;
+                    draw();
+                }, swatch);
+                if (feat) featureBoxes.push({ key: feat, cb });
             }
             if (group === "Pentagrid") {
                 // One line, or all of them, per family. Blank means all.
@@ -1511,9 +1580,29 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             }
         }
 
+        // K-regions and the two things that only make sense beside them. Kept
+        // together and away from the gamma controls: they belong to one step, not
+        // to the offsets.
+        const kStep = STEP_PRESETS.findIndex((p) => p.kRegions);
+        const kRow = row(layerPanelDiv, "K-regions");
+        const kBox = checkbox(kRow, "K-regions", features.kRegions, (v) => {
+            // Ticking it used to leave the box on with nothing drawn, because the
+            // step preset owns the feature. Go to the step instead — the control
+            // now means what it says.
+            if (v && kStep >= 0 && currentStep !== kStep) { goToStep(kStep); return; }
+            features.kRegions = v;
+            syncPanel();
+            draw();
+        });
+        featureBoxes.push({ key: "kRegions", cb: kBox });
+        featureToggle(kRow, "hoverVertex", "vertex from region (hover)");
+        featureToggle(kRow, "kLabels", "K-labels");
+        // Grouped, not welded: each switches on its own. Regions without labels is
+        // a thing you want to look at, and disabling the other two whenever the
+        // regions were off made the cluster read as one all-or-nothing switch.
+
         // Behaviours, which are not layers
         const hRow = row(layerPanelDiv, "On hover");
-        featureToggle(hRow, "hoverVertex", "vertex from region");
         featureToggle(hRow, "hoverTile", "tile from intersection");
 
         // Collapsed settings — set once, then forgotten
@@ -2027,12 +2116,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     return {
         redraw: draw,
-        setStep: (i: number) => {
-            if (STEP_COUNT === 0) return;
-            currentStep = Math.max(0, Math.min(STEP_COUNT - 1, i));
-            updateStepUI();
-            draw();
-        },
+        setStep: goToStep,
         getView: () => ({ scale, x: viewX, y: viewY }),
         setView: (v) => {
             scale = v.scale;

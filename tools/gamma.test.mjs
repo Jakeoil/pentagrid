@@ -4,7 +4,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createGammaSet, describeSum } from "../dist/geometry/gamma.js";
+import { createGammaSet, describeSum, penroseCondition } from "../dist/geometry/gamma.js";
 import { singularTriples } from "../dist/geometry/regularity.js";
 import { collectRhombs, computeKTuple } from "../dist/geometry/pentagrid.js";
 import { liftLocal } from "../dist/geometry/roof.js";
@@ -591,4 +591,54 @@ test("the guard clears a heptagrid off the integers", () => {
     assert.ok(g.exact().every((q) => q % g.denominator !== 0),
               "every offset must be a non-integer rational");
     assert.ok(g.provenRegular());
+});
+
+// ── singularities are allowed, detected, and moved off deliberately ──
+
+test("bump moves one offset by a single denominator unit, and nothing else", () => {
+    const g = createGammaSet({ guard: false });
+    g.setSum(0, true);
+    assert.equal(g.singular().length, 10, "all zeros is singular in every triple");
+
+    const before = g.exact().slice();
+    g.bump(0, +1);
+    assert.equal(g.exact()[0], before[0] + 1, "one unit up");
+    g.bump(0, -1);
+    assert.deepEqual(g.exact(), before, "and exactly back again");
+
+    // magnitude is irrelevant; the rationality class is the whole point
+    g.bump(0, +1);
+    assert.ok(g.singular().length < 10, "a single unit must change the verdict");
+});
+
+test("bump refuses the dependent index and anything out of range", () => {
+    const g = createGammaSet({ guard: false });
+    g.setSum(1, true);
+    const before = g.exact().slice();
+    g.bump(g.getLocked(), +1);
+    assert.deepEqual(g.exact(), before, "the dependent offset is not yours to bump");
+    g.bump(-1, +1);
+    g.bump(99, +1);
+    assert.deepEqual(g.exact(), before);
+});
+
+test("the Penrose condition is stated conservatively, and only for n = 5", () => {
+    // It says the OFFSETS satisfy Σγ ≡ 0 (mod 1) — not which representative.
+    // Σγ = 0 and Σγ = 2 both pass and are a Star and a Sun.
+    for (const s of [0, 1, 2, 3, -1]) assert.equal(penroseCondition(s, 5), true, `Σγ=${s}`);
+    for (const s of [0.5, 2.5, 0.3, 1.25]) assert.equal(penroseCondition(s, 5), false, `Σγ=${s}`);
+    assert.equal(penroseCondition(0, 7), null, "not the condition being stated at n = 7");
+    assert.equal(penroseCondition(3.5, 7), null);
+    // a sensible tolerance, not exact float equality
+    assert.equal(penroseCondition(1e-12, 5), true);
+    assert.equal(penroseCondition(1 - 1e-12, 5), true);
+});
+
+test("a singular configuration is kept, not quietly corrected", () => {
+    // The guard is opt-in now. Asking for all zeros must GIVE all zeros.
+    const g = createGammaSet({ guard: false });
+    g.setSum(0, true);
+    assert.deepEqual(g.exact(), [0, 0, 0, 0, 0], "the offsets were altered uninvited");
+    assert.ok(!g.nudged());
+    assert.equal(g.singular().length, 10, "and it is genuinely singular");
 });

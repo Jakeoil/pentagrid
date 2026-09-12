@@ -103,6 +103,16 @@ export interface GammaSet {
     /** All as equal as possible for the current sum, then guarded. */
     reset: () => void;
 
+    /**
+     * Nudge one offset by a single unit of the denominator, up or down.
+     *
+     * The deliberate way off a singular configuration, for when the guard is off
+     * and you would rather move than be moved. One unit is the smallest step that
+     * changes the rationality class, which is all regularity turns on — the
+     * magnitude is irrelevant, and a symmetric nudge of any size is not enough.
+     */
+    bump: (index: number, direction: number) => void;
+
     /** How many line families this set has. */
     readonly n: number;
 
@@ -199,6 +209,23 @@ export function describeSum(
             : half ? "Σγ ≡ ½ (mod 1)"
             : "Σγ generic");
     return figure ? `${figure} · ${cls}` : cls;
+}
+
+/**
+ * Whether Σγ meets de Bruijn's Penrose condition, Σγ ≡ 0 (mod 1).
+ *
+ * Deliberately conservative, and deliberately n = 5 only. It says the offsets
+ * satisfy the condition — NOT that the tiling is any particular representative:
+ * Σγ = 0 and Σγ = 2 both pass and give a Star and a Sun respectively. Returns
+ * null where the condition is not the one being stated, so a caller has to
+ * decide what to show rather than silently getting `false`.
+ */
+export function penroseCondition(
+    sum: number, n: number = NUM_GRIDS, tol = 1e-9,
+): boolean | null {
+    if (n !== 5) return null;
+    const frac = ((sum % 1) + 1) % 1;
+    return frac < tol || frac > 1 - tol;
 }
 
 export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
@@ -353,6 +380,12 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         getGuard: () => guard,
 
         reset,
+        bump: (index, direction) => {
+            if (index < 0 || index >= n || index === locked) return;
+            q[index] += direction >= 0 ? 1 : -1;
+            uniformIntent = false;
+            settle();
+        },
         n,
         singular: () => (n === 5 ? singularTriples(q, den) : []),
         provenRegular: () => {

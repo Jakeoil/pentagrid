@@ -557,3 +557,108 @@ test("createPentagrid builds a heptagrid when asked, layers and all", () => {
     assert.equal(h.stack.get("grid-7"), undefined, "an eighth family appeared");
     h.redraw();
 });
+
+test("axes are off by default and drawn in front of the grid and the tiling", () => {
+    // An axis behind the thing it measures is decoration, not a reference.
+    const h = createPentagrid({ container: sizedHost(600, 600), steps: [] });
+    const axes = h.stack.get("axes");
+    assert.ok(axes, "no axes layer");
+    assert.equal(axes.userVisible ?? true, true, "the layer itself stays available");
+    assert.ok(axes.z > h.stack.get("dots").z, "axes must sit above the grid overlays");
+    assert.ok(axes.z > h.stack.get("penrose-tiles").z, "and above the tiling");
+    assert.ok(axes.z > h.stack.get("grid-0").z, "and above the grid itself");
+    h.redraw();
+});
+
+/** Every panel switch, as (row label, switch label, checked, input). */
+function panelSwitches(panel) {
+    const out = [];
+    const walk = (n, row) => {
+        if (!n.children) return;
+        for (const c of n.children) {
+            const t = typeof c.textContent === "string" ? c.textContent : "";
+            if (c.className === "panel-label" && t) row = t;
+            if (c.className === "layer-toggle") {
+                const box = c.children.find((x) => x.type === "checkbox");
+                const label = c.children
+                    .filter((x) => typeof x.textContent === "string" && x.textContent)
+                    .map((x) => x.textContent).join("").trim();
+                if (box) out.push({ row, label, box });
+            }
+            walk(c, row);
+        }
+    };
+    walk(panel, null);
+    return out;
+}
+const findSwitch = (panel, label) =>
+    panelSwitches(panel).find((s) => s.label === label);
+
+test("a switch over a feature-driven layer drives the feature, not just the layer", () => {
+    // These layers are `visible: () => features.X`, so a switch that writes only
+    // userVisible reads checked while the feature is off and does nothing when
+    // clicked. Axes was the one that showed: ticked on, and inert.
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(600, 600), panel });
+    const vis = (id) => { const l = h.stack.get(id); return l.visible ? l.visible() : true; };
+
+    const axes = findSwitch(panel, "Axes");
+    assert.ok(axes, "no Axes switch");
+    assert.equal(axes.box.checked, false, "axes are off by default, and must say so");
+    assert.equal(vis("axes"), false);
+
+    axes.box.checked = true;
+    axes.box.on.change[0]();
+    assert.equal(vis("axes"), true, "the Axes switch did nothing");
+});
+
+test("K-regions and K-labels are switched once, from their own cluster", () => {
+    // They used to appear on the Pentagrid row as well, where the switch was inert.
+    const panel = makeStub();
+    createPentagrid({ container: sizedHost(600, 600), panel });
+    const all = panelSwitches(panel);
+    for (const label of ["K-regions", "K-labels"]) {
+        const hits = all.filter((s) => s.label === label);
+        assert.equal(hits.length, 1, `${label} has ${hits.length} switches, want 1`);
+        assert.equal(hits[0].row, "K-regions", `${label} is on the ${hits[0].row} row`);
+    }
+});
+
+test("the K-regions cluster is grouped, not welded: each switches on its own", () => {
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(600, 600), panel });
+    const vis = (id) => { const l = h.stack.get(id); return l.visible ? l.visible() : true; };
+
+    const regions = findSwitch(panel, "K-regions");
+    regions.box.checked = true;
+    regions.box.on.change[0]();
+    assert.equal(vis("background"), true, "K-regions did not switch on");
+
+    const labels = findSwitch(panel, "K-labels");
+    assert.equal(labels.box.disabled ?? false, false, "must not be disabled by the cluster");
+    labels.box.checked = false;
+    labels.box.on.change[0]();
+    assert.equal(vis("background"), true, "regions should stay on");
+    assert.equal(vis("klabels"), false, "labels should go off independently");
+});
+
+test("K-regions, its hover read-out and K-labels are one cluster", () => {
+    // They belong to a step, not to the offsets, and ticking K-regions used to
+    // leave the box on with nothing drawn because the step preset owns it.
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(600, 600), panel });
+    const labels = [];
+    const walk = (n, d = 0) => {
+        if (d > 6 || !n.children) return;
+        for (const c of n.children) {
+            if (typeof c.textContent === "string" && c.textContent) labels.push(c.textContent);
+            walk(c, d + 1);
+        }
+    };
+    walk(panel);
+    const joined = labels.join("|");
+    assert.match(joined, /K-regions/);
+    assert.match(joined, /vertex from region \(hover\)/,
+                 "the hover read-out belongs with K-regions, not the gamma controls");
+    assert.match(joined, /K-labels/);
+});

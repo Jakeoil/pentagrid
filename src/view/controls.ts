@@ -159,13 +159,26 @@ export function mountReticulum(
     container: HTMLElement,
     opts: { colors: readonly string[] },
 ): GammaControl {
+    /**
+     * Symmetric mode: every offset is the same g, so the control is one knob.
+     *
+     * It releases the sum, and has to. Equal offsets with a held total can only
+     * meet at the discrete values g = k/n, so keeping the constraint would fight
+     * every move; letting Σγ = n·g float is the honest coupling, and the Penrose
+     * flag then lights at exactly those k/n where the condition is met.
+     */
+    let symmetric = false;
+
     const ret = createReticulum({
         count: set.values().length,
         directions: set.model.directions as readonly (readonly [number, number])[],
         colors: opts.colors,
-        onChange: (j, v) => set.setValue(j, v),
+        onChange: (j, v) => {
+            if (!symmetric) { set.setValue(j, v); return; }
+            set.setValues(new Array(set.values().length).fill(v));
+        },
         // -1 is Sigma itself: hold nothing, and every offset goes free.
-        onLock: (j) => set.setLocked(j),
+        onLock: (j) => { if (!symmetric) set.setLocked(j); },
     });
 
     const wrap = document.createElement("div");
@@ -182,6 +195,52 @@ export function mountReticulum(
     readout.title = "Click to release the total — every γ free";
     readout.addEventListener("click", () => set.setLocked(-1));
     wrap.appendChild(readout);
+
+    const tools = document.createElement("div");
+    tools.className = "ret-tools";
+
+    const symBox = document.createElement("label");
+    symBox.className = "ret-check";
+    const symInput = document.createElement("input");
+    symInput.type = "checkbox";
+    symInput.addEventListener("change", () => {
+        symmetric = symInput.checked;
+        if (symmetric) {
+            // Nothing can hold the total while all n move together.
+            set.setLocked(-1);
+            const g = set.values()[Math.max(ret.selected(), 0)] ?? 0;
+            set.setValues(new Array(set.values().length).fill(g));
+        }
+        render();
+    });
+    symBox.appendChild(symInput);
+    symBox.appendChild(document.createTextNode(" symmetric"));
+    tools.appendChild(symBox);
+
+    // An explicit way off a singular configuration. Not automatic: the guard is
+    // off by default now, and moving someone's offsets uninvited hides the very
+    // cases worth looking at.
+    const bump = (dir: number, text: string) => {
+        const b = document.createElement("button");
+        b.className = "ret-bump";
+        b.textContent = text;
+        b.title = `Nudge the selected γ ${dir > 0 ? "up" : "down"} by one unit `
+            + `(${(1 / set.denominator).toExponential(0)}) — off the singular set`;
+        b.addEventListener("click", () => {
+            const j = ret.selected();
+            if (j < 0) return;
+            if (symmetric) {
+                const v = (set.values()[j] ?? 0) + dir / set.denominator;
+                set.setValues(new Array(set.values().length).fill(v));
+            } else {
+                set.bump(j, dir);
+            }
+        });
+        return b;
+    };
+    tools.appendChild(bump(-1, "bump −"));
+    tools.appendChild(bump(+1, "bump +"));
+    wrap.appendChild(tools);
     container.appendChild(wrap);
 
     const render = () => {
@@ -196,6 +255,7 @@ export function mountReticulum(
         readout.textContent = `Σγ = ${sum.toFixed(3)}${modPart}`;
         // Greyed exactly when it is the dependent member, like a greyed label.
         readout.className = "ret-readout" + (locked < 0 ? " released" : "");
+        readout.style.cursor = symmetric ? "default" : "pointer";
     };
     set.onChange(render);
     render();

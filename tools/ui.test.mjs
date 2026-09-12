@@ -442,3 +442,66 @@ test("the reticulum's readout is the Sigma control: it reads and releases", () =
               `the total should follow the offsets, got ${set.getSum()}`);
     assert.match(readout.textContent, /mod 1/, "Σγ and Σγ mod 1 now differ");
 });
+
+test("symmetric mode couples every gamma and releases the total", () => {
+    // Equal offsets with a held total can only meet at g = k/n, so keeping the
+    // constraint would fight every move. Releasing it is the honest coupling.
+    const set = createGammaSet({ guard: false });
+    set.setSum(1, true);
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+
+    const wrap = host.children[0];
+    const tools = wrap.children[2];
+    const symInput = tools.children[0].children[0];
+    const [minus, plus] = [tools.children[1], tools.children[2]];
+
+    assert.equal(set.getLocked(), 4, "constrained to begin with");
+    symInput.checked = true;
+    symInput.on.change[0]();
+    assert.equal(set.getLocked(), -1, "symmetric mode must release the total");
+    const vals = set.values();
+    assert.ok(vals.every((v) => Math.abs(v - vals[0]) < 1e-9), `not equal: ${vals}`);
+
+    // driving any one of them moves all of them
+    const hit = wrap.children[0].children.filter(
+        (c) => (c.getAttribute("class") || "") === "ret-hit")[0];
+    const up = { clientX: 400, clientY: 100, preventDefault() {}, stopPropagation() {} };
+    hit.on.pointerdown[0](up);
+    hit.on.pointerup[0](up);
+    hit.on.wheel[0]({ ...up, deltaY: -1, shiftKey: false });
+    const after = set.values();
+    assert.ok(after.every((v) => Math.abs(v - after[0]) < 1e-9),
+              `symmetric mode broke equality: ${after}`);
+    assert.ok(Math.abs(after[0] - (vals[0] + 0.01)) < 1e-9, "the coupled move was wrong");
+
+    // and Σγ = n·g floats with it
+    assert.ok(Math.abs(set.getSum() - 5 * after[0]) < 1e-9);
+
+    // bump keeps them coupled too
+    plus.on.click[0]();
+    const bumped = set.values();
+    assert.ok(bumped.every((v) => Math.abs(v - bumped[0]) < 1e-9), "bump broke equality");
+    minus.on.click[0]();
+    assert.ok(Math.abs(set.values()[0] - after[0]) < 1e-9, "bump did not reverse");
+});
+
+test("bump acts on the reticulum's selected axis, and does nothing with none", () => {
+    const set = createGammaSet({ guard: false });
+    set.setSum(0, true);
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+    const wrap = host.children[0];
+    const plus = wrap.children[2].children[2];
+
+    const before = set.exact().slice();
+    plus.on.click[0]();
+    assert.deepEqual(set.exact(), before, "no axis selected — nothing should move");
+
+    const hit = wrap.children[0].children.filter(
+        (c) => (c.getAttribute("class") || "") === "ret-hit")[0];
+    hit.on.pointerdown[0]({ clientX: 400, clientY: 100, preventDefault() {}, stopPropagation() {} });
+    plus.on.click[0]();
+    assert.notDeepEqual(set.exact(), before, "the selected axis should have moved");
+    assert.equal(set.exact()[0], before[0] + 1, "by exactly one unit");
+});

@@ -152,12 +152,12 @@ export function scanRegions(pg: Pentagrid, vis: ViewRect, opts: ScanOptions = {}
     const concurrencies: Concurrency[] = [];
     for (const [x, y] of degenerate) {
         if (concurrencies.some((p) => Math.hypot(p.x - x, p.y - y) < cluster)) continue;
-        let lines = 0;
+        const families: number[] = [];
         for (let j = 0; j < pg.n; j++) {
             const d = pg.directions[j][0] * x + pg.directions[j][1] * y + pg.gamma[j];
-            if (Math.abs(d - Math.round(d)) < cluster) lines++;
+            if (Math.abs(d - Math.round(d)) < cluster) families.push(j);
         }
-        concurrencies.push({ x, y, lines });
+        concurrencies.push({ x, y, lines: families.length, families });
     }
 
     return { small, concurrencies };

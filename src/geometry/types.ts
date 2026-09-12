@@ -55,4 +55,6 @@ export interface SmallRegion {
 export interface Concurrency {
     x: number; y: number;
     lines: number;           // how many families pass through the point
+    /** Which families they are. Length always equals `lines`. */
+    families: number[];
 }

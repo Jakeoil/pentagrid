@@ -47,7 +47,11 @@ function makeStub(extra = {}) {
             (on[type] ??= []).push(fn);
         },
         setAttribute: noop,
-        value: "0", checked: false, textContent: "", innerHTML: "", dataset: {},
+        // `disabled` has to be a real false. Left to the Proxy it comes back as
+        // a stub, which is truthy, so any test asking "is this control enabled?"
+        // silently gets the wrong answer.
+        value: "0", checked: false, disabled: false,
+        textContent: "", innerHTML: "", dataset: {},
         ...extra,
     });
     return new Proxy(base, handler);
@@ -81,6 +85,10 @@ globalThis.document = makeStub({
     // SVG needs createElementNS, and it has to build the same kind of stub —
     // otherwise the Proxy hands back something callable, the control appears to
     // construct, and pagecheck passes on a page that would render nothing.
+    // Keeps its text. Without this the Proxy hands back a fresh stub and every
+    // label a control writes is silently discarded, so a panel can be built
+    // entirely out of blanks and still look fine to a test.
+    createTextNode: (text) => makeStub({ textContent: String(text), nodeType: 3 }),
     createElementNS: (_ns, tag) => {
         const el = makeStub({ tagName: tag, attrs: {} });
         el.setAttribute = (k, v) => { el.attrs[k] = String(v); };
