@@ -1622,6 +1622,77 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## Naming the resolutions, and what a Penrose setting should be (Jake, 2026-09-13)
+
+### The angle code — Jake's scheme, and it is complete
+
+A 2k-gon is named by the **supplements of its angle sequence**, in units of
+`180/n`: a digit `d` is a vertex whose interior angle is `180 - d*(180/n)`, which
+is the gap between two consecutive generator directions. Sorted, those digits are
+
+> **a partition of n into k parts, always** — the gaps span a half turn, so they
+> must add to n.
+
+Which makes the available shapes exactly the **partitions of n into two or more
+parts**. Verified both ways: n = 5 gives six codes and six partitions, n = 7 gives
+fourteen and fourteen, identical sets.
+
+    14     thin rhomb          113    thin hexagon
+    23     thick rhomb         1112   octagon
+    122    thick hexagon       11111  decagon
+
+The code is the real name — it needs no lookup table, it says the shape's angles
+outright, and **nothing about it changes when n does**, which is the whole point
+of the `zeta_n` nomenclature. Friendly names ride along where one has been earned.
+`describeResolution` now reads "K122 thick hexagon · 2 thick + 1 thin".
+
+**Jake had not noticed there are two hexagons**, and they are not congruent —
+"not superposable". K122 is 144/108/108 and holds 2 thick + 1 thin; K113 is
+144/144/72 and holds 1 thick + 2 thin. Worth saying that the thick/thin content
+follows from the code, so the code alone distinguishes them.
+
+**And the decagon is five octagons turned.** Dropping any one of the five
+generators from K11111 leaves K1112, and the five choices are rotations of each
+other — a superposition in the same sense the rhombs are.
+
+### Singularities stay on, and want hunting
+
+Jake: *"Singularities happen, this one just happens to be in your face because our
+initialisation happens to be quote illegal unquote."* So the layer stays on by
+default and the rest follows from assuming they occur.
+
+The next thing is **finding** them: reticulum presets for singular phase vectors,
+collected somewhere rather than cluttering every page — page 7, or a page of its
+own. The rules for what to hunt are already known and measured:
+
+    3-fold   gamma_L in Z  AND  gamma_P + gamma_Q in Z   — no other integral phase
+    4-fold   four integral phases                        — rare, and real
+    5-fold   all five                                    — unique, Gamma = 0
+
+### What a Penrose setting is, and what it should do on a 2k-gon
+
+Not built; recorded as the direction. The layers behave differently over a
+singularity and should say so deliberately:
+
+- **Vertices, then edges** — these are wanted. They give a singularity structure
+  and make it legible rather than decorating it.
+- **Tiles, especially opaque ones** — NOT over a 2k-gon. An opaque fill asserts a
+  layout that the superposition does not have, which is the same objection that
+  stopped the rhomb tiling being drawn.
+- **Arcs and the other decorations** — curtail them on a 2k-gon unless a sensible
+  reading is found. An arc joins across a shared edge by construction, and inside
+  a superposition there is no shared edge to join across.
+
+And a longer list that belongs in the Penrose settings generally, wherever it
+lands: the two-colour composites of the bands, the five-colour tiling at full
+width, isoglosses, index shading, transparency.
+
+### Parked
+
+The `Q(sqrt 5)` two-component question — whether phases carried as `a + b*sqrt 5`
+reach configurations a plain rational denominator cannot — is deferred. Jake:
+"that's another app".
+
 ## Nomenclature, and the Penrose condition (Jake, 2026-09-12)
 
 ### Nomenclature

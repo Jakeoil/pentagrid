@@ -29,6 +29,24 @@ export interface ResolutionRhomb {
     thick: boolean;
 }
 
+/**
+ * The angle code, which is the real name of one of these shapes (Jake's scheme).
+ *
+ * A digit d is a vertex whose interior angle is 180 - d*(180/n) — the supplement
+ * of the gap between two consecutive generators, in units of 180/n. Sorted, the
+ * digits of a 2k-gon are a partition of **n** into k parts, always, because the
+ * gaps around a half turn must add to 180.
+ *
+ * So the shapes available at a given n are exactly the partitions of n into two
+ * or more parts — six at n = 5, fourteen at n = 7 — and the code names them
+ * without a lookup table and without changing when n does:
+ *
+ *     14     thin rhomb        113    thin hexagon
+ *     23     thick rhomb       1112   octagon
+ *     122    thick hexagon     11111  decagon
+ */
+export type AngleCode = string;
+
 export interface Resolution {
     /** Where it sits, in TILING coordinates. */
     x: number;
@@ -39,6 +57,8 @@ export interface Resolution {
     rhombs: ResolutionRhomb[];
     /** hexagon, octagon, decagon, or "2k-gon" past that. */
     name: string;
+    /** The angle code: sorted gaps in units of 180/n, a partition of n. */
+    code: AngleCode;
     /** Which families meet. */
     families: number[];
     thick: number;
@@ -48,6 +68,36 @@ export interface Resolution {
 const NAMES: Record<number, string> = {
     4: "rhomb", 6: "hexagon", 8: "octagon", 10: "decagon", 12: "dodecagon", 14: "tetradecagon",
 };
+
+/** Friendly names where a shape is common enough to have earned one (n = 5). */
+const FAMILIAR: Record<string, string> = {
+    "14": "thin rhomb",
+    "23": "thick rhomb",
+    "122": "thick hexagon",
+    "113": "thin hexagon",
+    "1112": "octagon",
+    "11111": "decagon",
+};
+
+/**
+ * The angle code for a set of families: the gaps between consecutive generator
+ * directions, taken modulo a half turn, in units of 180/n.
+ */
+export function angleCode(pg: Pentagrid, families: readonly number[]): AngleCode {
+    const unit = 180 / pg.n;
+    const at = families
+        .map((j) => {
+            const [x, y] = pg.directions[j];
+            const deg = (Math.atan2(y, x) * 180) / Math.PI;
+            return ((deg % 180) + 180) % 180;          // a generator has no sign
+        })
+        .sort((p, q) => p - q);
+    const gaps: number[] = [];
+    for (let i = 0; i < at.length; i++) {
+        gaps.push(i + 1 < at.length ? at[i + 1] - at[i] : 180 - at[at.length - 1] + at[0]);
+    }
+    return gaps.map((g) => Math.round(g / unit)).sort((p, q) => p - q).join("");
+}
 
 /** How far into a sector to sample. Small against the line spacing of 1. */
 const PROBE = 1e-4;
@@ -130,14 +180,15 @@ export function resolveConcurrency(pg: Pentagrid, c: Concurrency): Resolution | 
         }
     }
 
+    const code = angleCode(pg, fams);
     return {
-        x: cx, y: cy, outline, rhombs,
-        name: NAMES[2 * k] ?? `${2 * k}-gon`,
+        x: cx, y: cy, outline, rhombs, code,
+        name: FAMILIAR[code] ?? NAMES[2 * k] ?? `${2 * k}-gon`,
         families: fams, thick, thin,
     };
 }
 
-/** "hexagon · 2 thick + 1 thin" — what to say instead of "3 lines concurrent". */
+/** "K122 thick hexagon · 2 thick + 1 thin" — rather than "3 lines concurrent". */
 export function describeResolution(r: Resolution): string {
-    return `${r.name} · ${r.thick} thick + ${r.thin} thin`;
+    return `K${r.code} ${r.name} · ${r.thick} thick + ${r.thin} thin`;
 }

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 
 import { createGammaSet } from "../dist/geometry/gamma.js";
 import { scanRegions } from "../dist/geometry/regularity.js";
-import { resolveConcurrency, describeResolution } from "../dist/geometry/resolve.js";
+import { resolveConcurrency, describeResolution, angleCode } from "../dist/geometry/resolve.js";
 
 const VIS = { xMin: -3, xMax: 3, yMin: -3, yMax: 3 };
 
@@ -63,11 +63,11 @@ test("the combos are the ones the table predicts", () => {
     // PLAN.md from every subset of families; this checks the geometry agrees.
     const { list } = resolutions(0);
     const seen = new Set(list.map(describeResolution));
-    assert.ok(seen.has("hexagon · 2 thick + 1 thin"), [...seen].join(" | "));
-    assert.ok(seen.has("hexagon · 1 thick + 2 thin"), [...seen].join(" | "));
-    assert.ok(seen.has("decagon · 5 thick + 5 thin"), [...seen].join(" | "));
+    assert.ok(seen.has("K122 thick hexagon · 2 thick + 1 thin"), [...seen].join(" | "));
+    assert.ok(seen.has("K113 thin hexagon · 1 thick + 2 thin"), [...seen].join(" | "));
+    assert.ok(seen.has("K11111 decagon · 5 thick + 5 thin"), [...seen].join(" | "));
     for (const d of seen) {
-        assert.match(d, /^(hexagon|octagon|decagon) · \d+ thick \+ \d+ thin$/, d);
+        assert.match(d, /^K\d+ [a-z ]+ · \d+ thick \+ \d+ thin$/, d);
     }
 });
 
@@ -121,21 +121,22 @@ test("how many lines can meet is decided by how many phases are integral", () =>
         const { concurrencies } = scanRegions(g.model, { xMin: -4, xMax: 4, yMin: -4, yMax: 4 },
                                               { scale: 1 });
         const out = new Set();
-        for (const c of concurrencies) out.add(resolveConcurrency(g.model, c).name);
+        for (const c of concurrencies) out.add(resolveConcurrency(g.model, c).code);
         return out;
     };
 
-    assert.ok(shapes([0, 0, 0, 0, 0]).has("decagon"), "five integral phases -> decagon");
+    assert.ok(shapes([0, 0, 0, 0, 0]).has("11111"), "five integral phases -> decagon");
     const four = shapes([0, 0, 0, 0, 0.3]);
-    assert.ok(four.has("octagon"), "four integral phases -> octagon");
-    assert.ok(!four.has("decagon"), "but not a decagon");
+    assert.ok(four.has("1112"), "four integral phases -> octagon");
+    assert.ok(!four.has("11111"), "but not a decagon");
     const three = shapes([0, 0, 0, 0.3, 0.7]);
-    assert.ok(three.has("hexagon") && !three.has("octagon"), "three -> hexagons only");
+    assert.ok(three.has("122") || three.has("113"), "three -> hexagons");
+    assert.ok(!three.has("1112"), "and no octagon");
 
     // and a hexagon with only ONE integral phase: g1 in Z, g0 + g2 in Z
     const one = shapes([0.3, 0, 0.7, 0.11, 0.29]);
-    assert.ok(one.has("hexagon"), "a 3-fold needs no other integral phase");
-    assert.ok(!one.has("octagon") && !one.has("decagon"));
+    assert.ok(one.has("122") || one.has("113"), "a 3-fold needs no other integral phase");
+    assert.ok(!one.has("1112") && !one.has("11111"));
 });
 
 test("the concurrencies sit on Z[phi] shells", () => {
@@ -161,4 +162,64 @@ test("the concurrencies sit on Z[phi] shells", () => {
     }
     assert.equal(onLattice, radii.length,
                  `${radii.length - onLattice} radii are not a + b*phi in units of 1/cos18`);
+});
+
+test("the angle code names a shape, and its digits are a partition of n", () => {
+    // Jake's scheme: a digit d is a vertex of interior angle 180 - d*(180/n), the
+    // supplement of the gap between consecutive generators. The gaps span a half
+    // turn, so the digits must sum to n — which makes the available shapes exactly
+    // the partitions of n into two or more parts.
+    const g = createGammaSet({ guard: false });
+    g.setLocked(-1);
+    g.setValues([0, 0, 0, 0, 0]);
+    const { concurrencies } = scanRegions(g.model, { xMin: -4, xMax: 4, yMin: -4, yMax: 4 },
+                                          { scale: 1 });
+    const seen = new Map();
+    for (const c of concurrencies) {
+        const r = resolveConcurrency(g.model, c);
+        seen.set(r.code, r);
+        const sum = r.code.split("").reduce((s, d) => s + Number(d), 0);
+        assert.equal(sum, 5, `${r.code} does not sum to n`);
+        assert.equal(r.code.length, r.families.length, "one digit per generator");
+    }
+    assert.equal(seen.get("122").name, "thick hexagon");
+    assert.equal(seen.get("113").name, "thin hexagon");
+    assert.equal(seen.get("11111").name, "decagon");
+    // the codes carry the thick/thin content, so the two hexagons differ
+    assert.deepEqual([seen.get("122").thick, seen.get("122").thin], [2, 1]);
+    assert.deepEqual([seen.get("113").thick, seen.get("113").thin], [1, 2]);
+});
+
+test("angleCode is the partition list, for n = 5 and n = 7 alike", () => {
+    // The point of the scheme: nothing about it changes when n does, and it says
+    // in advance how many distinct shapes there are.
+    const partitions = (m, max) => {
+        if (m === 0) return [[]];
+        const out = [];
+        for (let x = Math.min(m, max); x >= 1; x--) {
+            for (const rest of partitions(m - x, x)) out.push([x, ...rest]);
+        }
+        return out;
+    };
+    for (const n of [5, 7]) {
+        const g = createGammaSet({ n, guard: false });
+        const subsets = (k) => {
+            const out = [];
+            const go = (s, i) => {
+                if (s.length === k) { out.push([...s]); return; }
+                for (let j = i; j < n; j++) { s.push(j); go(s, j + 1); s.pop(); }
+            };
+            go([], 0);
+            return out;
+        };
+        const codes = new Set();
+        for (let k = 2; k <= n; k++) {
+            for (const S of subsets(k)) codes.add(angleCode(g.model, S));
+        }
+        const want = new Set(partitions(n, n).filter((p) => p.length >= 2)
+            .map((p) => p.slice().sort((a, b) => a - b).join("")));
+        assert.deepEqual([...codes].sort(), [...want].sort(),
+                         `n = ${n}: codes are not the partitions of n`);
+    }
+    assert.equal(new Set(partitions(5, 5).filter((p) => p.length >= 2).map(String)).size, 6);
 });
