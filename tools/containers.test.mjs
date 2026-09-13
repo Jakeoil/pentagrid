@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { makeStub } from "./domstub.mjs";
+import { handlers, makeStub } from "./domstub.mjs";
 import { createGrowthView } from "../dist/view/growth.js";
 import { createRegionPanel } from "../dist/view/region-panel.js";
 import { polygonArea, pointInPolygon, convexBoundary } from "../dist/geometry/acceptance.js";
@@ -743,4 +743,35 @@ test("the shared canvas draws only the families that are on", () => {
     h.gamma.setFamilyEnabled(0, true);
     assert.equal(grid.visible(), true);
     h.redraw();
+});
+
+test("hovering a dual vertex shows the region that made it, not just the reverse", () => {
+    // There were two `if (features.hoverVertex)` blocks and the first ended in an
+    // unconditional return, so the second — the yellow source-region and its
+    // arrow — could never run. Dead from 2026-09-05 until this was noticed.
+    const before = globalThis.document.body.children.length;
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { gridLines: true, penroseVertices: true, hoverVertex: true },
+    });
+    const tip = globalThis.document.body.children[before];
+    h.redraw();
+
+    const move = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
+    assert.ok(move.length > 0, "no mousemove handler to drive");
+
+    let onVertex = 0, onRegion = 0;
+    for (let x = 120; x < 680; x += 11) {
+        for (let y = 120; y < 680; y += 11) {
+            tip.innerHTML = "";
+            for (const f of move) f({ clientX: x, clientY: y, offsetX: x, offsetY: y,
+                                      preventDefault() {} });
+            const s = String(tip.innerHTML || "");
+            // only the vertex path prints the f = Σ K_j·v_j equation
+            if (s.includes("f</span> =")) onVertex++;
+            else if (s) onRegion++;
+        }
+    }
+    assert.ok(onVertex > 0, "the dual-vertex path never ran — it is shadowed again");
+    assert.ok(onRegion > 0, "the region path must still answer everywhere else");
 });

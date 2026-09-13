@@ -1924,6 +1924,55 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
 
         if (features.hoverVertex) {
+            // TWO readings of one hover, and the nearer thing wins.
+            //
+            // These were two separate `if (features.hoverVertex)` blocks and the
+            // first ended in an unconditional `return`, so the second could never
+            // run: the yellow source-region and its arrow had been dead since the
+            // factory extraction on 2026-09-05, three months after they were
+            // written. Ordered properly now — a dual vertex under the pointer
+            // answers with the region that MADE it, and anywhere else answers with
+            // the region you are in and the vertex it becomes.
+            // and the reverse: nearest dual vertex -> the region that produced it
+            let best: DualVertex | null = null;
+            let bestDist = 12; // pixel threshold
+            for (const dv of dualVertices) {
+                const dx = dv.sx - sx;
+                const dy = dv.sy - sy;
+                const d = Math.sqrt(dx * dx + dy * dy);
+                if (d < bestDist) {
+                    bestDist = d;
+                    best = dv;
+                }
+            }
+
+            clearHighlight();
+
+            if (best) {
+                // Equation: f = Σ K_j · v_j
+                const terms = best.K.map((v, j) => {
+                    const color = gammaSet.familyEnabled(j) ? "#fff" : "#999";
+                    return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
+                });
+                tooltip.innerHTML =
+                    formatKTooltip(best.K) +
+                    `<br><span style="color:#fc0">f</span> = ${terms.join(" + ")}`;
+                tooltip.style.display = "block";
+                tooltip.style.left = (e.clientX + 12) + "px";
+                tooltip.style.top = (e.clientY - 28) + "px";
+
+                // Highlight the hovered dot
+                highlightCtx.fillStyle = "#fc0";
+                highlightCtx.beginPath();
+                highlightCtx.arc(best.sx, best.sy, 5, 0, 2 * Math.PI);
+                highlightCtx.fill();
+
+                // Highlight the source region in the pentagrid
+                withView(gridView(), () => highlightRegion(best!.K, cx, cy, best!.sx, best!.sy));
+                return;
+            }
+            // Nothing under the pointer is a vertex, so fall through to the region.
+
             // Region -> its dual vertex. The K-tuple is a fact about the pentagrid,
             // so it is read in grid coordinates; the vertex it points at stays in
             // tiling coordinates.
@@ -1986,49 +2035,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 highlightCtx.moveTo(endX, endY);
                 highlightCtx.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
                 highlightCtx.stroke();
-            }
-            return;
-        }
-
-        if (features.hoverVertex) {
-            // and the reverse: nearest dual vertex -> the region that produced it
-            let best: DualVertex | null = null;
-            let bestDist = 12; // pixel threshold
-            for (const dv of dualVertices) {
-                const dx = dv.sx - sx;
-                const dy = dv.sy - sy;
-                const d = Math.sqrt(dx * dx + dy * dy);
-                if (d < bestDist) {
-                    bestDist = d;
-                    best = dv;
-                }
-            }
-
-            clearHighlight();
-
-            if (best) {
-                // Equation: f = Σ K_j · v_j
-                const terms = best.K.map((v, j) => {
-                    const color = gammaSet.familyEnabled(j) ? "#fff" : "#999";
-                    return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
-                });
-                tooltip.innerHTML =
-                    formatKTooltip(best.K) +
-                    `<br><span style="color:#fc0">f</span> = ${terms.join(" + ")}`;
-                tooltip.style.display = "block";
-                tooltip.style.left = (e.clientX + 12) + "px";
-                tooltip.style.top = (e.clientY - 28) + "px";
-
-                // Highlight the hovered dot
-                highlightCtx.fillStyle = "#fc0";
-                highlightCtx.beginPath();
-                highlightCtx.arc(best.sx, best.sy, 5, 0, 2 * Math.PI);
-                highlightCtx.fill();
-
-                // Highlight the source region in the pentagrid
-                withView(gridView(), () => highlightRegion(best!.K, cx, cy, best!.sx, best!.sy));
-            } else {
-                tooltip.style.display = "none";
             }
             return;
         }
