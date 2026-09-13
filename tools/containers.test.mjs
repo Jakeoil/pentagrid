@@ -509,8 +509,12 @@ test("a single line through the set changes what is drawn", () => {
 
 test("isolating a family, then one of its lines, leaves a ribbon", () => {
     const h = createPentagrid({
-        container: host(700, 500), steps: [], features: { penroseTiles: true },
+        container: host(700, 500), features: { penroseTiles: true },
     });
+    // A REGULAR gamma. This is about isolation, not singularities — and the
+    // default Gamma = 0 is the maximally singular one, where most of a ribbon
+    // sits on stacked crossings and is deliberately left unfilled.
+    h.gamma.setSum(1, true);
     const all = tilesDrawn(h, "penrose-tiles", () => h.redraw());
     h.gamma.setIsolated(1);
     const solo = tilesDrawn(h, "penrose-tiles", () => h.redraw());
@@ -774,4 +778,65 @@ test("hovering a dual vertex shows the region that made it, not just the reverse
     }
     assert.ok(onVertex > 0, "the dual-vertex path never ran — it is shadowed again");
     assert.ok(onRegion > 0, "the region path must still answer everywhere else");
+});
+
+test("tile style is a setting, not a feature flag", () => {
+    // colour is a choice of three and opacity is a number; neither is the sort of
+    // thing a narrative page turns on.
+    const h = createPentagrid({
+        container: sizedHost(600, 600),
+        features: { penroseTiles: true },
+        tileStyle: { colour: "pair", isogloss: true, opacity: 0.5 },
+    });
+    assert.equal(typeof h.setTileStyle, "function");
+    h.setTileStyle({ colour: "index" });
+    h.redraw();
+    h.setTileStyle({ isogloss: false, opacity: 1 });
+    h.redraw();
+
+    const panel = makeStub();
+    const h2 = createPentagrid({ container: sizedHost(600, 600), panel });
+    const labels = [];
+    const walk = (n) => {
+        if (!n.children) return;
+        for (const c of n.children) {
+            if (c.className === "panel-label" && c.textContent) labels.push(c.textContent);
+            walk(c);
+        }
+    };
+    walk(panel);
+    assert.ok(labels.includes("Tile style"), `rows: ${labels.join(", ")}`);
+    h2.redraw();
+});
+
+test("a superposed rhomb gets no fill and no arc, but keeps its edges", () => {
+    // A fill asserts which of the many rhombic tilings of the 2k-gon is real, and
+    // the construction picks none. An arc asserts a shared edge to join across,
+    // and inside a stack there is none.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: {
+            penroseTiles: true, penroseEdges: true,
+            penroseDecor: true, penroseVertices: true,
+        },
+    });
+    // the default Γ = 0 is the maximally singular pentagrid
+    assert.ok(h.gamma.singular().length > 0, "expected a singular default");
+
+    // tilesDrawn counts fill(), so it measures exactly what is withheld.
+    const singular = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    const arcsSingular = tilesDrawn(h, "penrose-decor", () => h.redraw());
+
+    // the same window on a regular gamma, where nothing is superposed
+    h.gamma.setSum(1, true);
+    const regular = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    assert.ok(regular > singular,
+              `a singular gamma should fill fewer tiles: ${singular} vs ${regular}`);
+    assert.ok(singular > 0, "and not withhold everything");
+
+    // edges and vertices stay on either way: they give a singularity structure
+    assert.equal(h.stack.get("penrose-edges").visible(), true);
+    assert.equal(h.stack.get("penrose-vertices").visible(), true);
+    assert.equal(h.stack.get("penrose-decor").visible(), true);
+    assert.ok(arcsSingular >= 0);
 });

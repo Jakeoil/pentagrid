@@ -7,6 +7,7 @@ import {
 } from "../geometry/pentagrid.js";
 import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
+import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
 import { createGammaSet, describeSum, penroseCondition } from "../geometry/gamma.js";
@@ -28,6 +29,21 @@ const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
 // Rhomb fill colors
 const THICK_FILL = "#e8c170";
 const THIN_FILL = "#7eb8da";
+/** One per Wieringa level. Penrose uses four; the index is taken modulo. */
+const INDEX_COLORS = ["#2f6fb5", "#54a598", "#d9b463", "#c4643f"];
+
+/**
+ * How the tiles are dressed. Not feature flags: `colour` is a choice of three and
+ * `opacity` is a number, and neither is the sort of thing a step turns on.
+ */
+export interface TileStyle {
+    /** thick/thin, the two families that made it, or its Wieringa index. */
+    colour: "type" | "pair" | "index";
+    /** Contour lines across each tile. */
+    isogloss: boolean;
+    /** Fill alpha. Edges and decoration stay solid. */
+    opacity: number;
+}
 
 // Unicode subscripts for K labels
 const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
@@ -69,6 +85,8 @@ export interface PentagridConfig {
     layers?: (ctx: PentagridParts) => void;
     /** Starting feature set. Useful for a page with no steps to impose one. */
     features?: Partial<Features>;
+    /** How the tiles are dressed. See TileStyle. */
+    tileStyle?: Partial<TileStyle>;
     /** Starting offsets. Omitted means all zero, which the guard then moves off. */
     gamma?: readonly number[];
     /**
@@ -128,6 +146,8 @@ export interface PentagridHandle {
     setFeatures: (features: Partial<Features>, opts?: { merge?: boolean }) => void;
     /** How strongly the grid shows. Pages fade it as the tiling takes over. */
     setGridAlpha: (alpha: number) => void;
+    /** Change how the tiles are dressed. Merges; omitted fields stay. */
+    setTileStyle: (style: Partial<TileStyle>) => void;
     /**
      * Which panel rows to show, by their label, or null for all of them. A page
      * decides what is worth exposing on it.
@@ -250,6 +270,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             smallRegions = [];
             concurrencies = [];
             resolutionCache = null;
+            stackedCache = null;
             return;
         }
         // The scan is grid-space, so it gets the grid rect. It had been handed the
@@ -263,6 +284,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         smallRegions = found.small;
         concurrencies = found.concurrencies;
         resolutionCache = null;
+        stackedCache = null;
     }
 
     // Narration and its presets are the page's, not this file's.
@@ -373,6 +395,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** How strongly the grid draws. A page fades it as the tiling takes over. */
     let gridAlpha = 0.6;
 
+    const tileStyle: TileStyle = {
+        colour: "type", isogloss: false, opacity: 1,
+        ...config.tileStyle,
+    };
+
     /** Panel rows by label, so a page can choose which are worth exposing. */
     const panelRows = new Map<string, HTMLElement>();
     const featureOnListeners: ((key: keyof Features) => void)[] = [];
@@ -401,6 +428,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         ].join("|");
         if (rhombCache && key === rhombCacheKey) return rhombCache;
         rhombCache = collectRhombs(vis);
+        stackedCache = null;
         rhombCacheKey = key;
         return rhombCache;
     }
@@ -506,7 +534,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stack.add({
         id: "penrose-tiles", label: "Tiles", z: PENROSE_Z_FRONT, group: "Penrose",
         visible: () => features.penroseTiles,
-        draw: (c) => drawRhombs(c.ctx, currentRhombs(), c.cx, c.cy, true),
+        draw: (c) => drawRhombs(
+            c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy, true),
     });
     stack.add({
         id: "penrose-edges", label: "Edges", z: PENROSE_Z_FRONT + 1, group: "Penrose",
@@ -516,7 +545,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stack.add({
         id: "penrose-decor", label: "Arcs", z: PENROSE_Z_FRONT + 2, group: "Penrose",
         visible: () => features.penroseDecor,
-        draw: (c) => drawPenroseDecor(c.ctx, currentRhombs(), c.cx, c.cy),
+        draw: (c) => drawPenroseDecor(
+            c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy),
     });
     stack.add({
         id: "penrose-vertices", label: "Vertices", z: PENROSE_Z_FRONT + 3, group: "Penrose",
@@ -607,6 +637,30 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let smallRegions: SmallRegion[] = [];
     let concurrencies: Concurrency[] = [];
     let resolutionCache: Resolution[] | null = null;
+    let stackedCache: Set<string> | null = null;
+
+    /**
+     * Rhombs that are superposed on a concurrency, by their own crossing.
+     *
+     * A tile fill and an arc both assert something a superposition does not have.
+     * The fill asserts a layout — which of the many rhombic tilings of the 2k-gon
+     * is the real one — and the construction picks none. The arc asserts a shared
+     * edge to join across, and inside a stack there is no shared edge. Vertices
+     * and edges are different: they give the thing structure, so they stay.
+     */
+    function stackedCrossings(): Set<string> {
+        if (stackedCache) return stackedCache;
+        const counts = new Map<string, number>();
+        for (const r of currentRhombs()) {
+            const key = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+        }
+        stackedCache = new Set([...counts].filter(([, n]) => n > 1).map(([k]) => k));
+        return stackedCache;
+    }
+
+    const isStacked = (r: Rhomb) =>
+        stackedCrossings().has(`${r.x0.toFixed(6)},${r.y0.toFixed(6)}`);
 
     /**
      * The 2k-gons for the concurrencies in view.
@@ -1188,9 +1242,57 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
     }
 
+    /**
+     * Contour lines across a rhomb, perpendicular to its long diagonal.
+     *
+     * The same idea as penrose-mosaic's `drawIsogloss`: evenly spaced along the
+     * v0→v2 axis, a touch heavier on a thick tile so the two read with the same
+     * weight despite the thin one's tighter spacing.
+     */
+    function drawIsogloss(tc: CanvasRenderingContext2D, sv: [number, number][], thick: boolean) {
+        const LINES = 7;
+        tc.save();
+        tc.beginPath();
+        tc.moveTo(sv[0][0], sv[0][1]);
+        for (let i = 1; i < 4; i++) tc.lineTo(sv[i][0], sv[i][1]);
+        tc.closePath();
+        tc.clip();
+        // step along v0 -> v2, drawing the chord parallel to v1 -> v3
+        const ax = sv[2][0] - sv[0][0], ay = sv[2][1] - sv[0][1];
+        const bx = sv[3][0] - sv[1][0], by = sv[3][1] - sv[1][1];
+        tc.strokeStyle = "rgba(60,60,60,0.45)";
+        tc.lineWidth = thick ? 1.1 : 0.8;
+        for (let i = 1; i < LINES; i++) {
+            const t = i / LINES;
+            const px = sv[0][0] + ax * t, py = sv[0][1] + ay * t;
+            tc.beginPath();
+            tc.moveTo(px - bx / 2, py - by / 2);
+            tc.lineTo(px + bx / 2, py + by / 2);
+            tc.stroke();
+        }
+        tc.restore();
+    }
+
+    /** What colour a tile takes, under the current style. */
+    function tileFill(rhomb: Rhomb): string {
+        if (tileStyle.colour === "pair") {
+            // The two ribbons it belongs to, blended — so at full coverage the
+            // tiling wears all n family colours at once.
+            return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
+        }
+        if (tileStyle.colour === "index") {
+            // The Wieringa height of its base corner. Four levels for Penrose.
+            const m = vertexIndex(rhomb.kTuples[0]);
+            return INDEX_COLORS[((m % INDEX_COLORS.length) + INDEX_COLORS.length)
+                % INDEX_COLORS.length];
+        }
+        return rhomb.thick ? THICK_FILL : THIN_FILL;
+    }
+
     function drawRhombs(tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, fill: boolean) {
         for (const rhomb of rhombs) {
-            const sv = rhomb.vertices.map(([vx, vy]) => mathToScreen(vx, vy, cx, cy));
+            const sv = rhomb.vertices.map(([vx, vy]) =>
+                mathToScreen(vx, vy, cx, cy)) as [number, number][];
 
             tc.beginPath();
             tc.moveTo(sv[0][0], sv[0][1]);
@@ -1200,12 +1302,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             tc.closePath();
 
             if (fill) {
-                tc.fillStyle = rhomb.thick ? THICK_FILL : THIN_FILL;
+                tc.save();
+                tc.globalAlpha = tileStyle.opacity;
+                tc.fillStyle = tileFill(rhomb);
                 tc.fill();
+                tc.restore();
             }
             tc.strokeStyle = fill ? "#555" : "#999";
             tc.lineWidth = fill ? 1.5 : 1;
             tc.stroke();
+            if (fill && tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
         }
     }
 
@@ -1619,6 +1725,51 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     penroseInFront = v;
                     restackPenrose();
                 });
+
+                // How the tiles are dressed. Its own row: these are not layers and
+                // not step presets — a choice of three, a switch and a number.
+                const sRow = row(layerPanelDiv, "Tile style");
+
+                const sel = document.createElement("select");
+                sel.className = "line-pick";
+                sel.style.width = "84px";
+                sel.title = "thick/thin · the two families that made the tile · "
+                    + "its Wieringa index";
+                for (const [value, text] of [
+                    ["type", "thick/thin"], ["pair", "families"], ["index", "index"],
+                ] as const) {
+                    const opt = document.createElement("option");
+                    opt.value = value;
+                    opt.textContent = text;
+                    sel.appendChild(opt);
+                }
+                sel.value = tileStyle.colour;
+                sel.addEventListener("change", () => {
+                    tileStyle.colour = sel.value as TileStyle["colour"];
+                    draw();
+                });
+                sRow.appendChild(sel);
+
+                const iso = checkbox(sRow, "isogloss", tileStyle.isogloss, (v) => {
+                    tileStyle.isogloss = v;
+                    draw();
+                });
+                iso.title = "Contour lines across each tile, perpendicular to its "
+                    + "long diagonal.";
+
+                const alpha = document.createElement("input");
+                alpha.type = "range";
+                alpha.className = "thickness";
+                alpha.min = "0.1";
+                alpha.max = "1";
+                alpha.step = "0.05";
+                alpha.value = String(tileStyle.opacity);
+                alpha.title = "Tile transparency. Edges and decoration stay solid.";
+                alpha.addEventListener("input", () => {
+                    tileStyle.opacity = parseFloat(alpha.value);
+                    draw();
+                });
+                sRow.appendChild(alpha);
             }
         }
 
@@ -2159,6 +2310,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         redraw: draw,
         setFeatures,
         setGridAlpha: (a) => { gridAlpha = a; draw(); },
+        setTileStyle: (st) => { Object.assign(tileStyle, st); draw(); },
         exposeRows,
         onFeatureOn: (cb) => { featureOnListeners.push(cb); },
         getView: () => ({ scale, x: viewX, y: viewY }),
