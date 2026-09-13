@@ -6,6 +6,8 @@ import {
     makeDirections, solveIntersection as geoSolveIntersection,
 } from "../geometry/pentagrid.js";
 import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/regularity.js";
+import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
+import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
 import { createGammaSet, describeSum, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
@@ -39,6 +41,8 @@ export interface Features {
     kRegions: boolean;
     kLabels: boolean;
     intersectionDots: boolean;
+    /** Draw what a concurrency resolves into, rather than only counting it. */
+    singularities: boolean;
     penroseTiles: boolean;
     penroseEdges: boolean;
     penroseVertices: boolean;
@@ -245,6 +249,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             // the file — it was running twice per frame on the paired views.
             smallRegions = [];
             concurrencies = [];
+            resolutionCache = null;
             return;
         }
         // The scan is grid-space, so it gets the grid rect. It had been handed the
@@ -257,6 +262,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         });
         smallRegions = found.small;
         concurrencies = found.concurrencies;
+        resolutionCache = null;
     }
 
     // Narration and its presets are the page's, not this file's.
@@ -355,6 +361,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const NO_FEATURES: Features = {
         gridLines: true, axes: false,
         kRegions: false, kLabels: false, intersectionDots: false,
+        // On by default: a singularity is a thing to look at, not an error to
+        // suppress, and nothing else in the view says one is there.
+        singularities: true,
         penroseTiles: false, penroseEdges: false, penroseVertices: false,
         penroseDecor: false, hoverVertex: false, hoverTile: false,
     };
@@ -431,6 +440,39 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy);
             }
         }),
+    });
+
+    /**
+     * What a concurrency resolves into.
+     *
+     * k lines through one point dualise to a 2k-gon with unit sides holding
+     * C(k,2) rhombs — one per pair of lines, superposed. Drawing that space, with
+     * the rhombs it would open into, says what is actually there. Counting the
+     * lines and colouring the point red says only that something is wrong.
+     */
+    stack.add({
+        id: "singular", label: "Singularities", z: 58, group: "Pentagrid",
+        visible: () => features.singularities,
+        draw: (c) => {
+            for (const r of currentResolutions()) {
+                // The OUTLINE only. A zonogon has many rhombic tilings and the
+                // construction picks none of them, so drawing one asserts a layout
+                // the data does not have. What is true is the space and what is
+                // stacked in it; how it would fall apart is not decided until the
+                // lines are actually pulled apart.
+                c.ctx.beginPath();
+                r.outline.forEach((v: readonly [number, number], i: number) => {
+                    const [x, y] = mathToScreen(v[0], v[1], c.cx, c.cy);
+                    if (i === 0) c.ctx.moveTo(x, y); else c.ctx.lineTo(x, y);
+                });
+                c.ctx.closePath();
+                c.ctx.fillStyle = "rgba(230, 57, 70, 0.10)";
+                c.ctx.fill();
+                c.ctx.strokeStyle = "#e63946";
+                c.ctx.lineWidth = 1.6;
+                c.ctx.stroke();
+            }
+        },
     });
 
     const axesLayer = stack.add({
@@ -564,6 +606,24 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     let smallRegions: SmallRegion[] = [];
     let concurrencies: Concurrency[] = [];
+    let resolutionCache: Resolution[] | null = null;
+
+    /**
+     * The 2k-gons for the concurrencies in view.
+     *
+     * Derived, not stored: the scan finds the points, and this says what each one
+     * stands for. Cleared whenever the scan reruns.
+     */
+    function currentResolutions(): Resolution[] {
+        if (resolutionCache) return resolutionCache;
+        const out: Resolution[] = [];
+        for (const c of concurrencies) {
+            const r = resolveConcurrency(model, c);
+            if (r) out.push(r);
+        }
+        resolutionCache = out;
+        return out;
+    }
 
 
     const meterDiv = document.createElement("div");
@@ -634,17 +694,21 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         refreshPenroseFlag();
         const sing = singularTriples();
         if (sing.length > 0) {
-            let worst = 0;
-            // Which families actually meet, not just how many lines — that is what
-            // you need in order to do something about it.
+            // Which families actually meet — what you need in order to do
+            // something about it. The shape says how many lines without counting.
             const who = new Set<number>();
-            for (const c of concurrencies) {
-                if (c.lines > worst) worst = c.lines;
-                for (const j of c.families) who.add(j);
+            for (const c of concurrencies) for (const j of c.families) who.add(j);
+            // Name what each one resolves into rather than how many lines met.
+            const tally = new Map<string, number>();
+            for (const r of currentResolutions()) {
+                const d = describeResolution(r);
+                tally.set(d, (tally.get(d) ?? 0) + 1);
             }
+            const shapes = [...tally.entries()]
+                .map(([d, count]) => (count > 1 ? `${count}× ${d}` : d))
+                .join(", ");
             const where = concurrencies.length > 0
-                ? ` — ${concurrencies.length} in view, up to ${worst} lines`
-                  + ` (γ ${[...who].sort((a, b) => a - b).join(",")})`
+                ? ` — ${shapes} (γ ${[...who].sort((a, b) => a - b).join(",")})`
                 : "";
             meterSpan.textContent = `SINGULAR: triples ${sing.join(" ")}${where} · ${tail}`;
             meterSpan.style.color = "#e63946";
@@ -1462,6 +1526,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         background: "kRegions",
         axes: "axes",
         dots: "intersectionDots",
+        singular: "singularities",
         klabels: "kLabels",
         "penrose-tiles": "penroseTiles",
         "penrose-edges": "penroseEdges",

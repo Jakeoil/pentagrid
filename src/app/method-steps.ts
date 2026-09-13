@@ -151,4 +151,31 @@ export const METHOD_PAGES: Page[] = [
             pg.exposeRows(null);     // the last page opens everything up
         },
     },
+    {
+        title: "Step 7 &mdash; When lines meet",
+        html: `<p>The construction asks that no three lines be concurrent. Where
+            three or more <em>are</em>, that point does not dualise to a rhomb: it
+            dualises to a <b>2<i>k</i>-gon with unit sides</b>, holding the
+            <i>C</i>(<i>k</i>,&thinsp;2) rhombs &mdash; one per pair of lines &mdash;
+            that would lie side by side if the lines were pulled apart.</p>
+            <p class="equation">3 lines &rarr; hexagon &nbsp;&middot;&nbsp; 4 &rarr;
+            octagon &nbsp;&middot;&nbsp; 5 &rarr; decagon</p>
+            <p>This page opens on &Gamma;&thinsp;=&thinsp;0, every phase zero, which
+            is the most singular pentagrid there is: all ten triples go at once.
+            Only the outline is drawn. A zonogon has many rhombic tilings and the
+            construction picks none of them, so the space and its contents are
+            facts while the layout is not.</p>
+            <p>How many lines can meet is decided by the phases. A <b>3</b>-fold
+            needs one &gamma; integral and one pair summing to an integer &mdash; no
+            more. A <b>4</b>-fold needs four integral phases, a <b>5</b>-fold all
+            five. So the octagon is real but rare, and the decagon is unique.</p>
+            <p>Move any phase off zero and nearly all of them go. What is left sits
+            on shells at <i>m</i> and <i>m</i>&phi; times 1/cos&thinsp;18&deg;
+            &mdash; &Zopf;[&phi;], radiating out.</p>`,
+        enter: (pg) => {
+            pg.setFeatures({ gridLines: true, singularities: true, intersectionDots: true });
+            pg.setGridAlpha(0.5);
+            pg.exposeRows(["Pentagrid", "single line"]);
+        },
+    },
 ];
