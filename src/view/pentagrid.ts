@@ -89,6 +89,8 @@ export interface ViewState {
     viewX: number; viewY: number;
     w: number; h: number;
     margin: number;
+    /** True while the view is in GRID units, i.e. inside withView(gridView()). */
+    gridUnits?: boolean;
 }
 
 export interface PentagridConfig {
@@ -130,6 +132,18 @@ export interface PentagridConfig {
      * default.
      */
     collectRect?: (base: ViewRect) => ViewRect;
+    /**
+     * How far beyond the canvas edge to COMPUTE, in tiling units. Default 1.
+     *
+     * A dual vertex on screen has its source region within a bounded wobble of
+     * it — about a rhomb edge — so a region can lie partly or wholly outside the
+     * canvas while its vertex is well inside. Computing over a wider rect than
+     * is shown is what keeps every source present; the canvas clips the rest.
+     * The wobble is bounded by about one rhomb edge, and measured over a 12x12
+     * window half a unit already recovered every lost source; 1 is that with
+     * room, at 1.36x the scan area.
+     */
+    computePad?: number;
 }
 
 /** What a registered layer callback is handed. */
@@ -263,7 +277,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     /** Clips to whatever view is active, which is how the loupe reuses it. */
     function regionPoly(K: readonly number[]): Vec2[] {
-        return geoRegionPoly(model, K, getVisibleRect());
+        return geoRegionPoly(model, K, computeRect());
     }
 
     const singularTriples = () => gammaSet.singular();
@@ -271,7 +285,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** The visible rect in GRID coordinates, whatever the current view is. */
     function gridVisibleRect(): ViewRect {
         let r!: ViewRect;
-        withView(gridView(), () => { r = getVisibleRect(); });
+        withView(gridView(), () => { r = computeRect(); });
         return r;
     }
 
@@ -326,6 +340,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let viewW = canvas.w;
     let viewH = canvas.h;
     let viewMargin = canvas.margin;
+    let viewGridUnits = false;
+    let computePad = config.computePad ?? 1;
 
     // The dual map has gain n/2: f(x) = (n/2)x + const + bounded wobble, because
     // Sum_j v_j v_j^T = (n/2)I for n unit vectors equally spaced. At n = 5 that is
@@ -348,7 +364,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const g = gridGain();
         return {
             scale: scale * g, viewX: viewX / g, viewY: viewY / g,
-            w: viewW, h: viewH, margin: viewMargin,
+            w: viewW, h: viewH, margin: viewMargin, gridUnits: true,
         };
     }
 
@@ -432,7 +448,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let rhombCacheKey = "";
 
     function currentRhombs(): Rhomb[] {
-        const base = getVisibleRect();
+        const base = computeRect();
         const vis = config.collectRect ? config.collectRect(base) : base;
         // The rect is part of the key: a host that widens it for a camera must
         // recollect when the camera moves, and nothing else here would notice.
@@ -500,7 +516,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         id: "dots", label: "Dots", z: 50, group: "Pentagrid",
         visible: () => features.intersectionDots,
         draw: (c) => withView(gridView(), () =>
-            drawIntersectionDots(c.ctx, c.cx, c.cy, getVisibleRect())),
+            drawIntersectionDots(c.ctx, c.cx, c.cy, computeRect())),
     });
 
     stack.add({
@@ -821,17 +837,35 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         };
     }
 
+    /**
+     * Where things are COMPUTED, as opposed to where they are shown.
+     *
+     * The visible rect is inset by the gutter and stops at the canvas, and every
+     * computation used it — so nothing existed within 40 px of the edge, and a
+     * source region just past that was clipped to nothing while its dual vertex
+     * sat in plain view. This undoes the inset and adds `computePad` tiling units
+     * beyond the canvas. The pad is in the rect's own units: under gridView the
+     * same distance is a gain smaller in grid units, which is what registration
+     * means. The canvas clips the drawing, so the extra costs nothing to look at.
+     */
+    function computeRect(): ViewRect {
+        const v = getVisibleRect();
+        const p = viewMargin / scale + computePad / (viewGridUnits ? gridGain() : 1);
+        return { xMin: v.xMin - p, xMax: v.xMax + p, yMin: v.yMin - p, yMax: v.yMax + p };
+    }
+
     /** Run fn with the view globals temporarily swapped, then restore them. */
     function withView(v: ViewState, fn: () => void) {
         const s0 = scale, x0 = viewX, y0 = viewY;
-        const w0 = viewW, h0 = viewH, m0 = viewMargin;
+        const w0 = viewW, h0 = viewH, m0 = viewMargin, g0 = viewGridUnits;
         scale = v.scale; viewX = v.viewX; viewY = v.viewY;
         viewW = v.w; viewH = v.h; viewMargin = v.margin;
+        viewGridUnits = v.gridUnits ?? false;
         try {
             fn();
         } finally {
             scale = s0; viewX = x0; viewY = y0;
-            viewW = w0; viewH = h0; viewMargin = m0;
+            viewW = w0; viewH = h0; viewMargin = m0; viewGridUnits = g0;
         }
     }
 
@@ -1069,7 +1103,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const px = -vy;
         const py = vx;
         const extent = Math.sqrt(w * w + h * h) / 2;
-        const vis = getVisibleRect();
+        const vis = computeRect();
 
         const corners = [
             [vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
@@ -1410,8 +1444,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const imgData = tc.createImageData(w, h);
         const data = imgData.data;
 
-        for (let py = canvas.margin; py < h - canvas.margin; py++) {
-            for (let px = canvas.margin; px < w - canvas.margin; px++) {
+        // The whole canvas, gutter included. Stopping at the margin left a blank
+        // strip round the edge with source regions missing from it.
+        for (let py = 0; py < h; py++) {
+            for (let px = 0; px < w; px++) {
                 const [mx, my] = screenToMath(px, py, cx, cy);
                 const K = computeKTuple(mx, my);
 
@@ -1934,6 +1970,26 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         });
         guardBox.title = "No three lines ever meet at a point. Decided exactly on "
             + "γ as rationals — ten integer comparisons, no tolerance.";
+        // How far past the canvas edge the grid is computed, so a tile at the
+        // edge still has its source region. Shown nowhere; the canvas clips it.
+        const padWrap = document.createElement("label");
+        padWrap.className = "pad-setting";
+        padWrap.title = "Compute this many tiling units beyond the canvas edge, so "
+            + "every dual vertex on screen has its source region on the grid. "
+            + "Not drawn; only the inside is shown.";
+        padWrap.appendChild(document.createTextNode("compute beyond edge "));
+        const padIn = document.createElement("input");
+        padIn.type = "number";
+        padIn.min = "0"; padIn.max = "10"; padIn.step = "0.5";
+        padIn.value = String(computePad);
+        padIn.style.width = "3.5em";
+        padIn.addEventListener("input", () => {
+            const v = parseFloat(padIn.value);
+            if (Number.isFinite(v) && v >= 0) { computePad = v; rhombCache = null; draw(); }
+        });
+        padWrap.appendChild(padIn);
+        sRow.appendChild(padWrap);
+
         checkbox(sRow, "loupe on tiny regions", loupeEnabled, (v) => {
             loupeEnabled = v;
             if (!v) closeLoupe();

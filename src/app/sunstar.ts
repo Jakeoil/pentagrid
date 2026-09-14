@@ -35,7 +35,9 @@ if (host && strip) {
 
     const handle = createPentagrid({
         container: host,
-        features: { gridLines: true, axes: false },
+        // Edges on: the cluster layer below fills by kind and never strokes, so
+        // without them the rhombs inside a cluster ran together.
+        features: { gridLines: true, axes: false, penroseEdges: true },
         loupe: false,
         layers: ({ stack, getView, currentRhombs }) => {
             stack.add({

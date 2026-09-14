@@ -654,3 +654,41 @@ test("a segment runs between consecutive crossings", () => {
         }
     }
 });
+
+// Computing over a wider rect than is shown. A dual vertex on screen has its
+// source region within a bounded wobble of it, so a region can lie partly or
+// wholly outside the visible rect while its vertex is well inside — and clipping
+// the region to the visible rect then leaves nothing to point at.
+test("every on-screen dual vertex keeps its source region when the rect is padded", () => {
+    const g = createGammaSet({ guard: true });
+    const pg = g.model;
+    const gain = pg.n / 2;
+    // A window in tiling units, inset like the visible rect is.
+    const W = { xMin: -6, xMax: 6, yMin: -6, yMax: 6 };
+    const inW = ([x, y]) => x >= W.xMin && x <= W.xMax && y >= W.yMin && y <= W.yMax;
+
+    // Every K whose dual vertex lands inside W: read off the rhombs in a larger
+    // window so the edge of W is not the edge of what exists.
+    const Ks = new Map();
+    for (const r of collectRhombs(pg, { xMin: -12, xMax: 12, yMin: -12, yMax: 12 }, { gain })) {
+        r.kTuples.forEach((K, i) => { if (inW(r.vertices[i])) Ks.set(K.join(","), K); });
+    }
+    assert.ok(Ks.size > 100, `only ${Ks.size} vertices in the window`);
+
+    // Clip each region to a grid-space rect: W scaled down by the gain (that is
+    // registration), padded by `pad` tiling units, also scaled.
+    const clipRect = (pad) => ({
+        xMin: (W.xMin - pad) / gain, xMax: (W.xMax + pad) / gain,
+        yMin: (W.yMin - pad) / gain, yMax: (W.yMax + pad) / gain,
+    });
+    const missing = (pad) => {
+        let n = 0;
+        for (const K of Ks.values()) if (regionPoly(pg, K, clipRect(pad)).length < 3) n++;
+        return n;
+    };
+
+    // The bug: at pad 0 some sources are clipped to nothing.
+    assert.ok(missing(0) > 0, "no region was ever lost at the edge, so this proves nothing");
+    // The fix: one tiling unit — the wobble bound — covers it, every time.
+    assert.equal(missing(1), 0, `${missing(1)} source regions still missing at pad 1`);
+});
