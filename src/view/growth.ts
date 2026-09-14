@@ -13,7 +13,8 @@
 import { createPentagrid } from "./pentagrid.js";
 import type { PentagridHandle } from "./pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
-import type { Rhomb, Vec2 } from "../geometry/types.js";
+import { resolveConcurrency } from "../geometry/resolve.js";
+import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
 // Five for the pentagrid, then two more for a heptagrid; the first five are
 // unchanged so every existing page keeps its exact palette.
@@ -67,6 +68,15 @@ export interface GrowthState {
     elevation: number;
     /** Draw tile edges as real lines rather than the default hairline ghost. */
     boldEdges: boolean;
+    /**
+     * Outline the 2k-gon each stack of tiles is growing into.
+     *
+     * A concurrency's C(k,2) rhombs all start on the same crossing, so at grow = 0
+     * they are superposed and a stack is indistinguishable from a single tile.
+     * The outline is the space they are heading for, and it grows by the same law
+     * they do — so you can watch them separate and fill it.
+     */
+    showResolutions: boolean;
 }
 
 export interface GrowthHandle {
@@ -79,6 +89,7 @@ export interface GrowthHandle {
 
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
+    showResolutions: false,
     boldEdges: false,
 };
 
@@ -128,6 +139,52 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             + grow * ((a - 0.5) * vj[1] + (b - 0.5) * vk[1]);
         const m = vertexIndex(r.kTuples[0]);
         return [x, y, fold * grow * RISE * (m + a + b)];
+    }
+
+    /**
+     * The concurrencies, read off the tiles themselves.
+     *
+     * Not scanned for: a stack IS a set of rhombs sharing a crossing, so grouping
+     * what is being drawn cannot disagree with what is being drawn. Two rhombs on
+     * a point is a pair of lines crossing twice over, which is nothing; three is
+     * the first real concurrency.
+     */
+    function stacksOf(rhombs: readonly Rhomb[]): Concurrency[] {
+        const byPoint = new Map<string, Rhomb[]>();
+        for (const r of rhombs) {
+            const key = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
+            const at = byPoint.get(key);
+            if (at) at.push(r); else byPoint.set(key, [r]);
+        }
+        const out: Concurrency[] = [];
+        for (const group of byPoint.values()) {
+            if (group.length < 2) continue;
+            const fams = new Set<number>();
+            for (const r of group) { fams.add(r.j); fams.add(r.k); }
+            if (fams.size < 3) continue;
+            const families = [...fams].sort((a, b) => a - b);
+            out.push({ x: group[0].x0, y: group[0].y0, lines: families.length, families });
+        }
+        return out;
+    }
+
+    /**
+     * A 2k-gon corner, growing by the same law its tiles do.
+     *
+     * At grow = 0 every corner sits on the crossing, scaled by the registration
+     * gain — the same point the stack's tiles start from — so the polygon opens
+     * out of the dot rather than appearing around it.
+     */
+    function outlineAt(
+        c: Concurrency, K: readonly number[], p: Vec2, dirs: readonly Vec2[],
+    ): Vec3 {
+        const { grow, fold } = state;
+        const gain = dirs.length / 2;
+        return [
+            (1 - grow) * gain * c.x + grow * p[0],
+            (1 - grow) * gain * c.y + grow * p[1],
+            fold * grow * RISE * vertexIndex(K),
+        ];
     }
 
     /**
@@ -277,6 +334,32 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             handle!.redraw();
         } : undefined,
         layers: ({ stack, model, currentRhombs, getView }) => {
+            stack.add({
+                // Over the tiles: it is the space they are growing into, so it has
+                // to stay legible once they fill it.
+                id: "resolutions", label: "2k-gons", z: 41, group: "Exploration",
+                visible: () => state.showResolutions,
+                draw: ({ ctx, cx, cy }) => {
+                    const v = getView();
+                    const dirs = model.directions;
+                    const S = (p: Vec3) => toScreen(p, v, cx, cy);
+                    for (const c of stacksOf(currentRhombs())) {
+                        const r = resolveConcurrency(model as Pentagrid, c);
+                        if (!r) continue;
+                        ctx.beginPath();
+                        r.outline.forEach((p, i) => {
+                            const q = S(outlineAt(c, r.outlineK[i], p, dirs));
+                            if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+                        });
+                        ctx.closePath();
+                        ctx.fillStyle = "rgba(230, 57, 70, 0.10)";
+                        ctx.fill();
+                        ctx.strokeStyle = "rgba(230, 57, 70, 0.85)";
+                        ctx.lineWidth = 1.4;
+                        ctx.stroke();
+                    }
+                },
+            });
             stack.add({
                 id: "growth", label: "Growth", z: 40, group: "Exploration",
                 draw: ({ ctx, cx, cy }) => {

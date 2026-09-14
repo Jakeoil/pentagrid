@@ -53,6 +53,15 @@ export interface Resolution {
     y: number;
     /** The 2k-gon, in tiling coordinates. */
     outline: Vec2[];
+    /**
+     * The K-tuple behind each corner, in the same order.
+     *
+     * A corner is a dual vertex like any other, so it has a Wieringa index — which
+     * is what a lifted 2k-gon needs to sit at the right heights. Kept rather than
+     * recomputed because the sector sample that found it is the only place the
+     * tie-break is resolved consistently.
+     */
+    outlineK: number[][];
     /** The C(k,2) rhombs superposed there. */
     rhombs: ResolutionRhomb[];
     /** hexagon, octagon, decagon, or "2k-gon" past that. */
@@ -130,13 +139,16 @@ export function resolveConcurrency(pg: Pentagrid, c: Concurrency): Resolution | 
 
     // One corner per sector: sample just inside it, read the K-tuple, map it.
     const outline: Vec2[] = [];
+    const outlineK: number[][] = [];
     for (let i = 0; i < bounds.length; i++) {
         const lo = bounds[i];
         const hi = i + 1 < bounds.length ? bounds[i + 1] : bounds[0] + TAU;
         const mid = (lo + hi) / 2;
         const px = c.x + PROBE * Math.cos(mid);
         const py = c.y + PROBE * Math.sin(mid);
-        outline.push(dualVertex(pg, computeKTuple(pg, px, py)));
+        const K = computeKTuple(pg, px, py);
+        outlineK.push(K);
+        outline.push(dualVertex(pg, K));
     }
 
     let cxs = 0, cys = 0;
@@ -182,7 +194,7 @@ export function resolveConcurrency(pg: Pentagrid, c: Concurrency): Resolution | 
 
     const code = angleCode(pg, fams);
     return {
-        x: cx, y: cy, outline, rhombs, code,
+        x: cx, y: cy, outline, outlineK, rhombs, code,
         name: FAMILIAR[code] ?? NAMES[2 * k] ?? `${2 * k}-gon`,
         families: fams, thick, thin,
     };

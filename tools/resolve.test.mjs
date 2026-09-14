@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 
 import { createGammaSet } from "../dist/geometry/gamma.js";
 import { scanRegions } from "../dist/geometry/regularity.js";
+import { dualVertex } from "../dist/geometry/pentagrid.js";
 import { resolveConcurrency, describeResolution, angleCode } from "../dist/geometry/resolve.js";
 
 const VIS = { xMin: -3, xMax: 3, yMin: -3, yMax: 3 };
@@ -222,4 +223,63 @@ test("angleCode is the partition list, for n = 5 and n = 7 alike", () => {
                          `n = ${n}: codes are not the partitions of n`);
     }
     assert.equal(new Set(partitions(5, 5).filter((p) => p.length >= 2).map(String)).size, 6);
+});
+
+// Growing a 2k-gon: the outline must obey the same law the tiles do, or the
+// polygon appears around the stack instead of opening out of it.
+test("a 2k-gon grows out of its crossing, by the tiles' own law", () => {
+    const g = createGammaSet({ guard: false });
+    g.setSum(0, true);
+    const dirs = g.model.directions;
+    const gain = dirs.length / 2;
+    const { concurrencies } = scanRegions(g.model, VIS, { scale: 1 });
+    assert.ok(concurrencies.length > 0);
+
+    for (const c of concurrencies) {
+        const r = resolveConcurrency(g.model, c);
+        const at = (p, t) => [
+            (1 - t) * gain * c.x + t * p[0],
+            (1 - t) * gain * c.y + t * p[1],
+        ];
+        // At t = 0 every corner is the crossing, scaled — the same point the
+        // stack's tiles start from, so the polygon is a dot.
+        for (const p of r.outline) {
+            const [x, y] = at(p, 0);
+            assert.ok(Math.hypot(x - gain * c.x, y - gain * c.y) < 1e-12,
+                      `${r.name}: a corner does not start on the crossing`);
+        }
+        // At t = 1 it is the polygon itself.
+        for (let i = 0; i < r.outline.length; i++) {
+            const [x, y] = at(r.outline[i], 1);
+            assert.ok(Math.hypot(x - r.outline[i][0], y - r.outline[i][1]) < 1e-12,
+                      `${r.name}: a corner does not finish on the outline`);
+        }
+        // Unit sides throughout: the polygon stays similar to itself as it grows,
+        // so every side is exactly t at parameter t.
+        for (const t of [0.25, 0.5, 0.75]) {
+            for (let i = 0; i < r.outline.length; i++) {
+                const a = at(r.outline[i], t);
+                const b = at(r.outline[(i + 1) % r.outline.length], t);
+                assert.ok(Math.abs(Math.hypot(b[0] - a[0], b[1] - a[1]) - t) < 1e-9,
+                          `${r.name}: side ${i} is not ${t} at t = ${t}`);
+            }
+        }
+    }
+});
+
+test("the outline K-tuples are the corners they belong to", () => {
+    // A lifted 2k-gon takes its heights from these, so a mismatch would tilt the
+    // polygon off the surface its own tiles sit on.
+    const g = createGammaSet({ guard: false });
+    g.setSum(0, true);
+    const { concurrencies } = scanRegions(g.model, VIS, { scale: 1 });
+    for (const c of concurrencies) {
+        const r = resolveConcurrency(g.model, c);
+        assert.equal(r.outlineK.length, r.outline.length, "one K-tuple per corner");
+        for (let i = 0; i < r.outline.length; i++) {
+            const [fx, fy] = dualVertex(g.model, r.outlineK[i]);
+            assert.ok(Math.hypot(fx - r.outline[i][0], fy - r.outline[i][1]) < 1e-9,
+                      `${r.name}: corner ${i} is not f(K) of its own tuple`);
+        }
+    }
 });

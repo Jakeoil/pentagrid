@@ -29,6 +29,37 @@ test("growth view builds a pentagrid and its own layer", () => {
     assert.ok(v.pentagrid.stack.groups().has("Exploration"));
 });
 
+test("the 2k-gon layer draws the spaces the stacks grow into", () => {
+    const v = createGrowthView({ container: host() });
+    v.pentagrid.gamma.setSum(0, true);      // all five lines through the origin
+
+    const layer = v.pentagrid.stack.get("resolutions");
+    assert.ok(layer, "the 2k-gon layer is not registered");
+    assert.equal(layer.visible(), false, "it should start off");
+
+    let strokes = 0;
+    layer.ctx.stroke = () => { strokes++; };
+
+    v.set({ showResolutions: false });
+    v.redraw();
+    assert.equal(strokes, 0, "it drew while switched off");
+
+    v.set({ showResolutions: true });
+    assert.equal(layer.visible(), true);
+    v.redraw();
+    // 54 hexagons and a decagon are in view at Gamma = 0; the exact count depends
+    // on the window, so require that it found a substantial number of stacks.
+    assert.ok(strokes > 10, `only ${strokes} outlines drawn at Gamma = 0`);
+
+    // Move off the singular set and nearly all of them go.
+    const singular = strokes;
+    v.pentagrid.gamma.setGuard(true);
+    strokes = 0;
+    v.redraw();
+    assert.ok(strokes < singular / 2,
+              `${strokes} outlines survived a regular gamma, from ${singular}`);
+});
+
 test("flat and lifted are the same container, differing by config", () => {
     const flat = createGrowthView({ container: host(), lift: false });
     const roof = createGrowthView({ container: host(), lift: true });
