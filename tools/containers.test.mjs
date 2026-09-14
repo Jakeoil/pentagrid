@@ -807,6 +807,43 @@ test("superposed rhombs keep their edges, and lose only fill and arc", () => {
               + `below ${regularRatio.toFixed(2)} at a regular one`);
 });
 
+test("the hover readout sits in the canvas corner unless told to follow", () => {
+    // Jake: the statistics were landing on the very thing being hovered.
+    const before = globalThis.document.body.children.length;
+    const host = sizedHost(800, 800);
+    host.getBoundingClientRect = () => ({ width: 800, height: 800, left: 100, top: 50,
+                                          right: 900, bottom: 850 });
+    const h = createPentagrid({
+        container: host,
+        features: { gridLines: true, hoverVertex: true },
+    });
+    const tip = globalThis.document.body.children[before];
+    h.redraw();
+    const move = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
+
+    const hover = (x, y) => {
+        for (const f of move) f({ clientX: x, clientY: y, offsetX: x, offsetY: y,
+                                  preventDefault() {} });
+    };
+    hover(400, 400);
+    assert.equal(tip.style.display, "block", "the readout did not show");
+    assert.equal(tip.style.left, "108px", "corner: left should be the canvas edge + 8");
+    hover(600, 200);
+    assert.equal(tip.style.left, "108px", "corner: it should not move with the pointer");
+
+    // The follow-pointer setting is the second view of the same thing.
+    const h2 = createPentagrid({
+        container: host, hoverBox: "pointer",
+        features: { gridLines: true, hoverVertex: true },
+    });
+    const tip2 = globalThis.document.body.children[globalThis.document.body.children.length - 1];
+    h2.redraw();
+    const move2 = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
+    for (const f of move2) f({ clientX: 300, clientY: 300, offsetX: 300, offsetY: 300,
+                               preventDefault() {} });
+    assert.equal(tip2.style.left, "312px", "pointer: left should be clientX + 12");
+});
+
 test("tile style is a setting, not a feature flag", () => {
     // color is a choice of three and opacity is a number; neither is the sort of
     // thing a narrative page turns on.

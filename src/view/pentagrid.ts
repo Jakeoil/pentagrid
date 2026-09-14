@@ -144,6 +144,8 @@ export interface PentagridConfig {
      * room, at 1.36x the scan area.
      */
     computePad?: number;
+    /** Where the hover readout sits. Default "corner": off the pointer. */
+    hoverBox?: "corner" | "pointer";
 }
 
 /** What a registered layer callback is handed. */
@@ -400,6 +402,28 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // Tooltip for K-tuple display
     const tooltip = document.createElement("div");
     tooltip.style.cssText = "position:fixed;padding:4px 8px;background:rgba(0,0,0,0.8);color:#fff;font:12px monospace;border-radius:3px;pointer-events:none;display:none;z-index:10;";
+
+    /**
+     * Where the hover readout goes: pinned in the canvas corner, or riding the
+     * pointer. Pinned by default — Jake: the statistics were landing on the very
+     * thing being hovered. The corner is the bottom-left gutter, where nothing
+     * lives but axis ticks.
+     */
+    let hoverBox: "corner" | "pointer" = config.hoverBox ?? "corner";
+    function placeTooltip(e: { clientX: number; clientY: number }, lift = 28) {
+        tooltip.style.display = "block";
+        if (hoverBox === "pointer") {
+            tooltip.style.bottom = "auto";
+            tooltip.style.left = (e.clientX + 12) + "px";
+            tooltip.style.top = (e.clientY - lift) + "px";
+            return;
+        }
+        const r = config.container.getBoundingClientRect();
+        tooltip.style.left = (r.left + 8) + "px";
+        // Anchor by the bottom so a taller readout grows upward, not off-canvas.
+        tooltip.style.top = "auto";
+        tooltip.style.bottom = (window.innerHeight - r.bottom + 8) + "px";
+    }
     document.body.appendChild(tooltip);
 
     // ── Layers ────────────────────────────────────────────────────────
@@ -1990,6 +2014,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         padWrap.appendChild(padIn);
         sRow.appendChild(padWrap);
 
+        const follow = checkbox(sRow, "readout follows pointer", hoverBox === "pointer", (v) => {
+            hoverBox = v ? "pointer" : "corner";
+        });
+        follow.title = "Off: the hover statistics sit in the canvas corner, out of the "
+            + "way of what you are pointing at. On: they ride the pointer.";
+
         checkbox(sRow, "loupe on tiny regions", loupeEnabled, (v) => {
             loupeEnabled = v;
             if (!v) closeLoupe();
@@ -2369,9 +2399,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     `&times;<span style="color:${COLORS[hit.k]}">${hit.k}</span>` +
                     ` &nbsp;n = (${hit.nj}, ${hit.nk})` +
                     `<br><span style="color:#fc0">${hit.thick ? "thick" : "thin"}</span> rhomb`;
-                tooltip.style.display = "block";
-                tooltip.style.left = (e.clientX + 12) + "px";
-                tooltip.style.top = (e.clientY - 34) + "px";
+                placeTooltip(e, 34);
                 return;
             }
         }
@@ -2399,9 +2427,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         `<br>${formatKTooltip(seg.K1)}` +
                         `<br>${formatKTooltip(seg.K2)}` +
                         `<br><span style="color:#fc0">edge</span> = v${sub}`;
-                    tooltip.style.display = "block";
-                    tooltip.style.left = (e.clientX + 12) + "px";
-                    tooltip.style.top = (e.clientY - 40) + "px";
+                    placeTooltip(e, 40);
                     return;
                 }
             }
@@ -2441,9 +2467,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tooltip.innerHTML =
                     formatKTooltip(best.K) +
                     `<br><span style="color:#fc0">f</span> = ${terms.join(" + ")}`;
-                tooltip.style.display = "block";
-                tooltip.style.left = (e.clientX + 12) + "px";
-                tooltip.style.top = (e.clientY - 28) + "px";
+                placeTooltip(e);
 
                 // Highlight the hovered dot
                 highlightCtx.fillStyle = "#fc0";
@@ -2463,9 +2487,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const [mx, my] = screenToGrid(sx, sy, cx, cy);
             const K = computeKTuple(mx, my);
             tooltip.innerHTML = formatKTooltip(K);
-            tooltip.style.display = "block";
-            tooltip.style.left = (e.clientX + 12) + "px";
-            tooltip.style.top = (e.clientY - 28) + "px";
+            placeTooltip(e);
 
             clearHighlight();
 
