@@ -7,6 +7,8 @@ import { createGammaBank } from "../ui/dials.js";
 import type { GammaBank } from "../ui/dials.js";
 import { createReticulum } from "../ui/reticulum.js";
 import { createSumStrip } from "../ui/sumstrip.js";
+import { createFloatingPanel } from "../ui/floating.js";
+import type { FloatingPanel } from "../ui/floating.js";
 
 /**
  * What every gamma control is, whichever one a page picks.
@@ -253,4 +255,68 @@ export function mountReticulum(
     set.onChange(render);
     render();
     return { element: wrap, sync: () => render() };
+}
+
+export interface FloatingReticulumOptions {
+    colors: readonly string[];
+    /** Where the "γ reticulum" and "γ sliders" buttons go. */
+    buttons: HTMLElement;
+    /** The slider bank to fold, if the page has one. */
+    sliders?: HTMLElement;
+    /** Start with the sliders folded away. Default true: the reticulum is usually
+     *  the instrument you want in front of you. */
+    foldSliders?: boolean;
+}
+
+/**
+ * The reticulum as a floating instrument, with its two buttons.
+ *
+ * It floats because it is something you want beside whichever part of the
+ * picture you are looking at, not a thing pinned under the controls. Drag it by
+ * the bar; it remembers where you put it. Closing it is not a one-way door: the
+ * "γ reticulum" button appears the moment it is shut. The slider bank, being a
+ * lot of screen for something you set and forget, folds behind "γ sliders".
+ *
+ * One implementation for method.html and grow.html, so they cannot drift.
+ */
+export function mountFloatingReticulum(
+    set: GammaSet, opts: FloatingReticulumOptions,
+): { panel: FloatingPanel; control: GammaControl } {
+    const reopen = document.createElement("button");
+    reopen.type = "button";
+    reopen.className = "reopen-panel";
+    reopen.textContent = "γ reticulum";
+    reopen.title = "Show the reticulum again";
+    reopen.hidden = true;
+
+    const panel = createFloatingPanel({
+        id: "reticulum",
+        title: "Reticulum · γ",
+        onClose: () => { reopen.hidden = false; },
+    });
+    document.body.appendChild(panel.element);
+    const control = mountReticulum(set, panel.body, { colors: opts.colors });
+
+    reopen.addEventListener("click", () => {
+        panel.show();
+        reopen.hidden = true;
+    });
+    opts.buttons.appendChild(reopen);
+
+    if (opts.sliders) {
+        const sliders = opts.sliders;
+        const fold = document.createElement("button");
+        fold.type = "button";
+        fold.className = "fold-controls";
+        let folded = opts.foldSliders ?? true;
+        const paint = () => {
+            sliders.classList.toggle("folded", folded);
+            fold.textContent = folded ? "▸ γ sliders" : "▾ γ sliders";
+        };
+        fold.addEventListener("click", () => { folded = !folded; paint(); });
+        paint();
+        opts.buttons.appendChild(fold);
+    }
+
+    return { panel, control };
 }

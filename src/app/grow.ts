@@ -5,7 +5,7 @@
 
 import { createGrowthView } from "../view/growth.js";
 import {
-    bindSliders, bindToggles, mountGammaControls, mountReticulum,
+    bindSliders, bindToggles, mountGammaControls, mountFloatingReticulum,
 } from "../view/controls.js";
 import { addPresets } from "../ui/presets.js";
 import { FAMILY_COLORS } from "../view/growth.js";
@@ -29,12 +29,15 @@ if (host) {
         mountGammaControls(view.pentagrid.gamma, gammaHost, { colors: FAMILY_COLORS });
     }
 
-    // The reticulum, the same one the method page carries. Both are views over
-    // the one γ set, so they stay in step without being told to.
-    const retHost = document.getElementById("grow-reticulum");
-    if (retHost) {
-        mountReticulum(view.pentagrid.gamma, retHost, { colors: FAMILY_COLORS });
-    }
+    // The reticulum, floating, exactly as on the method page — one mount for
+    // both. Default here is the reticulum alone: the sliders start folded.
+    const bar = document.querySelector<HTMLElement>(".bar");
+    mountFloatingReticulum(view.pentagrid.gamma, {
+        colors: FAMILY_COLORS,
+        buttons: bar ?? document.body,
+        sliders: gammaHost ?? undefined,
+        foldSliders: true,
+    });
 
     // The caps and the singularity catalog, shared with the method page. On
     // this page they are worth more: a preset picks the phases, and the grow

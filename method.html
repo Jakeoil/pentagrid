@@ -183,8 +183,8 @@
             color: #555;
         }
         .reopen-panel:hover, .fold-controls:hover { background: #eee; }
-        .controls.folded > * { display: none; }
-        .controls.folded { margin: 0; }
+        .folded > * { display: none; }
+        .folded { margin: 0; }
         .dial.active {
             outline: 1px solid #bbb;
             outline-offset: 2px;
@@ -365,15 +365,24 @@
             border: 1px solid #aaa;
         }
     
-        .panel-row button.preset {
-            font: inherit; font-size: 11px; padding: 2px 7px; margin-right: 4px;
-            color: #ddd; background: #2a2a2e; border: 1px solid #444;
-            border-radius: 3px; cursor: pointer;
+        /* Presets — the caps and the singularity catalog, on method and grow alike. */
+        button.preset {
+            font: inherit;
+            font-size: 11px;
+            padding: 2px 7px;
+            margin-right: 4px;
+            color: #ddd;
+            background: #2a2a2e;
+            border: 1px solid #444;
+            border-radius: 3px;
+            cursor: pointer;
         }
-        .panel-row button.preset:hover { background: #36363c; border-color: #666; }
-        .hunt-readout { font-size: 11px; color: #9a9aa2; margin-left: 4px; }
-        .preset.not-penrose { border-style: dashed; color: #b9b9c2; }
-        .preset.not-penrose::after { content: " *"; color: #e0894f; }
+        button.preset:hover { background: #36363c; border-color: #666; }
+
+        /* Σγ off the integers: real, but not a Penrose tiling. Marked, not dimmed —
+           gray text is the universal sign of a disabled control, and these are live. */
+        button.preset.not-penrose { border-color: #b5713f; }
+        button.preset.not-penrose::after { content: " *"; color: #e0894f; }
 </style>
 </head>
 <body>

@@ -312,11 +312,11 @@ footer {
     color: #555;
 }
 .reopen-panel:hover, .fold-controls:hover { background: #eee; }
-.controls.folded > * { display: none; }
-.controls.folded { margin: 0; }
+.folded > * { display: none; }
+.folded { margin: 0; }
 
-/* Hunting singularities — one preset per kind of concurrency. */
-.panel-row button.preset {
+/* Presets — the caps and the singularity catalog, on method and grow alike. */
+button.preset {
     font: inherit;
     font-size: 11px;
     padding: 2px 7px;
@@ -327,10 +327,10 @@ footer {
     border-radius: 3px;
     cursor: pointer;
 }
-.panel-row button.preset:hover { background: #36363c; border-color: #666; }
-.hunt-readout { font-size: 11px; color: #9a9aa2; margin-left: 4px; }
+button.preset:hover { background: #36363c; border-color: #666; }
 
-/* A preset whose Σγ is not an integer: real, but not a Penrose tiling. */
-.preset.not-penrose { border-style: dashed; color: #b9b9c2; }
-.preset.not-penrose::after { content: " *"; color: #e0894f; }
+/* Σγ off the integers: real, but not a Penrose tiling. Marked, not dimmed —
+   gray text is the universal sign of a disabled control, and these are live. */
+button.preset.not-penrose { border-color: #b5713f; }
+button.preset.not-penrose::after { content: " *"; color: #e0894f; }
 #grow-caps, #grow-hunt { gap: 4px; }

@@ -60,7 +60,8 @@ export interface GrowthState {
     grow: number;
     /** 0 = flat, 1 = the full Wieringa roof. */
     fold: number;
-    /** Band width as a fraction of the tile. Past 1 the ribbons overlap. */
+    /** Band width as a fraction of the tile, 0..1. The sliders stop at 1: past
+     *  it the ribbons overlap, which looks wrong rather than interesting. */
     band: number;
     /** Camera spin about the vertical, radians. */
     azimuth: number;
