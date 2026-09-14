@@ -14,6 +14,7 @@ import { createPentagrid } from "./pentagrid.js";
 import type { PentagridHandle } from "./pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency } from "../geometry/resolve.js";
+import type { Resolution } from "../geometry/resolve.js";
 import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
 // Five for the pentagrid, then two more for a heptagrid; the first five are
@@ -262,37 +263,176 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             <= (pair[1][0] * dj[0] + pair[1][1] * dj[1]) ? pair : [pair[1], pair[0]];
     }
 
-    /** Tiles grouped by the grid line they sit on, ordered along it. */
-    function ribbonsOf(rhombs: readonly Rhomb[], dirs: readonly Vec2[]) {
-        const out: { fam: number; px: number; py: number; tiles: Rhomb[] }[] = [];
+    /**
+     * A concurrency, as one node on a ribbon.
+     *
+     * The k-1 tiles a family makes at a stack are superposed, not laid out, so
+     * routing the band through them tile by tile zigzags and the seam checks
+     * fail — the band stopped dead at every 2k-gon. But the family's ZONE across
+     * the 2k-gon is well defined whatever tiling you imagine inside: it enters
+     * through the side parallel to v_fam and leaves through the opposite one, the
+     * parallel face. So the stack is one node with those two sides as its entry
+     * and exit, and the band runs straight across. Nothing inside is asserted.
+     */
+    interface StackNode {
+        kind: "stack"; c: Concurrency; res: Resolution;
+        /** This family's superposed tiles on the stack — the pseudo edges. */
+        tiles: Rhomb[];
+    }
+    interface TileNode { kind: "tile"; r: Rhomb; }
+    type RibbonNode = TileNode | StackNode;
+
+    /**
+     * The two sides of a 2k-gon that carry a family's direction, each as its two
+     * corners (with their K-tuples, for height), ordered along +v_fam so the
+     * band's lo/hi corners pair up across a gap without crossing.
+     */
+    function stackSides(res: Resolution, fam: number, dirs: readonly Vec2[]) {
+        const [vx, vy] = dirs[fam];
+        const n = res.outline.length;
+        const sides: { a: Vec2; b: Vec2; Ka: number[]; Kb: number[] }[] = [];
+        for (let i = 0; i < n; i++) {
+            const p = res.outline[i], q = res.outline[(i + 1) % n];
+            const ex = q[0] - p[0], ey = q[1] - p[1];
+            const along = Math.hypot(ex - vx, ey - vy) < 1e-6;
+            const against = Math.hypot(ex + vx, ey + vy) < 1e-6;
+            if (!along && !against) continue;
+            sides.push(along
+                ? { a: p, b: q, Ka: res.outlineK[i], Kb: res.outlineK[(i + 1) % n] }
+                : { a: q, b: p, Ka: res.outlineK[(i + 1) % n], Kb: res.outlineK[i] });
+        }
+        return sides;   // two of them, for any family that meets here
+    }
+
+    /** The stack's seam points at full size: the midpoints of its two faces. */
+    function stackSeam(node: StackNode, fam: number, dirs: readonly Vec2[],
+                       rib: { px: number; py: number }) {
+        const [s0, s1] = stackSides(node.res, fam, dirs);
+        const mid = (sd: { a: Vec2; b: Vec2 }): Vec2 =>
+            [(sd.a[0] + sd.b[0]) / 2, (sd.a[1] + sd.b[1]) / 2];
+        const m0 = mid(s0), m1 = mid(s1);
+        const proj = (p: Vec2) => p[0] * rib.px + p[1] * rib.py;
+        return proj(m0) <= proj(m1) ? { entry: m0, exit: m1 } : { entry: m1, exit: m0 };
+    }
+
+    /** The band's two corners on one face of the stack, at the current grow. */
+    function stackBandEdge(node: StackNode, fam: number, dirs: readonly Vec2[],
+                           lo: number, hi: number, rib: { px: number; py: number },
+                           exit: boolean): [Vec3, Vec3] {
+        const [s0, s1] = stackSides(node.res, fam, dirs);
+        const proj = (sd: { a: Vec2; b: Vec2 }) =>
+            (sd.a[0] + sd.b[0]) * rib.px + (sd.a[1] + sd.b[1]) * rib.py;
+        const near = proj(s0) <= proj(s1) ? s0 : s1;
+        const far = near === s0 ? s1 : s0;
+        const sd = exit ? far : near;
+        // Linear along the side, so the grown corners interpolate exactly.
+        const A = outlineAt(node.c, sd.Ka, sd.a, dirs);
+        const B = outlineAt(node.c, sd.Kb, sd.b, dirs);
+        const at = (f: number): Vec3 =>
+            [A[0] + f * (B[0] - A[0]), A[1] + f * (B[1] - A[1]), A[2] + f * (B[2] - A[2])];
+        return [at(lo), at(hi)];
+    }
+
+    /**
+     * The band's path THROUGH a stack, as a chain of parallel edges.
+     *
+     * Jake: use the pseudo edges. The family's superposed tiles each carry two
+     * edges parallel to v_fam — the pseudo edges — and the tile loop has already
+     * painted the band inside each of them. What links them is this: the entry
+     * face, then every pseudo edge in order across the 2k-gon, then the exit
+     * face, each a band-width slice of a unit edge. Consecutive pairs are sealed
+     * with a quad, so the band visibly steps across on the pseudo structure
+     * instead of leaping the polygon in one piece. Duplicates — the spoke every
+     * tile shares — are folded to one.
+     */
+    function stackChain(node: StackNode, fam: number, dirs: readonly Vec2[],
+                        lo: number, hi: number, rib: { px: number; py: number }): [Vec3, Vec3][] {
+        const edges: { at: number; e: [Vec3, Vec3] }[] = [];
+        const along = (e: [Vec3, Vec3]) =>
+            ((e[0][0] + e[1][0]) / 2) * rib.px + ((e[0][1] + e[1][1]) / 2) * rib.py;
+        const push = (e: [Vec3, Vec3]) => {
+            const at = along(e);
+            if (edges.some((x) => Math.abs(x.at - at) < 1e-6)) return;
+            edges.push({ at, e });
+        };
+        push(stackBandEdge(node, fam, dirs, lo, hi, rib, false));
+        push(stackBandEdge(node, fam, dirs, lo, hi, rib, true));
+        for (const r of node.tiles) {
+            push(bandEdge(r, fam, dirs, lo, hi, rib, false));
+            push(bandEdge(r, fam, dirs, lo, hi, rib, true));
+        }
+        edges.sort((a, b) => a.at - b.at);
+        return edges.map((x) => x.e);
+    }
+
+    /** Seam and band edge for either kind of node. */
+    function nodeSeam(nd: RibbonNode, fam: number, dirs: readonly Vec2[],
+                      rib: { px: number; py: number }) {
+        return nd.kind === "tile" ? finalSeam(nd.r, fam, dirs, rib) : stackSeam(nd, fam, dirs, rib);
+    }
+    function nodeBandEdge(nd: RibbonNode, fam: number, dirs: readonly Vec2[],
+                          lo: number, hi: number, rib: { px: number; py: number },
+                          exit: boolean): [Vec3, Vec3] {
+        return nd.kind === "tile"
+            ? bandEdge(nd.r, fam, dirs, lo, hi, rib, exit)
+            : stackBandEdge(nd, fam, dirs, lo, hi, rib, exit);
+    }
+
+    /** Ribbons as nodes: tiles, with each stack collapsed to one node. */
+    function ribbonsOf(pg: Pentagrid, rhombs: readonly Rhomb[], dirs: readonly Vec2[]) {
+        const out: { fam: number; px: number; py: number; nodes: RibbonNode[] }[] = [];
+        // Every concurrency in the patch, keyed by its crossing, resolved once.
+        const resolved = new Map<string, { c: Concurrency; res: Resolution }>();
+        for (const c of stacksOf(rhombs)) {
+            const res = resolveConcurrency(pg, c);
+            if (res) resolved.set(`${c.x.toFixed(6)},${c.y.toFixed(6)}`, { c, res });
+        }
         for (let fam = 0; fam < dirs.length; fam++) {
+            // One node per stack per family, carrying that family's tiles there.
+            const stacks = new Map<string, StackNode>();
+            for (const r of rhombs) {
+                if (r.j !== fam && r.k !== fam) continue;
+                const key = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
+                const rs = resolved.get(key);
+                if (!rs) continue;
+                const st = stacks.get(key) ?? { kind: "stack" as const, ...rs, tiles: [] };
+                if (!stacks.has(key)) stacks.set(key, st);
+                st.tiles.push(r);
+            }
             const [vx, vy] = dirs[fam];
             const px = -vy, py = vx;
-            const byLine = new Map<number, Rhomb[]>();
+            const byLine = new Map<number, RibbonNode[]>();
+            const seen = new Set<string>();
             for (const r of rhombs) {
                 // collectRhombs emits j < k, so a family shows up as either index
                 const n = r.j === fam ? r.nj : (r.k === fam ? r.nk : null);
                 if (n === null) continue;
-                const l = byLine.get(n);
-                if (l) l.push(r); else byLine.set(n, [r]);
+                const l = byLine.get(n) ?? [];
+                if (!byLine.has(n)) byLine.set(n, l);
+                // A tile on a stack is the stack, once, however many of the
+                // family's tiles are superposed there.
+                const key = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
+                const st = stacks.get(key);
+                if (st) {
+                    const once = `${n}|${key}`;
+                    if (!seen.has(once)) { seen.add(once); l.push(st); }
+                } else {
+                    l.push({ kind: "tile", r });
+                }
             }
-            for (const tiles of byLine.values()) {
-                if (tiles.length < 2) continue;
-                // Order along the line by where each tile ENDS UP, not by the
-                // crossing that made it. At a concurrency every tile in the stack
-                // shares one x0, so the crossing key ties and the order inside a
-                // 2k-gon came out arbitrary — the band then jumped about between
-                // superposed tiles instead of running through them. Measured over
-                // a patch at Gamma = 0 this halves the consecutive pairs that do
-                // not share an edge, 118 -> 65, and on a regular gamma the two
-                // keys agree exactly.
-                const key = (r: Rhomb) => {
-                    const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+            for (const nodes of byLine.values()) {
+                if (nodes.length < 2) continue;
+                // Order along the line by where each node ENDS UP: a tile by its
+                // final center, a stack by the 2k-gon's. Ordering by the crossing
+                // x0 tied inside a stack and came out arbitrary.
+                const key = (nd: RibbonNode) => {
+                    if (nd.kind === "stack") return nd.res.x * px + nd.res.y * py;
+                    const r = nd.r, vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
                     return (v0[0] + (vj[0] + vk[0]) / 2) * px
                         + (v0[1] + (vj[1] + vk[1]) / 2) * py;
                 };
-                tiles.sort((a, b) => key(a) - key(b));
-                out.push({ fam, px, py, tiles });
+                nodes.sort((a, b) => key(a) - key(b));
+                out.push({ fam, px, py, nodes });
             }
         }
         return out;
@@ -454,22 +594,34 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // on a thick tile, 0.588 on a thin one. No constant width
                     // matches both. Joining the two bands' own corner points
                     // does, exactly, and it collapses to nothing at grow = 1.
-                    if (grow > 0.02 && band > 0.001 && grow < 0.999) {
-                        for (const rib of ribbonsOf(rhombs, dirs)) {
+                    if (grow > 0.02 && band > 0.001) {
+                        const quad = (p: [Vec3, Vec3], q: [Vec3, Vec3]) => {
+                            const c = [p[0], p[1], q[1], q[0]].map(S);
+                            ctx.beginPath();
+                            ctx.moveTo(c[0].x, c[0].y);
+                            for (let n = 1; n < 4; n++) ctx.lineTo(c[n].x, c[n].y);
+                            ctx.closePath();
+                            ctx.fill();
+                        };
+                        for (const rib of ribbonsOf(model as Pentagrid, rhombs, dirs)) {
                             ctx.fillStyle = FAMILY_COLORS[rib.fam];
-                            for (let i = 1; i < rib.tiles.length; i++) {
-                                const a = finalSeam(rib.tiles[i - 1], rib.fam, dirs, rib);
-                                const b = finalSeam(rib.tiles[i], rib.fam, dirs, rib);
+                            for (let i = 0; i < rib.nodes.length; i++) {
+                                const nd = rib.nodes[i];
+                                // Through a stack: entry face to exit face, the
+                                // whole way, at every grow — this is the band's
+                                // path across the 2k-gon and it does not close
+                                // up at grow = 1 the way a gap does.
+                                if (nd.kind === "stack") {
+                                    const chain = stackChain(nd, rib.fam, dirs, lo, hi, rib);
+                                    for (let m = 1; m < chain.length; m++) quad(chain[m - 1], chain[m]);
+                                }
+                                if (i === 0 || grow >= 0.999) continue;
+                                const a = nodeSeam(rib.nodes[i - 1], rib.fam, dirs, rib);
+                                const b = nodeSeam(nd, rib.fam, dirs, rib);
                                 // only seal a seam these two actually share
                                 if (Math.hypot(a.exit[0] - b.entry[0], a.exit[1] - b.entry[1]) > 1e-6) continue;
-                                const prev = bandEdge(rib.tiles[i - 1], rib.fam, dirs, lo, hi, rib, true);
-                                const next = bandEdge(rib.tiles[i], rib.fam, dirs, lo, hi, rib, false);
-                                const q = [prev[0], prev[1], next[1], next[0]].map(S);
-                                ctx.beginPath();
-                                ctx.moveTo(q[0].x, q[0].y);
-                                for (let n = 1; n < 4; n++) ctx.lineTo(q[n].x, q[n].y);
-                                ctx.closePath();
-                                ctx.fill();
+                                quad(nodeBandEdge(rib.nodes[i - 1], rib.fam, dirs, lo, hi, rib, true),
+                                     nodeBandEdge(nd, rib.fam, dirs, lo, hi, rib, false));
                             }
                         }
                     }

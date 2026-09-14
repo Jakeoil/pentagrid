@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 
 import { createGammaSet } from "../dist/geometry/gamma.js";
 import { scanRegions } from "../dist/geometry/regularity.js";
-import { dualVertex } from "../dist/geometry/pentagrid.js";
+import { dualVertex, collectRhombs } from "../dist/geometry/pentagrid.js";
 import { resolveConcurrency, describeResolution, angleCode } from "../dist/geometry/resolve.js";
 
 const VIS = { xMin: -3, xMax: 3, yMin: -3, yMax: 3 };
@@ -282,4 +282,128 @@ test("the outline K-tuples are the corners they belong to", () => {
                       `${r.name}: corner ${i} is not f(K) of its own tuple`);
         }
     }
+});
+
+// Routing a family's band through a 2k-gon as one node: in at the side parallel
+// to v_fam, out at the parallel face. For that to seal against the neighboring
+// tiles, every stack must present exactly two such sides to every family that
+// meets it, and their midpoints must be where the adjacent tiles' seams are.
+test("a stack presents two parallel faces to each family, and they seal", () => {
+    const g = createGammaSet({ guard: false });
+    g.setSum(0, true);
+    const pg = g.model, dirs = pg.directions;
+    const R = collectRhombs(pg, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 }, { gain: pg.n / 2 });
+    const key = (x, y) => `${x.toFixed(6)},${y.toFixed(6)}`;
+
+    // Stacks, read off the tiles as growth.ts does.
+    const byPt = new Map();
+    for (const r of R) (byPt.get(key(r.x0, r.y0)) ?? byPt.set(key(r.x0, r.y0), []).get(key(r.x0, r.y0))).push(r);
+    const stacks = new Map();
+    for (const [k, grp] of byPt) {
+        if (grp.length < 2) continue;
+        const f = new Set(); for (const r of grp) { f.add(r.j); f.add(r.k); }
+        if (f.size < 3) continue;
+        const families = [...f].sort((a, b) => a - b);
+        const res = resolveConcurrency(pg, { x: grp[0].x0, y: grp[0].y0, lines: families.length, families });
+        stacks.set(k, { res, families });
+    }
+    assert.ok(stacks.size > 30, `only ${stacks.size} stacks at Gamma = 0`);
+
+    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+    const seamOf = (r, fam) => {
+        const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+        const at = (a, b) => [v0[0] + a * vj[0] + b * vk[0], v0[1] + a * vj[1] + b * vk[1]];
+        return fam === r.j ? [at(0.5, 0), at(0.5, 1)] : [at(0, 0.5), at(1, 0.5)];
+    };
+
+    let sealed = 0;
+    for (const [k, { res, families }] of stacks) {
+        for (const fam of families) {
+            const [vx, vy] = dirs[fam];
+            const O = res.outline, n = O.length;
+            const faces = [];
+            for (let i = 0; i < n; i++) {
+                const p = O[i], q = O[(i + 1) % n], ex = q[0] - p[0], ey = q[1] - p[1];
+                if (Math.hypot(ex - vx, ey - vy) < 1e-6 || Math.hypot(ex + vx, ey + vy) < 1e-6) faces.push(mid(p, q));
+            }
+            assert.equal(faces.length, 2, `${res.name}: family ${fam} does not see two parallel faces`);
+
+            // A tile next door on this family's line, not on the stack itself,
+            // must meet the stack at one of those two face midpoints.
+            for (const r of R) {
+                if (key(r.x0, r.y0) === k) continue;
+                if (r.j !== fam && r.k !== fam) continue;
+                for (const s of seamOf(r, fam)) {
+                    if (faces.some((f) => Math.hypot(f[0] - s[0], f[1] - s[1]) < 1e-6)) sealed++;
+                }
+            }
+        }
+    }
+    assert.ok(sealed > 100, `only ${sealed} neighboring seams land on a stack face`);
+});
+
+// The band's path through a stack: the entry face, then every pseudo edge
+// parallel to v_fam in order, then the exit face. Every link parallel, the faces
+// at the ends, and the decagon's chain exactly seven — two faces, the spoke all
+// of a family's tiles share, and one far edge per other family.
+test("the chain through a stack runs face to face along the pseudo edges", () => {
+    const g = createGammaSet({ guard: false });
+    g.setSum(0, true);
+    const pg = g.model, dirs = pg.directions;
+    const R = collectRhombs(pg, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 }, { gain: pg.n / 2 });
+    const key = (x, y) => `${x.toFixed(6)},${y.toFixed(6)}`;
+    const byPt = new Map();
+    for (const r of R) (byPt.get(key(r.x0, r.y0)) ?? byPt.set(key(r.x0, r.y0), []).get(key(r.x0, r.y0))).push(r);
+
+    let decagons = 0;
+    for (const grp of byPt.values()) {
+        if (grp.length < 2) continue;
+        const f = new Set(); for (const r of grp) { f.add(r.j); f.add(r.k); }
+        if (f.size < 3) continue;
+        const families = [...f].sort((a, b) => a - b);
+        const res = resolveConcurrency(pg, { x: grp[0].x0, y: grp[0].y0, lines: families.length, families });
+        const O = res.outline, n = O.length;
+
+        for (const fam of families) {
+            const [vx, vy] = dirs[fam], px = -vy, py = vx;
+            const mid = (e) => [(e[0][0] + e[1][0]) / 2, (e[0][1] + e[1][1]) / 2];
+            const along = (e) => { const m = mid(e); return m[0] * px + m[1] * py; };
+            const chain = [];
+            const push = (e) => {
+                const at = along(e);
+                if (!chain.some((x) => Math.abs(x.at - at) < 1e-6)) chain.push({ at, e });
+            };
+            const faces = [];
+            for (let i = 0; i < n; i++) {
+                const p = O[i], q = O[(i + 1) % n], ex = q[0] - p[0], ey = q[1] - p[1];
+                if (Math.hypot(ex - vx, ey - vy) < 1e-6) faces.push([p, q]);
+                else if (Math.hypot(ex + vx, ey + vy) < 1e-6) faces.push([q, p]);
+            }
+            faces.forEach(push);
+            for (const r of grp) {
+                if (r.j !== fam && r.k !== fam) continue;
+                const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+                const at = (a, b) => [v0[0] + a * vj[0] + b * vk[0], v0[1] + a * vj[1] + b * vk[1]];
+                if (fam === r.j) { push([at(0, 0), at(1, 0)]); push([at(0, 1), at(1, 1)]); }
+                else { push([at(0, 0), at(0, 1)]); push([at(1, 0), at(1, 1)]); }
+            }
+            chain.sort((a, b) => a.at - b.at);
+
+            for (const { e } of chain) {
+                assert.ok(Math.hypot(e[1][0] - e[0][0] - vx, e[1][1] - e[0][1] - vy) < 1e-6,
+                          `${res.name}: a chain link is not parallel to v${fam}`);
+            }
+            const faceMids = faces.map(mid);
+            for (const end of [chain[0], chain[chain.length - 1]]) {
+                const m = mid(end.e);
+                assert.ok(faceMids.some((fm) => Math.hypot(fm[0] - m[0], fm[1] - m[1]) < 1e-6),
+                          `${res.name}: the chain does not end on a face`);
+            }
+            if (res.code === "11111") {
+                decagons++;
+                assert.equal(chain.length, 7, "the decagon's chain should be seven links");
+            }
+        }
+    }
+    assert.ok(decagons > 0, "no decagon in the patch");
 });
