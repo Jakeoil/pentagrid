@@ -1,5 +1,5 @@
 /* Shared shell for the exploration pages. Page-specific rules stay in-page.
-   Modelled on wieringa-roof/site.css: a centred wrap, generous measure, and
+   Modeled on wieringa-roof/site.css: a centered wrap, generous measure, and
    viewports that take the full width they are given. */
 
 :root {
@@ -204,7 +204,7 @@ footer {
 .ret-axis.live .ret-line { opacity: 0.5; }
 
 /* the active gamma's full range, side to side — subordinate to the marker */
-.ret-band { opacity: 0; }   /* fill is the family colour, washed out */
+.ret-band { opacity: 0; }   /* fill is the family color, washed out */
 .ret-band.on { opacity: 0.55; }
 
 /* a reference mark, not a cursor */

@@ -1,4 +1,4 @@
-// Recognising P1 clusters in a rhomb tiling.
+// Recognizing P1 clusters in a rhomb tiling.
 //
 // P1 is the ground truth and the rhombs are the derived view, so a patch of
 // rhombs ought to be readable back as pentagons. It is, and the rule is local and
@@ -13,9 +13,9 @@
 // vertex partitions the patch with nothing left over, and each group is one of
 // three shapes:
 //
-//     5 thick + 0 thin   star rhomb group    centre of a  Pe5   (the SUN)
-//     3 thick + 1 thin   boat rhomb group    centre of a  Pe3
-//     1 thick + 2 thin   diamond rhomb group centre of a  Pe1
+//     5 thick + 0 thin   star rhomb group    center of a  Pe5   (the SUN)
+//     3 thick + 1 thin   boat rhomb group    center of a  Pe3
+//     1 thick + 2 thin   diamond rhomb group center of a  Pe1
 //
 // Measured on a patch of 1958 rhombs: no rhomb without an extreme, none with
 // two, and 100% of the groups away from the patch edge are one of those three.
@@ -28,19 +28,19 @@
 // to find, and `defined` says so rather than returning nonsense.
 //
 // Note the naming trap: a Pe5 is the SUN, and the *star rhomb group* is what sits
-// at its centre. The patch name and the rhomb-group name are different
+// at its center. The patch name and the rhomb-group name are different
 // vocabularies. See PLAN.md.
 
 import type { Rhomb } from "./types.js";
 import { vertexIndex } from "./roof.js";
 
-/** Which P1 pentagon a rhomb group centres on. */
+/** Which P1 pentagon a rhomb group centers on. */
 export type ClusterKind = "Pe5" | "Pe3" | "Pe1";
 
 export interface Cluster {
     /** null when the group is cut by the edge of the patch, so incomplete. */
     kind: ClusterKind | null;
-    /** The pentagon centre: the group's extreme-index vertex. */
+    /** The pentagon center: the group's extreme-index vertex. */
     x: number;
     y: number;
     /** Its Wieringa index — always the patch minimum or maximum. */
@@ -103,7 +103,7 @@ export function findClusters(rhombs: readonly Rhomb[]): ClusterResult {
         };
     }
 
-    const byCentre = new Map<string, Cluster>();
+    const byCenter = new Map<string, Cluster>();
     let unassigned = 0;
 
     rhombs.forEach((r, n) => {
@@ -115,16 +115,16 @@ export function findClusters(rhombs: readonly Rhomb[]): ClusterResult {
 
         const [x, y] = r.vertices[at];
         const k = key(x, y);
-        let c = byCentre.get(k);
+        let c = byCenter.get(k);
         if (!c) {
             c = { kind: null, x, y, index: idx[n][at], rhombs: [], thick: 0, thin: 0 };
-            byCentre.set(k, c);
+            byCenter.set(k, c);
         }
         c.rhombs.push(n);
         if (r.thick) c.thick++; else c.thin++;
     });
 
-    const clusters = [...byCentre.values()];
+    const clusters = [...byCenter.values()];
     for (const c of clusters) c.kind = classify(c.thick, c.thin);
     return { clusters, levels, defined: true, unassigned };
 }

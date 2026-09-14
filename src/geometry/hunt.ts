@@ -124,7 +124,7 @@ const D = 100;
  * Every Penrose singularity there is. All three of them.
  *
  * Penrose means Sum(gamma) in Z, so every preset here sums to zero and the total
- * stays locked. Under that constraint the catalogue is complete and very short —
+ * stays locked. Under that constraint the catalog is complete and very short —
  * searched exhaustively over all rational phase vectors at denominators 12, 15,
  * 20, 24 and 25, which is every one of them up to scaling:
  *

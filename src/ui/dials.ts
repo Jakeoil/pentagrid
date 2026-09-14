@@ -220,7 +220,7 @@ export function createGammaBank(opts: GammaBankOptions): GammaBank {
             if (dragging !== j) inputs[j].value = mod1(s.values[j]).toFixed(EXACT_DP);
         }
         sumSpan.textContent = `Σ = ${s.sum.toFixed(4)}`;
-        // Greyed when it is the one being held free, matching the dials.
+        // Grayed when it is the one being held free, matching the dials.
         sumSpan.className = "sum-display" + (s.locked < 0 ? " computed" : "");
         // Same rule: only a held pointer stops the write-back.
         if (sumInput && !sumDragging) sumInput.value = s.sum.toFixed(EXACT_DP);

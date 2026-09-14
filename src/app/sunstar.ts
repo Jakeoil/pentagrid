@@ -2,10 +2,10 @@
 //
 // The whole page is one claim made touchable. With every offset equal to c, the
 // origin's K-tuple is (1,1,1,1,1) so its index is always 5, while the patch uses
-// levels [Σγ+1, Σγ+4]. Five is an extreme — a Pe5 centre — only at the ends of
+// levels [Σγ+1, Σγ+4]. Five is an extreme — a Pe5 center — only at the ends of
 // that range, so Σγ = 1 and 4 are Suns and Σγ = 2 and 3 are Stars, paired by the
 // Σγ ↔ −Σγ mirror. Every one of them shows five fat rhombs at the origin, which
-// is why looking at the vertex tells you nothing and the cluster recogniser is
+// is why looking at the vertex tells you nothing and the cluster recognizer is
 // the instrument that settles it.
 //
 // The guard is OFF here on purpose: Σγ = 0 is the singular decagon, and this page
@@ -92,10 +92,10 @@ if (host && strip) {
         if (!defined)
             return { text: "no clusters — Σγ is not an integer, so this is not Penrose", cls: "none" };
         if (atOrigin && atOrigin.kind === "Pe5")
-            return { text: "SUN — the origin is a Pe5 centre", cls: "sun" };
+            return { text: "SUN — the origin is a Pe5 center", cls: "sun" };
         if (!atOrigin)
             return { text: "STAR — the origin is in an St5 gap, in no cluster", cls: "star" };
-        return { text: `origin is a ${atOrigin.kind ?? "partial"} centre`, cls: "none" };
+        return { text: `origin is a ${atOrigin.kind ?? "partial"} center`, cls: "none" };
     }
 
     function refresh() {

@@ -1,7 +1,7 @@
 // grow7.html: the same growth animation on a heptagrid.
 //
 // Identical to grow.ts but for n. Everything that differs — seven dials, seven
-// colours, three rhomb shapes, a registration gain of 7/2 rather than 5/2 — is
+// colors, three rhomb shapes, a registration gain of 7/2 rather than 5/2 — is
 // derived from that one number rather than configured here, which is the point
 // of the exercise.
 

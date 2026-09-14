@@ -28,7 +28,7 @@ const area = (p) => {
 };
 
 test("k concurrent lines resolve to a 2k-gon with unit sides", () => {
-    // Lutfalla states exactly this. The outline is not synthesised from the
+    // Lutfalla states exactly this. The outline is not synthesized from the
     // directions — it is the 2k sectors around the point, each mapped through f —
     // so unit sides are a result rather than a construction.
     const { list } = resolutions(0);
@@ -60,7 +60,7 @@ test("the rhombs tile the 2k-gon exactly, C(k,2) of them", () => {
 });
 
 test("the combos are the ones the table predicts", () => {
-    // hexagon in two flavours, decagon in one. Enumerated independently in
+    // hexagon in two flavors, decagon in one. Enumerated independently in
     // PLAN.md from every subset of families; this checks the geometry agrees.
     const { list } = resolutions(0);
     const seen = new Set(list.map(describeResolution));
@@ -85,7 +85,7 @@ test("thick and thin are counted by family separation, and add up", () => {
     }
 });
 
-test("the 2k-gon is centred on the point it stands for", () => {
+test("the 2k-gon is centered on the point it stands for", () => {
     // Its corners are the dual vertices of the sectors, so the centroid is where
     // the superposed rhombs sit.
     const { list } = resolutions(0);

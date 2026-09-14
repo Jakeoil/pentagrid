@@ -177,7 +177,7 @@ export const METHOD_PAGES: Page[] = [
             &Sigma;&gamma; is an integer. Penrose <em>is</em>
             &Sigma;&gamma;&thinsp;&isin;&thinsp;&Zopf;, so every 4-fold is swallowed
             by a 5-fold. The octagon is real, but it lives outside the condition.</p>
-            <p>What is left is a very short catalogue. The ten triples fall into
+            <p>What is left is a very short catalog. The ten triples fall into
             <b>five couples</b> &mdash; same lone &gamma;, complementary pair &mdash;
             and &Sigma;&gamma;&thinsp;&isin;&thinsp;&Zopf; makes each couple stand or
             fall together. Every couple is one K122 and one K113, so

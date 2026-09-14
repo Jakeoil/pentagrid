@@ -5,7 +5,7 @@
 // along every edge makes the curves join across every shared edge automatically.
 // No matching rules to enforce — they fall out of the construction.
 //
-// A rhomb f, f+v_j, f+v_j+v_k, f+v_k then carries exactly two arcs: one centred
+// A rhomb f, f+v_j, f+v_j+v_k, f+v_k then carries exactly two arcs: one centered
 // at f of radius ARC_T (both its edges leave f in a + direction), and one at the
 // opposite corner of radius 1-ARC_T. The radii sum to 1, which is what makes them
 // meet. 1/φ² and 1/φ are the golden choice.
@@ -16,7 +16,7 @@ export const PHI = (1 + Math.sqrt(5)) / 2;
 export const ARC_T = 1 / (PHI * PHI);
 
 export interface Arc {
-    x: number; y: number;   // centre, in tiling coordinates
+    x: number; y: number;   // center, in tiling coordinates
     r: number;              // radius, in tiling units
     a1: number; a2: number; // from angle a1 to a2, the short way
     family: 0 | 1;          // which of the two loop families

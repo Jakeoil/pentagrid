@@ -8,7 +8,7 @@ import { SH, SW, USE_ATTR, handlers, inputs, makeStub, noop } from "./domstub.mj
 const target = process.argv[2] || "./dist/method.js";
 try {
     await import(new URL(target, `file://${process.cwd()}/`).href);
-    console.log(`pagecheck: ${target} initialised with no throw`);
+    console.log(`pagecheck: ${target} initialized with no throw`);
 } catch (err) {
     console.error(`pagecheck: ${target} FAILED during init`);
     console.error(err.stack || String(err));

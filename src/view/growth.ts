@@ -461,7 +461,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     }
 
                     // The crossing itself: the two families mixed. A dot while
-                    // the tiles are still points, the centre patch once they are not.
+                    // the tiles are still points, the center patch once they are not.
                     for (const r of rhombs) {
                         if (grow < 0.04) {
                             ctx.fillStyle = tint(MIX[r.j][r.k], 1);

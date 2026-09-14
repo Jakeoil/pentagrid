@@ -48,7 +48,7 @@ const FEASIBLE = { xMin: -80, xMax: 80, yMin: -80, yMax: 80 };
 /**
  * Is this K-tuple realised? Its five strips must share a point — a 2D
  * feasibility question, not a closed form. (The tempting closed form, comparing
- * ‖P_⊥(s)‖_∞ against ½, is wrong: the ℓ²-orthogonal projection minimises the
+ * ‖P_⊥(s)‖_∞ against ½, is wrong: the ℓ²-orthogonal projection minimizes the
  * Euclidean residual, not the max-norm one, and it over-rejects badly.)
  */
 export function vertexRealised(pg: Pentagrid, K: readonly number[]): boolean {

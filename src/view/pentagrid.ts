@@ -35,7 +35,7 @@ const SINGULAR_FILL = "#b48ec4";
 /** One per Wieringa level. Penrose uses four; the index is taken modulo. */
 const INDEX_COLORS = ["#2f6fb5", "#54a598", "#d9b463", "#c4643f"];
 
-/** Mix a colour towards white (t > 0) or black (t < 0). */
+/** Mix a color towards white (t > 0) or black (t < 0). */
 function shade(hex: string, t: number): string {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex);
     if (!m) return hex;
@@ -48,12 +48,12 @@ function shade(hex: string, t: number): string {
 }
 
 /**
- * How the tiles are dressed. Not feature flags: `colour` is a choice of three and
+ * How the tiles are dressed. Not feature flags: `color` is a choice of three and
  * `opacity` is a number, and neither is the sort of thing a step turns on.
  */
 export interface TileStyle {
     /** thick/thin, the two families that made it, or its Wieringa index. */
-    colour: "type" | "pair" | "index";
+    color: "type" | "pair" | "index";
     /** Contour lines across each tile. */
     isogloss: boolean;
     /** Fill alpha. Edges and decoration stay solid. */
@@ -202,7 +202,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     //
     // The one place the page's canvas is decided. Everything downstream reads it
     // through the view, so a second view (the loupe already is one) or a page that
-    // wants a different size costs nothing. PLAN.md, step 1 of parameterising.
+    // wants a different size costs nothing. PLAN.md, step 1 of parameterizing.
     //
     // Explicit wins: data-width / data-height / data-margin on #canvas-container.
     // Implicit otherwise: the container's own laid-out size, then 800 as a floor.
@@ -333,7 +333,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // it, and the two do not register. Displaying the grid under x -> (5/2)x puts
     // every rhomb back on the crossing that generated it. It is not a fudge: the
     // projection R^n -> E_par sends each basis vector to length sqrt(2/n), and with
-    // that normalisation the gain is exactly 1 — the n/2 is the price of unit
+    // that normalization the gain is exactly 1 — the n/2 is the price of unit
     // rhombs. See PLAN.md item 3.
     // Permanent, not a toggle. The grid and the tiling share one coordinate system;
     // showing or hiding the tiling is what the Penrose layers are for.
@@ -414,7 +414,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let gridAlpha = 0.6;
 
     const tileStyle: TileStyle = {
-        colour: "type", isogloss: false, opacity: 1,
+        color: "type", isogloss: false, opacity: 1,
         ...config.tileStyle,
     };
 
@@ -1203,7 +1203,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // edge makes the curves join across every shared edge automatically — no
     // matching rules to enforce, they come out of the construction.
     //
-    // A rhomb f, f+v_j, f+v_j+v_k, f+v_k then carries exactly two arcs: one centred
+    // A rhomb f, f+v_j, f+v_j+v_k, f+v_k then carries exactly two arcs: one centered
     // at f of radius ARC_T (both its edges leave f in a + direction), and one at the
     // opposite corner of radius 1-ARC_T. The two radii sum to 1, which is what makes
     // them meet. 1/φ² and 1/φ are the golden choice.
@@ -1272,12 +1272,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /**
      * How a 2k-gon is filled, following whatever the tiles are doing.
      *
-     *   thick/thin  a colour of its own — it is neither, it is a stack of both
+     *   thick/thin  a color of its own — it is neither, it is a stack of both
      *   families    the combination of the gridlines that meet there
      *   index       its level, shaded like the tiles
      */
     function resolutionFill(r: Resolution): string {
-        if (tileStyle.colour === "pair") {
+        if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
                 const [x, y, z] = hexToRgb(COLORS[j % COLORS.length]);
@@ -1286,7 +1286,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const k = r.families.length;
             return `rgb(${Math.round(rr / k)},${Math.round(gg / k)},${Math.round(bb / k)})`;
         }
-        if (tileStyle.colour === "index") {
+        if (tileStyle.color === "index") {
             const m = Math.round(r.families.length);
             return INDEX_COLORS[(m + INDEX_COLORS.length) % INDEX_COLORS.length];
         }
@@ -1326,14 +1326,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
     }
 
-    /** What colour a tile takes, under the current style. */
+    /** What color a tile takes, under the current style. */
     function tileFill(rhomb: Rhomb): string {
-        if (tileStyle.colour === "pair") {
+        if (tileStyle.color === "pair") {
             // The two ribbons it belongs to, blended — so at full coverage the
-            // tiling wears all n family colours at once.
+            // tiling wears all n family colors at once.
             return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
         }
-        if (tileStyle.colour === "index") {
+        if (tileStyle.color === "index") {
             // Its Wieringa level, shaded by type.
             //
             // There is no heads and tails to shade by: `computeRhomb` always emits
@@ -1341,7 +1341,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             // ALWAYS (m, m+1, m+2, m+1) and corner 0 is always the low one —
             // measured over a patch, every tile matches that one pattern. A rhomb
             // spans three of the four Penrose levels, so its base is one of two,
-            // which is why colouring by level alone looked flat. Two levels for
+            // which is why coloring by level alone looked flat. Two levels for
             // the hue and thick/thin for the lightness is the four classes that
             // are actually there.
             const m = vertexIndex(rhomb.kTuples[0]);
@@ -1876,9 +1876,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 opt.textContent = text;
                 sel.appendChild(opt);
             }
-            sel.value = tileStyle.colour;
+            sel.value = tileStyle.color;
             sel.addEventListener("change", () => {
-                tileStyle.colour = sel.value as TileStyle["colour"];
+                tileStyle.color = sel.value as TileStyle["color"];
                 draw();
             });
             sRow.appendChild(sel);
@@ -2152,12 +2152,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * map, landing in two different places on the same canvas.
      */
     function highlightSegment(seg: GridSegment, cx: number, cy: number) {
-        const colour = COLORS[seg.j % COLORS.length];
+        const color = COLORS[seg.j % COLORS.length];
         const [ax, ay] = gridToScreen(seg.a[0], seg.a[1], cx, cy);
         const [bx, by] = gridToScreen(seg.b[0], seg.b[1], cx, cy);
 
         // The segment itself, laid over its gridline.
-        highlightCtx.strokeStyle = colour;
+        highlightCtx.strokeStyle = color;
         highlightCtx.lineWidth = 4;
         highlightCtx.lineCap = "round";
         highlightCtx.beginPath();

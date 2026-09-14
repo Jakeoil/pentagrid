@@ -4,8 +4,8 @@
 // normals are exactly {+v_j, -v_j} for the five pentagrid directions — so the
 // figure and the families fit each other with nothing left over. For family j its
 // own opposite pair of sides ARE its range limits: the side at +v_j is +1/2, the
-// side at -v_j is -1/2, and the centre is 0. Gamma therefore runs the full width
-// through the centre, side to side. It is NOT a radial slider from the centre
+// side at -v_j is -1/2, and the center is 0. Gamma therefore runs the full width
+// through the center, side to side. It is NOT a radial slider from the center
 // out, and at the extremes the drawn line coincides with the decagon side itself.
 //
 // COORDINATES. The model keeps gamma canonical in [0,1); the reticulum shows the
@@ -22,9 +22,9 @@ import { wheelNotch } from "./wheel.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
-/** Centre-to-side distance of the decagon. Gamma's full travel is 2A. */
+/** Center-to-side distance of the decagon. Gamma's full travel is 2A. */
 const A = 1;
-/** Centre-to-vertex. */
+/** Center-to-vertex. */
 const CIRC = A / Math.cos(Math.PI / 10);
 /** Where the family labels sit — just clear of the corners, not orbiting. */
 const LABEL_R = CIRC + 0.1;
@@ -74,7 +74,7 @@ export const signedGamma = (g: number): number => (((g + 0.5) % 1) + 1) % 1 - 0.
 const el = (tag: string): SVGElement => document.createElementNS(NS, tag) as SVGElement;
 
 /**
- * Mix a colour towards white. The active band is the family's own colour washed
+ * Mix a color towards white. The active band is the family's own color washed
  * out, so the band says *which* gamma is being driven without competing with the
  * line that says *where* it is.
  */
@@ -125,7 +125,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         return out;
     }
 
-    /** Corners, as the meeting points of neighbouring sides. */
+    /** Corners, as the meeting points of neighboring sides. */
     function corners(): [number, number][] {
         const ns = normals().slice().sort(
             (p, q) => Math.atan2(p[1], p[0]) - Math.atan2(q[1], q[0]));
@@ -234,7 +234,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     let dragFrom: [number, number] | null = null;
     let warnTimer: ReturnType<typeof setTimeout> | null = null;
 
-    /** Say no, rather than greying quietly and letting a push look like it worked. */
+    /** Say no, rather than graying quietly and letting a push look like it worked. */
     function refuse() {
         svg.setAttribute("data-warn", "1");
         if (warnTimer) clearTimeout(warnTimer);
@@ -335,7 +335,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
             });
 
             // The family's line, at the signed offset. -1/2 and +1/2 land on the
-            // two opposite sides; 0 passes through the centre.
+            // two opposite sides; 0 passes through the center.
             //
             // NEGATED, and that is the whole of it: the model puts line n at
             // x . v_j = n - gamma_j, so raising gamma slides the family along

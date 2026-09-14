@@ -153,7 +153,7 @@ test("entering freezes it; leaving releases", () => {
     l.open({ x: 0, y: 0, mag: 10, label: "x" }, 60);
     assert.equal(l.frozen, false);
     l.element.on.mouseenter[0]();
-    assert.equal(l.frozen, true, "entering must latch, or travelling to it retargets");
+    assert.equal(l.frozen, true, "entering must latch, or traveling to it retargets");
     l.element.on.mouseleave[0]();
     assert.equal(l.frozen, false);
 });
@@ -162,8 +162,8 @@ test("hovering inside reports host coordinates, not panel pixels", () => {
     const { l, seen } = loupe();
     l.open({ x: 5, y: 5, mag: 1, label: "x" }, 100);   // scale 100, size 220
     l.element.getBoundingClientRect = () => ({ left: 0, top: 0, width: 220, height: 220 });
-    l.element.on.mousemove[0]({ clientX: 110, clientY: 110 });   // dead centre
-    assert.deepEqual(seen.hovers.at(-1), [5, 5], "centre of the panel is the target");
+    l.element.on.mousemove[0]({ clientX: 110, clientY: 110 });   // dead center
+    assert.deepEqual(seen.hovers.at(-1), [5, 5], "center of the panel is the target");
     l.element.on.mousemove[0]({ clientX: 210, clientY: 110 });   // 100px right
     const [hx, hy] = seen.hovers.at(-1);
     assert.ok(Math.abs(hx - 6) < 1e-9, `x ${hx}`);   // 100px at scale 100 = 1 unit
@@ -410,7 +410,7 @@ test("the dial bank and the reticulum stay in step over one gamma set", () => {
     push();
     assert.equal(set.getLocked(), -1);
     assert.match(bank.element.children[5].className, /computed/,
-                 "the bank must grey Sigma when nothing holds the total");
+                 "the bank must gray Sigma when nothing holds the total");
     const axes = ret.element.children.filter((c) =>
         (c.getAttribute("class") || "").startsWith("ret-axis"));
     for (const a of axes) {
@@ -544,8 +544,8 @@ test("the Sigma strip drags like an axis, one turn across the bed", () => {
     hit.on.pointerup[0](pd(0));
 });
 
-test("a released total refuses a push instead of greying politely", () => {
-    // Greying said "fine, carry on" in the same language as everything merely
+test("a released total refuses a push instead of graying politely", () => {
+    // Graying said "fine, carry on" in the same language as everything merely
     // inactive, so pushing against it looked like it worked. It did something
     // too: setSum on a released set spreads the offsets evenly.
     const set = createGammaSet({ guard: false });

@@ -12,7 +12,7 @@
 export interface LayerContext {
     ctx: CanvasRenderingContext2D;
     w: number; h: number;
-    cx: number; cy: number;   // canvas centre, the origin most draw code wants
+    cx: number; cy: number;   // canvas center, the origin most draw code wants
 }
 
 export interface LayerSpec {

@@ -10,7 +10,7 @@
 //     4 lines -> octagon,   6 rhombs
 //     5 lines -> decagon,  10 rhombs
 //
-// The outline is not synthesised from the directions and hoped over: the 2k
+// The outline is not synthesized from the directions and hoped over: the 2k
 // sectors around the point are sampled, each one's K-tuple taken, and each mapped
 // through f to give a corner. The zonogon decomposition is then laid inside it, so
 // the drawing and the construction cannot disagree.
@@ -121,12 +121,12 @@ export function resolveConcurrency(pg: Pentagrid, c: Concurrency): Resolution | 
     const k = fams.length;
     if (k < 2) return null;
 
-    // The k lines cut the neighbourhood into 2k sectors. Their boundaries run
+    // The k lines cut the neighborhood into 2k sectors. Their boundaries run
     // along the lines, so the boundary directions are the normals turned a
     // quarter turn — 2k of them once both ways are counted.
     const TAU = 2 * Math.PI;
-    // Normalised into one turn before sorting. atan2 returns negatives and the
-    // opposite ray can land past 2pi, so an unnormalised sort interleaves the rays
+    // Normalized into one turn before sorting. atan2 returns negatives and the
+    // opposite ray can land past 2pi, so an unnormalized sort interleaves the rays
     // wrongly and the "sectors" straddle the lines instead of lying between them.
     const norm = (a: number) => ((a % TAU) + TAU) % TAU;
     const bounds: number[] = [];

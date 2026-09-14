@@ -59,7 +59,7 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
                                     class: "ss-hit", fill: "transparent" });
     svg.appendChild(hit);
 
-    // The scale: a light grey bed under the whole turn, graduated at the fifths.
+    // The scale: a light gray bed under the whole turn, graduated at the fifths.
     const bed = attrs(el("rect"), { x: L, y: BASE - 3.2, width: R - L, height: 6.4,
                                     rx: 1, class: "ss-bed" });
     svg.appendChild(bed);
@@ -98,7 +98,7 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
      * Refuse a change, loudly.
      *
      * When the total is released it is not a value you set — it is whatever the
-     * offsets happen to add up to. Greying the bar said "fine, carry on" in the
+     * offsets happen to add up to. Graying the bar said "fine, carry on" in the
      * same visual language as everything else that is merely inactive, so a push
      * against it read as working. This says no.
      */

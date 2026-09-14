@@ -9,13 +9,13 @@
 // Why an inset and not a fisheye. A radial magnifier is not conformal, so inside
 // it straight lines curve and angles change — expensive for a picture whose
 // subject is straight lines at exact angles. And with g(0)=0 and g(R)=R the mean
-// of g' over [0,R] is exactly 1, so magnifying the centre forces a compression
+// of g' over [0,R] is exactly 1, so magnifying the center forces a compression
 // annulus at the rim, where things are HARDER to hit than at 1x. An inset costs
 // neither, and picking inside it is the host's own transform at a different
-// scale and centre.
+// scale and center.
 
 export interface LoupeView {
-    x: number; y: number;   // centre, in the host's coordinates
+    x: number; y: number;   // center, in the host's coordinates
     scale: number;          // pixels per unit, inside the panel
 }
 
@@ -87,7 +87,7 @@ export function createLoupe(opts: LoupeOptions): Loupe {
 
         opts.render(ctx, view, size);
 
-        // Centre mark on whatever opened the panel
+        // Center mark on whatever opened the panel
         const c = size / 2;
         ctx.strokeStyle = "rgba(220, 40, 70, 0.55)";
         ctx.lineWidth = 1;
@@ -149,7 +149,7 @@ export function createLoupe(opts: LoupeOptions): Loupe {
     }
 
     // Entering is the commit gesture: the view latches and stays put while
-    // hovering inside, so travelling to the panel can never retarget or close it.
+    // hovering inside, so traveling to the panel can never retarget or close it.
     canvas.addEventListener("mouseenter", () => { frozen = true; redraw(); });
 
     canvas.addEventListener("mouseleave", () => {

@@ -51,19 +51,19 @@ test("clusters are one of the three rhomb groups, and nothing else", () => {
     assert.ok(n.Pe5 > 0 && n.Pe3 > 0 && n.Pe1 > 0, JSON.stringify(n));
 });
 
-test("the centre of a cluster really is an extreme-index vertex", () => {
+test("the center of a cluster really is an extreme-index vertex", () => {
     const rhombs = patch(1);
     const res = findClusters(rhombs);
     const all = rhombs.flatMap((r) => r.kTuples.map(vertexIndex));
     const lo = Math.min(...all), hi = Math.max(...all);
     for (const c of res.clusters)
         assert.ok(c.index === lo || c.index === hi,
-                  `centre index ${c.index} is neither ${lo} nor ${hi}`);
+                  `center index ${c.index} is neither ${lo} nor ${hi}`);
 });
 
-test("a Pe5 centre is a sun: five fat rhombs, no thin", () => {
+test("a Pe5 center is a sun: five fat rhombs, no thin", () => {
     // The naming trap — Pe5 IS the sun, and the *star rhomb group* is what sits
-    // at its centre. Five thick is the star group, so the cluster is a Pe5.
+    // at its center. Five thick is the star group, so the cluster is a Pe5.
     const res = findClusters(patch(1, 22));
     const pe5 = completeClusters(res).filter((c) => c.kind === "Pe5");
     assert.ok(pe5.length > 20, `only ${pe5.length} Pe5`);
@@ -112,14 +112,14 @@ test("a patch too small to show four levels is refused, not guessed", () => {
     assert.equal(findClusters([]).defined, false);
 });
 
-test("the recogniser separates the Sun from the Star, which vertices alone cannot", () => {
-    // All four origin-centred Penrose caps show FIVE FAT rhombs at the origin, so
+test("the recognizer separates the Sun from the Star, which vertices alone cannot", () => {
+    // All four origin-centered Penrose caps show FIVE FAT rhombs at the origin, so
     // the vertex configuration cannot tell them apart — an earlier reading called
     // them all suns on exactly that evidence, and was wrong. The index decides.
     //
     // The origin's K-tuple is (1,1,1,1,1) for a uniform offset in (0,1), so its
     // index is always 5, while the patch range is [Σγ+1, Σγ+4]. Five is therefore
-    // an extreme — a Pe5 centre — only at Σγ = 4 (the minimum) and Σγ = 1 (the
+    // an extreme — a Pe5 center — only at Σγ = 4 (the minimum) and Σγ = 1 (the
     // maximum). At Σγ = 2 and 3 the origin sits at a middle index and belongs to
     // no cluster at all: it is inside an St5 gap.
     const capAt = (sum) => {
@@ -135,7 +135,7 @@ test("the recogniser separates the Sun from the Star, which vertices alone canno
     for (const sum of [1, 4]) {
         const c = capAt(sum);
         assert.ok(c, `Σγ = ${sum}: expected a cluster at the origin (Sun)`);
-        assert.equal(c.kind, "Pe5", `Σγ = ${sum} should centre on a Pe5`);
+        assert.equal(c.kind, "Pe5", `Σγ = ${sum} should center on a Pe5`);
     }
     for (const sum of [2, 3]) {
         assert.equal(capAt(sum), null,
@@ -145,7 +145,7 @@ test("the recogniser separates the Sun from the Star, which vertices alone canno
 
 test("sunstar.html's five preset caps give the verdicts the page prints", () => {
     // The page offers c = 0, 1/5, 2/5, 3/5, 4/5 as buttons. If these ever stop
-    // agreeing with the recogniser the page is lying, and nothing else catches it.
+    // agreeing with the recognizer the page is lying, and nothing else catches it.
     const capAt = (c) => {
         const g = createGammaSet({ guard: false });
         g.setSum(5 * c, true);

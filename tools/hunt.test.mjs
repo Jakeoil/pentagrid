@@ -216,7 +216,7 @@ test("a preset lands intact whichever index is holding the total", () => {
     }
 });
 
-// ── The Penrose catalogue ──────────────────────────────────────────────
+// ── The Penrose catalog ──────────────────────────────────────────────
 
 test("the five couples are real, and each is one thick hexagon and one thin", () => {
     const g = createGammaSet({ guard: false });
@@ -242,7 +242,7 @@ test("the five couples are real, and each is one thick hexagon and one thin", ()
 test("at Sum(gamma) = 0 there are exactly three singular states, and no octagon", () => {
     // Exhaustive over every rational phase vector at each denominator, with the
     // fifth phase forced so the total is an integer. This is the whole Penrose
-    // catalogue, not a sample of it.
+    // catalog, not a sample of it.
     const g = createGammaSet({ guard: false });
     for (const den of [12, 15, 20]) {
         const seen = new Set();
@@ -265,7 +265,7 @@ test("at Sum(gamma) = 0 there are exactly three singular states, and no octagon"
             '{"113":1,"122":1}',
             '{"113":5,"122":5,"11111":1}',
             "{}",
-        ].sort(), `den = ${den}: the catalogue is not the three known states`);
+        ].sort(), `den = ${den}: the catalog is not the three known states`);
 
         for (const sig of seen) {
             assert.ok(!sig.includes("1112"),
@@ -276,7 +276,7 @@ test("at Sum(gamma) = 0 there are exactly three singular states, and no octagon"
 
 test("two couples force all five, so nothing sits between them", () => {
     // Two integral phases drag in two more through their pair conditions, and an
-    // integral total supplies the fifth. That is why the catalogue has no middle.
+    // integral total supplies the fifth. That is why the catalog has no middle.
     const g = createGammaSet({ guard: false });
     const den = 20;
     let sawOne = 0, sawFive = 0;

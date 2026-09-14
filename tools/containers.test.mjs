@@ -126,11 +126,11 @@ test("dragging reports world coordinates, not canvas pixels", () => {
         onMove: (x, y) => seen.push([x, y]),
     });
     p.element.getBoundingClientRect = () => ({ left: 0, top: 0, width: 400, height: 400 });
-    p.element.on.mousedown[0]({ clientX: 200, clientY: 200 });   // dead centre
+    p.element.on.mousedown[0]({ clientX: 200, clientY: 200 });   // dead center
     // === rather than deepEqual: negating zero gives -0, which is
     // strictly-deep-unequal to 0 and identical to it everywhere that matters.
     const [cx0, cy0] = seen.at(-1);
-    assert.ok(cx0 === 0 && cy0 === 0, `centre gave ${cx0},${cy0}`);
+    assert.ok(cx0 === 0 && cy0 === 0, `center gave ${cx0},${cy0}`);
     p.element.on.mousemove[0]({ clientX: 300, clientY: 200 });   // 100 px right
     const [x, y] = seen.at(-1);
     assert.ok(Math.abs(x - 1) < 1e-9 && Math.abs(y) < 1e-9, `got ${x},${y}`);
@@ -808,15 +808,15 @@ test("superposed rhombs keep their edges, and lose only fill and arc", () => {
 });
 
 test("tile style is a setting, not a feature flag", () => {
-    // colour is a choice of three and opacity is a number; neither is the sort of
+    // color is a choice of three and opacity is a number; neither is the sort of
     // thing a narrative page turns on.
     const h = createPentagrid({
         container: sizedHost(600, 600),
         features: { penroseTiles: true },
-        tileStyle: { colour: "pair", isogloss: true, opacity: 0.5 },
+        tileStyle: { color: "pair", isogloss: true, opacity: 0.5 },
     });
     assert.equal(typeof h.setTileStyle, "function");
-    h.setTileStyle({ colour: "index" });
+    h.setTileStyle({ color: "index" });
     h.redraw();
     h.setTileStyle({ isogloss: false, opacity: 1 });
     h.redraw();
@@ -1012,9 +1012,9 @@ test("a singularity is drawn as a P-region, by the tile and edge layers", () => 
     assert.ok(filled > 0, "nothing was filled at all");
 
     // and the style choice reaches them
-    for (const colour of ["type", "pair", "index"]) {
-        h.setTileStyle({ colour });
-        assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, colour);
+    for (const color of ["type", "pair", "index"]) {
+        h.setTileStyle({ color });
+        assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, color);
     }
 });
 

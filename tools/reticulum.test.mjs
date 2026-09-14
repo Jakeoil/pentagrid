@@ -79,13 +79,13 @@ test("a gamma and its congruent partner draw the identical line", () => {
 // ── geometry ──────────────────────────────────────────────────────
 
 test("the range is a signed full-width traverse, not a radial slider", () => {
-    // gamma = 0 puts the line through the CENTRE. A radial slider would put it
+    // gamma = 0 puts the line through the CENTER. A radial slider would put it
     // at an end, which is the bug this replaced.
     const { r, axes } = ret(5);
     r.sync({ values: [0, 0.2, 0.2, 0.2, 0.2], locked: 4, sum: 0.8 });
     const mid = gridOf(axes[0]);
     // axis 0 is +x, so its line is the vertical chord at x = 0
-    assert.ok(Math.abs(num(mid, "x1")) < 1e-9, "gamma 0 must pass through the centre");
+    assert.ok(Math.abs(num(mid, "x1")) < 1e-9, "gamma 0 must pass through the center");
     assert.ok(Math.abs(num(mid, "x2")) < 1e-9);
 
     // and +1/2 / -1/2 sit on opposite sides, a full width apart. The line runs
@@ -147,11 +147,11 @@ test("the origin carries a tiny cross aligned with the active and dependent line
     assert.ok(Math.hypot(num(act, "x1"), num(act, "y1")) < 0.1 * A);
 });
 
-test("nothing sits at the centre but the cross — the hub is gone", () => {
+test("nothing sits at the center but the cross — the hub is gone", () => {
     const { r } = ret(5);
     assert.equal(pick(r.element, "ret-hub").length, 0);
     for (const c of r.element.children) {
-        assert.notEqual((c.textContent || "").trim(), "Σ", "Sigma is back at the centre");
+        assert.notEqual((c.textContent || "").trim(), "Σ", "Sigma is back at the center");
     }
 });
 
@@ -257,9 +257,9 @@ test("n is a parameter: seven families give fourteen sides", () => {
     assert.equal(rim.getAttribute("points").split(" ").length, 14);
 });
 
-test("the band wears its own family's colour, washed out", () => {
+test("the band wears its own family's color, washed out", () => {
     // Not a fixed pink: the band says WHICH gamma is live, the line says where.
-    // Real hex here — the placeholder colours elsewhere are deliberately not
+    // Real hex here — the placeholder colors elsewhere are deliberately not
     // parseable, and lighten passes those straight through.
     const real = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
     const r = createReticulum({
@@ -272,10 +272,10 @@ test("the band wears its own family's colour, washed out", () => {
     hit.on.pointermove[0](ev(760, 400));
     const fill = (band.getAttribute("fill") || "").toLowerCase();
     assert.ok(fill, "the band has no fill");
-    assert.ok(!real.includes(fill), "the band must be lighter than the family colour");
+    assert.ok(!real.includes(fill), "the band must be lighter than the family color");
 
     const live = [...Array(5).keys()].find((j) => lighten(real[j], 0.82) === fill);
-    assert.ok(live !== undefined, `${fill} is not a lightened family colour`);
+    assert.ok(live !== undefined, `${fill} is not a lightened family color`);
 
     // a different family gives a different wash
     const first = fill;
@@ -287,7 +287,7 @@ test("lighten mixes toward white and leaves anything it cannot parse alone", () 
     assert.equal(lighten("#000000", 0), "#000000");
     assert.equal(lighten("#000000", 1), "#ffffff");
     assert.equal(lighten("#e63946", 0.82), "#fbdbde");
-    assert.equal(lighten("not a colour", 0.5), "not a colour");
+    assert.equal(lighten("not a color", 0.5), "not a color");
 });
 
 test("the drawn line matches the map: raising gamma slides it along -v", () => {
@@ -302,7 +302,7 @@ test("the drawn line matches the map: raising gamma slides it along -v", () => {
         // axis 0 is +x here, so the signed offset is just x
         return num(l, "x1");
     };
-    assert.ok(Math.abs(posOf(0)) < 1e-9, "gamma 0 sits at the centre");
+    assert.ok(Math.abs(posOf(0)) < 1e-9, "gamma 0 sits at the center");
     assert.ok(posOf(0.1) < 0, "raising gamma must move the line to -v");
     assert.ok(posOf(-0.1) > 0, "lowering it must move the line to +v");
 

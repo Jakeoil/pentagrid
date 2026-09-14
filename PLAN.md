@@ -30,7 +30,7 @@ State of play, verified 2026-09-05. Working tree clean and in sync with origin.
 - **Still open: item 4, rhomb provenance.** `Rhomb` is `{vertices, kTuples,
   thick}`; `computeRhomb` receives `j, k, nj, nk, x0, y0` and discards all six.
   Item 5 (split geometry recompute from render) is also open. Both gate the work
-  in *The method page, reorganised* below, and item 4 gates the explorations.
+  in *The method page, reorganized* below, and item 4 gates the explorations.
 
 ---
 
@@ -240,7 +240,7 @@ is `screenToMath` at a different scale and center.
 Behavior, as settled:
 
 - **Pinned to a fixed corner** of the canvas. Not floating — it must never
-  occlude what is being studied, and travelling to it must be an unambiguous
+  occlude what is being studied, and traveling to it must be an unambiguous
   gesture rather than something that happens while aiming.
 - **Opens automatically** when the smallest region within ~20 px of the cursor
   falls below ~5 px. Same quantity as the meter at a different radius: meter =
@@ -256,7 +256,7 @@ Behavior, as settled:
   cursor moved off the target, which meant it vanished on the way to the panel and
   could not be entered at all. It retargets on approach to something new, and is
   dismissed with Esc — but "nothing nearby" is not a reason to close, because
-  travelling to the panel *is* moving away from the target.
+  traveling to the panel *is* moving away from the target.
 - **Says what it is showing.** `12k×  5 lines concurrent`, or `40×  region 0.04
   px`, plus a "move in to hover" hint while unfrozen. Without the hint there is no
   way to discover the panel is interactive.
@@ -295,18 +295,18 @@ looks at the angles — five unit vectors, two dimensions.
 ℤ⁵ onto a 2-plane. For the orthogonal projection `P: ℝ⁵ → E∥`, each basis vector
 satisfies `|Pe_j|² = 2/5` exactly — 2/5 of its squared length lands in the
 physical plane, 3/5 in the perpendicular space, and `Σ|Pe_j|² = tr(P) = dim E∥ =
-2`. Pythagoras in ℝ⁵. With those correctly normalised images (`|u_j| = √(2/5)`)
+2`. Pythagoras in ℝ⁵. With those correctly normalized images (`|u_j| = √(2/5)`)
 the frame operator is exactly the identity and **the dual map has gain 1**. The
-5/2 appears only because the page renormalises to unit rhombs, inflating each
+5/2 appears only because the page renormalizes to unit rhombs, inflating each
 vector by `√(5/2)`. So `5/2 = 1/(2/5)`, and in general n dimensions to d gives
 gain n/d.
 
-Which also means registration is not a fudge — it is the natural normalisation.
+Which also means registration is not a fudge — it is the natural normalization.
 
 **Where φ actually lives.** Walking one unit along v₀ you cross `2φ = 3.236068`
 rhomb edges but net-displace only `5/2`, because the edges are not collinear
 (ratio `4φ/5`). φ owns the combinatorics and the shapes; n/d owns the isotropic
-gain. A φ-flavoured gain would have meant the frame operator was not isotropic,
+gain. A φ-flavored gain would have meant the frame operator was not isotropic,
 contradicting the five-fold symmetry the whole construction rests on.
 
 Verified three ways: `n/2` holds for n = 3,5,7,9,11 to nine decimals, so it is a
@@ -364,7 +364,7 @@ whatever cache this produces.
 ### 6. ~~README is stale~~ — DONE 2026-09-05
 
 Rewritten: six steps with the current titles, the layer toggles and the two hover
-behaviours, the three non-obvious findings (exact regularity, sub-pixel regions
+behaviors, the three non-obvious findings (exact regularity, sub-pixel regions
 and the loupe, the 5/2 gain), the build-stamp workflow, and pointers here and to
 RESEARCH.md. Live link now points at the site root rather than `method.html`.
 
@@ -374,7 +374,7 @@ Deleted along with its `dist/` output when `index.html` became a static page.
 
 ---
 
-## The method page, reorganised
+## The method page, reorganized
 
 Requested 2026-09-05. The individual asks below are one design, and this is the
 idea holding them together:
@@ -448,7 +448,7 @@ Item 5 (split geometry recompute from render) stops being optional here. Every n
 every draw and hits ~100k intersection solves per frame when zoomed out. Turning
 three of these on at once with no cache will be felt.
 
-## Parameterising the canvas
+## Parameterizing the canvas
 
 Decided 2026-09-05, after weighing four shapes for it: a config object plus
 `createPentagrid()`, a class, a module split with explicit context, or a web
@@ -796,7 +796,7 @@ and 3 down — the SVG is internally 3x6 with `matrix(0,1,-1,0,8833.5,-0.5)`
 rotating it. Rendering note: `qlmanage` forces a square and silently gives a 3x3
 crop; ImageMagick has no SVG delegate here; headless Chrome is correct.
 
-**Measured: all eighteen are origin-centred.** 72 and 144 degree self-agreement
+**Measured: all eighteen are origin-centered.** 72 and 144 degree self-agreement
 0.70-0.85 against a 0.21-0.28 control at 30/50/100 degrees. Five-fold symmetry
 about the origin forces every offset equal — rotating by 72 sends v_j to v_{j+1},
 so family j's lines land on family j+1's only if gamma_{j+1} = gamma_j mod 1. So
@@ -805,7 +805,7 @@ the figure is the *uniform* family Gn(c), one parameter.
 **Sum arithmetic.** With every offset equal to c, Sigma-gamma = 5c. If c runs over
 [0,1) then Sigma-gamma runs over [0,5) and the LI-class circle is traversed FIVE
 times. One lap — the complete gamut — is c in [0, 1/5). The eighteen are a finite
-sample of a continuum, and *origin-centred* is a second restriction: for a fixed
+sample of a continuum, and *origin-centered* is a second restriction: for a fixed
 Sigma-gamma you can spread the dials and get a different tiling in the SAME LI
 class with no symmetry at all. They are the symmetric representatives.
 
@@ -857,19 +857,19 @@ star / sun / deca are **P1 mother-patch** names, not P3 vertex figures:
 
 | patch | is the | contains |
 |---|---|---|
-| `Pe5` | **sun** | a *star rhomb group* (5 thick) at its centre |
+| `Pe5` | **sun** | a *star rhomb group* (5 thick) at its center |
 | `St5` | **star** | five *diamond rhomb groups* (1 thick + 2 thin each) |
 | `deca` = `queen` | the mirror-symmetric patch | a queen is one `Pe3` with two `Pe1` |
 
 The patch names are as intended: `Pe5` is the sun even though a *star rhomb
-group* sits at its centre, and `St5` is the star even though what it contains
+group* sits at its center, and `St5` is the star even though what it contains
 are diamonds. The rhomb-group names and the patch names are different
 vocabularies and must not be crossed. See [[penrose-mosaic-rhomb-groups]] and
 [[wieringa-cluster-definitions]], and `expandSun` / `expandStarComposite` in
 `wieringa-roof/src/geometry.ts`.
 
 So the "5 fat rhombs at the origin" measured below is the **star rhomb group**,
-which is the centre of a `Pe5` — meaning every uniform c gives a **SUN**, and the
+which is the center of a `Pe5` — meaning every uniform c gives a **SUN**, and the
 measurement never had anything to say about the star. The conclusion "there is no
 star" is wrong; what is true is that the sun is the only thing the uniform family
 puts at the origin *as a vertex*.
@@ -884,20 +884,20 @@ source gives both composites outright:
     Star = five Pe1 ringed by five Pe3  - five orange diamonds inside five boats,
                                           around a central star-shaped gap
 
-So the star's centre is a star-shaped *gap* ringed by diamonds, not a vertex
+So the star's center is a star-shaped *gap* ringed by diamonds, not a vertex
 figure — which is why probing P3 vertex configurations for it found nothing. The
 angle argument below is true but answers a question nobody asked.
 
-**Restated open question.** Which gamma centres the origin on an `St5` gap rather
+**Restated open question.** Which gamma centers the origin on an `St5` gap rather
 than a `Pe5`? That is the Sun/Star pair — the only two Penrose tilings with
-global five-fold symmetry, distinguished exactly by choice of centre
+global five-fold symmetry, distinguished exactly by choice of center
 ([[penrose-mosaic-rhomb-groups]], TODO 4a). Answering it needs cluster
 recognition, which `pentagrid` does not have and `penrose-mosaic` /
 `wieringa-roof` do. Until then this stays open, and the sun/deca/flower results
 below stand only as vertex measurements.
 
 **The star / sun / decagon question — MISFRAMED, see the correction above.**
-For the uniform family, what sits at the origin-centred vertex:
+For the uniform family, what sits at the origin-centered vertex:
 
     c = 0        SINGULAR, all ten triples   DECAGON, 10 tiles (5 fat + 5 thin)
     c = 1/5,2/5,3/5,4/5 (Penrose)            SUN, 5 fat
@@ -907,13 +907,13 @@ For the uniform family, what sits at the origin-centred vertex:
 Approaching c = 0 from both sides (+-0.001, +-0.01, +-0.1) gives a SUN either way.
 So the decagon's two resolutions are not sun-and-star: within the uniform family
 the origin is *always* inside a small pentagon whose five corners are Delta = 1
-crossings, and Delta = 1 is the fat rhomb. **The star is not an origin-centred cap
-at all.** What looks like a star at the centre of r3c4 is the ring of dark thin
+crossings, and Delta = 1 is the fat rhomb. **The star is not an origin-centered cap
+at all.** What looks like a star at the center of r3c4 is the ring of dark thin
 rhombs drawn *around* a sun vertex — the ink makes a five-pointed star, the vertex
-is five fat rhombs. Verified by cropping the centre of that patch.
+is five fat rhombs. Verified by cropping the center of that patch.
 
 So "0 doesn't make a star" because 0 makes a *decagon*, and every regular
-neighbour of it makes a sun. The angle arithmetic — five corners from {36, 144} cannot sum to 360, so no
+neighbor of it makes a sun. The angle arithmetic — five corners from {36, 144} cannot sum to 360, so no
 five-thin vertex exists — is true but answers the wrong question, since `St5`
 emits no rhombs and was never going to appear as a vertex figure at all.
 
@@ -979,7 +979,7 @@ that works is disturbed.
 Reference images, both in `jake/` (untracked):
 
 - `levelonetiling.gif`, from the AMS feature column on Penrose tilings. The
-  **Robinson** step: each rhomb is cut into half-triangles (grey) and the pieces
+  **Robinson** step: each rhomb is cut into half-triangles (gray) and the pieces
   reassembled into rhombs **phi** times larger (black). Linear ratio phi.
 - `next-gen-penrose-type-1.gif`. The **P1** step: heavy black outlines mark the
   next generation's pentagons and star laid over the small P1 tiles. Linear ratio
@@ -990,7 +990,7 @@ Reference images, both in `jake/` (untracked):
 rhomb group becomes a smaller St5 rhomb group**, ratio phi. That is the Sun/Star
 relationship in motion, and it makes a prediction this plan can already state
 sharply. Sun and Star are not different LI classes — every Penrose tiling is LI
-with every other — they differ only by what sits at the centre, and we now know
+with every other — they differ only by what sits at the center, and we now know
 which gamma gives which: Sigma-gamma = 1 and 4 are Suns (origin index 5 is an
 extreme), 2 and 3 are Stars (origin index 5 is a middle level). So **inflating a
 Sun should produce a Star**, and the map on Sigma-gamma ought to be visible in
@@ -1147,7 +1147,7 @@ speech — it is structural, and it is why the round trip below is stuck:
 - **They own no rhombs.** At gen 1 an `St*` emits nothing at all; it is a gap.
   From gen 2 it emits only through its `Pe` children.
 - **There is no St rhomb group.** The three groups — star, boat, diamond — all
-  centre on `Pe5`, `Pe3`, `Pe1`. Nothing centres on a star.
+  center on `Pe5`, `Pe3`, `Pe1`. Nothing centers on a star.
 - **`clusters.ts` is blind to them by construction**, since it partitions *every*
   rhomb into a Pe group and leaves nothing over.
 - **They are outnumbered**, and the ratio converges on phi^2:
@@ -1158,7 +1158,7 @@ speech — it is structural, and it is why the round trip below is stuck:
         Pe:St     4.420  3.515   3.102   2.888     -> phi^2 = 2.618
 
 - Even the **naming** favours the other side: the *star rhomb group* lives at the
-  centre of a `Pe5`, which is the sun. See the vocabulary correction above.
+  center of a `Pe5`, which is the sun. See the vocabulary correction above.
 
 **The counterweight, and the way out.** [[penrose-mosaic-rhomb-groups]] records
 that the St family emits no small rhombs "— in the dual it is the other way
@@ -1193,16 +1193,16 @@ calls unfound. It turns an open question into a construction.
 - **rhombs -> P1: half implemented.** `geometry/clusters.ts` recovers the **Pe**
   family and only that. Measured on a patch of 546 interior vertices: the 146
   extreme-index vertices own a cluster, all of them, and of the 400 middle-index
-  vertices **none** does. So Pe* centres are exactly the extreme-index vertices —
-  which is the rule the recogniser is built on, seen from the other side.
+  vertices **none** does. So Pe* centers are exactly the extreme-index vertices —
+  which is the rule the recognizer is built on, seen from the other side.
 - **The St family is invisible to it**, because St tiles own no rhombs. Nothing
-  is left over for them: the recogniser partitions *every* rhomb into a Pe group.
+  is left over for them: the recognizer partitions *every* rhomb into a Pe group.
   So a full rhombs -> P1 conversion has to *place* the stars, boats and diamonds
   rather than read them off the rhombs.
 
 **Lead for finding the St tiles.** They are the gaps in the Pe layout, and the
 Sun/Star result says where to look: at Sigma-gamma = 2 and 3 the origin has a
-middle index, owns no cluster, and sits inside an **St5**. So St centres live
+middle index, owns no cluster, and sits inside an **St5**. So St centers live
 among the middle-index vertices. Not all of them — 400 middle-index vertices in
 that patch is far more than the St tiles it can hold — so the open part is which
 subset, and by what local rule. That is the next concrete thing to work out, and
@@ -1227,7 +1227,7 @@ natural notions of a step**, and they differ by a factor of phi:
 
 So **one P1 generation is two Robinson steps**: phi x phi = phi^2. The Pe1 / Pe3 /
 Pe5 generation numbers used across `penrose-mosaic` and `wieringa-roof` count P1
-generations, which means a patch labelled generation 3 or 4 is **twice as deep**
+generations, which means a patch labeled generation 3 or 4 is **twice as deep**
 in the elementary phi hierarchy as the number suggests. Worth remembering before
 comparing a generation number against anything quoted in Robinson steps.
 
@@ -1255,8 +1255,8 @@ in between, ready to generate". So the intermediate level is not unfound — it 
 ungenerated. Whether it corresponds to a clean level in the six P1 shapes is the
 part still open.
 
-`penrose-mosaic` may already contain it unlabelled: the small rhomb groups centre
-on **every** pentagon type (Pe5, Pe3, Pe1) while the large ones centre only on the
+`penrose-mosaic` may already contain it unlabeled: the small rhomb groups center
+on **every** pentagon type (Pe5, Pe3, Pe1) while the large ones center only on the
 blue Pe5. **ANSWERED 2026-09-10 and the guess was wrong** — Jake: big rhombs and
 little rhombs are **two** inflations apart, a full P1 generation of phi^2, so the
 small/large pair is not the missing half step and the lopsidedness has some other
@@ -1301,7 +1301,7 @@ because `shape-modes.js` builds two generations (`i < 2`), which is also why
 generation index on `penta` / `star` / `deca` is the move that exposes the ladder.
 
 **3. Two points in one class.** Sun/Star is not a structural pairing at all —
-both are Penrose and mutually LI, differing only by which centre you sit on,
+both are Penrose and mutually LI, differing only by which center you sit on,
 `Pe5` or `St5`. Nothing is exchanged. The rhomb-groups memory already warns this
 is not a dual, "a dual exchanges vertices and faces", and warns off blanket
 renaming `goThickDual`.
@@ -1357,10 +1357,10 @@ converge.
 **What it would settle.** Seeding from each of the three cores should converge to
 three different gammas — and the `St5` seed is a *constructive* answer to the
 open Sun/Star centring question above, which vertex probing could not reach
-because a star's centre is a star-shaped gap rather than a vertex figure. That is
+because a star's center is a star-shaped gap rather than a vertex figure. That is
 the payoff, and it is the reason to build it.
 
-**Done — the cluster recogniser (`geometry/clusters.ts`, 2026-09-09), and it
+**Done — the cluster recognizer (`geometry/clusters.ts`, 2026-09-09), and it
 settles Sun/Star.**
 
 The rule is local and exact. Lift every vertex to its Wieringa index; a rhomb's
@@ -1368,9 +1368,9 @@ corners carry m, m+1, m+2, m+1, and Penrose uses exactly four levels, so a rhomb
 spans either the bottom three or the top three and touches **exactly one**
 extreme. Grouping rhombs by that vertex partitions the patch with nothing over:
 
-    5 thick + 0 thin   star rhomb group     centre of a Pe5  (the SUN)
-    3 thick + 1 thin   boat rhomb group     centre of a Pe3
-    1 thick + 2 thin   diamond rhomb group  centre of a Pe1
+    5 thick + 0 thin   star rhomb group     center of a Pe5  (the SUN)
+    3 thick + 1 thin   boat rhomb group     center of a Pe3
+    1 thick + 2 thin   diamond rhomb group  center of a Pe1
 
 Measured on 1958 rhombs: no rhomb without an extreme, none with two, and 100% of
 groups away from the patch edge are one of those three at every radius tried.
@@ -1379,12 +1379,12 @@ and touch no extreme, and 1451 of 1952 rhombs go unassigned — so `defined` is
 false and the reason says "not Penrose". That is correct, not a gap: P1
 pentagons are a Penrose structure.
 
-**Sun and Star, answered.** All four origin-centred Penrose caps show FIVE FAT
+**Sun and Star, answered.** All four origin-centered Penrose caps show FIVE FAT
 rhombs at the origin, so the vertex configuration cannot tell them apart — the
 earlier reading in this plan called them all suns on exactly that evidence and
 was **wrong**. The index decides. The origin's K-tuple is (1,1,1,1,1) for a
 uniform offset in (0,1), so its index is always 5, while the patch range is
-[Sigma-gamma + 1, Sigma-gamma + 4]. Five is an extreme, hence a Pe5 centre, only
+[Sigma-gamma + 1, Sigma-gamma + 4]. Five is an extreme, hence a Pe5 center, only
 at the ends:
 
     Sum-gamma = 1  origin index 5, range 2..5   MAX -> Pe5 -> SUN
@@ -1393,21 +1393,21 @@ at the ends:
     Sum-gamma = 4  origin index 5, range 5..8   MIN -> Pe5 -> SUN
 
 So **Sun is the uniform offset 1/5 or 4/5, Star is 2/5 or 3/5**, and the pairing
-1<->4, 2<->3 is the Sigma-gamma <-> -Sigma-gamma mirror again. A star's centre
+1<->4, 2<->3 is the Sigma-gamma <-> -Sigma-gamma mirror again. A star's center
 belongs to no cluster because it is an `St5` gap, which is why vertex probing
-could never find it and why this needed the recogniser.
+could never find it and why this needed the recognizer.
 
 Lesson worth keeping: a five-fat-rhomb vertex is the *star rhomb group* wherever
-it occurs, but it is a **Pe5 centre** only when its index is extreme. Middle-index
+it occurs, but it is a **Pe5 center** only when its index is extreme. Middle-index
 sun-shaped vertices exist (7 at index 3 and 5 at index 4 in one patch) and are not
-cluster centres.
+cluster centers.
 
 **What is still missing.** Two dimensions of gamma never shrink: sliding along
 E-parallel translates the pentagrid and leaves the tiling alone, so what converges
 is the E-perp position plus Sigma-gamma, and the tower pins gamma only up to that
 slide. And `pentagrid` has no cluster recognition — it knows rhombs, not `Pe5` /
 `St5` / `deca` — so the seeding has to come from `penrose-mosaic` or
-`wieringa-roof`, or a recogniser has to be written here. That is the real cost of
+`wieringa-roof`, or a recognizer has to be written here. That is the real cost of
 the idea, and it is worth scoping before starting.
 
 **Also worth having.** Lutfalla notes de Bruijn's exact characterisation of
@@ -1531,7 +1531,7 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
 2. ~~Extract `geometry/gamma.ts`.~~ **DONE 2026-09-09.** `createGammaSet` owns the
    directions, the offsets, the sum constraint, the lock and the guard; the whole
    of `pentagrid.ts` is now a view over it, and `ui/dials.ts` a view over that.
-   Behaviour-neutral: the default still lands on `[1,2,3,4,−10]/10⁴`, which is a
+   Behavior-neutral: the default still lands on `[1,2,3,4,−10]/10⁴`, which is a
    test. The sum is a field from the start and already works — only the UI for it
    is missing.
 
@@ -1543,7 +1543,7 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    integers.** Sums of ½, 1, 5/2 and −5/4 divide into five non-integer offsets and
    are regular untouched; 0, 5 and −5 do not, and get nudged.
 3. ~~Generalise the sum in the UI.~~ **DONE 2026-09-09.** A Σγ slider in the
-   settings, 0 to 5/2, labelled with what the number means: *all five lines meet
+   settings, 0 to 5/2, labeled with what the number means: *all five lines meet
    at a point*, *largest pentagon*, *Penrose* for an integer sum, *generalised
    Penrose* otherwise.
 
@@ -1622,7 +1622,7 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
-## The Penrose singularity catalogue — it has three entries (2026-09-14)
+## The Penrose singularity catalog — it has three entries (2026-09-14)
 
 Jake: *"I'm looking for penrose singularities. Gamma must equal 0."* Under that
 constraint the hunt closes completely. `geometry/hunt.ts` decides it by arithmetic
@@ -1661,7 +1661,7 @@ non-Penrose without my noticing, and the test caught it.)
 
 Two couples mean two integral phases; their pair conditions drag in two more, and
 an integral total supplies the fifth. So the hexagon count is **0, 2 or 10** —
-never 4, 6 or 8. The whole catalogue, searched exhaustively over every rational
+never 4, 6 or 8. The whole catalog, searched exhaustively over every rational
 phase vector at denominators 12, 15, 20, 24 and 25:
 
 | state | shows |
@@ -1697,7 +1697,7 @@ question, both untouched.
 ### The regression
 
 The lines inside every 2k-gon are the **C(k,2) superposed rhombs**, drawn where the
-construction puts them. Nothing synthesises them; they are ordinary rhombs that
+construction puts them. Nothing synthesizes them; they are ordinary rhombs that
 happen to share a crossing, and they join vertex dots that were being drawn all
 along. `f7a4a7e` had them. `469dbcb` took them away, and its own commit message
 states the rule it broke:
@@ -1726,7 +1726,7 @@ arcs per rhomb where the edge layer strokes one.
 k-cube and `f` projects it into the plane: the shadow is the 2k-gon, the 2-faces
 are the C(k,2) rhombs, the monotone surfaces are the rhombic tilings. Drop one
 generator and the rest is a 4-cube, which projects to an octagon — five of them,
-unit sides, centres at radius 1/2 and **72 degrees apart** (54, 126, 198, 270,
+unit sides, centers at radius 1/2 and **72 degrees apart** (54, 126, 198, 270,
 342). This confirms "the decagon is five octagons turned" above, and explains why:
 they are sub-cubes, not an accident of the drawing.
 
@@ -1744,7 +1744,7 @@ does not survive measurement. Both hexagons have exactly **two** interior cube
 corners, and perturbing Gamma 400 ways reaches both in each case — thick 64/66,
 thin 74/90. Every 3-cube has two monotone surfaces and neither hexagon is an
 exception. The one interior point that is genuinely unreachable is the **decagon's
-centre**, realised 0 times in 400, which is the `f(empty) = f(all)` collapse.
+center**, realised 0 times in 400, which is the `f(empty) = f(all)` collapse.
 
 ### Also landed
 
@@ -1760,7 +1760,7 @@ centre**, realised 0 times in 400, which is the `f(empty) = f(all)` collapse.
 - **The scan ran only when the meter or loupe wanted it**, but the tile and edge
   layers draw the 2k-gons from that same scan. On any page without `controls` the
   resolutions were never drawn at all. `scanSmallRegions` now also runs when the
-  tiling needs it, and the factory test that asserted the old behaviour was
+  tiling needs it, and the factory test that asserted the old behavior was
   measuring a viewport with tiles on — it now measures a grid-only one, which is
   the saving it was always about.
 
@@ -1800,7 +1800,7 @@ other — a superposition in the same sense the rhombs are.
 ### Singularities stay on, and want hunting
 
 Jake: *"Singularities happen, this one just happens to be in your face because our
-initialisation happens to be quote illegal unquote."* So the layer stays on by
+initialization happens to be quote illegal unquote."* So the layer stays on by
 default and the rest follows from assuming they occur.
 
 The next thing is **finding** them: reticulum presets for singular phase vectors,
@@ -1826,7 +1826,7 @@ singularity and should say so deliberately:
   a superposition there is no shared edge to join across.
 
 And a longer list that belongs in the Penrose settings generally, wherever it
-lands: the two-colour composites of the bands, the five-colour tiling at full
+lands: the two-color composites of the bands, the five-color tiling at full
 width, isoglosses, index shading, transparency.
 
 ### Parked
@@ -1933,8 +1933,8 @@ odd n, with `r_j` in `Z - gamma_j`, a grid is regular when
     r_0 sin(2(p-q)pi/n) + r_p sin(2q pi/n) - r_q sin(2p pi/n) != 0
 
 for every triple. That is exactly the expansion this repo's `regularity.ts`
-header derives from the 3x3 determinant, relabelled to families 0, q, p — so the
-exact n = 5 criterion here is **Proposition 3 specialised to five and then split
+header derives from the 3x3 determinant, relabeled to families 0, q, p — so the
+exact n = 5 criterion here is **Proposition 3 specialized to five and then split
 over Q(phi)**, which is the step Lutfalla does not take and says does not
 generalise. Good to know the derivation agrees with the published one rather than
 merely not contradicting it.
@@ -1990,7 +1990,7 @@ axes say *which family*; something must say *where that family's phase lies mod
 **Proposal: draw each family's actual line positions along its axis, and slide
 them.** Family j's lines sit at `x . v_j = n - gamma_j`, so along axis j they
 cross at parameter `t = n - gamma_j` for every integer n — a periodic tick train
-of spacing 1. The centre is the origin and stays fixed; changing gamma_j slides
+of spacing 1. The center is the origin and stays fixed; changing gamma_j slides
 that family's whole train along its axis.
 
 That makes mod 1 **structural rather than enforced**: after a full unit the
@@ -2003,7 +2003,7 @@ dragging that family's grid lines, which is exactly what gamma does.
 
 Reference structure without labels: between two consecutive ticks put minor
 divisions at fifths and a slightly stronger one at the half. That renders 0, 1/5,
-2/5, 1/2, 3/5, 4/5 recognisable by eye. Exact values on hover/selection only.
+2/5, 1/2, 3/5, 4/5 recognizable by eye. Exact values on hover/selection only.
 
 Two things fall out for free:
 
@@ -2022,7 +2022,7 @@ Instrument, not form. Wheel is primary.
   none is selected. Hundredths a notch, thousandths with shift — the same steps
   the dial bank now uses, so the feel carries over.
 - **Drag along an axis** slides that family's train directly.
-- **Hover or click** an axis to select it; the selected axis is emphasised.
+- **Hover or click** an axis to select it; the selected axis is emphasized.
 - **Touch**: tap to select, drag to change. Hit regions are angular wedges around
   each axis, far larger than the drawn marks — no small handles anywhere.
 - Conventional sliders stay available as fallback and for accessibility.
@@ -2070,7 +2070,7 @@ and hit-testing, and it lives in the controls area rather than the canvas layer
 stack, so it does not fight the existing architecture.
 
 Visual: thin construction lines, five stronger principal axes, small gamma
-indicators, selected axis emphasised. No gauges, chrome, gradients or shadows.
+indicators, selected axis emphasized. No gauges, chrome, gradients or shadows.
 Readable at the smallest useful size. Start 220-260 px square and make it
 responsive.
 
@@ -2087,21 +2087,21 @@ Two revisions from Jake once it was running:
   turn reproduces the chord exactly, and a test pins that at gamma = 0, 1, -2 and
   7.25 — but the wrap is now a visible return rather than an invisible slide. A
   clock hand passing twelve, which is the metaphor the labels ask for anyway.
-- **Labels round the rim, on their own axes**, coloured, with the dependent one
-  greyed. For an untwisted star they land at 0, 72, 144, 216, 288 degrees;
+- **Labels round the rim, on their own axes**, colored, with the dependent one
+  grayed. For an untwisted star they land at 0, 72, 144, 216, 288 degrees;
   `setSymmetry` turns them with their axes, since they are placed from
   `directions` rather than from fixed angles.
 
-**Sigma joins the lock group — a model change.** Clicking a coloured label makes
+**Sigma joins the lock group — a model change.** Clicking a colored label makes
 that offset the dependent one. Clicking **Sigma at the hub** makes the *total*
 the dependent member: nothing holds it, and all n offsets are free at once.
-Exactly one of the n+1 is grey, always.
+Exactly one of the n+1 is gray, always.
 
 That needed `GammaSet` to accept `setLocked(-1)`: `relock()` now recomputes
 `sumQ` from the offsets instead of writing a dependent one, and the guard skips
 its `q[locked]` check. `setSum` on an unconstrained set spreads evenly, since
 there is no index left to absorb a change. **The dial bank gets the same
-behaviour** — its Sigma readout is clickable and greys the same way — because the
+behavior** — its Sigma readout is clickable and grays the same way — because the
 change is in the model, not in either view.
 
 **Shared now, separate later (Jake).** Both controls currently drive one
@@ -2175,7 +2175,7 @@ Fix a family `j` and a line index `nj`. That grid line's crossings are **exactly
 collinear** (max deviation 1.2e-15) and each is one rhomb; all of them share edge
 direction **v**ⱼ. That is a de Bruijn ribbon.
 
-The classic picture joins **edge midpoints**, not rhomb centres. For a tile
+The classic picture joins **edge midpoints**, not rhomb centers. For a tile
 `f, f+vⱼ, f+vⱼ+vₖ, f+vₖ` the two vⱼ-parallel edges have midpoints `f + vⱼ/2` and
 `f + vⱼ/2 + vₖ`, so **every in-tile segment is exactly one unit step `vₖ`**. The
 ribbon path is a walk of unit steps in the four non-`j` directions — that is why
@@ -2187,12 +2187,12 @@ different γ, and *attained* rather than merely bounded:
 
 | path through | spread | exact |
 |---|---|---|
-| rhomb centres | 0.809016994 | **φ/2** |
+| rhomb centers | 0.809016994 | **φ/2** |
 | edge midpoints (the classic picture) | 1.118033989 | **√5/2** |
 
 Not derived. The naive bound from the ε-terms gives √5 ≈ 2.236, so the true
 answer is much tighter and there is structure unaccounted for. One suggestive
-fact: **φ is the long diagonal of the thick rhomb**, so the centre channel is
+fact: **φ is the long diagonal of the thick rhomb**, so the center channel is
 half a fat tile's long diagonal. That smells like the reason; it is a guess.
 
 **A wrong prediction, recorded because the reasoning is tempting.** Thick steps
@@ -2213,7 +2213,7 @@ Jake's redirection, and the right one: the ribbon picture is *an* answer, not
 *the* answer. Instead of straightening a path, start from the step-2 intersection
 dots and let them **grow into the tiles they generate**.
 
-Each dot is not a dot but an infinitesimal Penrose tile, coloured as the
+Each dot is not a dot but an infinitesimal Penrose tile, colored as the
 composite of the two families whose lines crossed. As `t` rises the tiles grow to
 unit size, and some must move because they cannot grow in place.
 
@@ -2222,17 +2222,17 @@ unit size, and some must move because they cannot grow in place.
 ```
 arm j    a ∈ [0.25, 0.75],  b ∈ [0, 1]
 arm k    a ∈ [0, 1],        b ∈ [0.25, 0.75]
-centre   both — a half-scale rhomb, the composite
+center   both — a half-scale rhomb, the composite
 ```
 
-25 % white, 50 % colour, 25 % white, exactly. Both arms run midpoint-to-midpoint
-so the cross is centred for free, and **the arms join across shared edges by
+25 % white, 50 % color, 25 % white, exactly. Both arms run midpoint-to-midpoint
+so the cross is centered for free, and **the arms join across shared edges by
 themselves**: of 20,528 arm/edge crossing points, 19,856 are shared by exactly
 two tiles (the rest are on the patch boundary). So the ribbons are not drawn —
 they *emerge* from per-tile decoration. No ribbon logic, no ordering, no filter.
 
 This makes one parameter run **step-2 dots → the tiling → the ribbon picture**.
-The composite dot at `t = 0` is literally the centre composite of a tile with
+The composite dot at `t = 0` is literally the center composite of a tile with
 zero size.
 
 #### There is no struggle, and that is the finding
@@ -2243,9 +2243,9 @@ With one clock for every tile, the endpoint of an arm is
 end_i(t) = (1−t)·qᵢ + t·(cᵢ + eᵢ) = (1−t)·qᵢ + t·M
 ```
 
-— both neighbours are affine paths from their own crossing to *the same meeting
+— both neighbors are affine paths from their own crossing to *the same meeting
 point* M. So the gap between them is exactly `(1−t)·|qᵢ − qⱼ|`. Measured over all
-7,110 neighbouring arm-ends: gap/initial = 1.000, 0.750, 0.500, 0.250, 0.000, and
+7,110 neighboring arm-ends: gap/initial = 1.000, 0.750, 0.500, 0.250, 0.000, and
 the gap direction slews **0.00°**. Not small — zero, every pair. The tiling zips
 itself together with no lateral motion anywhere.
 
@@ -2270,7 +2270,7 @@ clocks break the shared target and the gap slews:
 snap. Note mean *mismatch* is the wrong metric for this — every staggered
 schedule beats uniform on it, simply by parking finished tiles.
 
-**Crowding is real and local.** Nearest-neighbour gaps among starting positions:
+**Crowding is real and local.** Nearest-neighbor gaps among starting positions:
 the tightest 200 average **0.013** — the near-concurrent triples, essentially
 coincident — and those tiles travel 0.721 against 0.491 for the loosest. The most
 dramatic motion happens exactly where the meter and the loupe were built to look.
@@ -2303,7 +2303,7 @@ set is a convex polygon, and growing the patch slices off a half-plane per tile.
 
 Three things follow, and they are the reason to build it:
 
-- **Its area, normalised, is that patch's frequency in the tiling.** This is the
+- **Its area, normalized, is that patch's frequency in the tiling.** This is the
   cut-and-project acceptance domain, reached from the "wiggle room" question
   rather than from the standard theory.
 - **Crossing an edge of the polygon is a phason flip.** The γ sliders already move
@@ -2340,7 +2340,7 @@ drops when a genuinely new constraint binds.
 
 **A derivation that failed, worth recording.** The tempting closed form is: K is
 realised iff ‖P_{⊥⊕1}(s)‖_∞ < ½ for s = K − γ − ½·**1**. That is wrong — the
-ℓ²-orthogonal projection minimises the *Euclidean* residual, not the max-norm
+ℓ²-orthogonal projection minimizes the *Euclidean* residual, not the max-norm
 one, so it over-rejects: 1415 of 3850 genuinely realised tuples failed it. The
 honest test is 2D feasibility, which `regionPoly` already does, and which agreed
 with sampled truth on all 2721 tuples with no misses.
