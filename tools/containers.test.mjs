@@ -600,74 +600,9 @@ function panelSwitches(panel) {
 const findSwitch = (panel, label) =>
     panelSwitches(panel).find((s) => s.label === label);
 
-test("a switch over a feature-driven layer drives the feature, not just the layer", () => {
-    // These layers are `visible: () => features.X`, so a switch that writes only
-    // userVisible reads checked while the feature is off and does nothing when
-    // clicked. Axes was the one that showed: ticked on, and inert.
-    const panel = makeStub();
-    const h = createPentagrid({ container: sizedHost(600, 600), panel });
-    const vis = (id) => { const l = h.stack.get(id); return l.visible ? l.visible() : true; };
 
-    const axes = findSwitch(panel, "Axes");
-    assert.ok(axes, "no Axes switch");
-    assert.equal(axes.box.checked, false, "axes are off by default, and must say so");
-    assert.equal(vis("axes"), false);
 
-    axes.box.checked = true;
-    axes.box.on.change[0]();
-    assert.equal(vis("axes"), true, "the Axes switch did nothing");
-});
 
-test("K-regions and K-labels are switched once, from their own cluster", () => {
-    // They used to appear on the Pentagrid row as well, where the switch was inert.
-    const panel = makeStub();
-    createPentagrid({ container: sizedHost(600, 600), panel });
-    const all = panelSwitches(panel);
-    for (const label of ["K-regions", "K-labels"]) {
-        const hits = all.filter((s) => s.label === label);
-        assert.equal(hits.length, 1, `${label} has ${hits.length} switches, want 1`);
-        assert.equal(hits[0].row, "K-regions", `${label} is on the ${hits[0].row} row`);
-    }
-});
-
-test("the K-regions cluster is grouped, not welded: each switches on its own", () => {
-    const panel = makeStub();
-    const h = createPentagrid({ container: sizedHost(600, 600), panel });
-    const vis = (id) => { const l = h.stack.get(id); return l.visible ? l.visible() : true; };
-
-    const regions = findSwitch(panel, "K-regions");
-    regions.box.checked = true;
-    regions.box.on.change[0]();
-    assert.equal(vis("background"), true, "K-regions did not switch on");
-
-    const labels = findSwitch(panel, "K-labels");
-    assert.equal(labels.box.disabled ?? false, false, "must not be disabled by the cluster");
-    labels.box.checked = false;
-    labels.box.on.change[0]();
-    assert.equal(vis("background"), true, "regions should stay on");
-    assert.equal(vis("klabels"), false, "labels should go off independently");
-});
-
-test("K-regions, its hover read-out and K-labels are one cluster", () => {
-    // They belong to a step, not to the offsets, and ticking K-regions used to
-    // leave the box on with nothing drawn because the step preset owns it.
-    const panel = makeStub();
-    const h = createPentagrid({ container: sizedHost(600, 600), panel });
-    const labels = [];
-    const walk = (n, d = 0) => {
-        if (d > 6 || !n.children) return;
-        for (const c of n.children) {
-            if (typeof c.textContent === "string" && c.textContent) labels.push(c.textContent);
-            walk(c, d + 1);
-        }
-    };
-    walk(panel);
-    const joined = labels.join("|");
-    assert.match(joined, /K-regions/);
-    assert.match(joined, /vertex from region \(hover\)/,
-                 "the hover read-out belongs with K-regions, not the gamma controls");
-    assert.match(joined, /K-labels/);
-});
 
 test("whether a family is on has ONE home: the gamma set", () => {
     // It had two. The panel wrote gammaSet.setFamilyEnabled, the layer's own
@@ -699,40 +634,7 @@ test("whether a family is on has ONE home: the gamma set", () => {
     assert.equal(grid.visible(), true, "and the gamma set brings it back");
 });
 
-test("a family switched off in the panel is off everywhere at once", () => {
-    const panel = makeStub();
-    const h = createPentagrid({ container: sizedHost(600, 600), panel });
-    const sw = panelSwitches(panel).find((s) => s.row === "Pentagrid" && s.label === "3");
-    assert.ok(sw, "no per-family switch for family 3");
 
-    sw.box.checked = false;
-    sw.box.on.change[0]();
-    assert.equal(h.gamma.familyEnabled(3), false, "the switch did not reach the model");
-    assert.equal(h.gamma.enabledFlags()[3], false, "and rhomb collection with it");
-    h.redraw();
-});
-
-test("all n families share one canvas, and the panel does not let on", () => {
-    // A canvas per family bought nothing: drawAll redraws every visible layer, so
-    // there was no selective redraw; all n shared one opacity expression; and they
-    // sat at contiguous z with nothing between. The cost was a full-size canvas
-    // each. What the user sees must be identical — one switch per family, swatch
-    // and all.
-    for (const n of [5, 7]) {
-        const panel = makeStub();
-        const h = createPentagrid({ container: sizedHost(600, 600), panel, n });
-        assert.ok(h.stack.get("grid"), `n=${n}: no grid layer`);
-        for (let j = 0; j < n; j++) {
-            assert.equal(h.stack.get(`grid-${j}`), undefined,
-                         `n=${n}: family ${j} still has its own canvas`);
-        }
-        const fam = panelSwitches(panel)
-            .filter((s) => s.row === "Pentagrid" && /^\d+$/.test(s.label));
-        assert.equal(fam.length, n, `n=${n}: ${fam.length} family switches, want ${n}`);
-        assert.deepEqual(fam.map((s) => s.label),
-                         [...Array(n).keys()].map(String), "families out of order");
-    }
-});
 
 test("the shared canvas draws only the families that are on", () => {
     const h = createPentagrid({ container: sizedHost(600, 600), steps: [] });
@@ -778,6 +680,100 @@ test("hovering a dual vertex shows the region that made it, not just the reverse
     }
     assert.ok(onVertex > 0, "the dual-vertex path never ran — it is shadowed again");
     assert.ok(onRegion > 0, "the region path must still answer everywhere else");
+});
+
+test("hovering a gridline segment shows the Penrose edge it becomes", () => {
+    // The third correspondence. `hoverEdge` sat in the feature list, in the panel
+    // and in the table for months with nothing reading it, so the row was a
+    // switch wired to nothing; this is the test that says it is wired now.
+    const before = globalThis.document.body.children.length;
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { gridLines: true, penroseEdges: true, hoverEdge: true },
+    });
+    const tip = globalThis.document.body.children[before];
+    h.redraw();
+
+    const move = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
+    let onEdge = 0;
+    for (let x = 120; x < 680; x += 7) {
+        for (let y = 120; y < 680; y += 7) {
+            tip.innerHTML = "";
+            for (const f of move) f({ clientX: x, clientY: y, offsetX: x, offsetY: y,
+                                      preventDefault() {} });
+            if (String(tip.innerHTML || "").includes("edge</span> = v")) onEdge++;
+        }
+    }
+    // Gridlines are thin, so most of the plane is not near one; what matters is
+    // that walking across the window meets them.
+    assert.ok(onEdge > 20, `the segment path answered only ${onEdge} times`);
+
+    // And with the feature off it must stay silent, or it is not a feature.
+    const before2 = globalThis.document.body.children.length;
+    const h2 = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { gridLines: true, penroseEdges: true, hoverEdge: false },
+    });
+    const tip2 = globalThis.document.body.children[before2];
+    h2.redraw();
+    const move2 = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
+    let stray = 0;
+    for (let x = 120; x < 680; x += 23) {
+        for (let y = 120; y < 680; y += 23) {
+            tip2.innerHTML = "";
+            for (const f of move2) f({ clientX: x, clientY: y, offsetX: x, offsetY: y,
+                                       preventDefault() {} });
+            if (String(tip2.innerHTML || "").includes("edge</span> = v")) stray++;
+        }
+    }
+    assert.equal(stray, 0, "the segment path ran with hoverEdge off");
+});
+
+test("superposed rhombs keep their edges, and lose only fill and arc", () => {
+    // The rule the tile style set: at a concurrency the C(k,2) rhombs are stacked,
+    // so a fill would assert which rhombic tiling of the 2k-gon is real, and an arc
+    // would assert a shared edge to join across when inside a stack there is none.
+    // Edges and vertices are untouched — those lines, joining vertex dots that are
+    // still drawn, ARE the superposition. The filter had been applied to the edges
+    // layer as well, which emptied the inside of every 2k-gon.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true, penroseEdges: true, penroseDecor: true },
+    });
+    h.gamma.setSum(0, true);          // all five lines meet at the origin
+
+    const tally = (id, op) => {
+        const layer = h.stack.get(id);
+        let n = 0;
+        const real = layer.ctx[op];
+        layer.ctx[op] = () => { n++; };
+        h.redraw();
+        layer.ctx[op] = real;
+        return n;
+    };
+
+    const edges = tally("penrose-edges", "stroke");
+    const fills = tally("penrose-tiles", "fill");
+    const arcs = tally("penrose-decor", "stroke");
+
+    // At sum zero a large minority of rhombs sit on a concurrency, so the edge
+    // count has to run well ahead of the fill count. Equal would mean the same
+    // filter is being applied twice and the 2k-gons are hollow.
+    assert.ok(edges > fills + 50,
+              `edges ${edges} vs fills ${fills}: superposed rhombs lost their edges`);
+
+    // Arcs stay filtered. Their raw count says nothing — the decor layer strokes
+    // two arcs per rhomb where the edge layer strokes one — so compare the ratio
+    // against a regular configuration, where nothing is stacked and every rhomb
+    // gets both.
+    const singularRatio = arcs / edges;
+    h.gamma.setGuard(true);
+    const regular = tally("penrose-edges", "stroke");
+    const regularArcs = tally("penrose-decor", "stroke");
+    const regularRatio = regularArcs / regular;
+    assert.ok(singularRatio < regularRatio - 0.1,
+              `arcs/edges ${singularRatio.toFixed(2)} at a singular gamma should sit `
+              + `below ${regularRatio.toFixed(2)} at a regular one`);
 });
 
 test("tile style is a setting, not a feature flag", () => {
@@ -839,4 +835,183 @@ test("a superposed rhomb gets no fill and no arc, but keeps its edges", () => {
     assert.equal(h.stack.get("penrose-vertices").visible(), true);
     assert.equal(h.stack.get("penrose-decor").visible(), true);
     assert.ok(arcsSingular >= 0);
+});
+
+
+// ── the panel, after the 2026-09-13 restructuring ─────────────────
+
+/** Row label -> the switch labels on it. */
+function panelRows(panel) {
+    const rows = new Map();
+    let current = null;
+    const walk = (n) => {
+        if (!n.children) return;
+        for (const c of n.children) {
+            if (c.className === "panel-label" && c.textContent) {
+                current = c.textContent;
+                if (!rows.has(current)) rows.set(current, []);
+            }
+            if (c.className === "layer-toggle" && current) {
+                const label = c.children
+                    .filter((x) => typeof x.textContent === "string" && x.textContent)
+                    .map((x) => x.textContent).join("").trim();
+                const box = c.children.find((x) => x.type === "checkbox");
+                const sel = c.children.find((x) => x.tagName === "select");
+                rows.get(current).push({ label, box, sel, el: c });
+            }
+            walk(c);
+        }
+    };
+    walk(panel);
+    return rows;
+}
+
+test("the panel separates what the tiling IS from how it is drawn", () => {
+    const panel = makeStub();
+    createPentagrid({ container: sizedHost(700, 700), panel });
+    const rows = panelRows(panel);
+
+    // functional first: which lines exist at all
+    assert.ok(rows.has("Grid"), [...rows.keys()].join(", "));
+    assert.equal(rows.get("Grid").length, 5, "one control per family");
+
+    // then the viewport
+    assert.ok(rows.get("View").some((c) => c.label === "axes"));
+
+    // then the correspondence as a table: three columns, three rows, aligned
+    assert.deepEqual(rows.get("Pentagrid").map((c) => c.label),
+                     ["K-region", "gridline", "intersections"]);
+    assert.deepEqual(rows.get("Hover").map((c) => c.label), ["", "", ""]);
+    assert.deepEqual(rows.get("Penrose").map((c) => c.label),
+                     ["vertex", "edge", "tile"]);
+
+    // the columns line up because each cell is its own fixed-width box
+    for (const label of ["Pentagrid", "Hover", "Penrose"]) {
+        assert.equal(rows.get(label).length, 3, `${label} is not three columns`);
+    }
+});
+
+test("gridline is on by default; the other two columns are not", () => {
+    const h = createPentagrid({ container: sizedHost(700, 700) });
+    assert.equal(h.stack.get("grid").visible(), true, "the grid should show");
+});
+
+test("a family control is a line number and a none/one/all mode", () => {
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(700, 700), panel });
+    const fam = panelRows(panel).get("Grid");
+
+    const first = fam[0];
+    assert.ok(first.sel, "no mode dropdown");
+    assert.deepEqual(first.sel.children.map((o) => o.value), ["none", "one", "all"]);
+
+    // none takes the family out of the tiling, not just out of the picture
+    first.sel.value = "none";
+    first.sel.on.change[0]();
+    assert.equal(h.gamma.familyEnabled(0), false);
+    assert.equal(h.gamma.enabledFlags()[0], false);
+
+    // one restricts it to the numbered line
+    const nBox = first.el.children.find((x) => x.type === "number");
+    assert.ok(nBox, "no line number");
+    nBox.value = "2";
+    first.sel.value = "one";
+    first.sel.on.change[0]();
+    assert.equal(h.gamma.familyEnabled(0), true);
+    assert.equal(h.gamma.familyLine(0), 2);
+
+    // all puts it back
+    first.sel.value = "all";
+    first.sel.on.change[0]();
+    assert.equal(h.gamma.familyLine(0), null);
+});
+
+test("all / off cancel the individual family controls rather than sitting beside them", () => {
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(700, 700), panel });
+    const rows = panelRows(panel);
+    // the two buttons live on the Grid row, before the family controls
+    const buttons = [];
+    const walk = (n) => {
+        if (!n.children) return;
+        for (const c of n.children) {
+            if (c.tagName === "button" && ["all", "off"].includes(c.textContent)) buttons.push(c);
+            walk(c);
+        }
+    };
+    walk(panel);
+    assert.equal(buttons.length, 2, "expected an all and an off");
+
+    // set family 1 to a single line, then use the shortcut
+    const fam = rows.get("Grid")[1];
+    fam.sel.value = "one";
+    fam.sel.on.change[0]();
+    assert.notEqual(h.gamma.familyLine(1), null);
+
+    const off = buttons.find((b) => b.textContent === "off");
+    off.on.click[0]();
+    for (let j = 0; j < 5; j++) {
+        assert.equal(h.gamma.familyEnabled(j), false, `family ${j} still on`);
+        assert.equal(h.gamma.familyLine(j), null, `family ${j} kept its line`);
+    }
+    assert.equal(fam.sel.value, "none", "the individual control must follow");
+
+    const all = buttons.find((b) => b.textContent === "all");
+    all.on.click[0]();
+    for (let j = 0; j < 5; j++) assert.equal(h.gamma.familyEnabled(j), true);
+    assert.equal(fam.sel.value, "all");
+});
+
+test("a singularity is drawn as a P-region, by the tile and edge layers", () => {
+    // Not a layer of its own and not a warning. Where k lines meet, the tiling
+    // has a hexagon, an octagon or a decagon there instead of rhombs, so the
+    // ordinary layers draw it.
+    const panel = makeStub();
+    const h = createPentagrid({
+        container: sizedHost(800, 800), panel,
+        features: { gridLines: true, penroseTiles: true, penroseEdges: true },
+    });
+    assert.equal(h.stack.get("singular"), undefined, "it should have no layer");
+    const labels = [...panelRows(panel).values()].flat().map((c) => c.label);
+    assert.ok(!labels.includes("Singularities"), "nor a switch");
+
+    // the tile layer fills them: with a singular gamma some of what it fills is
+    // 2k-gons rather than rhombs
+    const filled = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    assert.ok(filled > 0, "nothing was filled at all");
+
+    // and the style choice reaches them
+    for (const colour of ["type", "pair", "index"]) {
+        h.setTileStyle({ colour });
+        assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, colour);
+    }
+});
+
+test("tile is the fill and edge is the outline — never both from one layer", () => {
+    // drawRhombs used to fill AND stroke, so ticking `tile` silently gave you
+    // edges too. That is the two columns conflated in the one place the
+    // correspondence table is trying to keep apart.
+    const marks = (h, id) => {
+        const layer = h.stack.get(id);
+        let fills = 0, strokes = 0;
+        const rf = layer.ctx.fill, rs = layer.ctx.stroke;
+        layer.ctx.fill = () => { fills++; };
+        layer.ctx.stroke = () => { strokes++; };
+        try { h.redraw(); } finally { layer.ctx.fill = rf; layer.ctx.stroke = rs; }
+        return { fills, strokes };
+    };
+
+    const tiles = marks(createPentagrid({
+        container: sizedHost(800, 800),
+        features: { gridLines: true, penroseTiles: true },
+    }), "penrose-tiles");
+    assert.ok(tiles.fills > 0, "the tile layer drew nothing");
+    assert.equal(tiles.strokes, 0, "the tile layer must not draw edges");
+
+    const edges = marks(createPentagrid({
+        container: sizedHost(800, 800),
+        features: { gridLines: true, penroseEdges: true },
+    }), "penrose-edges");
+    assert.ok(edges.strokes > 0, "the edge layer drew nothing");
+    assert.equal(edges.fills, 0, "the edge layer must not fill");
 });

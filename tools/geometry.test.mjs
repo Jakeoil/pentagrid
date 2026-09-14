@@ -14,11 +14,12 @@ import assert from "node:assert/strict";
 
 import {
     NUM_GRIDS, collectRhombs, computeKTuple, dualVertex, makeDirections,
-    solveIntersection,
+    solveIntersection, segmentAt, nearestLine,
 } from "../dist/geometry/pentagrid.js";
 import { TRIPLES, noIntegerGamma, scanRegions, singularTriples } from "../dist/geometry/regularity.js";
 import { ARC_T, rhombArcs } from "../dist/geometry/decor.js";
 import { regionPoly } from "../dist/geometry/region.js";
+import { createGammaSet } from "../dist/geometry/gamma.js";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 const dirs = makeDirections(true);
@@ -574,4 +575,82 @@ test("rhomb classes appear in proportion to |sin 2*pi*c/n|", () => {
     }
     // and the ordering the page states: cls 2 commonest, cls 3 rarest
     assert.ok(seen[2] > seen[1] && seen[1] > seen[3]);
+});
+
+// Gridline segment -> Penrose edge. The same dual map as region -> vertex and
+// crossing -> tile, read one dimension down: a segment separates two regions, so
+// it becomes the edge joining the vertices those two regions become.
+test("a gridline segment is dual to a Penrose edge", () => {
+    for (const n of [5, 7]) {
+        const g = createGammaSet({ n, guard: true });
+        const pg = g.model;
+
+        // Every tile edge in a generous patch, canonically keyed.
+        const key = (a, b) => [a, b]
+            .map((p) => p.map((v) => v.toFixed(6)).join(",")).sort().join("|");
+        const edges = new Set();
+        for (const r of collectRhombs(pg, { xMin: -9, xMax: 9, yMin: -9, yMax: 9 },
+                                      { gain: n / 2 })) {
+            for (let i = 0; i < 4; i++) {
+                edges.add(key(r.vertices[i], r.vertices[(i + 1) % 4]));
+            }
+        }
+
+        let seen = 0;
+        for (let i = 0; i < 600; i++) {
+            const x = (i % 25) / 25 * 6 - 3, y = Math.floor(i / 25) / 24 * 6 - 3;
+            const near = nearestLine(pg, x, y);
+            assert.ok(near, `n = ${n}: no nearest line`);
+            // Step exactly onto that line before asking for the segment.
+            const [vx, vy] = pg.directions[near.j];
+            const d = vx * x + vy * y + pg.gamma[near.j];
+            const px = x + (near.nj - d) * vx, py = y + (near.nj - d) * vy;
+            const seg = segmentAt(pg, near.j, near.nj, px, py, 6);
+            if (!seg) continue;
+
+            // The two regions differ in exactly the one coordinate.
+            const diff = seg.K2.map((v, m) => v - seg.K1[m]);
+            assert.deepEqual(diff, diff.map((_, m) => (m === seg.j ? 1 : 0)),
+                             `n = ${n}: the segment's regions differ off family ${seg.j}`);
+
+            // So their vertices differ by exactly v_j: a unit edge, right direction.
+            const A = dualVertex(pg, seg.K1), B = dualVertex(pg, seg.K2);
+            assert.ok(Math.hypot(B[0] - A[0] - vx, B[1] - A[1] - vy) < 1e-9,
+                      `n = ${n}: dual edge is not v${seg.j}`);
+
+            // And it is a real edge of the tiling, not merely a plausible one.
+            const far = 4;
+            if (Math.max(Math.abs(A[0]), Math.abs(A[1]),
+                         Math.abs(B[0]), Math.abs(B[1])) > far) continue;
+            seen++;
+            assert.ok(edges.has(key(A, B)),
+                      `n = ${n}: dual of segment (${seg.j}, ${seg.nj}) is not a tile edge`);
+        }
+        assert.ok(seen > 50, `n = ${n}: only ${seen} segments landed inside the patch`);
+    }
+});
+
+// The ends of a segment are crossings, so nothing else may cut it open.
+test("a segment runs between consecutive crossings", () => {
+    const g = createGammaSet({ guard: true });
+    const pg = g.model;
+    for (let i = 0; i < 200; i++) {
+        const x = (i % 20) / 20 * 5 - 2.5, y = Math.floor(i / 20) / 10 * 5 - 2.5;
+        const near = nearestLine(pg, x, y);
+        const [vx, vy] = pg.directions[near.j];
+        const d = vx * x + vy * y + pg.gamma[near.j];
+        const seg = segmentAt(pg, near.j, near.nj,
+                              x + (near.nj - d) * vx, y + (near.nj - d) * vy, 6);
+        if (!seg) continue;
+        // Sample the interior: the K-tuple must not change anywhere along it.
+        const K0 = computeKTuple(pg, (seg.a[0] + seg.b[0]) / 2, (seg.a[1] + seg.b[1]) / 2);
+        for (const t of [0.15, 0.35, 0.65, 0.85]) {
+            const qx = seg.a[0] + t * (seg.b[0] - seg.a[0]);
+            const qy = seg.a[1] + t * (seg.b[1] - seg.a[1]);
+            // Just off the low side, where K_j = nj and the rest is the region.
+            const K = computeKTuple(pg, qx - 1e-7 * vx, qy - 1e-7 * vy);
+            assert.deepEqual(K, K0,
+                             `segment (${seg.j}, ${seg.nj}) is cut at t = ${t}`);
+        }
+    }
 });

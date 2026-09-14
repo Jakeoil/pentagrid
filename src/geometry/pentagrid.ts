@@ -203,3 +203,95 @@ export function lineRange(pg: Pentagrid, j: number, vis: ViewRect): [number, num
     }
     return [Math.ceil(lo) - 1, Math.floor(hi) + 1];
 }
+
+/** A piece of one gridline, between two consecutive crossings on it. */
+export interface GridSegment {
+    /** The line it lies on. */
+    j: number;
+    nj: number;
+    /** Its ends, in GRID coordinates: the two crossings that bound it. */
+    a: Vec2;
+    b: Vec2;
+    /**
+     * The two regions it separates, low side first.
+     *
+     * They agree in every coordinate but j, where they differ by one — that is
+     * what it means for a segment to be a segment. Cross it and only K_j moves.
+     */
+    K1: readonly number[];
+    K2: readonly number[];
+}
+
+/**
+ * The segment of line (j, nj) nearest to a point, and the regions either side.
+ *
+ * Same process as the region and the crossing, one dimension down. A region is
+ * dual to the vertex f(K); a segment is dual to the EDGE joining the vertices of
+ * the two regions it separates, which is f(K1) -> f(K1) + v_j since K2 = K1 + e_j;
+ * a crossing is dual to the tile on the four regions around it. One map, read at
+ * each dimension.
+ *
+ * `reach` bounds how far along the line to look for the bounding crossings, in
+ * grid units. A segment running past it is returned clipped to it.
+ */
+export function segmentAt(
+    pg: Pentagrid, j: number, nj: number, x: number, y: number, reach: number,
+): GridSegment | null {
+    const [vx, vy] = pg.directions[j];
+    // Along the line, and the foot of the line from the origin.
+    const ux = -vy, uy = vx;
+    const r = nj - pg.gamma[j];
+    const px = r * vx, py = r * vy;
+    const at = (t: number): Vec2 => [px + t * ux, py + t * uy];
+
+    // Where the pointer sits along the line.
+    const t0 = (x - px) * ux + (y - py) * uy;
+
+    // Every crossing on this line within reach, as parameters t.
+    const cuts: number[] = [];
+    for (let k = 0; k < pg.n; k++) {
+        if (k === j) continue;
+        const [wx, wy] = pg.directions[k];
+        const e1 = at(-reach), e2 = at(reach);
+        const d1 = e1[0] * wx + e1[1] * wy + pg.gamma[k];
+        const d2 = e2[0] * wx + e2[1] * wy + pg.gamma[k];
+        const lo = Math.ceil(Math.min(d1, d2)), hi = Math.floor(Math.max(d1, d2));
+        for (let nk = lo; nk <= hi; nk++) {
+            const pt = solveIntersection(pg, j, k, nj, nk);
+            if (!pt) continue;
+            cuts.push((pt[0] - px) * ux + (pt[1] - py) * uy);
+        }
+    }
+
+    // The bracketing pair. Ends of the search window stand in where the line
+    // leaves reach before it meets anything.
+    let lo = -reach, hi = reach;
+    for (const t of cuts) {
+        if (t <= t0 + K_EPS && t > lo) lo = t;
+        if (t >= t0 - K_EPS && t < hi) hi = t;
+    }
+    if (hi - lo < K_EPS) return null;
+
+    // The regions either side, read at the midpoint: along the open segment the
+    // other coordinates are constant, so the midpoint speaks for the whole of it.
+    const [mx, my] = at((lo + hi) / 2);
+    const K1 = computeKTuple(pg, mx - K_EPS * vx * 2, my - K_EPS * vy * 2);
+    K1[j] = nj;
+    const K2 = K1.map((v, i) => (i === j ? v + 1 : v));
+    return { j, nj, a: at(lo), b: at(hi), K1, K2 };
+}
+
+/** The nearest gridline to a point: its family and index, and the distance. */
+export function nearestLine(
+    pg: Pentagrid, x: number, y: number, active?: readonly boolean[],
+): { j: number; nj: number; dist: number } | null {
+    let best: { j: number; nj: number; dist: number } | null = null;
+    for (let j = 0; j < pg.n; j++) {
+        if (active && !active[j]) continue;
+        const d = pg.directions[j][0] * x + pg.directions[j][1] * y + pg.gamma[j];
+        const nj = Math.round(d);
+        const dist = Math.abs(d - nj);
+        if (!best || dist < best.dist) best = { j, nj, dist };
+    }
+    return best;
+}

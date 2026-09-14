@@ -173,7 +173,7 @@ export const METHOD_PAGES: Page[] = [
             on shells at <i>m</i> and <i>m</i>&phi; times 1/cos&thinsp;18&deg;
             &mdash; &Zopf;[&phi;], radiating out.</p>`,
         enter: (pg) => {
-            pg.setFeatures({ gridLines: true, singularities: true, intersectionDots: true });
+            pg.setFeatures({ gridLines: true, intersectionDots: true });
             pg.setGridAlpha(0.5);
             pg.exposeRows(["Pentagrid", "single line"]);
         },

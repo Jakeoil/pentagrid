@@ -3,21 +3,21 @@ import type {
 } from "../geometry/types.js";
 import {
     NUM_GRIDS, collectRhombs as geoCollectRhombs, computeKTuple as geoComputeKTuple,
-    makeDirections, solveIntersection as geoSolveIntersection,
+    solveIntersection as geoSolveIntersection, segmentAt, nearestLine, dualVertex,
 } from "../geometry/pentagrid.js";
-import { scanRegions, singularTriples as geoSingularTriples } from "../geometry/regularity.js";
+import type { GridSegment } from "../geometry/pentagrid.js";
+import { scanRegions } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
-import { createGammaSet, describeSum, penroseCondition } from "../geometry/gamma.js";
+import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
 import { createLoupe } from "../ui/loupe.js";
 import type { LoupeTarget } from "../ui/loupe.js";
-import type { Layer, LayerContext } from "./layers.js";
 
 
 // Grid line colors
@@ -29,8 +29,22 @@ const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
 // Rhomb fill colors
 const THICK_FILL = "#e8c170";
 const THIN_FILL = "#7eb8da";
+/** A 2k-gon is neither thick nor thin — it is a stack of both — so it gets its own. */
+const SINGULAR_FILL = "#b48ec4";
 /** One per Wieringa level. Penrose uses four; the index is taken modulo. */
 const INDEX_COLORS = ["#2f6fb5", "#54a598", "#d9b463", "#c4643f"];
+
+/** Mix a colour towards white (t > 0) or black (t < 0). */
+function shade(hex: string, t: number): string {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex);
+    if (!m) return hex;
+    const v = parseInt(m[1], 16);
+    const to = t >= 0 ? 255 : 0;
+    const a = Math.abs(t);
+    const mix = (c: number) => Math.round(c + (to - c) * a);
+    const r = mix((v >> 16) & 255), g = mix((v >> 8) & 255), b = mix(v & 255);
+    return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
 
 /**
  * How the tiles are dressed. Not feature flags: `colour` is a choice of three and
@@ -57,14 +71,16 @@ export interface Features {
     kRegions: boolean;
     kLabels: boolean;
     intersectionDots: boolean;
-    /** Draw what a concurrency resolves into, rather than only counting it. */
-    singularities: boolean;
     penroseTiles: boolean;
     penroseEdges: boolean;
     penroseVertices: boolean;
     penroseDecor: boolean;
-    hoverVertex: boolean;   // region hover -> its Penrose vertex
-    hoverTile: boolean;     // intersection hover -> its Penrose tile
+    // The three hover helpers, one per grid/Penrose correspondence. Each works
+    // both ways and each overrides an "off" on the thing it is helping with —
+    // the point of a helper is to show you the object, not to respect a switch.
+    hoverVertex: boolean;   // K-region  <-> Penrose vertex
+    hoverEdge: boolean;     // gridline segment <-> Penrose edge
+    hoverTile: boolean;     // intersection <-> Penrose tile
 }
 
 export interface ViewState {
@@ -79,7 +95,6 @@ export interface PentagridConfig {
     container: HTMLElement;
     controls?: HTMLElement;
     panel?: HTMLElement;
-    explanation?: HTMLElement;
     /** Registered before the first draw, so an exploration gets its own layers
      *  without this file knowing anything about them. */
     layers?: (ctx: PentagridParts) => void;
@@ -264,7 +279,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const showsMeter = !!config.controls;
 
     function scanSmallRegions() {
-        if (!loupeEnabled && !showsMeter) {
+        // The tiling reads it too: the 2k-gons ARE the concurrencies, and which
+        // rhombs are stacked is decided from the same scan. Without this the
+        // resolutions were drawn only on pages that happened to want the meter —
+        // everywhere else a singularity silently fell back to superposed rhombs.
+        const tilingNeedsIt = features.penroseTiles || features.penroseEdges;
+        if (!loupeEnabled && !showsMeter && !tilingNeedsIt) {
             // Nothing would read the result, and this is the expensive call in
             // the file — it was running twice per frame on the paired views.
             smallRegions = [];
@@ -350,7 +370,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // ── DOM elements ──────────────────────────────────────────────────
 
     const controlsDiv = config.controls ?? document.createElement("div");
-    const explanationDiv = config.explanation ?? document.createElement("div");
     const layerPanelDiv = config.panel ?? document.createElement("div");
     const container = config.container;
     // Only pin the box when the page asked for a size. Writing px here for an
@@ -383,11 +402,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const NO_FEATURES: Features = {
         gridLines: true, axes: false,
         kRegions: false, kLabels: false, intersectionDots: false,
-        // On by default: a singularity is a thing to look at, not an error to
-        // suppress, and nothing else in the view says one is there.
-        singularities: true,
         penroseTiles: false, penroseEdges: false, penroseVertices: false,
-        penroseDecor: false, hoverVertex: false, hoverTile: false,
+        penroseDecor: false,
+        hoverVertex: false, hoverEdge: false, hoverTile: false,
     };
 
     let features: Features = { ...NO_FEATURES, ...config.features };
@@ -442,7 +459,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // exploration page worth doing.
 
 
-    const bgLayer = stack.add({
+    stack.add({
         // No `group`: its switch is in the K-regions cluster, not on the
         // Pentagrid row. One fact, one switch.
         id: "background", label: "K-regions", z: 5,
@@ -470,40 +487,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }),
     });
 
-    /**
-     * What a concurrency resolves into.
-     *
-     * k lines through one point dualise to a 2k-gon with unit sides holding
-     * C(k,2) rhombs — one per pair of lines, superposed. Drawing that space, with
-     * the rhombs it would open into, says what is actually there. Counting the
-     * lines and colouring the point red says only that something is wrong.
-     */
     stack.add({
-        id: "singular", label: "Singularities", z: 58, group: "Pentagrid",
-        visible: () => features.singularities,
-        draw: (c) => {
-            for (const r of currentResolutions()) {
-                // The OUTLINE only. A zonogon has many rhombic tilings and the
-                // construction picks none of them, so drawing one asserts a layout
-                // the data does not have. What is true is the space and what is
-                // stacked in it; how it would fall apart is not decided until the
-                // lines are actually pulled apart.
-                c.ctx.beginPath();
-                r.outline.forEach((v: readonly [number, number], i: number) => {
-                    const [x, y] = mathToScreen(v[0], v[1], c.cx, c.cy);
-                    if (i === 0) c.ctx.moveTo(x, y); else c.ctx.lineTo(x, y);
-                });
-                c.ctx.closePath();
-                c.ctx.fillStyle = "rgba(230, 57, 70, 0.10)";
-                c.ctx.fill();
-                c.ctx.strokeStyle = "#e63946";
-                c.ctx.lineWidth = 1.6;
-                c.ctx.stroke();
-            }
-        },
-    });
-
-    const axesLayer = stack.add({
         // In FRONT of the grid and the tiling: an axis behind the thing it
         // measures is decoration, not a reference.
         id: "axes", label: "Axes", z: 70, group: "Pentagrid",
@@ -534,13 +518,25 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stack.add({
         id: "penrose-tiles", label: "Tiles", z: PENROSE_Z_FRONT, group: "Penrose",
         visible: () => features.penroseTiles,
-        draw: (c) => drawRhombs(
-            c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy, true),
+        draw: (c) => {
+            drawRhombs(c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy, true);
+            drawResolutions(c.ctx, c.cx, c.cy, true);
+        },
     });
     stack.add({
         id: "penrose-edges", label: "Edges", z: PENROSE_Z_FRONT + 1, group: "Penrose",
         visible: () => features.penroseEdges,
-        draw: (c) => drawRhombs(c.ctx, currentRhombs(), c.cx, c.cy, false),
+        draw: (c) => {
+            // EVERY rhomb, superposed ones included. The rule the tile style set
+            // was "no fill and no arc, edges and vertices untouched": a fill
+            // asserts which of the many rhombic tilings of the 2k-gon is real and
+            // an arc asserts a shared edge to join across, but the edges are just
+            // the C(k,2) rhombs lying where the construction puts them. Filtering
+            // them here as well emptied every 2k-gon, and those lines — joining
+            // vertex dots that are still drawn — are the superposition itself.
+            drawRhombs(c.ctx, currentRhombs(), c.cx, c.cy, false);
+            drawResolutions(c.ctx, c.cx, c.cy, false);
+        },
     });
     stack.add({
         id: "penrose-decor", label: "Arcs", z: PENROSE_Z_FRONT + 2, group: "Penrose",
@@ -564,7 +560,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // Overlays the stack sizes but does not draw, and the input surface.
     const highlight = stack.addRaw(55);
     const highlightCtx = highlight.ctx;
-    const highlightCanvas = highlight.canvas;
     const footprint = stack.addRaw(60);
     const footprintCtx = footprint.ctx;
 
@@ -1273,6 +1268,63 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         tc.restore();
     }
 
+    /**
+     * How a 2k-gon is filled, following whatever the tiles are doing.
+     *
+     *   thick/thin  a colour of its own — it is neither, it is a stack of both
+     *   families    the combination of the gridlines that meet there
+     *   index       its level, shaded like the tiles
+     */
+    function resolutionFill(r: Resolution): string {
+        if (tileStyle.colour === "pair") {
+            let rr = 0, gg = 0, bb = 0;
+            for (const j of r.families) {
+                const [x, y, z] = hexToRgb(COLORS[j % COLORS.length]);
+                rr += x; gg += y; bb += z;
+            }
+            const k = r.families.length;
+            return `rgb(${Math.round(rr / k)},${Math.round(gg / k)},${Math.round(bb / k)})`;
+        }
+        if (tileStyle.colour === "index") {
+            const m = Math.round(r.families.length);
+            return INDEX_COLORS[(m + INDEX_COLORS.length) % INDEX_COLORS.length];
+        }
+        return SINGULAR_FILL;
+    }
+
+    /**
+     * A concurrency drawn as what it is: a P-region.
+     *
+     * Not a layer of its own and not a warning. Where k lines meet, the tiling has
+     * a hexagon, an octagon or a decagon there instead of rhombs — so the tile
+     * layer fills it and the edge layer outlines it, exactly as they do any other
+     * region. Its corners are already dual vertices, so the vertex layer has them
+     * without being told.
+     */
+    function drawResolutions(
+        tc: CanvasRenderingContext2D, cx: number, cy: number, fill: boolean,
+    ) {
+        for (const r of currentResolutions()) {
+            tc.beginPath();
+            r.outline.forEach((v, i) => {
+                const [x, y] = mathToScreen(v[0], v[1], cx, cy);
+                if (i === 0) tc.moveTo(x, y); else tc.lineTo(x, y);
+            });
+            tc.closePath();
+            if (fill) {
+                tc.save();
+                tc.globalAlpha = tileStyle.opacity;
+                tc.fillStyle = resolutionFill(r);
+                tc.fill();
+                tc.restore();
+            } else {
+                tc.strokeStyle = "#777";
+                tc.lineWidth = 1;
+                tc.stroke();
+            }
+        }
+    }
+
     /** What colour a tile takes, under the current style. */
     function tileFill(rhomb: Rhomb): string {
         if (tileStyle.colour === "pair") {
@@ -1281,10 +1333,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
         }
         if (tileStyle.colour === "index") {
-            // The Wieringa height of its base corner. Four levels for Penrose.
+            // Its Wieringa level, shaded by type.
+            //
+            // There is no heads and tails to shade by: `computeRhomb` always emits
+            // base, base+e_j, base+e_j+e_k, base+e_k, so a rhomb's corners are
+            // ALWAYS (m, m+1, m+2, m+1) and corner 0 is always the low one —
+            // measured over a patch, every tile matches that one pattern. A rhomb
+            // spans three of the four Penrose levels, so its base is one of two,
+            // which is why colouring by level alone looked flat. Two levels for
+            // the hue and thick/thin for the lightness is the four classes that
+            // are actually there.
             const m = vertexIndex(rhomb.kTuples[0]);
-            return INDEX_COLORS[((m % INDEX_COLORS.length) + INDEX_COLORS.length)
+            const base = INDEX_COLORS[((m % INDEX_COLORS.length) + INDEX_COLORS.length)
                 % INDEX_COLORS.length];
+            return shade(base, rhomb.thick ? 0.26 : -0.20);
         }
         return rhomb.thick ? THICK_FILL : THIN_FILL;
     }
@@ -1301,17 +1363,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             tc.lineTo(sv[3][0], sv[3][1]);
             tc.closePath();
 
+            // Fill OR stroke, never both. The tile column owns the fill and the
+            // edge column owns the outline — a call that did both meant ticking
+            // `tile` silently gave you edges as well, which is the two columns
+            // conflated in the one place the table is trying to keep apart.
             if (fill) {
                 tc.save();
                 tc.globalAlpha = tileStyle.opacity;
                 tc.fillStyle = tileFill(rhomb);
                 tc.fill();
                 tc.restore();
+                if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
+            } else {
+                tc.strokeStyle = "#777";
+                tc.lineWidth = 1;
+                tc.stroke();
             }
-            tc.strokeStyle = fill ? "#555" : "#999";
-            tc.lineWidth = fill ? 1.5 : 1;
-            tc.stroke();
-            if (fill && tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
         }
     }
 
@@ -1563,6 +1630,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function draw() {
         // Every layer decides for itself whether it is wanted; see the specs above.
         stack.drawAll();
+        viewStats?.();          // pan and zoom change it, not just the panel
 
         // The scan depends on γ and the view, exactly like the rhomb set does.
         scanSmallRegions();
@@ -1611,12 +1679,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     /** A checkbox bound to one feature flag, re-synced when a step preset lands. */
-    function featureToggle(parent: HTMLElement, key: keyof Features, label: string) {
+    /** Features whose switching-on the narrative wants to hear about. */
+    const onFeatureOnKeys = new Set<keyof Features>();
+
+    function featureToggle(
+        parent: HTMLElement, key: keyof Features, label: string,
+    ): HTMLInputElement {
         const cb = checkbox(parent, label, features[key], (v) => {
             features[key] = v;
+            syncPanel();
             draw();
+            if (v && onFeatureOnKeys.has(key)) {
+                for (const listener of featureOnListeners) listener(key);
+            }
         });
         featureBoxes.push({ key, cb });
+        return cb;
     }
 
     /**
@@ -1632,7 +1710,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         background: "kRegions",
         axes: "axes",
         dots: "intersectionDots",
-        singular: "singularities",
         klabels: "kLabels",
         "penrose-tiles": "penroseTiles",
         "penrose-edges": "penroseEdges",
@@ -1640,163 +1717,191 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         "penrose-vertices": "penroseVertices",
     };
 
+    /** Refreshes the viewport read-out. Set when the panel is built. */
+    let viewStats: (() => void) | null = null;
+
     function syncPanel() {
         for (const { key, cb } of featureBoxes) cb.checked = features[key];
+        viewStats?.();
     }
 
     function buildLayerPanel() {
-        // Generated from the stack, not hand-written: a layer registered with a
-        // group gets its switch here without anyone editing this function. That is
-        // the point of registration, and an exploration page gets the same for free.
-        for (const [group, group_layers] of stack.groups()) {
-            const r = row(layerPanelDiv, group);
-            for (const layer of group_layers) {
-                if (layer.id === "grid") {
-                    // One switch per family even though they share a canvas. A
-                    // family's visibility belongs to the γ set, not to the layer:
-                    // turning one off drops the tiles it generates as well as its
-                    // lines, since the dual of a line is a ribbon of tiles.
-                    for (let j = 0; j < model.n; j++) {
-                        checkbox(r, String(j), gammaSet.familyEnabled(j),
-                            (v) => gammaSet.setFamilyEnabled(j, v), COLORS[j]);
-                    }
-                    continue;
-                }
-                const feat = LAYER_FEATURE[layer.id];
-                const cb = checkbox(r, layer.label,
-                    feat ? features[feat] : layer.userVisible, (v) => {
-                        if (feat) { features[feat] = v; syncPanel(); draw(); return; }
-                        layer.userVisible = v;
-                        draw();
-                    });
-                if (feat) featureBoxes.push({ key: feat, cb });
-            }
-            if (group === "Pentagrid") {
-                // One line, or all of them, per family. Blank means all.
-                const lineRow = row(layerPanelDiv, "single line");
+        // ── Functional: which lines exist at all ──────────────────────
+        //
+        // Not a rendering choice. Turning a family off removes the tiles it
+        // generates as well as its lines, because the dual of a line is a ribbon
+        // of tiles — so this decides what the tiling IS, not how it looks.
+        const gridRow = row(layerPanelDiv, "Grid");
+
+        const perFamily: { mode: HTMLSelectElement; n: HTMLInputElement }[] = [];
+        const allBtn = (label: string, on: boolean) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.className = "line-pick";
+            b.style.width = "34px";
+            b.textContent = label;
+            b.title = on ? "Every family, every line" : "No families at all";
+            b.addEventListener("click", () => {
+                // A shortcut that means it: it cancels the individual controls
+                // rather than sitting alongside them disagreeing.
                 for (let j = 0; j < model.n; j++) {
-                    const wrap = document.createElement("label");
-                    wrap.className = "layer-toggle";
-                    wrap.title = `Show only one line of family ${j}. `
-                        + "The tiles it makes are that line's ribbon; the other "
-                        + "families keep making tiles between themselves.";
-                    const sw = document.createElement("span");
-                    sw.className = "layer-swatch";
-                    sw.style.background = COLORS[j];
-                    const box = document.createElement("input");
-                    box.type = "number";
-                    box.className = "line-pick";
-                    box.placeholder = "all";
-                    box.addEventListener("input", () => {
-                        const raw = box.value.trim();
-                        const n = raw === "" ? null : parseInt(raw, 10);
-                        gammaSet.setFamilyLine(j, Number.isFinite(n as number) ? n : null);
-                    });
-                    wrap.appendChild(sw);
-                    wrap.appendChild(box);
-                    lineRow.appendChild(wrap);
+                    gammaSet.setFamilyEnabled(j, on);
+                    gammaSet.setFamilyLine(j, null);
+                    perFamily[j].mode.value = on ? "all" : "none";
+                    perFamily[j].n.value = "0";
                 }
+                draw();
+            });
+            gridRow.appendChild(b);
+        };
+        allBtn("all", true);
+        allBtn("off", false);
 
-                // Keep only one family's tiles. With a single line set on the
-                // same family, that leaves one ribbon and nothing else.
-                const solo = document.createElement("label");
-                solo.className = "layer-toggle";
-                solo.title = "Keep only the tiles one family takes part in. "
-                    + "With a single line on that family, exactly one ribbon.";
-                solo.appendChild(document.createTextNode("only "));
-                const sel = document.createElement("select");
-                sel.className = "line-pick";
-                for (const [value, text] of
-                    [["", "all"] as [string, string],
-                     ...COLORS.map((_, j) => [String(j), String(j)] as [string, string])]) {
-                    const opt = document.createElement("option");
-                    opt.value = value;
-                    opt.textContent = text;
-                    sel.appendChild(opt);
-                }
-                sel.addEventListener("change", () => {
-                    gammaSet.setIsolated(sel.value === "" ? null : Number(sel.value));
-                });
-                solo.appendChild(sel);
-                lineRow.appendChild(solo);
+        for (let j = 0; j < model.n; j++) {
+            const wrap = document.createElement("label");
+            wrap.className = "layer-toggle";
+            wrap.title = `Family ${j}: none, one line, or all of them.`;
+            const sw = document.createElement("span");
+            sw.className = "layer-swatch";
+            sw.style.background = COLORS[j % COLORS.length];
+            wrap.appendChild(sw);
+
+            const nBox = document.createElement("input");
+            nBox.type = "number";
+            nBox.className = "line-pick";
+            nBox.style.width = "40px";
+            nBox.value = "0";
+            nBox.title = "Which line, when the mode is `one`.";
+
+            const mode = document.createElement("select");
+            mode.className = "line-pick";
+            mode.style.width = "52px";
+            for (const [v, t] of [["none", "none"], ["one", "one"], ["all", "all"]]) {
+                const o = document.createElement("option");
+                o.value = v;
+                o.textContent = t;
+                mode.appendChild(o);
             }
-            if (group === "Penrose") {
-                checkbox(r, "in front", penroseInFront, (v) => {
-                    penroseInFront = v;
-                    restackPenrose();
-                });
+            mode.value = "all";
 
-                // How the tiles are dressed. Its own row: these are not layers and
-                // not step presets — a choice of three, a switch and a number.
-                const sRow = row(layerPanelDiv, "Tile style");
+            const apply = () => {
+                const m = mode.value;
+                gammaSet.setFamilyEnabled(j, m !== "none");
+                gammaSet.setFamilyLine(j, m === "one" ? parseInt(nBox.value, 10) || 0 : null);
+                draw();
+            };
+            mode.addEventListener("change", apply);
+            nBox.addEventListener("input", () => { if (mode.value === "one") apply(); });
 
-                const sel = document.createElement("select");
-                sel.className = "line-pick";
-                sel.style.width = "84px";
-                sel.title = "thick/thin · the two families that made the tile · "
-                    + "its Wieringa index";
-                for (const [value, text] of [
-                    ["type", "thick/thin"], ["pair", "families"], ["index", "index"],
-                ] as const) {
-                    const opt = document.createElement("option");
-                    opt.value = value;
-                    opt.textContent = text;
-                    sel.appendChild(opt);
-                }
-                sel.value = tileStyle.colour;
-                sel.addEventListener("change", () => {
-                    tileStyle.colour = sel.value as TileStyle["colour"];
-                    draw();
-                });
-                sRow.appendChild(sel);
-
-                const iso = checkbox(sRow, "isogloss", tileStyle.isogloss, (v) => {
-                    tileStyle.isogloss = v;
-                    draw();
-                });
-                iso.title = "Contour lines across each tile, perpendicular to its "
-                    + "long diagonal.";
-
-                const alpha = document.createElement("input");
-                alpha.type = "range";
-                alpha.className = "thickness";
-                alpha.min = "0.1";
-                alpha.max = "1";
-                alpha.step = "0.05";
-                alpha.value = String(tileStyle.opacity);
-                alpha.title = "Tile transparency. Edges and decoration stay solid.";
-                alpha.addEventListener("input", () => {
-                    tileStyle.opacity = parseFloat(alpha.value);
-                    draw();
-                });
-                sRow.appendChild(alpha);
-            }
+            wrap.appendChild(nBox);
+            wrap.appendChild(mode);
+            gridRow.appendChild(wrap);
+            perFamily.push({ mode, n: nBox });
         }
 
-        // K-regions and the two things that only make sense beside them. Kept
-        // together and away from the gamma controls: they belong to one step, not
-        // to the offsets.
-        const kRow = row(layerPanelDiv, "K-regions");
-        const kBox = checkbox(kRow, "K-regions", features.kRegions, (v) => {
-            features.kRegions = v;
-            syncPanel();
-            draw();
-            // Ticking it used to leave the box on with nothing drawn, because a
-            // step preset owned the feature. The view no longer knows what a page
-            // is, so it says what happened and lets the narrative decide whether
-            // that means going somewhere.
-            if (v) for (const cb of featureOnListeners) cb("kRegions");
-        });
-        featureBoxes.push({ key: "kRegions", cb: kBox });
-        featureToggle(kRow, "hoverVertex", "vertex from region (hover)");
-        featureToggle(kRow, "kLabels", "K-labels");
-        // Grouped, not welded: each switches on its own. Regions without labels is
-        // a thing you want to look at, and disabling the other two whenever the
-        // regions were off made the cluster read as one all-or-nothing switch.
+        // ── View: the viewport itself, and what it is showing ─────────
+        const viewRow = row(layerPanelDiv, "View");
+        const axesLayer = stack.get("axes");
+        if (axesLayer) {
+            featureToggle(viewRow, "axes", "axes");
+        }
+        const stats = document.createElement("span");
+        stats.className = "view-stats";
+        viewRow.appendChild(stats);
+        viewStats = () => {
+            const vis = getVisibleRect();
+            stats.textContent = `×${scale.toFixed(0)} · `
+                + `${(vis.xMax - vis.xMin).toFixed(1)}×${(vis.yMax - vis.yMin).toFixed(1)} `
+                + `at (${viewX.toFixed(2)}, ${viewY.toFixed(2)})`;
+        };
+        viewStats();
 
-        // Behaviours, which are not layers
-        const hRow = row(layerPanelDiv, "On hover");
-        featureToggle(hRow, "hoverTile", "tile from intersection");
+        // ── Rendering: the correspondence, as a table ─────────────────
+        //
+        // Three columns, one per pairing, and three rows: the grid object, the
+        // hover helper, the Penrose object. Read down a column and you have a
+        // thing, its counterpart, and the helper that shows you one from the
+        // other. Rendering only — none of it changes the tiling.
+        const CORRESPONDENCE = [
+            { grid: ["kRegions", "K-region"], hover: "hoverVertex", pen: ["penroseVertices", "vertex"] },
+            { grid: ["gridLines", "gridline"], hover: "hoverEdge", pen: ["penroseEdges", "edge"] },
+            { grid: ["intersectionDots", "intersections"], hover: "hoverTile", pen: ["penroseTiles", "tile"] },
+        ] as const;
+
+        const corrRow = (
+            label: string,
+            pick: (c: typeof CORRESPONDENCE[number]) => readonly [keyof Features, string],
+        ) => {
+            const r = row(layerPanelDiv, label);
+            for (const c of CORRESPONDENCE) {
+                const cell = document.createElement("span");
+                cell.className = "corr-cell";     // fixed width, so columns line up
+                r.appendChild(cell);
+                const [key, text] = pick(c);
+                featureToggle(cell, key, text);
+            }
+        };
+
+        // Ticking K-region tells the narrative, which may take you to the page it
+        // is about. The view reports; it does not decide.
+        onFeatureOnKeys.add("kRegions");
+
+        corrRow("Pentagrid", (c) => c.grid);
+        corrRow("Hover", (c) => [c.hover, ""] as const);
+        corrRow("Penrose", (c) => c.pen);
+
+        // K-labels belong with the regions rather than on their own row.
+        const extras = row(layerPanelDiv, "also");
+        featureToggle(extras, "kLabels", "K-labels");
+        featureToggle(extras, "penroseDecor", "arcs");
+        checkbox(extras, "Penrose in front", penroseInFront, (v) => {
+            penroseInFront = v;
+            restackPenrose();
+        });
+
+        // ── Tile style ────────────────────────────────────────────────
+        {
+            const sRow = row(layerPanelDiv, "Tile style");
+            const sel = document.createElement("select");
+            sel.className = "line-pick";
+            sel.style.width = "84px";
+            sel.title = "thick/thin · the families that made it · its Wieringa index. "
+                + "A 2k-gon follows the same choice.";
+            for (const [value, text] of [
+                ["type", "thick/thin"], ["pair", "families"], ["index", "index"],
+            ] as const) {
+                const opt = document.createElement("option");
+                opt.value = value;
+                opt.textContent = text;
+                sel.appendChild(opt);
+            }
+            sel.value = tileStyle.colour;
+            sel.addEventListener("change", () => {
+                tileStyle.colour = sel.value as TileStyle["colour"];
+                draw();
+            });
+            sRow.appendChild(sel);
+
+            const iso = checkbox(sRow, "isogloss", tileStyle.isogloss, (v) => {
+                tileStyle.isogloss = v;
+                draw();
+            });
+            iso.title = "Contour lines across each tile, perpendicular to its long diagonal.";
+
+            const alpha = document.createElement("input");
+            alpha.type = "range";
+            alpha.className = "thickness";
+            alpha.min = "0.1";
+            alpha.max = "1";
+            alpha.step = "0.05";
+            alpha.value = String(tileStyle.opacity);
+            alpha.title = "Tile transparency. Edges and decoration stay solid.";
+            alpha.addEventListener("input", () => {
+                tileStyle.opacity = parseFloat(alpha.value);
+                draw();
+            });
+            sRow.appendChild(alpha);
+        }
 
         // Collapsed settings — set once, then forgotten
         const det = document.createElement("details");
@@ -2000,13 +2105,75 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         highlightCtx.fill();
     }
 
+    /**
+     * Draw a gridline segment and the Penrose edge it becomes, joined.
+     *
+     * The segment lives in grid coordinates and the edge in tiling coordinates,
+     * which is the whole point of the picture: one object, read through the dual
+     * map, landing in two different places on the same canvas.
+     */
+    function highlightSegment(seg: GridSegment, cx: number, cy: number) {
+        const colour = COLORS[seg.j % COLORS.length];
+        const [ax, ay] = gridToScreen(seg.a[0], seg.a[1], cx, cy);
+        const [bx, by] = gridToScreen(seg.b[0], seg.b[1], cx, cy);
+
+        // The segment itself, laid over its gridline.
+        highlightCtx.strokeStyle = colour;
+        highlightCtx.lineWidth = 4;
+        highlightCtx.lineCap = "round";
+        highlightCtx.beginPath();
+        highlightCtx.moveTo(ax, ay);
+        highlightCtx.lineTo(bx, by);
+        highlightCtx.stroke();
+
+        // Its ends are crossings, so they are the tiles next door.
+        highlightCtx.fillStyle = "#e63946";
+        for (const [ex, ey] of [[ax, ay], [bx, by]]) {
+            highlightCtx.beginPath();
+            highlightCtx.arc(ex, ey, 3, 0, 2 * Math.PI);
+            highlightCtx.fill();
+        }
+
+        // The edge: f(K1) -> f(K2), which is f(K1) + v_j.
+        const [ex1, ey1] = dualVertex(model, seg.K1);
+        const [ex2, ey2] = dualVertex(model, seg.K2);
+        const [px1, py1] = mathToScreen(ex1, ey1, cx, cy);
+        const [px2, py2] = mathToScreen(ex2, ey2, cx, cy);
+        highlightCtx.strokeStyle = "rgba(255,180,0,0.95)";
+        highlightCtx.lineWidth = 4;
+        highlightCtx.beginPath();
+        highlightCtx.moveTo(px1, py1);
+        highlightCtx.lineTo(px2, py2);
+        highlightCtx.stroke();
+
+        // Its ends are the vertices the two regions became.
+        highlightCtx.fillStyle = "#fc0";
+        for (const [vx2, vy2] of [[px1, py1], [px2, py2]]) {
+            highlightCtx.beginPath();
+            highlightCtx.arc(vx2, vy2, 4, 0, 2 * Math.PI);
+            highlightCtx.fill();
+        }
+
+        // And the tie between them, so the correspondence is visible as one.
+        const mid = (p: number, q: number) => (p + q) / 2;
+        highlightCtx.strokeStyle = "rgba(255,200,0,0.5)";
+        highlightCtx.lineWidth = 1.5;
+        highlightCtx.setLineDash([4, 4]);
+        highlightCtx.beginPath();
+        highlightCtx.moveTo(mid(ax, bx), mid(ay, by));
+        highlightCtx.lineTo(mid(px1, px2), mid(py1, py2));
+        highlightCtx.stroke();
+        highlightCtx.setLineDash([]);
+        highlightCtx.lineCap = "butt";
+    }
+
     // ── Tooltip / hover highlight ──────────────────────────────────────
 
     function clearHighlight() {
         highlightCtx.clearRect(0, 0, canvas.w, canvas.h);
     }
 
-    function formatKTooltip(K: number[]): string {
+    function formatKTooltip(K: readonly number[]): string {
         const parts = K.map((v, j) => {
             const color = gammaSet.familyEnabled(j) ? "#fff" : "#999";
             return `<span style="color:${color}">${v}</span>`;
@@ -2136,6 +2303,37 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tooltip.style.left = (e.clientX + 12) + "px";
                 tooltip.style.top = (e.clientY - 34) + "px";
                 return;
+            }
+        }
+
+        // Gridline segment -> Penrose edge. Ordered between the two: a crossing
+        // is a point and a region is an area, so the line belongs in the middle
+        // or it would swallow every hover near a gridline.
+        if (features.hoverEdge) {
+            const [mx, my] = screenToGrid(sx, sy, cx, cy);
+            const active = Array.from({ length: model.n },
+                                      (_, j) => gammaSet.familyEnabled(j));
+            const near = nearestLine(model, mx, my, active);
+            // The tolerance is in pixels, so it holds at every zoom.
+            const pxPerUnit = scale * gridGain();
+            if (near && near.dist * pxPerUnit < 10) {
+                const reach = Math.max(4, 40 / Math.max(pxPerUnit, 1e-6));
+                const seg = segmentAt(model, near.j, near.nj, mx, my, reach);
+                if (seg) {
+                    clearHighlight();
+                    highlightSegment(seg, cx, cy);
+                    const sub = SUBSCRIPTS[seg.j] ?? `_${seg.j}`;
+                    tooltip.innerHTML =
+                        `line <span style="color:${COLORS[seg.j % COLORS.length]}">` +
+                        `${seg.nj} of family ${seg.j}</span>` +
+                        `<br>${formatKTooltip(seg.K1)}` +
+                        `<br>${formatKTooltip(seg.K2)}` +
+                        `<br><span style="color:#fc0">edge</span> = v${sub}`;
+                    tooltip.style.display = "block";
+                    tooltip.style.left = (e.clientX + 12) + "px";
+                    tooltip.style.top = (e.clientY - 40) + "px";
+                    return;
+                }
             }
         }
 

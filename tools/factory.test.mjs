@@ -214,13 +214,19 @@ test("the loupe is off unless the page asks for it", () => {
 test("with no controls and no loupe, nothing consumes the scan", () => {
     // The scan is the expensive call in the file; a bare viewport must not pay
     // for it on every pan frame.
-    const h = createPentagrid({ container: host(), steps: [], features: { penroseTiles: true } });
+    //
+    // The tiling is a consumer too — the 2k-gons are the concurrencies, and which
+    // rhombs are stacked comes from the same scan — so "nothing consumes it" now
+    // means the grid alone. Asking for tiles here asked for the scan, and the
+    // saving this test is about is the one a bare viewport gets.
+    const quiet = { gridLines: true, penroseTiles: false, penroseEdges: false };
+    const h = createPentagrid({ container: host(), steps: [], features: quiet });
     const t0 = process.hrtime.bigint();
     for (let i = 0; i < 40; i++) h.redraw();
     const bare = Number(process.hrtime.bigint() - t0) / 1e6;
 
     const g = createPentagrid({
-        container: host(), steps: [], loupe: true, features: { penroseTiles: true },
+        container: host(), steps: [], loupe: true, features: quiet,
     });
     const t1 = process.hrtime.bigint();
     for (let i = 0; i < 40; i++) g.redraw();

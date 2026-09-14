@@ -110,8 +110,13 @@ globalThis.document = makeStub({
         return el;
     },
     createElement: (tag) => {
+        // tagName has to be real. Left to the Proxy it comes back as a stub, which
+        // is truthy but never equal to "select" — so any test asking what kind of
+        // element this is gets a confident wrong answer.
         const el = makeStub(
-            tag === "canvas" ? { width: 800, height: 800, getContext: () => ctx2d() } : {}
+            tag === "canvas"
+                ? { tagName: tag, width: 800, height: 800, getContext: () => ctx2d() }
+                : { tagName: tag }
         );
         if (tag === "input") inputs.push(el);
         return el;

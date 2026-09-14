@@ -1622,6 +1622,78 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## The superposition, and how it went missing (2026-09-14)
+
+### The regression
+
+The lines inside every 2k-gon are the **C(k,2) superposed rhombs**, drawn where the
+construction puts them. Nothing synthesises them; they are ordinary rhombs that
+happen to share a crossing, and they join vertex dots that were being drawn all
+along. `f7a4a7e` had them. `469dbcb` took them away, and its own commit message
+states the rule it broke:
+
+> those now take no fill and no arc, while **edges and vertices are untouched**
+
+The filter went onto three layers when it belonged on two. Tiles filtered
+correctly, arcs filtered correctly, vertices correctly did not — and edges wrongly
+did, which hollowed out every 2k-gon. One line. The rule was already written down
+in this file, under *"Vertices, then edges — these are wanted"*, which is worth
+noticing: it was recorded, agreed, and then violated by a filter added for a
+different purpose.
+
+**The rule, stated once more so it is testable:** at a concurrency a fill asserts
+which of the many rhombic tilings of the 2k-gon is real, and an arc asserts a
+shared edge to join across when inside a stack there is none. Edges and vertices
+assert neither. `containers.test.mjs` now pins it by comparing the edge count
+against the fill count at Gamma = 0, and the arcs/edges *ratio* against a regular
+configuration — the raw arc count says nothing, since the decor layer strokes two
+arcs per rhomb where the edge layer strokes one.
+
+### Two measurements
+
+**The five octagons are the 4-faces of the 5-cube.** Where k lines meet, each
+`K_j` is free either way, so the surrounding regions are the 2^k corners of a
+k-cube and `f` projects it into the plane: the shadow is the 2k-gon, the 2-faces
+are the C(k,2) rhombs, the monotone surfaces are the rhombic tilings. Drop one
+generator and the rest is a 4-cube, which projects to an octagon — five of them,
+unit sides, centres at radius 1/2 and **72 degrees apart** (54, 126, 198, 270,
+342). This confirms "the decagon is five octagons turned" above, and explains why:
+they are sub-cubes, not an accident of the drawing.
+
+The decagon's cube has **31 corners, not 32** — `Sum v_j = 0` collapses `f(empty)`
+onto `f(all)` — 80 edges, and 21 corners strictly inside the outline. That count
+is why drawing the cube itself is unreadable: tried, and Jake's verdict was "the
+decagon is too busy". The superposed rhombs are the right object; the cube is the
+explanation for their structure, not a thing to draw.
+
+**Correction — the thin hexagon has two tilings, not one.** The note above that
+K122 and K113 are "not superposable" is right and stands: they are not congruent,
+144/108/108 against 144/144/72. But the stronger claim, that K113 "has only one
+vertex mapped to its center and thus has only one tiling combination by rhombs",
+does not survive measurement. Both hexagons have exactly **two** interior cube
+corners, and perturbing Gamma 400 ways reaches both in each case — thick 64/66,
+thin 74/90. Every 3-cube has two monotone surfaces and neither hexagon is an
+exception. The one interior point that is genuinely unreachable is the **decagon's
+centre**, realised 0 times in 400, which is the `f(empty) = f(all)` collapse.
+
+### Also landed
+
+- **`hoverEdge` is wired.** It had sat in the feature list, the panel and the
+  correspondence table with nothing reading it. A gridline segment separates two
+  regions, so it is dual to the **edge joining the vertices those regions become** —
+  the same map as region → vertex and crossing → tile, one dimension down.
+  `segmentAt` finds the bracketing crossings and the regions either side;
+  `nearestLine` picks the line. Hit-test order is crossing, then segment, then
+  region: a point, a line, an area, or the line swallows every hover near a
+  gridline. Verified against a collected patch — for every dual edge comfortably
+  inside it, 1175 of 1175 were genuine tile edges.
+- **The scan ran only when the meter or loupe wanted it**, but the tile and edge
+  layers draw the 2k-gons from that same scan. On any page without `controls` the
+  resolutions were never drawn at all. `scanSmallRegions` now also runs when the
+  tiling needs it, and the factory test that asserted the old behaviour was
+  measuring a viewport with tiles on — it now measures a grid-only one, which is
+  the saving it was always about.
+
 ## Naming the resolutions, and what a Penrose setting should be (Jake, 2026-09-13)
 
 ### The angle code — Jake's scheme, and it is complete
