@@ -133,12 +133,21 @@ const D = 100;
  * THE CAPS. Give all five families the same offset and the pentagrid keeps its
  * five-fold symmetry, so the tiling does too.
  *
- * sun is the Pe5 cap, star the St5, deca the queen.
+ * sun is the Pe5 cap, star the St5, and deca is the queen.
  *
- * All three have the SAME vertex at the origin — five thick rhombs at 72 degrees,
- * measured. What separates them is the patch, not the vertex: at c = 1/5 the
- * origin is a Pe5 cluster center, at c = 2/5 it belongs to no cluster at all
- * because it sits inside an St5. That is why this needed the cluster recognizer.
+ * Sun and star are uniform, c = 1/5 and 2/5, and have the SAME vertex at the
+ * origin — five thick rhombs at 72 degrees, measured. What separates them is the
+ * patch, not the vertex: at c = 1/5 the origin is a Pe5 cluster center, at
+ * c = 2/5 it belongs to no cluster at all because it sits inside an St5. That is
+ * why this needed the cluster recognizer.
+ *
+ * The deca is NOT uniform and NOT the singular decagon, which was the first
+ * draft's mistake. It is one Pe3 with two Pe1 — ten rhombs, 5 thick + 5 thin,
+ * which is exactly what the 5-fold singularity holds — and it is what Gamma = 0
+ * RESOLVES INTO under a mirror-symmetric nudge, gamma1 = gamma4 and
+ * gamma2 = gamma3 with the total at zero. Measured: every such nudge puts a Pe3
+ * on the axis and a Pe1 either side of it, and negating Gamma flips the deca
+ * end for end. It persists along that mirror line out to e = 0.3.
  */
 const CAPS: readonly SingularPreset[] = [
     {
@@ -152,9 +161,11 @@ const CAPS: readonly SingularPreset[] = [
             + "it sits inside an St5, a star-shaped gap. Regular.",
     },
     {
-        name: "deca", gamma: [0, 0, 0, 0, 0], den: D, penrose: true, group: "cap",
-        note: "c = 0, the queen. The one cap that is not a tiling: all five lines "
-            + "pass through the origin and its dual is a decagon, not a rhomb.",
+        name: "deca", gamma: [0, 10, -10, -10, 10], den: D, penrose: true, group: "cap",
+        note: "The queen. One Pe3 flanked by two Pe1 — 5 thick + 5 thin, ten "
+            + "rhombs, mirror-symmetric about the vertical axis. It is what the "
+            + "5-fold singularity at Gamma = 0 resolves into under a mirror-"
+            + "symmetric nudge: gamma1 = gamma4, gamma2 = gamma3. Regular.",
     },
 ];
 
@@ -193,7 +204,7 @@ const HUNT: readonly SingularPreset[] = [
     {
         name: "decagon", gamma: [0, 0, 0, 0, 0], den: D, penrose: true, group: "hunt",
         note: "Every phase integral: all five couples at once, ten hexagons, and "
-            + "the unique 5-fold at the origin. Same vector as the deca cap.",
+            + "the unique 5-fold at the origin.",
     },
     {
         name: "octagon", gamma: [0, 0, 0, 0, 50], den: D, penrose: false, group: "hunt",

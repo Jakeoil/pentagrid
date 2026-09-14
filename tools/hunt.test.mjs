@@ -11,6 +11,8 @@ import {
 } from "../dist/geometry/hunt.js";
 import { TRIPLES } from "../dist/geometry/regularity.js";
 import { angleCode } from "../dist/geometry/resolve.js";
+import { collectRhombs } from "../dist/geometry/pentagrid.js";
+import { findClusters } from "../dist/geometry/clusters.js";
 
 const VIS = { xMin: -9, xMax: 9, yMin: -9, yMax: 9 };
 
@@ -98,7 +100,7 @@ test("every preset shows what its name says", () => {
     const expect = {
         "sun": {},
         "star": {},
-        "deca": { "113": 5, "122": 5, "11111": 1 },
+        "deca": {},
         "regular": {},
         "couple": { "113": 1, "122": 1 },
         "decagon": { "113": 5, "122": 5, "11111": 1 },
@@ -315,4 +317,56 @@ test("two couples force all five, so nothing sits between them", () => {
         }
     }
     assert.ok(sawOne > 0 && sawFive > 0, "the search never reached both states");
+});
+
+// ── The caps, through the cluster recognizer ─────────────────────────
+
+/** The complete clusters within `r` of the origin, for a preset by name. */
+function clustersNearOrigin(name, r = 2.2) {
+    const p = SINGULAR_PRESETS.find((q) => q.name === name);
+    const g = at(p.gamma, p.den);
+    const rhombs = collectRhombs(g.model, { xMin: -7, xMax: 7, yMin: -7, yMax: 7 },
+                                 { gain: g.model.n / 2 });
+    const res = findClusters(rhombs);
+    assert.equal(res.levels, 4, `${name}: not a Penrose patch (${res.levels} levels)`);
+    return res.clusters.filter((c) => c.kind && Math.hypot(c.x, c.y) < r);
+}
+
+test("sun puts a Pe5 center on the origin; star puts the origin in no cluster", () => {
+    const sun = clustersNearOrigin("sun", 1e-6);
+    assert.deepEqual(sun.map((c) => c.kind), ["Pe5"], "sun: the origin is not a Pe5 center");
+
+    const star = clustersNearOrigin("star", 1e-6);
+    assert.deepEqual(star, [], "star: the origin should belong to no cluster");
+});
+
+test("the deca is one Pe3 with two Pe1, mirror-symmetric about the axis", () => {
+    // The deca of wieringa-roof: ten rhombs, 5 thick + 5 thin — exactly what the
+    // 5-fold singularity holds — and what Gamma = 0 resolves into under a nudge
+    // with gamma1 = gamma4 and gamma2 = gamma3. Family 0 is vertical, so the
+    // mirror is the y axis: the Pe3 sits on it and the Pe1s straddle it.
+    const home = clustersNearOrigin("deca");
+    assert.deepEqual(home.map((c) => c.kind).sort(), ["Pe1", "Pe1", "Pe3"],
+                     `deca: found ${home.map((c) => c.kind).join("+")}`);
+    const pe3 = home.find((c) => c.kind === "Pe3");
+    const [a, b] = home.filter((c) => c.kind === "Pe1");
+    assert.ok(Math.abs(pe3.x) < 1e-6, `deca: the Pe3 is off the axis at x = ${pe3.x}`);
+    assert.ok(Math.abs(a.x + b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6,
+              "deca: the two Pe1 are not mirror images");
+    assert.equal(pe3.thick + a.thick + b.thick, 5, "deca: 5 thick");
+    assert.equal(pe3.thin + a.thin + b.thin, 5, "deca: 5 thin");
+});
+
+test("negating the deca's phases flips it end for end", () => {
+    const p = SINGULAR_PRESETS.find((q) => q.name === "deca");
+    const side = (gamma) => {
+        const g = at(gamma, p.den);
+        const rhombs = collectRhombs(g.model, { xMin: -7, xMax: 7, yMin: -7, yMax: 7 },
+                                     { gain: g.model.n / 2 });
+        const pe3 = findClusters(rhombs).clusters
+            .find((c) => c.kind === "Pe3" && Math.hypot(c.x, c.y) < 2.2);
+        return Math.sign(pe3.y);
+    };
+    assert.equal(side(p.gamma) * side(p.gamma.map((q) => -q)), -1,
+                 "the Pe3 should swap sides of the origin under Gamma -> -Gamma");
 });

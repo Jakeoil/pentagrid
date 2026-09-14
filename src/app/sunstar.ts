@@ -88,7 +88,7 @@ if (host && strip) {
 
     function verdict(): { text: string; cls: string } {
         if (g.singular().length > 0)
-            return { text: "DECA — singular, all five lines concurrent", cls: "deca" };
+            return { text: "5-fold — singular, all five lines concurrent", cls: "deca" };
         if (!defined)
             return { text: "no clusters — Σγ is not an integer, so this is not Penrose", cls: "none" };
         if (atOrigin && atOrigin.kind === "Pe5")

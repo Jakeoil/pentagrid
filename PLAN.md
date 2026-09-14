@@ -1622,6 +1622,48 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## The deca is the resolution of the 5-fold (2026-09-14)
+
+Jake: *"No the deca is not the 2K-gon decagon, in wieringa it is the queen
+(misnamed) patch. It has 2 fold symmetry."* The first Caps row had `deca` as
+`Gamma = 0`, the singular point, which is not a tiling at all. Corrected.
+
+**What it is.** One `Pe3` flanked by two `Pe1`: 3 thick + 1 thin, plus twice
+(1 thick + 2 thin), so **5 thick + 5 thin, ten rhombs** — which is exactly what
+the 5-fold singularity holds, C(5,2) = 10 with 5 of each. That is the clue.
+
+**Where it is.** Nudge `Gamma = 0` in any mirror-symmetric direction with the
+total held at zero — `gamma1 = gamma4`, `gamma2 = gamma3` — and the decagon at the
+origin resolves into the queen, every time, with the `Pe3` on the mirror axis and
+the two `Pe1` straddling it. Measured for five different mirror directions at
+e = 0.01, and along the line `(0, e, -e, -e, e)` it persists out to **e = 0.3**;
+the line hits a singular couple at e = 1/2 (`gamma0` integral, `gamma1 + gamma4 =
+1`). The preset is e = 0.1, comfortably inside — `+1/10` on families 1 and 4, `-1/10`
+on 2 and 3, `gamma0 = 0` on the axis. On the Caps row it is **deca**; *queen* is
+the wieringa-roof name for the same patch. "Decagon" stays for the k = 5 2k-gon
+on the Hunt row, which is a different thing.
+
+**The involution.** Negating the phases flips the queen end for end: `(0,e,-e,-e,e)`
+puts the `Pe3` below the origin, `(0,-e,e,e,-e)` above. That is the "magic
+mirroring of the sides" Jake remembers from inflation, seen here as `Gamma -> -Gamma`.
+
+**A generic nudge gives the queen too**, just turned. `(e, 2e, 3e, 4e, -10e)` gave
+a `Pe3` and two `Pe1` at the same three radii and the same angular gaps —
+144/108/108 — rotated. So the decagon's *de Bruijn* resolutions look to be queens
+in one of ten orientations, not the 62 rhombic tilings the zonogon admits. Worth
+a proper count some day; not done.
+
+**On uniqueness.** Jake surmises the queen is the only Penrose tiling with exactly
+2-fold symmetry. The mirror-symmetric subspace at `Sum = 0` is two-dimensional;
+one direction is translation along the axis, which changes nothing, leaving a
+**one-parameter family** in `E-perp` of genuinely different mirror-symmetric
+tilings, of which the queen-at-origin segment is `0 < e <= 0.3`. Whether that
+whole family is "the queen" moved along its axis, or several tilings, is the open
+question — `perpOfGamma` in `acceptance.ts` is the tool to settle it.
+
+The `sunstar.html` button for `c = 0` is relabeled **5-fold**; it never was the
+deca.
+
 ## The Penrose singularity catalog — it has three entries (2026-09-14)
 
 Jake: *"I'm looking for penrose singularities. Gamma must equal 0."* Under that
