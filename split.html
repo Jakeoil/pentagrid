@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentagrid — Split</title>
+    <link rel="stylesheet" href="./site.css">
+    <style>
+        .split { display: flex; gap: 16px; margin: 16px 0 8px; flex-wrap: wrap; justify-content: center; }
+        .split figure { margin: 0; }
+        .split figcaption { font-size: 12px; color: var(--ink-faint); margin: 7px 0; text-align: center; }
+        .split .viewport { width: 560px; height: 560px; }
+        .split .layer-panel { max-width: 560px; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <h1>Split</h1>
+    <h2>The grid on the left, its dual on the right &mdash; one &gamma;, one view</h2>
+
+    <p>The same pentagrid, drawn twice. On the left, what de Bruijn starts from:
+    lines, the regions between them, the crossings. On the right, what the dual
+    map makes of it: vertices, edges, tiles. Pan or zoom either and the other
+    follows; the offsets are shared, so the reticulum and the presets drive both.
+    Each side keeps its own switches.</p>
+
+    <div class="bar" id="split-bar"><span class="cap">&gamma;</span></div>
+    <div class="bar" id="split-caps"><span class="cap">caps</span></div>
+    <div class="bar" id="split-hunt"><span class="cap">hunt</span></div>
+
+    <div class="split">
+        <figure>
+            <div class="viewport" id="split-grid"></div>
+            <figcaption>pentagrid &mdash; lines, regions, crossings</figcaption>
+            <div class="layer-panel" id="split-grid-panel"></div>
+        </figure>
+        <figure>
+            <div class="viewport" id="split-tiles"></div>
+            <figcaption>its dual &mdash; vertices, edges, tiles</figcaption>
+            <div class="layer-panel" id="split-tiles-panel"></div>
+        </figure>
+    </div>
+    <p class="hint">Drag to pan, scroll to zoom &mdash; the two views are locked
+    together. The hover helpers work on each side; a helper that points at the
+    other side draws its target where it would be, in register.</p>
+
+    <footer>
+        <a href="./">&larr; Pentagrid</a> &nbsp;·&nbsp;
+        <a href="method.html">The Method</a> &nbsp;·&nbsp;
+        <a href="grow.html">Grow</a>
+    </footer>
+    <script type="module" src="./dist/app/split.js"></script>
+</div>
+</body>
+</html>

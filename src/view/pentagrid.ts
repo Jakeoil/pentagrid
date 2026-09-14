@@ -216,6 +216,29 @@ export interface PentagridHandle {
     stack: LayerStack;
 }
 
+/**
+ * Which feature flag actually decides a layer's visibility.
+ *
+ * These layers are `visible: () => features.X`, so a panel switch that writes
+ * only `userVisible` is a switch that lies: the box reads checked while the
+ * feature is off, and clicking it does nothing. Binding the switch to the
+ * feature is the fix, and it is the same two-homes-for-one-fact mistake the
+ * duplicate regularity checkbox was.
+ *
+ * Exported so tools/layerchart.mjs can say which switch drives which layer.
+ */
+export const LAYER_FEATURE: Record<string, keyof Features> = {
+    background: "kRegions",
+    axes: "axes",
+    dots: "intersectionDots",
+    klabels: "kLabels",
+    "penrose-tiles": "penroseTiles",
+    "penrose-edges": "penroseEdges",
+    "penrose-decor": "penroseDecor",
+    "penrose-pseudo": "pseudoEdges",
+    "penrose-vertices": "penroseVertices",
+};
+
 export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // The γ cluster owns the directions, the offsets, the sum constraint and the
     // regularity guard. See geometry/gamma.ts — this file is a view over it.
@@ -1782,26 +1805,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return cb;
     }
 
-    /**
-     * Which feature flag actually decides a layer's visibility.
-     *
-     * These layers are `visible: () => features.X`, so a panel switch that writes
-     * only `userVisible` is a switch that lies: the box reads checked while the
-     * feature is off, and clicking it does nothing. Binding the switch to the
-     * feature is the fix, and it is the same two-homes-for-one-fact mistake the
-     * duplicate regularity checkbox was.
-     */
-    const LAYER_FEATURE: Record<string, keyof Features> = {
-        background: "kRegions",
-        axes: "axes",
-        dots: "intersectionDots",
-        klabels: "kLabels",
-        "penrose-tiles": "penroseTiles",
-        "penrose-edges": "penroseEdges",
-        "penrose-decor": "penroseDecor",
-        "penrose-pseudo": "pseudoEdges",
-        "penrose-vertices": "penroseVertices",
-    };
 
     /** Refreshes the viewport read-out. Set when the panel is built. */
     let viewStats: (() => void) | null = null;

@@ -846,6 +846,24 @@ test("the hover readout sits in the canvas corner unless told to follow", () => 
     assert.equal(tip2.style.left, "312px", "pointer: left should be clientX + 12");
 });
 
+test("two linked views share one gamma through onChange", () => {
+    // The split page's relay, isolated: the left set is the instrument and every
+    // change is pushed to the right, whose total is released so nothing it holds
+    // can rewrite what it is given.
+    const grid = createPentagrid({ container: sizedHost(400, 400) });
+    const tiles = createPentagrid({ container: sizedHost(400, 400) });
+    tiles.gamma.setLocked(-1);
+    grid.gamma.onChange(() => tiles.gamma.setValues(grid.gamma.values()));
+
+    grid.gamma.setLocked(-1);
+    grid.gamma.setValues([0, 0.1, -0.1, -0.1, 0.1]);        // the deca
+    assert.deepEqual(tiles.gamma.values().map((v) => +v.toFixed(6)),
+                     [0, 0.1, -0.1, -0.1, 0.1], "the right side did not follow");
+
+    grid.gamma.setValue(2, 0.25);
+    assert.ok(Math.abs(tiles.gamma.values()[2] - 0.25) < 1e-12, "a single dial did not relay");
+});
+
 test("tile style is a setting, not a feature flag", () => {
     // color is a choice of three and opacity is a number; neither is the sort of
     // thing a narrative page turns on.

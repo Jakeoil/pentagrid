@@ -2459,7 +2459,7 @@ Three code-shape notes RESEARCH.md does not make:
   become a basis *choice* before this is reachable. That is the whole coupling —
   everything downstream already reads from the array.
 - **The thick/thin classification breaks.** `min(k−j, 5−(k−j)) === 1`
-  (`src/method.ts:666`) hardcodes the 5-fold assumption. With three distinct edge
+  (`src/meth1od.ts:666`) hardcodes the 5-fold assumption. With three distinct edge
   lengths (4, √13, √17) there are up to ten parallelogram types rather than two
   golden rhombs, so the classification and the two-color legend both have to
   generalize. Whether it stays two shapes *is the experiment's first result*.
