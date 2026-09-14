@@ -40,6 +40,7 @@
         }
         .verdict.sun  { background: #eef0fc; border-color: #9292e3; color: #3b3b8f; }
         .verdict.star { background: #fdf6e6; border-color: #d4a017; color: #7a5c00; }
+        .cap-row { font-size: 11px; color: var(--ink-faint); min-width: 11em; }
         .verdict.deca { background: #fdeaea; border-color: #e63946; color: #8f1f28; }
         .verdict.none { color: #777; }
         .caps button {
@@ -67,12 +68,37 @@
     Stars</b>, paired by the mirror &Sigma;&gamma;&nbsp;&harr;&nbsp;&minus;&Sigma;&gamma;.</p>
 
     <div class="caps">
+        <span class="cap-row">uniform, fifths</span>
         <button data-c="0">5-fold &nbsp;c = 0</button>
         <button data-c="0.2">sun &nbsp;c = 1/5</button>
         <button data-c="0.4">star &nbsp;c = 2/5</button>
         <button data-c="0.6">star &nbsp;c = 3/5</button>
         <button data-c="0.8">sun &nbsp;c = 4/5</button>
         <span class="sum-read" id="ss-sum"></span>
+    </div>
+    <div class="caps">
+        <span class="cap-row">uniform, odd tenths</span>
+        <button data-c="0.1">c = 1/10</button>
+        <button data-c="0.3">c = 3/10</button>
+        <button data-c="0.5">c = 5/10</button>
+        <button data-c="0.7">c = 7/10</button>
+        <button data-c="0.9">c = 9/10</button>
+    </div>
+    <div class="caps">
+        <span class="cap-row">deca line, odd tenths</span>
+        <button data-mirror="0.1">deca &nbsp;100</button>
+        <button data-mirror="0.3">deca &nbsp;300</button>
+        <button data-mirror="0.5">couple &nbsp;500</button>
+        <button data-mirror="-0.3">deca &nbsp;700</button>
+        <button data-mirror="-0.1">deca &nbsp;900</button>
+    </div>
+    <div class="caps">
+        <span class="cap-row">deca line, even tenths</span>
+        <button data-mirror="0">5-fold &nbsp;000</button>
+        <button data-mirror="0.2">deca &nbsp;200</button>
+        <button data-mirror="0.4">star &nbsp;400</button>
+        <button data-mirror="-0.4">star &nbsp;600</button>
+        <button data-mirror="-0.2">deca &nbsp;800</button>
     </div>
 
     <div class="instrument">
@@ -109,6 +135,16 @@
     <b>St5</b> &mdash; a star-shaped gap. That is why hunting for a &ldquo;star
     vertex&rdquo; never finds one, and why this needed a cluster recognizer rather
     than a look at the rhombs.</p>
+
+    <p>The <b>deca line</b> is the other family here: phases
+    (0,&thinsp;<i>e</i>,&thinsp;&minus;<i>e</i>,&thinsp;&minus;<i>e</i>,&thinsp;<i>e</i>),
+    mirror-symmetric about the vertical axis with the total held at zero. At
+    <i>e</i>&thinsp;=&thinsp;&plusmn;1/10, &plusmn;2/10, &plusmn;3/10 the origin
+    carries the <b>deca</b> &mdash; a Pe3 on the axis with a Pe1 either side,
+    and negating <i>e</i> flips it end for end, which is why 100 and 900 are a
+    pair. At &plusmn;4/10 the origin sits in an St5 gap &mdash; a star; at 5/10 the line hits a singular
+    couple; at 0 it is the 5-fold. The numbers are the thousandths the
+    reticulum shows: 900 is &minus;1/10.</p>
 
     <p>At <i>c</i>&thinsp;=&thinsp;0 all five lines pass through the origin. That
     is <b>singular</b> &mdash; no three lines may be concurrent, let alone five

@@ -88,9 +88,38 @@ if (host && strip) {
         refresh();
     }
 
+    /** The mirror-symmetric line: (0, e, -e, -e, e), total zero. */
+    function setMirror(e: number) {
+        g.setLocked(-1);
+        g.setValues([0, e, -e, -e, e]);
+        refresh();
+    }
+
+    /**
+     * The deca, by its signature: a Pe3 on the vertical axis with a Pe1 either
+     * side, mirror images, all within a rhomb edge or so of the origin. Family 0
+     * is vertical, so the axis is x = 0.
+     */
+    function decaAtOrigin(): Cluster | null {
+        const near = clusters.filter((c) => c.kind && Math.hypot(c.x, c.y) < 1.3);
+        const pe3 = near.find((c) => c.kind === "Pe3" && Math.abs(c.x) < 1e-6);
+        if (!pe3) return null;
+        const pe1 = near.filter((c) => c.kind === "Pe1");
+        const paired = pe1.some((a) => pe1.some((b) =>
+            a !== b && Math.abs(a.x + b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6));
+        return paired ? pe3 : null;
+    }
+
     function verdict(): { text: string; cls: string } {
-        if (g.singular().length > 0)
+        const sing = g.singular();
+        if (sing.length === 10)
             return { text: "5-fold — singular, all five lines concurrent", cls: "deca" };
+        if (sing.length > 0)
+            return { text: `singular — ${sing.length} triples concurrent, a couple`, cls: "deca" };
+        const deca = defined ? decaAtOrigin() : null;
+        if (deca)
+            return { text: `deca — a Pe3 on the axis, ${deca.y < 0 ? "below" : "above"} the origin, `
+                            + "with a Pe1 either side", cls: "sun" };
         if (!defined)
             return { text: "no clusters — Σγ is not an integer, so this is not Penrose", cls: "none" };
         if (atOrigin && atOrigin.kind === "Pe5")
@@ -149,6 +178,9 @@ if (host && strip) {
         });
     }
 
+    document.querySelectorAll<HTMLElement>("[data-mirror]").forEach((b) => {
+        b.addEventListener("click", () => setMirror(parseFloat(b.dataset.mirror!)));
+    });
     document.querySelectorAll<HTMLElement>("[data-c]").forEach((b) => {
         b.addEventListener("click", () => setUniform(parseFloat(b.dataset.c!)));
     });
