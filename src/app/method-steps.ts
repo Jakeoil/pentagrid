@@ -165,17 +165,36 @@ export const METHOD_PAGES: Page[] = [
             Only the outline is drawn. A zonogon has many rhombic tilings and the
             construction picks none of them, so the space and its contents are
             facts while the layout is not.</p>
-            <p>How many lines can meet is decided by the phases. A <b>3</b>-fold
-            needs one &gamma; integral and one pair summing to an integer &mdash; no
-            more. A <b>4</b>-fold needs four integral phases, a <b>5</b>-fold all
-            five. So the octagon is real but rare, and the decagon is unique.</p>
+            <p>How many lines can meet is decided by the phases, exactly, by
+            arithmetic rather than by looking. A <b>3</b>-fold needs one &gamma;
+            integral and one pair summing to an integer &mdash; no more.</p>
+            <p><b>No octagon is Penrose.</b> Since
+            &Sigma;<b>v</b><sub><i>j</i></sub>&thinsp;=&thinsp;0, at any point where
+            four families meet the fifth satisfies
+            <b>x</b>&middot;<b>v</b><sub><i>e</i></sub>&thinsp;+&thinsp;&gamma;<sub><i>e</i></sub>
+            = &minus;&Sigma;<i>n</i><sub><i>j</i></sub>&thinsp;+&thinsp;&Sigma;&gamma;,
+            so the fifth family passes through that same point precisely when
+            &Sigma;&gamma; is an integer. Penrose <em>is</em>
+            &Sigma;&gamma;&thinsp;&isin;&thinsp;&Zopf;, so every 4-fold is swallowed
+            by a 5-fold. The octagon is real, but it lives outside the condition.</p>
+            <p>What is left is a very short catalogue. The ten triples fall into
+            <b>five couples</b> &mdash; same lone &gamma;, complementary pair &mdash;
+            and &Sigma;&gamma;&thinsp;&isin;&thinsp;&Zopf; makes each couple stand or
+            fall together. Every couple is one K122 and one K113, so
+            <em>the two hexagons only ever appear together</em>. And two couples drag
+            in the rest, so there is nothing between one couple and all five:</p>
+            <p class="equation">regular &nbsp;&middot;&nbsp; one couple (K122 + K113)
+            &nbsp;&middot;&nbsp; &Gamma;&thinsp;=&thinsp;0 (5 + 5 + decagon)</p>
+            <p>Three states, and that is all of them &mdash; searched exhaustively
+            over every rational phase vector. The <b>Hunt</b> row is one button per
+            state, each decided by the rule and then checked against the scan.</p>
             <p>Move any phase off zero and nearly all of them go. What is left sits
             on shells at <i>m</i> and <i>m</i>&phi; times 1/cos&thinsp;18&deg;
             &mdash; &Zopf;[&phi;], radiating out.</p>`,
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, intersectionDots: true });
             pg.setGridAlpha(0.5);
-            pg.exposeRows(["Pentagrid", "single line"]);
+            pg.exposeRows(["Pentagrid", "single line", "Hunt"]);
         },
     },
 ];

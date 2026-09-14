@@ -314,3 +314,18 @@ footer {
 .reopen-panel:hover, .fold-controls:hover { background: #eee; }
 .controls.folded > * { display: none; }
 .controls.folded { margin: 0; }
+
+/* Hunting singularities — one preset per kind of concurrency. */
+.panel-row button.preset {
+    font: inherit;
+    font-size: 11px;
+    padding: 2px 7px;
+    margin-right: 4px;
+    color: #ddd;
+    background: #2a2a2e;
+    border: 1px solid #444;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.panel-row button.preset:hover { background: #36363c; border-color: #666; }
+.hunt-readout { font-size: 11px; color: #9a9aa2; margin-left: 4px; }

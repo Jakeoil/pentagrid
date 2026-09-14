@@ -1622,6 +1622,76 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## The Penrose singularity catalogue — it has three entries (2026-09-14)
+
+Jake: *"I'm looking for penrose singularities. Gamma must equal 0."* Under that
+constraint the hunt closes completely. `geometry/hunt.ts` decides it by arithmetic
+rather than by looking, so the answer holds for the whole plane and not a window.
+
+### No octagon is Penrose
+
+Not rare — impossible. Since `Sum(v_j) = 0`, at a point where families a,b,c,d meet:
+
+```
+x·v_e + gamma_e  =  −Sum(n_j) + Sum(gamma)
+```
+
+so the fifth family passes through **that same point** exactly when `Sum(gamma)` is
+an integer. Penrose *is* `Sum(gamma) in Z`, so every 4-fold is swallowed by a
+5-fold. This is why the map never offered one. Step 7 previously said "the octagon
+is real but rare"; it is real and *outside the condition*, which is a different
+claim. Release the total and four integral phases give one immediately — that is
+the proof, and the classifier still handles it, it is just not a destination.
+
+### The hexagons come in couples
+
+The ten triples pair by **shared lone family and complementary pair**:
+
+    012 <-> 134    013 <-> 234    014 <-> 023    024 <-> 123    034 <-> 124
+
+A triple is `{L,P,Q}` with `gamma_L` integral and `gamma_P + gamma_Q` integral. Its
+partner is `{L} + complement`, same lone, complementary pair — and `Sum(gamma)` in
+Z forces that pair sum too. So the two stand or fall together. **Every couple is
+one K122 and one K113**, so at `Sum(gamma) = 0` the thick and thin hexagons only
+ever appear together, never one alone. (That invalidated two presets from the
+first draft of this work, "Thick hexagon" and "Thin hexagon" alone — both were
+non-Penrose without my noticing, and the test caught it.)
+
+### And nothing in the middle
+
+Two couples mean two integral phases; their pair conditions drag in two more, and
+an integral total supplies the fifth. So the hexagon count is **0, 2 or 10** —
+never 4, 6 or 8. The whole catalogue, searched exhaustively over every rational
+phase vector at denominators 12, 15, 20, 24 and 25:
+
+| state | shows |
+|---|---|
+| regular | nothing concurrent anywhere |
+| one couple | one K122 + one K113, and nothing else |
+| `Gamma = 0` | five of each, plus the unique decagon |
+
+Three buttons on the **Hunt** row of step 7, all summing to zero so the total stays
+locked. Each is checked against the rule AND against the scan, so the label cannot
+lie about what the map shows.
+
+### Two things the tests caught
+
+- **Preset denominators must divide the gamma set's.** It carries rationals over
+  `2000n` — 10000 at n = 5 — so presets over 60 were silently rounded on the way
+  in and `7/60` arrived as `0.1167`. The vector on screen was then not the vector
+  the rule had been checked against. Presets are over 100, and the round trip is
+  pinned.
+- **The rationality assumption is load-bearing.** The triple condition is one
+  equation `u + phi*v = 0`; it splits into `u = 0` and `v = 0` only because u and v
+  are rational, which holds only for rational phases. The dials and wheel produce
+  hundredths and thousandths so every reachable phase is rational — but this is
+  stated in `hunt.ts` rather than assumed.
+
+### Still open
+
+Growing and roofing the 2k-gons (grow.html), and the `Q(sqrt 5)` two-component
+question, both untouched.
+
 ## The superposition, and how it went missing (2026-09-14)
 
 ### The regression
