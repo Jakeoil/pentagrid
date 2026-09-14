@@ -76,6 +76,20 @@ export interface Features {
     penroseEdges: boolean;
     penroseVertices: boolean;
     penroseDecor: boolean;
+    /**
+     * The edges inside a 2k-gon, dotted.
+     *
+     * They are the edges of the C(k,2) rhombs the coincident crossings produce.
+     * An ordinary edge is dual to a gridline SEGMENT, the piece of line j between
+     * two consecutive crossings; at a concurrency those crossings coincide and the
+     * segment has zero length, so the edge exists on the Penrose side with no
+     * counterpart on the grid. Likewise the vertices inside: each is f(K) for a
+     * region squeezed to a point. Dotted, because they are real edges of tiles
+     * that are only superposed, not laid out — and they line up, per family, into
+     * a strip of parallel rhombs across the 2k-gon, which is the grid line's path
+     * through it.
+     */
+    pseudoEdges: boolean;
     // The three hover helpers, one per grid/Penrose correspondence. Each works
     // both ways and each overrides an "off" on the thing it is helping with —
     // the point of a helper is to show you the object, not to respect a switch.
@@ -406,23 +420,24 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /**
      * Where the hover readout goes: pinned in the canvas corner, or riding the
      * pointer. Pinned by default — Jake: the statistics were landing on the very
-     * thing being hovered. The corner is the bottom-left gutter, where nothing
-     * lives but axis ticks.
+     * thing being hovered. Upper right: the bottom-left gutter was out of view.
      */
     let hoverBox: "corner" | "pointer" = config.hoverBox ?? "corner";
     function placeTooltip(e: { clientX: number; clientY: number }, lift = 28) {
         tooltip.style.display = "block";
         if (hoverBox === "pointer") {
             tooltip.style.bottom = "auto";
+            tooltip.style.right = "auto";
             tooltip.style.left = (e.clientX + 12) + "px";
             tooltip.style.top = (e.clientY - lift) + "px";
             return;
         }
         const r = config.container.getBoundingClientRect();
-        tooltip.style.left = (r.left + 8) + "px";
-        // Anchor by the bottom so a taller readout grows upward, not off-canvas.
-        tooltip.style.top = "auto";
-        tooltip.style.bottom = (window.innerHeight - r.bottom + 8) + "px";
+        tooltip.style.bottom = "auto";
+        tooltip.style.top = (r.top + 8) + "px";
+        // Anchor by the right edge so a wider readout grows leftward, on-canvas.
+        tooltip.style.left = "auto";
+        tooltip.style.right = (window.innerWidth - r.right + 8) + "px";
     }
     document.body.appendChild(tooltip);
 
@@ -445,6 +460,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         kRegions: false, kLabels: false, intersectionDots: false,
         penroseTiles: false, penroseEdges: false, penroseVertices: false,
         penroseDecor: false,
+        pseudoEdges: false,
         hoverVertex: false, hoverEdge: false, hoverTile: false,
     };
 
@@ -568,16 +584,19 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         id: "penrose-edges", label: "Edges", z: PENROSE_Z_FRONT + 1, group: "Penrose",
         visible: () => features.penroseEdges,
         draw: (c) => {
-            // EVERY rhomb, superposed ones included. The rule the tile style set
-            // was "no fill and no arc, edges and vertices untouched": a fill
-            // asserts which of the many rhombic tilings of the 2k-gon is real and
-            // an arc asserts a shared edge to join across, but the edges are just
-            // the C(k,2) rhombs lying where the construction puts them. Filtering
-            // them here as well emptied every 2k-gon, and those lines — joining
-            // vertex dots that are still drawn — are the superposition itself.
-            drawRhombs(c.ctx, currentRhombs(), c.cx, c.cy, false);
+            // The laid-out tiles, solid. The superposed ones at a concurrency
+            // have their edges too — they are the superposition itself — but as
+            // pseudo edges, dotted, on the switch beside this one.
+            drawRhombs(c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy, false);
             drawResolutions(c.ctx, c.cx, c.cy, false);
         },
+    });
+    stack.add({
+        // The superposed tiles' edges, dotted, on their own switch. See Features.
+        id: "penrose-pseudo", label: "Pseudo edges", z: PENROSE_Z_FRONT + 1, group: "Penrose",
+        visible: () => features.pseudoEdges,
+        draw: (c) => drawRhombs(
+            c.ctx, currentRhombs().filter((r) => isStacked(r)), c.cx, c.cy, false, true),
     });
     stack.add({
         id: "penrose-decor", label: "Arcs", z: PENROSE_Z_FRONT + 2, group: "Penrose",
@@ -1410,7 +1429,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return rhomb.thick ? THICK_FILL : THIN_FILL;
     }
 
-    function drawRhombs(tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, fill: boolean) {
+    function drawRhombs(
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
+        fill: boolean, dotted = false,
+    ) {
+        if (dotted) { tc.save(); tc.setLineDash([2, 3]); }
         for (const rhomb of rhombs) {
             const sv = rhomb.vertices.map(([vx, vy]) =>
                 mathToScreen(vx, vy, cx, cy)) as [number, number][];
@@ -1434,11 +1457,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.restore();
                 if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
             } else {
-                tc.strokeStyle = "#777";
+                tc.strokeStyle = dotted ? "#999" : "#777";
                 tc.lineWidth = 1;
                 tc.stroke();
             }
         }
+        if (dotted) tc.restore();
     }
 
     // ── K-region visualization ────────────────────────────────────────
@@ -1775,6 +1799,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         "penrose-tiles": "penroseTiles",
         "penrose-edges": "penroseEdges",
         "penrose-decor": "penroseDecor",
+        "penrose-pseudo": "pseudoEdges",
         "penrose-vertices": "penroseVertices",
     };
 
@@ -1915,6 +1940,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const extras = row(layerPanelDiv, "also");
         featureToggle(extras, "kLabels", "K-labels");
         featureToggle(extras, "penroseDecor", "arcs");
+        featureToggle(extras, "pseudoEdges", "pseudo edges");
         checkbox(extras, "Penrose in front", penroseInFront, (v) => {
             penroseInFront = v;
             restackPenrose();

@@ -4,7 +4,9 @@
 // live. The difference between the two pages is a config object.
 
 import { createGrowthView } from "../view/growth.js";
-import { bindSliders, bindToggles, mountGammaControls } from "../view/controls.js";
+import {
+    bindSliders, bindToggles, mountGammaControls, mountFloatingReticulum,
+} from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("roof-view");
@@ -22,5 +24,13 @@ if (host) {
     const gammaHost = document.getElementById("roof-gamma");
     if (gammaHost) {
         mountGammaControls(view.pentagrid.gamma, gammaHost, { colors: FAMILY_COLORS });
+        // The reticulum floats, and the sliders start folded, as everywhere.
+        const bar = document.querySelector<HTMLElement>(".bar");
+        mountFloatingReticulum(view.pentagrid.gamma, {
+            colors: FAMILY_COLORS,
+            buttons: bar ?? document.body,
+            sliders: gammaHost,
+            foldSliders: true,
+        });
     }
 }

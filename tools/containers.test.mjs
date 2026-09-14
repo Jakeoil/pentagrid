@@ -760,16 +760,16 @@ test("hovering a gridline segment shows the Penrose edge it becomes", () => {
     assert.equal(stray, 0, "the segment path ran with hoverEdge off");
 });
 
-test("superposed rhombs keep their edges, and lose only fill and arc", () => {
-    // The rule the tile style set: at a concurrency the C(k,2) rhombs are stacked,
-    // so a fill would assert which rhombic tiling of the 2k-gon is real, and an arc
-    // would assert a shared edge to join across when inside a stack there is none.
-    // Edges and vertices are untouched — those lines, joining vertex dots that are
-    // still drawn, ARE the superposition. The filter had been applied to the edges
-    // layer as well, which emptied the inside of every 2k-gon.
+test("superposed rhombs keep their edges as pseudo edges, and lose fill and arc", () => {
+    // At a concurrency the C(k,2) rhombs are stacked. A fill would assert which
+    // rhombic tiling of the 2k-gon is real and an arc would assert a shared edge
+    // to join across, so both are dropped. The edges stay — they ARE the
+    // superposition — but as pseudo edges, dotted, on their own switch: each is
+    // dual to a gridline segment of zero length, so it has no grid counterpart.
     const h = createPentagrid({
         container: sizedHost(800, 800),
-        features: { penroseTiles: true, penroseEdges: true, penroseDecor: true },
+        features: { penroseTiles: true, penroseEdges: true, penroseDecor: true,
+                    pseudoEdges: true },
     });
     h.gamma.setSum(0, true);          // all five lines meet at the origin
 
@@ -784,26 +784,27 @@ test("superposed rhombs keep their edges, and lose only fill and arc", () => {
     };
 
     const edges = tally("penrose-edges", "stroke");
+    const pseudo = tally("penrose-pseudo", "stroke");
     const fills = tally("penrose-tiles", "fill");
+
+    // The solid edges match the fills — both are the laid-out tiles plus the
+    // 2k-gon outlines — and the pseudo layer carries the rest. At sum zero a
+    // large minority of rhombs sit on a concurrency, so it is far from empty.
+    assert.equal(edges, fills, `solid edges ${edges} should match fills ${fills}`);
+    assert.ok(pseudo > 50, `only ${pseudo} pseudo edges at Gamma = 0`);
+
+    // And off by its switch, not by a filter somewhere else.
+    h.setFeatures({ pseudoEdges: false }, { merge: true });
+    assert.equal(h.stack.get("penrose-pseudo").visible(), false);
+
+    // Arcs stay filtered: compare the arcs/edges ratio against a regular gamma,
+    // where nothing is stacked and every rhomb gets both.
     const arcs = tally("penrose-decor", "stroke");
-
-    // At sum zero a large minority of rhombs sit on a concurrency, so the edge
-    // count has to run well ahead of the fill count. Equal would mean the same
-    // filter is being applied twice and the 2k-gons are hollow.
-    assert.ok(edges > fills + 50,
-              `edges ${edges} vs fills ${fills}: superposed rhombs lost their edges`);
-
-    // Arcs stay filtered. Their raw count says nothing — the decor layer strokes
-    // two arcs per rhomb where the edge layer strokes one — so compare the ratio
-    // against a regular configuration, where nothing is stacked and every rhomb
-    // gets both.
-    const singularRatio = arcs / edges;
+    const singularRatio = arcs / (edges + pseudo);
     h.gamma.setGuard(true);
-    const regular = tally("penrose-edges", "stroke");
-    const regularArcs = tally("penrose-decor", "stroke");
-    const regularRatio = regularArcs / regular;
+    const regularRatio = tally("penrose-decor", "stroke") / tally("penrose-edges", "stroke");
     assert.ok(singularRatio < regularRatio - 0.1,
-              `arcs/edges ${singularRatio.toFixed(2)} at a singular gamma should sit `
+              `arcs per edge ${singularRatio.toFixed(2)} at a singular gamma should sit `
               + `below ${regularRatio.toFixed(2)} at a regular one`);
 });
 
@@ -827,9 +828,10 @@ test("the hover readout sits in the canvas corner unless told to follow", () => 
     };
     hover(400, 400);
     assert.equal(tip.style.display, "block", "the readout did not show");
-    assert.equal(tip.style.left, "108px", "corner: left should be the canvas edge + 8");
+    assert.equal(tip.style.top, "58px", "corner: top should be the canvas top + 8");
+    assert.equal(tip.style.left, "auto", "corner: anchored by the right edge, not the left");
     hover(600, 200);
-    assert.equal(tip.style.left, "108px", "corner: it should not move with the pointer");
+    assert.equal(tip.style.top, "58px", "corner: it should not move with the pointer");
 
     // The follow-pointer setting is the second view of the same thing.
     const h2 = createPentagrid({

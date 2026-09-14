@@ -36,13 +36,11 @@ handle.onFeatureOn((key) => {
     if (page >= 0 && page !== narrative.current()) narrative.go(page);
 });
 
-// Both controls, on one page and one gamma set, so they can be compared before
-// either is preferred. Neither replaces the other — see PLAN.md. The reticulum
-// floats and the slider bank folds; see mountFloatingReticulum. Here the sliders
-// start open, since this is the page that compares the two.
+// The reticulum is the instrument; the slider bank is kept, folded, for the
+// comparison. Jake: default the sliders off on every page.
 mountFloatingReticulum(handle.gamma, {
     colors: ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"],
     buttons: byId("step-nav") ?? document.body,
     sliders: byId("controls"),
-    foldSliders: false,
+    foldSliders: true,
 });

@@ -26,6 +26,9 @@ if (host) {
 
     const gammaHost = document.getElementById("grow7-gamma");
     if (gammaHost) {
+        // Sliders stay open here, alone: the reticulum is a decagon by
+        // construction (ui/reticulum.ts, cos(pi/10)) and has no honest shape for
+        // seven families until it is generalized to a 2n-gon.
         mountGammaControls(view.pentagrid.gamma, gammaHost, { colors: FAMILY_COLORS });
     }
 }
