@@ -47,7 +47,9 @@ if (gridHost && tileHost) {
         gamma,
         // The grid is hidden rather than switched off: a family's userVisible
         // also removes the rhombs it generates, which would leave nothing here.
-        features: { gridLines: false, axes: false, penroseTiles: true },
+        // Tiles AND edges: since the tile style separated fill from stroke, a
+        // tile is only its fill, and a tiling with no edges is a color field.
+        features: { gridLines: false, axes: false, penroseTiles: true, penroseEdges: true },
         onViewChange: relay(() => lines),
     });
 

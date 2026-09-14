@@ -438,7 +438,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // Tooltip for K-tuple display
     const tooltip = document.createElement("div");
-    tooltip.style.cssText = "position:fixed;padding:4px 8px;background:rgba(0,0,0,0.8);color:#fff;font:12px monospace;border-radius:3px;pointer-events:none;display:none;z-index:10;";
+    // Opaque and light: the translucent black was unreadable over a dark canvas.
+    tooltip.style.cssText = "position:fixed;padding:5px 9px;background:#e4e4e8;color:#1a1a1e;"
+        + "font:12px monospace;border:1px solid #9a9aa2;border-radius:3px;"
+        + "pointer-events:none;display:none;z-index:10;";
 
     /**
      * Where the hover readout goes: pinned in the canvas corner, or riding the
@@ -542,7 +545,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stack.add({
         // No `group`: its switch is in the K-regions cluster, not on the
         // Pentagrid row. One fact, one switch.
-        id: "background", label: "K-regions", z: 5,
+        id: "background", label: "K-regions", z: 5, group: "Pentagrid",
         visible: () => features.kRegions,
         draw: (c) => withView(gridView(), () => drawKRegions(c.ctx, c.cx, c.cy)),
     });
@@ -570,13 +573,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stack.add({
         // In FRONT of the grid and the tiling: an axis behind the thing it
         // measures is decoration, not a reference.
-        id: "axes", label: "Axes", z: 70, group: "Pentagrid",
+        id: "axes", label: "Axes", z: 70, group: "Axes",
         visible: () => features.axes,
         draw: (c) => drawAxes(c.ctx, c.w, c.h, c.cx, c.cy),
     });
 
     stack.add({
-        id: "dots", label: "Dots", z: 50, group: "Pentagrid",
+        // Immediately under the tiling: a crossing is the tile's source, and
+        // the dot should show through where the tile is transparent, not sit on top.
+        id: "dots", label: "Dots", z: 29, group: "Pentagrid",
         visible: () => features.intersectionDots,
         draw: (c) => withView(gridView(), () =>
             drawIntersectionDots(c.ctx, c.cx, c.cy, computeRect())),
@@ -584,7 +589,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     stack.add({
         // Switched from the K-regions cluster, like the regions themselves.
-        id: "klabels", label: "K-labels", z: 51,
+        id: "klabels", label: "K-labels", z: 28, group: "Pentagrid",
         visible: () => features.kLabels,
         draw: (c) => withView(gridView(), () => drawKEdgeLabels(c.ctx, c.cx, c.cy)),
     });

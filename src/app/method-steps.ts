@@ -146,7 +146,7 @@ export const METHOD_PAGES: Page[] = [
             <i>Kon. Nederl. Akad. Wetensch. Proc.</i> <b>84</b>
             (1981).</p>`,
         enter: (pg) => {
-            pg.setFeatures({ gridLines: true, penroseTiles: true });
+            pg.setFeatures({ gridLines: true, penroseTiles: true, penroseEdges: true });
             pg.setGridAlpha(0.18);
             pg.exposeRows(null);     // the last page opens everything up
         },
