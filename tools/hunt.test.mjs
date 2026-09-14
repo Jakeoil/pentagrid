@@ -93,10 +93,20 @@ test("every preset shows what its name says", () => {
     // The headline shape, and everything that necessarily comes with it. A
     // decagon cannot be had alone: all ten triples go singular with it.
     // The three Penrose states, and everything that necessarily comes with each.
+    // Every preset, and everything that necessarily comes with it. The caps are
+    // regular except deca, which is the 5-fold singularity itself.
     const expect = {
-        "Regular": {},
-        "One couple": { "113": 1, "122": 1 },
-        "Decagon": { "113": 5, "122": 5, "11111": 1 },
+        "sun": {},
+        "star": {},
+        "deca": { "113": 5, "122": 5, "11111": 1 },
+        "regular": {},
+        "couple": { "113": 1, "122": 1 },
+        "decagon": { "113": 5, "122": 5, "11111": 1 },
+        "octagon": { "113": 2, "122": 2, "1112": 1 },
+        "1 thick": { "122": 1 },
+        "1 thin": { "113": 1 },
+        "2 thick": { "122": 2 },
+        "2 thin": { "113": 2 },
     };
     for (const p of SINGULAR_PRESETS) {
         const g = at(p.gamma, p.den);
@@ -110,11 +120,11 @@ test("every preset shows what its name says", () => {
         assert.deepEqual([...codes].sort(), Object.keys(expect[p.name]).sort(),
                          `preset "${p.name}": the scan shows something else`);
 
-        // Penrose means Sum(gamma) in Z. A preset that broke it would not be a
-        // Penrose tiling at all, whatever it showed.
+        // The `penrose` flag must be the truth about Sum(gamma), not a label:
+        // five of the seven singular signatures are not Penrose and say so.
         const sum = p.gamma.reduce((a, b) => a + b, 0);
-        assert.equal(sum % p.den, 0,
-                     `preset "${p.name}" has Sum(gamma) off the integers`);
+        assert.equal(p.penrose, ((sum % p.den) + p.den) % p.den === 0,
+                     `preset "${p.name}" mislabels whether it is Penrose`);
     }
 });
 
@@ -163,7 +173,7 @@ test("the Hunt buttons set the phases their labels promise", () => {
     const panel = makeStub();
     const h = createPentagrid({ container: sizedHost(800, 800), panel });
 
-    const buttons = walk(panel).filter((e) => e.className === "preset");
+    const buttons = walk(panel).filter((e) => String(e.className ?? "").startsWith("preset"));
     assert.equal(buttons.length, SINGULAR_PRESETS.length,
                  "the Hunt row did not render one button per preset");
 
@@ -184,19 +194,20 @@ test("the Hunt buttons set the phases their labels promise", () => {
         // And the map really has what the name says.
         const kinds = classifySingularities(h.gamma.model, p.gamma, p.den);
         const codes = new Set(kinds.map((k) => k.code));
-        if (p.name === "Octagon") assert.ok(codes.has("1112"), "no octagon");
-        if (p.name === "Decagon") assert.ok(codes.has("11111"), "no decagon");
-        if (p.name === "Regular") assert.equal(kinds.length, 0, "not regular");
+        if (p.name === "octagon") assert.ok(codes.has("1112"), "no octagon");
+        if (p.name === "decagon") assert.ok(codes.has("11111"), "no decagon");
+        if (p.name === "regular") assert.equal(kinds.length, 0, "not regular");
     }
 });
 
 test("a preset lands intact whichever index is holding the total", () => {
-    // Every Penrose preset sums to zero, so the locked index has nothing to
-    // absorb and the phases must arrive exactly as written. If one did not sum to
-    // zero the lock would silently rewrite it and the button would lie.
+    // A preset is the whole phase vector, so it releases the total before setting
+    // it. Without that the locked index rewrites it against the stored target —
+    // sun is uniform 1/5 and sums to 1, and a lock holding zero turned gamma0
+    // into -4/5 while the button still said "sun".
     const panel = makeStub();
     const h = createPentagrid({ container: sizedHost(800, 800), panel });
-    const buttons = walk(panel).filter((e) => e.className === "preset");
+    const buttons = walk(panel).filter((e) => String(e.className ?? "").startsWith("preset"));
 
     for (const lock of [0, 2, 4]) {
         for (const p of SINGULAR_PRESETS) {
@@ -210,8 +221,15 @@ test("a preset lands intact whichever index is holding the total", () => {
                           `"${p.name}" with gamma${lock} locked: gamma${j} is ${g}, `
                           + `wanted ${want[j]}`);
             });
+            // The total is the preset's own, not zero: sun is uniform 1/5 and
+            // sums to 1, which is an integer and so still Penrose. What matters is
+            // that it is an integer exactly when the preset claims to be Penrose.
             const sum = h.gamma.model.gamma.reduce((a, b) => a + b, 0);
-            assert.ok(Math.abs(sum) < 1e-12, `"${p.name}": total drifted to ${sum}`);
+            const wantSum = p.gamma.reduce((a, b) => a + b, 0) / p.den;
+            assert.ok(Math.abs(sum - wantSum) < 1e-12,
+                      `"${p.name}": total is ${sum}, wanted ${wantSum}`);
+            assert.equal(Math.abs(sum - Math.round(sum)) < 1e-12, p.penrose,
+                         `"${p.name}": total ${sum} contradicts penrose=${p.penrose}`);
         }
     }
 });

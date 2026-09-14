@@ -92,9 +92,9 @@ if (host && strip) {
         if (!defined)
             return { text: "no clusters — Σγ is not an integer, so this is not Penrose", cls: "none" };
         if (atOrigin && atOrigin.kind === "Pe5")
-            return { text: "SUN — the origin is a Pe5 center", cls: "sun" };
+            return { text: "sun — the origin is a Pe5 center", cls: "sun" };
         if (!atOrigin)
-            return { text: "STAR — the origin is in an St5 gap, in no cluster", cls: "star" };
+            return { text: "star — the origin is in an St5 gap, in no cluster", cls: "star" };
         return { text: `origin is a ${atOrigin.kind ?? "partial"} center`, cls: "none" };
     }
 

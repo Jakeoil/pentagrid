@@ -8,7 +8,7 @@ import {
 import type { GridSegment } from "../geometry/pentagrid.js";
 import { scanRegions } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
-import { classifySingularities, SINGULAR_PRESETS } from "../geometry/hunt.js";
+import { addPresets } from "../ui/presets.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
@@ -1904,42 +1904,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sRow.appendChild(alpha);
         }
 
-        // ── Hunting singularities ─────────────────────────────────────
+        // ── Caps and singularities ────────────────────────────────────
         //
-        // Exposed on the page that is about them. Each button is a phase vector
-        // whose singular content is decided by arithmetic, not found by looking,
-        // and the tests check the name against both the rule and the scan.
+        // Two rows, exposed on the page that is about them. Every button is a
+        // phase vector whose content is decided by arithmetic, not found by
+        // looking, and the tests check each name against both the rule and the
+        // scan. Shared with grow.html — see ui/presets.ts.
         {
-            const hRow = row(layerPanelDiv, "Hunt");
-            const readout = document.createElement("span");
-            readout.className = "hunt-readout";
-
-            for (const p of SINGULAR_PRESETS) {
-                const b = document.createElement("button");
-                b.className = "preset";
-                b.textContent = p.name;
-                b.title = p.note;
-                b.addEventListener("click", () => {
-                    // Every preset here is Penrose, so every one sums to zero and
-                    // the total stays exactly where it is.
-                    gammaSet.setValues(p.gamma.map((q) => q / p.den));
-                    showHunt(p.gamma, p.den);
-                    draw();
-                });
-                hRow.appendChild(b);
-            }
-            hRow.appendChild(readout);
-
-            /** Name what the phase vector has, from the rule rather than the scan. */
-            function showHunt(gammaQ: readonly number[], den: number) {
-                const kinds = classifySingularities(model, gammaQ, den);
-                if (kinds.length === 0) { readout.textContent = "regular"; return; }
-                const tally = new Map<string, number>();
-                for (const k of kinds) tally.set(k.code, (tally.get(k.code) ?? 0) + 1);
-                readout.textContent = [...tally]
-                    .sort((a, b) => b[0].length - a[0].length)
-                    .map(([code, n]) => `${n}×K${code}`).join(" · ");
-            }
+            const capRow = row(layerPanelDiv, "Caps");
+            addPresets(capRow, "cap", gammaSet, draw);
+            const huntRow = row(layerPanelDiv, "Hunt");
+            addPresets(huntRow, "hunt", gammaSet, draw);
         }
 
         // Collapsed settings — set once, then forgotten

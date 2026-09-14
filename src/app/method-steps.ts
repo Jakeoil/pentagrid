@@ -194,7 +194,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, intersectionDots: true });
             pg.setGridAlpha(0.5);
-            pg.exposeRows(["Pentagrid", "single line", "Hunt"]);
+            pg.exposeRows(["Pentagrid", "single line", "Caps", "Hunt"]);
         },
     },
 ];

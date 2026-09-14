@@ -108,6 +108,15 @@ export interface SingularPreset {
     den: number;
     /** What it is for. */
     note: string;
+    /**
+     * Sum(gamma) in Z — de Bruijn's condition, so the tiling is Penrose.
+     *
+     * Five of the seven singular signatures are NOT, and they are worth visiting
+     * anyway; they are just not Penrose tilings, and the button says so.
+     */
+    penrose: boolean;
+    /** "cap" names what sits at the origin; "hunt" names what is singular. */
+    group: "cap" | "hunt";
 }
 
 /**
@@ -121,42 +130,98 @@ export interface SingularPreset {
 const D = 100;
 
 /**
- * Every Penrose singularity there is. All three of them.
+ * THE CAPS. Give all five families the same offset and the pentagrid keeps its
+ * five-fold symmetry, so the tiling does too.
  *
- * Penrose means Sum(gamma) in Z, so every preset here sums to zero and the total
- * stays locked. Under that constraint the catalog is complete and very short —
- * searched exhaustively over all rational phase vectors at denominators 12, 15,
- * 20, 24 and 25, which is every one of them up to scaling:
+ * sun is the Pe5 cap, star the St5, deca the queen.
  *
- *     regular          nothing concurrent anywhere
- *     one couple       one K122 + one K113, and nothing else
- *     Gamma = 0        five of each, plus the decagon
- *
- * Two facts make it that short. **Couples**: see COUPLES above — the hexagons come
- * in pairs, one of each kind. **Two couples force all five**: two couples means two
- * integral phases, whose pair conditions drag in two more, and Sum(gamma) integral
- * supplies the fifth — so there is no way to have three or four couples, and
- * nothing between one couple and the whole decagon.
- *
- * And **no octagon is Penrose.** A 4-fold needs Sum(gamma) off the integers, since
- * Sum(v_j) = 0 puts the fifth family through any point where four meet as soon as
- * Sum(gamma) is integral. The octagon is real, but it lives outside the condition.
+ * All three have the SAME vertex at the origin — five thick rhombs at 72 degrees,
+ * measured. What separates them is the patch, not the vertex: at c = 1/5 the
+ * origin is a Pe5 cluster center, at c = 2/5 it belongs to no cluster at all
+ * because it sits inside an St5. That is why this needed the cluster recognizer.
  */
-export const SINGULAR_PRESETS: readonly SingularPreset[] = [
+const CAPS: readonly SingularPreset[] = [
     {
-        name: "Regular", gamma: [7, 11, 13, 17, -48], den: D,
+        name: "sun", gamma: [20, 20, 20, 20, 20], den: D, penrose: true, group: "cap",
+        note: "c = 1/5. The origin is a Pe5 center. Regular: no three lines "
+            + "meet anywhere.",
+    },
+    {
+        name: "star", gamma: [40, 40, 40, 40, 40], den: D, penrose: true, group: "cap",
+        note: "c = 2/5. The same five-thick vertex, but it belongs to no cluster: "
+            + "it sits inside an St5, a star-shaped gap. Regular.",
+    },
+    {
+        name: "deca", gamma: [0, 0, 0, 0, 0], den: D, penrose: true, group: "cap",
+        note: "c = 0, the queen. The one cap that is not a tiling: all five lines "
+            + "pass through the origin and its dual is a decagon, not a rhomb.",
+    },
+];
+
+/**
+ * THE SINGULARITIES. All seven of them, and that is the complete list.
+ *
+ * Searched exhaustively over every rational phase vector at denominators 10 and
+ * 12 — the same seven signatures both times, so this is the catalog and not a
+ * sample of it:
+ *
+ *     PENROSE, Sum(gamma) in Z
+ *       one couple    K122 + K113
+ *       decagon       5 of each, plus the 5-fold at the origin
+ *
+ *     NOT PENROSE
+ *       one thick     K122 alone
+ *       one thin      K113 alone
+ *       two thick     K122 x2
+ *       two thin      K113 x2
+ *       octagon       K1112, plus 2 of each hexagon
+ *
+ * The Penrose column is short for the reason in COUPLES: an integral total makes
+ * the hexagons come in pairs and swallows every 4-fold into a 5-fold.
+ */
+const HUNT: readonly SingularPreset[] = [
+    {
+        name: "regular", gamma: [7, 11, 13, 17, -48], den: D, penrose: true, group: "hunt",
         note: "No integral phase, so no three lines meet anywhere — the corollary "
             + "in closed form, ten integer comparisons. Sums to zero.",
     },
     {
-        name: "One couple", gamma: [0, 30, 25, -25, -30], den: D,
-        note: "The smallest Penrose singularity: gamma0 integral and gamma1 + "
-            + "gamma4 integral give triple 014, and Sum(gamma) = 0 forces its "
-            + "partner 023. One thick hexagon and one thin, nothing else.",
+        name: "couple", gamma: [0, 0, 0, 10, -10], den: D, penrose: true, group: "hunt",
+        note: "The smallest Penrose singularity: one K122 and one K113, and "
+            + "nothing else. They cannot be separated — see COUPLES.",
     },
     {
-        name: "Decagon", gamma: [0, 0, 0, 0, 0], den: D,
+        name: "decagon", gamma: [0, 0, 0, 0, 0], den: D, penrose: true, group: "hunt",
         note: "Every phase integral: all five couples at once, ten hexagons, and "
-            + "the unique 5-fold at the origin. The most singular pentagrid there is.",
+            + "the unique 5-fold at the origin. Same vector as the deca cap.",
+    },
+    {
+        name: "octagon", gamma: [0, 0, 0, 0, 50], den: D, penrose: false, group: "hunt",
+        note: "Sum(gamma) = 1/2, so NOT Penrose — and that is the point. Four "
+            + "integral phases give a K1112, a boat and two thins. No integral "
+            + "total can reach it: the fifth family would pass through the same "
+            + "point and make it a decagon.",
+    },
+    {
+        name: "1 thick", gamma: [0, 0, 0, 10, 10], den: D, penrose: false, group: "hunt",
+        note: "A lone K122, with the total off the integers. Not Penrose — at "
+            + "Sum(gamma) in Z a hexagon always drags its partner in.",
+    },
+    {
+        name: "1 thin", gamma: [0, 0, 10, 0, 10], den: D, penrose: false, group: "hunt",
+        note: "A lone K113, the other hexagon. Not congruent to the thick one: "
+            + "144/144/72 against 144/108/108.",
+    },
+    {
+        name: "2 thick", gamma: [0, 10, 0, -10, -10], den: D, penrose: false, group: "hunt",
+        note: "Two K122 and no K113 — impossible at an integral total, where the "
+            + "two kinds are forced into pairs.",
+    },
+    {
+        name: "2 thin", gamma: [0, 0, 10, -10, 10], den: D, penrose: false, group: "hunt",
+        note: "Two K113 and no K122, the mirror of the case above.",
     },
 ];
+
+/** Caps first, then the singular catalog. */
+export const SINGULAR_PRESETS: readonly SingularPreset[] = [...CAPS, ...HUNT];

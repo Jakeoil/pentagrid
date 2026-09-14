@@ -4,7 +4,10 @@
 // starting state, and five sliders.
 
 import { createGrowthView } from "../view/growth.js";
-import { bindSliders, bindToggles, mountGammaControls } from "../view/controls.js";
+import {
+    bindSliders, bindToggles, mountGammaControls, mountReticulum,
+} from "../view/controls.js";
+import { addPresets } from "../ui/presets.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("grow-view");
@@ -25,4 +28,19 @@ if (host) {
     if (gammaHost) {
         mountGammaControls(view.pentagrid.gamma, gammaHost, { colors: FAMILY_COLORS });
     }
+
+    // The reticulum, the same one the method page carries. Both are views over
+    // the one γ set, so they stay in step without being told to.
+    const retHost = document.getElementById("grow-reticulum");
+    if (retHost) {
+        mountReticulum(view.pentagrid.gamma, retHost, { colors: FAMILY_COLORS });
+    }
+
+    // The caps and the singularity catalog, shared with the method page. On
+    // this page they are worth more: a preset picks the phases, and the grow
+    // slider then shows what that singularity actually opens into.
+    const caps = document.getElementById("grow-caps");
+    if (caps) addPresets(caps, "cap", view.pentagrid.gamma, () => view.redraw());
+    const hunt = document.getElementById("grow-hunt");
+    if (hunt) addPresets(hunt, "hunt", view.pentagrid.gamma, () => view.redraw());
 }

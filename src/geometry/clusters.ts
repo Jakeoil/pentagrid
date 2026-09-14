@@ -13,7 +13,7 @@
 // vertex partitions the patch with nothing left over, and each group is one of
 // three shapes:
 //
-//     5 thick + 0 thin   star rhomb group    center of a  Pe5   (the SUN)
+//     5 thick + 0 thin   star rhomb group    center of a  Pe5   (the sun)
 //     3 thick + 1 thin   boat rhomb group    center of a  Pe3
 //     1 thick + 2 thin   diamond rhomb group center of a  Pe1
 //
@@ -27,7 +27,7 @@
 // P1 pentagons are a Penrose structure, so a generalised tiling has no clusters
 // to find, and `defined` says so rather than returning nonsense.
 //
-// Note the naming trap: a Pe5 is the SUN, and the *star rhomb group* is what sits
+// Note the naming trap: a Pe5 is the sun, and the *star rhomb group* is what sits
 // at its center. The patch name and the rhomb-group name are different
 // vocabularies. See PLAN.md.
 
