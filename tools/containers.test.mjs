@@ -864,6 +864,43 @@ test("two linked views share one gamma through onChange", () => {
     assert.ok(Math.abs(tiles.gamma.values()[2] - 0.25) < 1e-12, "a single dial did not relay");
 });
 
+test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", () => {
+    // grow.html's drawing, in method: family j's band, family k's, and the
+    // composite square where they cross — three fills per rhomb. A 2k-gon takes
+    // no color under it. At band 0 nothing is painted at all.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { color: "pair" },
+    });
+    h.gamma.setSum(0, true);            // stacks, so there are 2k-gons to leave bare
+
+    const fills = () => {
+        const layer = h.stack.get("penrose-tiles");
+        let n = 0;
+        const real = layer.ctx.fill;
+        layer.ctx.fill = () => { n++; };
+        h.redraw();
+        layer.ctx.fill = real;
+        return n;
+    };
+    const pair = fills();                          // one per laid-out tile + one per 2k-gon
+
+    h.setTileStyle({ color: "bands", band: 0.5 });
+    const bands = fills();
+    // Three per laid-out tile and none for the 2k-gons — so strictly more than
+    // 3x(pair minus the 2k-gons) is impossible and strictly less than 3x pair
+    // is exactly the 2k-gons going unpainted.
+    assert.ok(bands < 3 * pair, `bands ${bands} should be under 3 x ${pair}: 2k-gons were painted`);
+    assert.ok(bands > 2 * pair, `bands ${bands} should be ~3x ${pair}: not three quads per tile`);
+
+    h.setTileStyle({ band: 0 });
+    assert.equal(fills(), 0, "band 0 should paint nothing");
+
+    h.setTileStyle({ band: 1 });
+    assert.equal(fills(), bands, "band 1 should paint the same three quads, full width");
+});
+
 test("tile style is a setting, not a feature flag", () => {
     // color is a choice of three and opacity is a number; neither is the sort of
     // thing a narrative page turns on.

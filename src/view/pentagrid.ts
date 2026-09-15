@@ -52,8 +52,18 @@ function shade(hex: string, t: number): string {
  * `opacity` is a number, and neither is the sort of thing a step turns on.
  */
 export interface TileStyle {
-    /** thick/thin, the two families that made it, or its Wieringa index. */
-    color: "type" | "pair" | "index";
+    /**
+     * thick/thin, the two families that made it, its Wieringa index — or
+     * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
+     * them. Each band runs across the tile in its family's color, `band` wide as
+     * a fraction of the edge, and the square where they cross is the composite.
+     * At 100% the crossing covers the whole tile and it looks like `pair`;
+     * below that the tile reads as two gridlines passing through. A 2k-gon takes
+     * no color under it.
+     */
+    color: "type" | "pair" | "index" | "bands";
+    /** Band width for `bands`, 0..1 of the edge. */
+    band: number;
     /** Contour lines across each tile. */
     isogloss: boolean;
     /** Fill alpha. Edges and decoration stay solid. */
@@ -496,7 +506,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let gridAlpha = 0.6;
 
     const tileStyle: TileStyle = {
-        color: "type", isogloss: false, opacity: 1,
+        color: "type", isogloss: false, opacity: 1, band: 0.5,
         ...config.tileStyle,
     };
 
@@ -1381,7 +1391,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      *   families    the combination of the gridlines that meet there
      *   index       its level, shaded like the tiles
      */
-    function resolutionFill(r: Resolution): string {
+    function resolutionFill(r: Resolution): string | null {
+        if (tileStyle.color === "bands") return null;      // Jake: not the 2k-gons
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -1418,17 +1429,51 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             });
             tc.closePath();
             if (fill) {
-                tc.save();
-                tc.globalAlpha = tileStyle.opacity;
-                tc.fillStyle = resolutionFill(r);
-                tc.fill();
-                tc.restore();
+                const style = resolutionFill(r);
+                if (style) {
+                    tc.save();
+                    tc.globalAlpha = tileStyle.opacity;
+                    tc.fillStyle = style;
+                    tc.fill();
+                    tc.restore();
+                }
             } else {
                 tc.strokeStyle = "#777";
                 tc.lineWidth = 1;
                 tc.stroke();
             }
         }
+    }
+
+    /**
+     * The two gridlines through a tile, as bands — grow.html's drawing, here.
+     *
+     * In the tile's own coordinates a corner is v0 + a·vj + b·vk. Family j's
+     * line enters through the b = 0 edge and leaves through b = 1, both parallel
+     * to vj, so its band is a in [lo, hi] and b in [0, 1]; family k's is the
+     * other way round; and where they cross is the composite square. Same three
+     * quads, same lo/hi, as view/growth.ts.
+     */
+    function drawBands(tc: CanvasRenderingContext2D, r: Rhomb, cx: number, cy: number) {
+        const lo = 0.5 - tileStyle.band / 2, hi = 0.5 + tileStyle.band / 2;
+        const vj = directions[r.j], vk = directions[r.k], v0 = r.vertices[0];
+        const at = (a: number, b: number) =>
+            mathToScreen(v0[0] + a * vj[0] + b * vk[0], v0[1] + a * vj[1] + b * vk[1], cx, cy);
+        const quad = (corners: [number, number][], style: string) => {
+            tc.beginPath();
+            corners.forEach(([a, b], i) => {
+                const [x, y] = at(a, b);
+                if (i === 0) tc.moveTo(x, y); else tc.lineTo(x, y);
+            });
+            tc.closePath();
+            tc.fillStyle = style;
+            tc.fill();
+        };
+        if (tileStyle.band <= 0) return;
+        quad([[lo, 0], [hi, 0], [hi, 1], [lo, 1]], COLORS[r.j % COLORS.length]);
+        quad([[0, lo], [1, lo], [1, hi], [0, hi]], COLORS[r.k % COLORS.length]);
+        quad([[lo, lo], [hi, lo], [hi, hi], [lo, hi]],
+             pairColors.get(`${r.j},${r.k}`)?.replace(/,0\.55\)$/, ",1)") ?? "#888");
     }
 
     /** What color a tile takes, under the current style. */
@@ -1480,8 +1525,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (fill) {
                 tc.save();
                 tc.globalAlpha = tileStyle.opacity;
-                tc.fillStyle = tileFill(rhomb);
-                tc.fill();
+                if (tileStyle.color === "bands") {
+                    drawBands(tc, rhomb, cx, cy);
+                } else {
+                    tc.fillStyle = tileFill(rhomb);
+                    tc.fill();
+                }
                 tc.restore();
                 if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
             } else {
@@ -1963,7 +2012,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.title = "thick/thin · the families that made it · its Wieringa index. "
                 + "A 2k-gon follows the same choice.";
             for (const [value, text] of [
-                ["type", "thick/thin"], ["pair", "families"], ["index", "index"],
+                ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
+                ["index", "index"],
             ] as const) {
                 const opt = document.createElement("option");
                 opt.value = value;
@@ -1973,9 +2023,32 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.value = tileStyle.color;
             sel.addEventListener("change", () => {
                 tileStyle.color = sel.value as TileStyle["color"];
+                bandWrap.hidden = tileStyle.color !== "bands";
                 draw();
             });
+
+            // The band width, for families2 only — grow.html's slider, here.
+            const bandWrap = document.createElement("label");
+            bandWrap.className = "band-setting";
+            bandWrap.title = "Width of each gridline's band across the tile, as a "
+                + "fraction of the edge. 100% covers the tile; 0 leaves it bare.";
+            const bandVal = document.createElement("span");
+            bandVal.textContent = ` band ${Math.round(tileStyle.band * 100)}% `;
+            const bandIn = document.createElement("input");
+            bandIn.type = "range";
+            bandIn.min = "0"; bandIn.max = "1"; bandIn.step = "0.02";
+            bandIn.value = String(tileStyle.band);
+            bandIn.style.width = "80px";
+            bandIn.addEventListener("input", () => {
+                tileStyle.band = parseFloat(bandIn.value);
+                bandVal.textContent = ` band ${Math.round(tileStyle.band * 100)}% `;
+                draw();
+            });
+            bandWrap.appendChild(bandVal);
+            bandWrap.appendChild(bandIn);
+            bandWrap.hidden = tileStyle.color !== "bands";
             sRow.appendChild(sel);
+            sRow.appendChild(bandWrap);
 
             const iso = checkbox(sRow, "isogloss", tileStyle.isogloss, (v) => {
                 tileStyle.isogloss = v;
