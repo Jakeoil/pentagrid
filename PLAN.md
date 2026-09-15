@@ -1622,6 +1622,54 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## What the ghost lines are, exactly (2026-09-15)
+
+Jake: *"The ghost lines of the 2K-gons are not exactly a dualization of something
+on the Pentagrid. Some of the vertex dots within the 2K-gon apparently are."*
+Right, and here is the precise version, measured at `Gamma = 0`:
+
+| | tiles | fan corners | real sectors | ghost | edges | real (outline) | ghost |
+|---|---|---|---|---|---|---|---|
+| thin hexagon | 3 | 7 | 6 | 1 | 9 | 6 | 3 |
+| thick hexagon | 3 | 7 | 5 | 2 | 9 | 4 | 5 |
+| decagon | 10 | 16 | 5 | 11 | 25 | **0** | **25** |
+
+**The method — there isn't a special one.** The ghost lines are the four edges of
+each rhomb `computeRhomb` emits for each pair of the k concurrent lines. It takes
+the crossing point and gets the base K-tuple by `ceil` there. At a concurrency
+every participating family sits *exactly* on its line, so `ceil` returns the low
+index for all of them at once: every rhomb in the stack has the **same** base
+tuple `K0`, and they all **fan** from `f(K0)`. Corners are `f(K0)`, `f(K0+e_j)`,
+`f(K0+e_k)`, `f(K0+e_j+e_k)`.
+
+**Which dots are real.** A corner is the dual of an actual region iff its tuple
+is a *sector* — one of the 2k regions around the point, i.e. an outline corner.
+The other tuples in the fan name regions of zero area. `f(K0)`, the all-low
+tuple, is a sector only when the k normals fit in a half-plane: true for three
+lines, false for four or five. So the decagon's fan point is its center,
+`f(empty) = f(all) = 0`, dual to nothing; its five `v_i` corners are ghosts too;
+the only real dots the fan touches are the five adjacent-pair sums.
+
+**Which lines are real.** An edge joins two tuples differing by one `e_j`. It is
+a genuine Penrose edge iff *both* ends are sectors — and then it is an outline
+side. Any edge touching a ghost vertex is a ghost edge: its source segment has
+zero length and one end-region has zero area. For the decagon **all 25 are
+ghosts**; its outline is drawn by `drawResolutions`, not by the fan.
+
+**The fan is not "the superposition of the tilings."** That phrase had been used
+loosely. For the thin hexagon the fan happens to be one genuine tiling — three
+rhombs around an interior vertex, all six outline sides present. For the thick
+hexagon it is not a tiling at all: it fans from an outline corner, overlaps near
+it, and misses the opposite corner. For the decagon it overlaps three-fold at
+the center (the ten corner angles sum to three turns).
+
+**What the ghost lines are good for.** They are a record of the fan, and every
+ghost edge parallel to `v_fam` is where that family's zone would cross if the fan
+were pulled apart — which is exactly why routing the grow band through them
+(`stackChain` in `view/growth.ts`) seals against the neighboring tiles with zero
+failures. The ghost vertices are the cube corners from the earlier note: the
+regions that *open up* under perturbation.
+
 ## The deca is the resolution of the 5-fold (2026-09-14)
 
 Jake: *"No the deca is not the 2K-gon decagon, in wieringa it is the queen
