@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pentagrid — De Bruijn's Method</title>
     <style>
+        :root {
+            --bg: #fafafa;
+            --panel: #ffffff;
+            --ink: #222;
+            --ink-soft: #555;
+            --ink-faint: #888;
+            --rule: #ddd;
+            --accent: #457b9d;
+        }
+
         body {
             font-family: sans-serif;
             margin: 20px;
@@ -328,6 +338,18 @@
             border-radius: 2px;
             border: 1px solid #aaa;
         }
+        /* The two labeled settings — the band slider and the compute pad — dressed as
+           the toggles are, so one row reads as one row. */
+        .band-setting, .pad-setting {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 12px;
+            color: #444;
+        }
+        .band-setting input[type=range] { margin: 0; }
+        .pad-setting input[type=number] { font: inherit; font-size: 11px; padding: 1px 3px;
+            border: 1px solid #ccc; border-radius: 3px; }
         .explanation {
             max-width: 340px;
             font-size: 15px;
@@ -383,9 +405,35 @@
            gray text is the universal sign of a disabled control, and these are live. */
         button.preset.not-penrose { border-color: #b5713f; }
         button.preset.not-penrose::after { content: " *"; color: #e0894f; }
+        /* ── Top nav, as on wieringa-roof ──────────────────────────────────── */
+        nav.site {
+            background: var(--panel);
+            border-bottom: 1px solid var(--rule);
+            padding: 10px 20px;
+            display: flex;
+            gap: 18px;
+            align-items: baseline;
+            flex-wrap: wrap;
+        }
+        nav.site .brand { font-weight: 600; margin-right: auto; }
+        nav.site a { color: var(--ink-soft); text-decoration: none; font-size: 14px;
+            -webkit-user-drag: none; user-drag: none; }
+        nav.site a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+        nav.site a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="./" draggable="false">Home</a>
+    <a href="method.html" draggable="false" aria-current="page">Method</a>
+    <a href="grow.html" draggable="false">Grow</a>
+    <a href="grow7.html" draggable="false">Grow 7</a>
+    <a href="roof.html" draggable="false">Roof</a>
+    <a href="sunstar.html" draggable="false">Sun &amp; Star</a>
+    <a href="split.html" draggable="false">Split</a>
+    <a href="wiggle.html" draggable="false">Wiggle</a>
+</nav>
     <h1>Pentagrid</h1>
     <h2>De Bruijn's Pentagrid Method</h2>
     <div style="display: flex; gap: 30px; align-items: flex-start;">

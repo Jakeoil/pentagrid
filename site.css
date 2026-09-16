@@ -334,3 +334,82 @@ button.preset:hover { background: #36363c; border-color: #666; }
 button.preset.not-penrose { border-color: #b5713f; }
 button.preset.not-penrose::after { content: " *"; color: #e0894f; }
 #grow-caps, #grow-hunt { gap: 4px; }
+
+/* ── The layer panel (createPentagrid's `panel`) ─────────────────── */
+.layer-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #444;
+}
+.layer-toggle input { margin: 0; }
+.line-pick {
+    width: 46px;
+    font: inherit;
+    font-size: 11px;
+    padding: 1px 3px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+}
+.panel-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin: 4px 0;
+}
+.panel-label {
+    font-size: 12px;
+    color: #888;
+    min-width: 62px;
+}
+.settings {
+    margin-top: 6px;
+    font-size: 12px;
+}
+.settings summary {
+    cursor: pointer;
+    color: #777;
+    outline: none;
+    width: max-content;
+}
+.settings[open] summary { color: #444; }
+.settings .panel-row { margin-left: 14px; }
+.thickness { width: 110px; }
+.layer-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid #aaa;
+}
+/* The two labeled settings — the band slider and the compute pad — dressed as
+   the toggles are, so one row reads as one row. */
+.band-setting, .pad-setting {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    color: #444;
+}
+.band-setting input[type=range] { margin: 0; }
+.pad-setting input[type=number] { font: inherit; font-size: 11px; padding: 1px 3px;
+    border: 1px solid #ccc; border-radius: 3px; }
+
+/* ── Top nav, as on wieringa-roof ──────────────────────────────────── */
+nav.site {
+    background: var(--panel);
+    border-bottom: 1px solid var(--rule);
+    padding: 10px 20px;
+    display: flex;
+    gap: 18px;
+    align-items: baseline;
+    flex-wrap: wrap;
+}
+nav.site .brand { font-weight: 600; margin-right: auto; }
+nav.site a { color: var(--ink-soft); text-decoration: none; font-size: 14px;
+    -webkit-user-drag: none; user-drag: none; }
+nav.site a[aria-current="page"] { color: var(--ink); font-weight: 600; }
+nav.site a:hover { text-decoration: underline; }
