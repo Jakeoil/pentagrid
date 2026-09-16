@@ -12,15 +12,10 @@
 // exists to visit it.
 
 import { createPentagrid } from "../view/pentagrid.js";
-import { findClusters } from "../geometry/clusters.js";
+import { findClusters, CLUSTER_FILL } from "../geometry/clusters.js";
 import type { Cluster } from "../geometry/clusters.js";
 
-// penrose-mosaic's cluster palette, so the two projects agree on sight.
-const FILL: Record<string, string> = {
-    Pe5: "#9292e3",   // blue-purple
-    Pe3: "#e6e68e",   // olive
-    Pe1: "#eec09b",   // orange-tan
-};
+const FILL: Record<string, string> = CLUSTER_FILL;   // shared with the tile style
 
 const host = document.getElementById("ss-view");
 const strip = document.getElementById("ss-lines");

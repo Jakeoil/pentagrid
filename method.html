@@ -68,7 +68,6 @@
         .reticulum-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
         .reticulum {
             width: 100%;
-            max-width: 260px;
             min-width: 170px;
             aspect-ratio: 1 / 1;
             display: block;
@@ -128,6 +127,15 @@
             box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
         }
         .float-panel[hidden] { display: none; }
+        /* The resize grip: bottom-right corner, a small diagonal. */
+        .float-grip {
+            position: absolute;
+            right: 0; bottom: 0;
+            width: 16px; height: 16px;
+            cursor: nwse-resize;
+            background: linear-gradient(135deg, transparent 0 50%, #bbb 50% 60%, transparent 60% 75%, #bbb 75% 85%, transparent 85%);
+            border-bottom-right-radius: 8px;
+        }
         .float-bar {
             display: flex;
             align-items: center;
@@ -157,7 +165,7 @@
         .float-body { padding: 10px; }
         .float-panel.collapsed .float-body { display: none; }
         /* ── Sigma strip ───────────────────────────────────────────────── */
-        .sumstrip { width: 100%; max-width: 260px; display: block; touch-action: none; }
+        .sumstrip { width: 100%; display: block; touch-action: none; }
         /* The bed and its furniture are drawn OVER the target, so they have to be
            transparent to the pointer — otherwise only the thin margins take a drag,
            which is exactly how it felt. */
@@ -420,6 +428,14 @@
             -webkit-user-drag: none; user-drag: none; }
         nav.site a[aria-current="page"] { color: var(--ink); font-weight: 600; }
         nav.site a:hover { text-decoration: underline; }
+        /* The readout of a named slider: fixed width and tabular digits, so a value
+           changing length cannot reflow the row and move the slider under the pointer. */
+        .band-setting .slider-val {
+            display: inline-block;
+            min-width: 3.6em;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
 </style>
 </head>
 <body>

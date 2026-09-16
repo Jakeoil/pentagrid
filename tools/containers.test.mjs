@@ -901,6 +901,87 @@ test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", 
     assert.equal(fills(), bands, "band 1 should paint the same three quads, full width");
 });
 
+test("height shading is wieringa's ramp: one gradient per tile, low corner to high", () => {
+    // Corners are always (m, m+1, m+2, m+1), so the low corner is v0 and the high
+    // corner v2; a three-stop gradient along that diagonal is exactly the roof's
+    // per-vertex shading interpolated across the face.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { color: "type", shading: true, ramp: 1 },
+    });
+    h.gamma.setGuard(true);                      // a regular patch, so every fill is a tile
+
+    const layer = h.stack.get("penrose-tiles");
+    const grads = [];
+    layer.ctx.createLinearGradient = (x0, y0, x1, y1) => {
+        const g = { stops: [], addColorStop: (t, c) => g.stops.push([t, c]), from: [x0, y0], to: [x1, y1] };
+        grads.push(g);
+        return g;
+    };
+    let fills = 0;
+    layer.ctx.fill = () => { fills++; };
+    h.redraw();
+
+    assert.ok(fills > 100, `only ${fills} tiles`);
+    assert.equal(grads.length, fills, "every tile should get its own gradient");
+    for (const g of grads) {
+        assert.deepEqual(g.stops.map((s) => s[0]), [0, 0.5, 1], "three stops: low, mid, high");
+        assert.ok(g.stops.every((s) => /^#[0-9a-f]{6}$/.test(s[1])), "stops are colors");
+        // from and to are two different points — the diagonal, not a degenerate line
+        assert.ok(Math.hypot(g.to[0] - g.from[0], g.to[1] - g.from[1]) > 1,
+                  "the gradient runs along a real diagonal");
+    }
+    // Both ends of the ramp are reached somewhere in the patch: some tile is
+    // shaded fully towards white at one corner and some fully towards black.
+    const lows = new Set(grads.map((g) => g.stops[0][1]));
+    const highs = new Set(grads.map((g) => g.stops[2][1]));
+    assert.ok(lows.size >= 2 && highs.size >= 2, "the ramp is flat — the range is not being used");
+
+    // It is an overlay, not a color: over families2 every band quad is ramped.
+    h.setTileStyle({ color: "bands", band: 0.5 });
+    grads.length = 0; fills = 0;
+    h.redraw();
+    assert.equal(grads.length, fills, "over families2 each quad should carry the ramp");
+    assert.equal(grads.length % 3, 0, "three ramped quads per tile");
+
+    // And off is off: no gradients at all.
+    h.setTileStyle({ color: "type", shading: false });
+    grads.length = 0;
+    h.redraw();
+    assert.equal(grads.length, 0, "shading off should build no gradients");
+});
+
+test("rhomb groups color tiles as sun-star does, and leave the rest bare", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { color: "groups" },
+    });
+    // The sun: a Pe5 at the origin and groups everywhere — a Penrose patch.
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+
+    const layer = h.stack.get("penrose-tiles");
+    const styles = [];
+    layer.ctx.fill = function () { styles.push(String(this.fillStyle)); };
+    h.redraw();
+
+    const palette = new Set(["#9292e3", "#e6e68e", "#eec09b"]);
+    const grouped = styles.filter((c) => palette.has(c)).length;
+    const bare = styles.filter((c) => c === "#ececec").length;
+    assert.ok(grouped > 100, `only ${grouped} tiles took a group color`);
+    assert.ok(bare > 0, "some tiles at the patch edge should be in no complete group");
+    assert.equal(grouped + bare, styles.length, "every fill is a group color or bare");
+
+    // Off the integers groups are undefined, so everything goes bare.
+    h.gamma.setValues([0.1, 0.1, 0.1, 0.1, 0.1]);
+    styles.length = 0;
+    h.redraw();
+    assert.ok(styles.length > 0 && styles.every((c) => c === "#ececec"),
+              "a non-Penrose patch should be all bare");
+});
+
 test("tile style is a setting, not a feature flag", () => {
     // color is a choice of three and opacity is a number; neither is the sort of
     // thing a narrative page turns on.
@@ -910,7 +991,7 @@ test("tile style is a setting, not a feature flag", () => {
         tileStyle: { color: "pair", isogloss: true, opacity: 0.5 },
     });
     assert.equal(typeof h.setTileStyle, "function");
-    h.setTileStyle({ color: "index" });
+    h.setTileStyle({ shading: true });
     h.redraw();
     h.setTileStyle({ isogloss: false, opacity: 1 });
     h.redraw();
@@ -1106,7 +1187,7 @@ test("a singularity is drawn as a P-region, by the tile and edge layers", () => 
     assert.ok(filled > 0, "nothing was filled at all");
 
     // and the style choice reaches them
-    for (const color of ["type", "pair", "index"]) {
+    for (const color of ["type", "pair", "bands", "groups"]) {
         h.setTileStyle({ color });
         assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, color);
     }

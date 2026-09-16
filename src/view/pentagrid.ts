@@ -9,6 +9,8 @@ import type { GridSegment } from "../geometry/pentagrid.js";
 import { scanRegions } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
 import { addPresets } from "../ui/presets.js";
+import { findClusters, CLUSTER_FILL } from "../geometry/clusters.js";
+import type { ClusterKind } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
@@ -33,7 +35,11 @@ const THIN_FILL = "#7eb8da";
 /** A 2k-gon is neither thick nor thin — it is a stack of both — so it gets its own. */
 const SINGULAR_FILL = "#b48ec4";
 /** One per Wieringa level. Penrose uses four; the index is taken modulo. */
-const INDEX_COLORS = ["#2f6fb5", "#54a598", "#d9b463", "#c4643f"];
+/**
+ * The height ramp's strength: wieringa-roof's `shadeColor` moves a color by
+ * amount * |t| * 0.55 towards white above the middle and black below it.
+ */
+const RAMP = 0.55;
 
 /** Mix a color towards white (t > 0) or black (t < 0). */
 function shade(hex: string, t: number): string {
@@ -53,7 +59,9 @@ function shade(hex: string, t: number): string {
  */
 export interface TileStyle {
     /**
-     * thick/thin, the two families that made it, its Wieringa index — or
+     * thick/thin, the two families that made it, its rhomb group (Pe5, Pe3, Pe1
+     * in sun-star's palette; bare when it belongs to none, or when the patch is
+     * not Penrose and groups are undefined) — or
      * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
      * them. Each band runs across the tile in its family's color, `band` wide as
      * a fraction of the edge, and the square where they cross is the composite.
@@ -61,11 +69,19 @@ export interface TileStyle {
      * below that the tile reads as two gridlines passing through. A 2k-gon takes
      * no color under it.
      */
-    color: "type" | "pair" | "index" | "bands";
+    color: "type" | "pair" | "bands" | "groups";
     /** Band width for `bands`, 0..1 of the edge. */
     band: number;
     /** Contour lines across each tile. */
     isogloss: boolean;
+    /**
+     * The height ramp, over whatever color is chosen — wieringa-roof's shading.
+     * Lighter towards the top of the patch, darker towards the bottom, each tile
+     * a gradient from its low corner to its high. See heightGradient.
+     */
+    shading: boolean;
+    /** Strength of the ramp, 0..1. wieringa-roof's `shade` slider. */
+    ramp: number;
     /** Fill alpha. Edges and decoration stay solid. */
     opacity: number;
 }
@@ -443,6 +459,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // kept the viewports from ever reflowing.
     if (canvas.explicit) {
         container.style.width = `${canvas.w}px`;
+        // The panel is a set of wrapping rows; let them wrap at the canvas edge
+        // rather than run out past it.
+        layerPanelDiv.style.maxWidth = `${canvas.w}px`;
         container.style.height = `${canvas.h}px`;
     }
 
@@ -506,7 +525,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let gridAlpha = 0.6;
 
     const tileStyle: TileStyle = {
-        color: "type", isogloss: false, opacity: 1, band: 0.5,
+        color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
         ...config.tileStyle,
     };
 
@@ -522,6 +541,64 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     let rhombCache: Rhomb[] | null = null;
     let rhombCacheKey = "";
+
+    /**
+     * The patch's index range, for the height ramp.
+     *
+     * Absolute across the patch rather than normalized per tile — wieringa-roof's
+     * rule, and for the same reason: otherwise a rhomb rising 1->3 draws
+     * identically to one rising 2->4, and the shading says only which way a face
+     * tilts, never how high it sits. Four levels on a Penrose patch, five when
+     * the total is off the integers; the ramp does not care which.
+     */
+    let indexRangeCache: { lo: number; hi: number } | null = null;
+    function indexRange(): { lo: number; hi: number } {
+        if (indexRangeCache) return indexRangeCache;
+        let lo = Infinity, hi = -Infinity;
+        for (const r of currentRhombs()) {
+            for (const K of r.kTuples) {
+                const m = vertexIndex(K);
+                if (m < lo) lo = m;
+                if (m > hi) hi = m;
+            }
+        }
+        if (!(lo < hi)) { lo = 0; hi = 1; }
+        indexRangeCache = { lo, hi };
+        return indexRangeCache;
+    }
+
+    /**
+     * Which rhomb group each tile belongs to, by position in currentRhombs().
+     * From findClusters, so it is exactly sun-star's reading; null for a tile in
+     * no complete group, and for every tile when groups are undefined.
+     */
+    let groupCache: Map<Rhomb, ClusterKind> | null = null;
+    function groupOf(rhomb: Rhomb): ClusterKind | null {
+        if (!groupCache) {
+            const rhombs = currentRhombs();
+            const out = new Map<Rhomb, ClusterKind>();
+            const res = findClusters(rhombs);
+            if (res.defined) {
+                for (const c of res.clusters) {
+                    if (!c.kind) continue;
+                    for (const k of c.rhombs) out.set(rhombs[k], c.kind);
+                }
+            }
+            groupCache = out;
+        }
+        return groupCache.get(rhomb) ?? null;
+    }
+
+    /** wieringa-roof's `t`: -1 at the patch's lowest vertex, +1 at its highest. */
+    function rampT(index: number): number {
+        const { lo, hi } = indexRange();
+        return ((index - lo) / (hi - lo) - 0.5) * 2;
+    }
+
+    /** A color at height t: towards white above the middle, black below. */
+    function rampColor(base: string, t: number): string {
+        return shade(base, Math.sign(t) * Math.abs(t) * RAMP * tileStyle.ramp);
+    }
 
     function currentRhombs(): Rhomb[] {
         const base = computeRect();
@@ -539,6 +616,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (rhombCache && key === rhombCacheKey) return rhombCache;
         rhombCache = collectRhombs(vis);
         stackedCache = null;
+        indexRangeCache = null;
+        groupCache = null;
         rhombCacheKey = key;
         return rhombCache;
     }
@@ -1389,10 +1468,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      *
      *   thick/thin  a color of its own — it is neither, it is a stack of both
      *   families    the combination of the gridlines that meet there
-     *   index       its level, shaded like the tiles
+     *   shading     the height ramp over any of those, flat at its mean height
      */
     function resolutionFill(r: Resolution): string | null {
+        const base = resolutionBase(r);
+        if (base === null || !tileStyle.shading) return base;
+        // The ramp, flat at its mean height: its corners span more than one
+        // diagonal, and a stack has no one surface to shade.
+        let sum = 0;
+        for (const K of r.outlineK) sum += vertexIndex(K);
+        return rampColor(base, rampT(sum / r.outlineK.length));
+    }
+    function resolutionBase(r: Resolution): string | null {
         if (tileStyle.color === "bands") return null;      // Jake: not the 2k-gons
+        if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -1401,10 +1490,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             }
             const k = r.families.length;
             return `rgb(${Math.round(rr / k)},${Math.round(gg / k)},${Math.round(bb / k)})`;
-        }
-        if (tileStyle.color === "index") {
-            const m = Math.round(r.families.length);
-            return INDEX_COLORS[(m + INDEX_COLORS.length) % INDEX_COLORS.length];
         }
         return SINGULAR_FILL;
     }
@@ -1454,7 +1539,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * other way round; and where they cross is the composite square. Same three
      * quads, same lo/hi, as view/growth.ts.
      */
-    function drawBands(tc: CanvasRenderingContext2D, r: Rhomb, cx: number, cy: number) {
+    function drawBands(
+        tc: CanvasRenderingContext2D, r: Rhomb, sv: [number, number][], cx: number, cy: number,
+    ) {
         const lo = 0.5 - tileStyle.band / 2, hi = 0.5 + tileStyle.band / 2;
         const vj = directions[r.j], vk = directions[r.k], v0 = r.vertices[0];
         const at = (a: number, b: number) =>
@@ -1466,7 +1553,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (i === 0) tc.moveTo(x, y); else tc.lineTo(x, y);
             });
             tc.closePath();
-            tc.fillStyle = style;
+            // The ramp is a gradient in canvas space along the tile's diagonal,
+            // so a quad inside the tile shades correctly under it too.
+            tc.fillStyle = ramped(tc, r, sv, style);
             tc.fill();
         };
         if (tileStyle.band <= 0) return;
@@ -1476,30 +1565,52 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
              pairColors.get(`${r.j},${r.k}`)?.replace(/,0\.55\)$/, ",1)") ?? "#888");
     }
 
+    /** A bare tile: in no group, or on a patch where groups are undefined. */
+    const NO_GROUP = "#ececec";
+
     /** What color a tile takes, under the current style. */
     function tileFill(rhomb: Rhomb): string {
+        if (tileStyle.color === "groups") {
+            const kind = groupOf(rhomb);
+            return kind ? CLUSTER_FILL[kind] : NO_GROUP;
+        }
         if (tileStyle.color === "pair") {
             // The two ribbons it belongs to, blended — so at full coverage the
             // tiling wears all n family colors at once.
             return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
         }
-        if (tileStyle.color === "index") {
-            // Its Wieringa level, shaded by type.
-            //
-            // There is no heads and tails to shade by: `computeRhomb` always emits
-            // base, base+e_j, base+e_j+e_k, base+e_k, so a rhomb's corners are
-            // ALWAYS (m, m+1, m+2, m+1) and corner 0 is always the low one —
-            // measured over a patch, every tile matches that one pattern. A rhomb
-            // spans three of the four Penrose levels, so its base is one of two,
-            // which is why coloring by level alone looked flat. Two levels for
-            // the hue and thick/thin for the lightness is the four classes that
-            // are actually there.
-            const m = vertexIndex(rhomb.kTuples[0]);
-            const base = INDEX_COLORS[((m % INDEX_COLORS.length) + INDEX_COLORS.length)
-                % INDEX_COLORS.length];
-            return shade(base, rhomb.thick ? 0.26 : -0.20);
-        }
         return rhomb.thick ? THICK_FILL : THIN_FILL;
+    }
+
+    /** A tile's fill for a base color: the color, or the ramp over it. */
+    function ramped(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
+    ): string | CanvasGradient {
+        return tileStyle.shading ? heightGradient(tc, rhomb, sv, base) : base;
+    }
+
+    /**
+     * The height ramp across one tile — wieringa-roof's shading, on the canvas.
+     *
+     * The roof shades per VERTEX and lets the mesh interpolate, so a face is a
+     * gradient between its corner colors. That maps onto a rhomb exactly: its
+     * corners are always (m, m+1, m+2, m+1) — `computeRhomb` emits base,
+     * base+e_j, base+e_j+e_k, base+e_k — so the low corner is v0, the high corner
+     * is v2, and the two side corners project onto the midpoint of that diagonal
+     * by the symmetry of a rhombus. A linear gradient from v0 to v2 with three
+     * stops — low, mid, high — reproduces the vertex interpolation precisely,
+     * heads and tails included: which way the low corner points is which way
+     * the face tilts.
+     */
+    function heightGradient(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
+    ): CanvasGradient {
+        const m = vertexIndex(rhomb.kTuples[0]);
+        const g = tc.createLinearGradient(sv[0][0], sv[0][1], sv[2][0], sv[2][1]);
+        g.addColorStop(0, rampColor(base, rampT(m)));
+        g.addColorStop(0.5, rampColor(base, rampT(m + 1)));
+        g.addColorStop(1, rampColor(base, rampT(m + 2)));
+        return g;
     }
 
     function drawRhombs(
@@ -1526,9 +1637,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.save();
                 tc.globalAlpha = tileStyle.opacity;
                 if (tileStyle.color === "bands") {
-                    drawBands(tc, rhomb, cx, cy);
+                    drawBands(tc, rhomb, sv, cx, cy);
                 } else {
-                    tc.fillStyle = tileFill(rhomb);
+                    tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
                     tc.fill();
                 }
                 tc.restore();
@@ -1844,6 +1955,43 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** Features whose switching-on the narrative wants to hear about. */
     const onFeatureOnKeys = new Set<keyof Features>();
 
+    /**
+     * A named slider with a fixed-width readout: name, slider, value.
+     *
+     * The value sits AFTER the slider in a span of fixed width, so "50%" becoming
+     * "100%" cannot change the label's width — which reflowed the row and moved
+     * the slider under the pointer, the jitter Jake saw. Tabular digits so the
+     * text does not wobble either.
+     */
+    function slider(
+        parent: HTMLElement, name: string, title: string,
+        range: { min: number; max: number; step: number }, value: number,
+        format: (v: number) => string, onInput: (v: number) => void,
+    ): HTMLLabelElement {
+        const wrap = document.createElement("label");
+        wrap.className = "band-setting";
+        wrap.title = title;
+        const nm = document.createElement("span");
+        nm.textContent = name;
+        const input = document.createElement("input");
+        input.type = "range";
+        input.min = String(range.min); input.max = String(range.max);
+        input.step = String(range.step);
+        input.value = String(value);
+        input.style.width = "80px";
+        const val = document.createElement("span");
+        val.className = "slider-val";
+        val.textContent = format(value);
+        input.addEventListener("input", () => {
+            const v = parseFloat(input.value);
+            val.textContent = format(v);
+            onInput(v);
+        });
+        wrap.append(nm, input, val);
+        parent.appendChild(wrap);
+        return wrap;
+    }
+
     function featureToggle(
         parent: HTMLElement, key: keyof Features, label: string,
     ): HTMLInputElement {
@@ -1994,14 +2142,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         corrRow("Penrose", (c) => c.pen);
 
         // K-labels belong with the regions rather than on their own row.
-        const extras = row(layerPanelDiv, "also");
+        // G only — the counterpart of Tile style. The Penrose dressings are on
+        // that row, and "Penrose in front" has no control any more: it is
+        // always in front.
+        const extras = row(layerPanelDiv, "Grid style");
         featureToggle(extras, "kLabels", "K-labels");
-        featureToggle(extras, "penroseDecor", "arcs");
-        featureToggle(extras, "pseudoEdges", "pseudo edges");
-        checkbox(extras, "Penrose in front", penroseInFront, (v) => {
-            penroseInFront = v;
-            restackPenrose();
-        });
+        slider(extras, "gridline width", "How thick the grid lines are drawn.",
+            { min: 0.5, max: 4, step: 0.5 }, gridLineWidth, (v) => v.toFixed(1),
+            (v) => { gridLineWidth = v; draw(); });
 
         // ── Tile style ────────────────────────────────────────────────
         {
@@ -2009,11 +2157,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const sel = document.createElement("select");
             sel.className = "line-pick";
             sel.style.width = "84px";
-            sel.title = "thick/thin · the families that made it · its Wieringa index. "
+            sel.title = "thick/thin · the families that made it · the two as crossed bands "
+                + "· its rhomb group, Pe5/Pe3/Pe1 in sun-star's colors. "
                 + "A 2k-gon follows the same choice.";
             for (const [value, text] of [
                 ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
-                ["index", "index"],
+                ["groups", "rhomb groups"],
             ] as const) {
                 const opt = document.createElement("option");
                 opt.value = value;
@@ -2028,27 +2177,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             });
 
             // The band width, for families2 only — grow.html's slider, here.
-            const bandWrap = document.createElement("label");
-            bandWrap.className = "band-setting";
-            bandWrap.title = "Width of each gridline's band across the tile, as a "
-                + "fraction of the edge. 100% covers the tile; 0 leaves it bare.";
-            const bandVal = document.createElement("span");
-            bandVal.textContent = ` band ${Math.round(tileStyle.band * 100)}% `;
-            const bandIn = document.createElement("input");
-            bandIn.type = "range";
-            bandIn.min = "0"; bandIn.max = "1"; bandIn.step = "0.02";
-            bandIn.value = String(tileStyle.band);
-            bandIn.style.width = "80px";
-            bandIn.addEventListener("input", () => {
-                tileStyle.band = parseFloat(bandIn.value);
-                bandVal.textContent = ` band ${Math.round(tileStyle.band * 100)}% `;
-                draw();
-            });
-            bandWrap.appendChild(bandVal);
-            bandWrap.appendChild(bandIn);
+            const bandWrap = slider(sRow, "band",
+                "Width of each gridline's band across the tile, as a fraction of "
+                + "the edge. 100% covers the tile; 0 leaves it bare.",
+                { min: 0, max: 1, step: 0.02 }, tileStyle.band, (v) => `${Math.round(v * 100)}%`,
+                (v) => { tileStyle.band = v; draw(); });
             bandWrap.hidden = tileStyle.color !== "bands";
             sRow.appendChild(sel);
-            sRow.appendChild(bandWrap);
+            sRow.appendChild(bandWrap);   // re-append: it must follow the select
 
             const iso = checkbox(sRow, "isogloss", tileStyle.isogloss, (v) => {
                 tileStyle.isogloss = v;
@@ -2056,19 +2192,28 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             });
             iso.title = "Contour lines across each tile, perpendicular to its long diagonal.";
 
-            const alpha = document.createElement("input");
-            alpha.type = "range";
-            alpha.className = "thickness";
-            alpha.min = "0.1";
-            alpha.max = "1";
-            alpha.step = "0.05";
-            alpha.value = String(tileStyle.opacity);
-            alpha.title = "Tile transparency. Edges and decoration stay solid.";
-            alpha.addEventListener("input", () => {
-                tileStyle.opacity = parseFloat(alpha.value);
+            // The height ramp — wieringa-roof's shading — over whatever color is
+            // chosen, with the roof's strength slider beside it when it is on.
+            const shadeBox = checkbox(sRow, "height", tileStyle.shading, (v) => {
+                tileStyle.shading = v;
+                rampWrap.hidden = !v;
                 draw();
             });
-            sRow.appendChild(alpha);
+            shadeBox.title = "Shade by Wieringa height: lighter towards the top of the "
+                + "patch, darker towards the bottom, each tile a gradient from its low "
+                + "corner to its high. Over any color, families2 included.";
+            const rampWrap = slider(sRow, "ramp", "Strength of the height ramp.",
+                { min: 0, max: 1, step: 0.05 }, tileStyle.ramp, (v) => `${Math.round(v * 100)}%`,
+                (v) => { tileStyle.ramp = v; draw(); });
+            rampWrap.hidden = !tileStyle.shading;
+
+            slider(sRow, "opacity", "Tile transparency. Edges and decoration stay solid.",
+                { min: 0.1, max: 1, step: 0.05 }, tileStyle.opacity, (v) => `${Math.round(v * 100)}%`,
+                (v) => { tileStyle.opacity = v; draw(); });
+
+            // Arcs are a dressing of the tiles, so they live here — P, not G.
+            featureToggle(sRow, "penroseDecor", "arcs");
+            featureToggle(sRow, "pseudoEdges", "pseudo edges");
         }
 
         // ── Caps and singularities ────────────────────────────────────
@@ -2127,29 +2272,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         follow.title = "Off: the hover statistics sit in the canvas corner, out of the "
             + "way of what you are pointing at. On: they ride the pointer.";
 
-        checkbox(sRow, "loupe on tiny regions", loupeEnabled, (v) => {
-            loupeEnabled = v;
-            if (!v) closeLoupe();
-            draw();
-        });
         checkbox(sRow, "vertical-axis symmetry", gammaSet.getSymmetry(), (v) => {
             gammaSet.setSymmetry(v);
         });
 
-
-        const tRow = row(det, "gridline width");
-        const thick = document.createElement("input");
-        thick.type = "range";
-        thick.min = "0.5";
-        thick.max = "4";
-        thick.step = "0.5";
-        thick.value = String(gridLineWidth);
-        thick.className = "thickness";
-        thick.addEventListener("input", () => {
-            gridLineWidth = parseFloat(thick.value);
-            draw();
-        });
-        tRow.appendChild(thick);
 
         layerPanelDiv.appendChild(det);
     }
@@ -2683,6 +2809,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             canvas.h = h;
             canvas.margin = canvas.fixedMargin ?? Math.round(Math.min(w, h) * 0.05);
             viewW = w; viewH = h; viewMargin = canvas.margin;
+            layerPanelDiv.style.maxWidth = `${w}px`;
             stack.resize(w, h);
             rhombCache = null;                       // the visible rect moved
             draw();

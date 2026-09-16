@@ -158,3 +158,42 @@ test("closing is not a one-way door: onClose can put the way back", () => {
     // and it comes back where it was, not at the default
     assert.ok(p.element.style.left.endsWith("px"));
 });
+
+test("the grip resizes the panel, and the width is remembered", () => {
+    const store = new Map();
+    globalThis.localStorage = {
+        getItem: (k) => store.get(k) ?? null,
+        setItem: (k, v) => store.set(k, v),
+    };
+    const p = createFloatingPanel({ id: "t8", title: "x", x: 10, y: 10 });
+    const grip = p.element.children[2];
+    assert.equal(grip.className, "float-grip", "the grip is the panel's last child");
+
+    // No width until dragged: the content decides.
+    assert.equal(p.element.style.width, "");
+
+    // Drag the grip 80 px to the right from a stub-measured 200 px panel.
+    p.element.getBoundingClientRect = () => ({ width: 200, height: 300, left: 10, top: 10 });
+    grip.on.pointerdown[0](ev(210, 300, { stopPropagation() {} }));
+    grip.on.pointermove[0](ev(290, 300));
+    assert.equal(p.element.style.width, "280px", "width follows the drag");
+    grip.on.pointerup[0](ev(290, 300));
+
+    // Below the minimum it clamps rather than vanishing.
+    grip.on.pointerdown[0](ev(290, 300, { stopPropagation() {} }));
+    grip.on.pointermove[0](ev(0, 300));
+    assert.equal(p.element.style.width, "180px", "clamped at the minimum");
+    grip.on.pointerup[0](ev(0, 300));
+
+    // Persisted: a new panel with the same id comes back at that width.
+    const again = createFloatingPanel({ id: "t8", title: "x" });
+    assert.equal(again.element.style.width, "180px", "the width did not survive a reload");
+
+    // The bar's drag must not be started by the grip — it stopped propagation.
+    const { bar } = parts(p);
+    bar.on.pointerdown[0](ev(10, 10));
+    bar.on.pointermove[0](ev(30, 10));
+    bar.on.pointerup[0](ev(30, 10));
+    assert.equal(p.element.style.left, "30px", "the bar still drags");
+    assert.equal(p.element.style.width, "180px", "and dragging the bar does not resize");
+});

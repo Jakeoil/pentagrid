@@ -37,6 +37,16 @@ import { vertexIndex } from "./roof.js";
 /** Which P1 pentagon a rhomb group centers on. */
 export type ClusterKind = "Pe5" | "Pe3" | "Pe1";
 
+/**
+ * penrose-mosaic's cluster palette, so the two projects agree on sight. Not
+ * geometry, but the one place both sun-star and the tile style can import it.
+ */
+export const CLUSTER_FILL: Record<ClusterKind, string> = {
+    Pe5: "#9292e3",   // blue-purple
+    Pe3: "#e6e68e",   // olive
+    Pe1: "#eec09b",   // orange-tan
+};
+
 export interface Cluster {
     /** null when the group is cut by the edge of the patch, so incomplete. */
     kind: ClusterKind | null;

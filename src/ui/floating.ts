@@ -33,7 +33,11 @@ export interface FloatingPanel {
     isCollapsed: () => boolean;
 }
 
-interface Placed { x: number | null; y: number | null; collapsed: boolean }
+interface Placed {
+    x: number | null; y: number | null; collapsed: boolean;
+    /** Panel width in px, or null for whatever the content wants. */
+    w?: number | null;
+}
 
 const storeKey = (id: string) => `pentagrid.panel.${id}`;
 
@@ -56,7 +60,7 @@ function save(id: string, p: Placed) {
 
 export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
     const state = load(opts.id, {
-        x: opts.x ?? null, y: opts.y ?? null, collapsed: opts.collapsed ?? false,
+        x: opts.x ?? null, y: opts.y ?? null, collapsed: opts.collapsed ?? false, w: null,
     });
 
     const element = document.createElement("div");
@@ -87,8 +91,20 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
     const body = document.createElement("div");
     body.className = "float-body";
 
+    // The resize grip, bottom right. Dragging it sets the panel's width; the
+    // content is expected to follow, which for the reticulum means the SVG scales.
+    const grip = document.createElement("div");
+    grip.className = "float-grip";
+    grip.title = "drag to resize";
+
     element.appendChild(bar);
     element.appendChild(body);
+    element.appendChild(grip);
+
+    const MIN_W = 180;
+    function applyWidth() {
+        element.style.width = state.w ? `${Math.max(MIN_W, state.w)}px` : "";
+    }
 
     /** Keep a corner on screen, so a panel can never be dragged out of reach. */
     function clamp() {
@@ -108,7 +124,31 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
         element.style.top = `${state.y}px`;
         element.classList.toggle("collapsed", state.collapsed);
         collapseBtn.textContent = state.collapsed ? "▸" : "▾";
+        applyWidth();
     }
+
+    let resize: { px: number; w: number } | null = null;
+    grip.addEventListener("pointerdown", (ev) => {
+        const e = ev as PointerEvent;
+        const current = state.w ?? element.getBoundingClientRect?.().width ?? MIN_W;
+        resize = { px: e.clientX, w: current };
+        grip.setPointerCapture?.(e.pointerId);
+        e.preventDefault?.();
+        e.stopPropagation?.();
+    });
+    grip.addEventListener("pointermove", (ev) => {
+        if (!resize) return;
+        const e = ev as PointerEvent;
+        state.w = Math.max(MIN_W, Math.round(resize.w + (e.clientX - resize.px)));
+        applyWidth();
+    });
+    const endResize = () => {
+        if (!resize) return;
+        resize = null;
+        save(opts.id, state);
+    };
+    grip.addEventListener("pointerup", endResize);
+    grip.addEventListener("pointercancel", endResize);
 
     let drag: { px: number; py: number; x: number; y: number } | null = null;
 
