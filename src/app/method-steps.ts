@@ -96,7 +96,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseVertices: true, hoverVertex: true });
             pg.setGridAlpha(0.28);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "gridline tiles", "View"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "View"]);
         },
     },
     {
@@ -121,7 +121,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseEdges: true, hoverTile: true });
             pg.setGridAlpha(0.24);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "gridline tiles", "View"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "View"]);
         },
     },
     {
@@ -195,7 +195,7 @@ export const METHOD_PAGES: Page[] = [
             pg.setFeatures({ gridLines: true, intersectionDots: true,
                              penroseEdges: true, penroseVertices: true, pseudoEdges: true });
             pg.setGridAlpha(0.5);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "gridline tiles", "Caps", "Hunt", "View"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "Caps", "Hunt", "not Penrose", "View"]);
         },
     },
 ];

@@ -1060,8 +1060,8 @@ test("the panel separates what the tiling IS from how it is drawn", () => {
     const rows = panelRows(panel);
 
     // functional first: which lines exist at all
-    assert.ok(rows.has("gridline tiles"), [...rows.keys()].join(", "));
-    assert.equal(rows.get("gridline tiles").length, 5, "one control per family");
+    assert.ok(rows.has("ribbons"), [...rows.keys()].join(", "));
+    assert.equal(rows.get("ribbons").length, 5, "one control per family");
 
     // then the viewport
     assert.ok(rows.get("View").some((c) => c.label === "axes"));
@@ -1087,7 +1087,7 @@ test("gridline is on by default; the other two columns are not", () => {
 test("a family control is an all/none/one mode and a line number", () => {
     const panel = makeStub();
     const h = createPentagrid({ container: sizedHost(700, 700), panel });
-    const fam = panelRows(panel).get("gridline tiles");
+    const fam = panelRows(panel).get("ribbons");
 
     const first = fam[0];
     assert.ok(first.sel, "no mode dropdown");
@@ -1120,7 +1120,7 @@ test("the status button reads all / some / none and cycles them", () => {
     const h = createPentagrid({ container: sizedHost(700, 700), panel,
                                 features: { penroseTiles: true } });
     const rows = panelRows(panel);
-    const fam = rows.get("gridline tiles");
+    const fam = rows.get("ribbons");
     let status = null;
     const walk = (n) => {
         if (!n.children) return;
@@ -1160,7 +1160,7 @@ test("the filter is kept while tiles are off, and none is not allowed when they 
     const panel = makeStub();
     const h = createPentagrid({ container: sizedHost(700, 700), panel,
                                 features: { penroseTiles: true } });
-    const fam = panelRows(panel).get("gridline tiles");
+    const fam = panelRows(panel).get("ribbons");
 
     // Set family 1 to a single line, then turn the tiles off and on: it survives.
     const nBox = fam[1].el.children.find((x) => x.type === "number");

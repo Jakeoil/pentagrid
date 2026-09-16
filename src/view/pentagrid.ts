@@ -2030,7 +2030,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // none — and cycles them: all -> none, some -> all, none -> all. The
         // values are kept while the tiles are off, and none is not allowed when
         // they come back on: that is the one case where the row rewrites itself.
-        const tilesRow = row(layerPanelDiv, "gridline tiles");
+        const tilesRow = row(layerPanelDiv, "ribbons");
 
         const perFamily: { mode: HTMLSelectElement; n: HTMLInputElement }[] = [];
         const status = document.createElement("button");
@@ -2209,7 +2209,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sRow.appendChild(sel);
             sRow.appendChild(bandWrap);   // re-append: it must follow the select
 
-            const iso = checkbox(sRow, "isogloss", tileStyle.isogloss, (v) => {
+            // Second row: how the fill is shaded.
+            const shadeRow = row(layerPanelDiv, "Tile shade");
+            const iso = checkbox(shadeRow, "isogloss", tileStyle.isogloss, (v) => {
                 tileStyle.isogloss = v;
                 draw();
             });
@@ -2217,7 +2219,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
             // The height ramp — wieringa-roof's shading — over whatever color is
             // chosen, with the roof's strength slider beside it when it is on.
-            const shadeBox = checkbox(sRow, "height", tileStyle.shading, (v) => {
+            const shadeBox = checkbox(shadeRow, "height", tileStyle.shading, (v) => {
                 tileStyle.shading = v;
                 rampWrap.hidden = !v;
                 draw();
@@ -2225,7 +2227,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             shadeBox.title = "Shade by Wieringa height: lighter towards the top of the "
                 + "patch, darker towards the bottom, each tile a gradient from its low "
                 + "corner to its high. Over any color, families2 included.";
-            const rampWrap = slider(sRow, "ramp", "Strength of the height ramp.",
+            const rampWrap = slider(shadeRow, "ramp", "Strength of the height ramp.",
                 { min: 0, max: 1, step: 0.05 }, tileStyle.ramp, (v) => `${Math.round(v * 100)}%`,
                 (v) => { tileStyle.ramp = v; draw(); });
             rampWrap.hidden = !tileStyle.shading;
@@ -2234,9 +2236,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 { min: 0.1, max: 1, step: 0.05 }, tileStyle.opacity, (v) => `${Math.round(v * 100)}%`,
                 (v) => { tileStyle.opacity = v; draw(); });
 
-            // Arcs are a dressing of the tiles, so they live here — P, not G.
-            featureToggle(sRow, "penroseDecor", "arcs");
-            featureToggle(sRow, "pseudoEdges", "pseudo edges");
+            // Third row: the edge dressings — P, not G.
+            const edgeRow = row(layerPanelDiv, "Tile edges");
+            featureToggle(edgeRow, "penroseDecor", "arcs");
+            featureToggle(edgeRow, "pseudoEdges", "pseudo edges");
         }
 
         // The gridline-tiles row was built first, for its hook; it belongs on
@@ -2252,8 +2255,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         {
             const capRow = row(layerPanelDiv, "Caps");
             addPresets(capRow, "cap", gammaSet, draw);
+            // Two rows: the Penrose singularities, then the five that are not.
             const huntRow = row(layerPanelDiv, "Hunt");
-            addPresets(huntRow, "hunt", gammaSet, draw);
+            addPresets(huntRow, "hunt", gammaSet, draw, ["regular", "couple", "decagon"]);
+            const notRow = row(layerPanelDiv, "not Penrose");
+            addPresets(notRow, "hunt", gammaSet, draw,
+                       ["octagon", "1 thick", "1 thin", "2 thick", "2 thin"]);
         }
 
         // Collapsed settings — set once, then forgotten
