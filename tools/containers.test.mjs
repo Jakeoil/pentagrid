@@ -1039,6 +1039,8 @@ function panelRows(panel) {
                 current = c.textContent;
                 if (!rows.has(current)) rows.set(current, []);
             }
+            // The collapsed settings have unlabeled rows; they belong to no row.
+            if (c.className === "settings") current = null;
             if (c.className === "layer-toggle" && current) {
                 const label = c.children
                     .filter((x) => typeof x.textContent === "string" && x.textContent)

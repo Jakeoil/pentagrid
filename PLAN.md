@@ -1622,6 +1622,48 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## For the record: Schoen's names, and λ (2026-09-16)
+
+Two things Jake wants written down before they are needed. Neither is a task.
+
+### The names, against Schoen
+
+Ours is the Pe5/St5 convention and it stays. Alan Schoen
+(schoengeometry.com/c-infintil.html) names the same three tilings the other way
+round, so when his pages are the reference:
+
+| here | Schoen |
+|---|---|
+| **sun** (Pe5 at the origin, c = 1/5) | STAR |
+| **star** (origin in an St5 gap, c = 2/5) | SUN |
+| **deca** (the queen, Pe3 + 2 Pe1, mirror-symmetric) | CARTWHEEL |
+
+The last is the useful one: it says the deca is Conway's cartwheel, which is
+known to be the mirror-symmetric Penrose tiling — consistent with it being what
+the 5-fold resolves into under a mirror-symmetric nudge, and with Jake's surmise
+about its uniqueness.
+
+### λ, the gridline spacing
+
+Every page runs with the lines one unit apart, and that 1 is not named anywhere.
+It should be **λ**, from the nomenclature table above, and it is the one knob
+inflation needs:
+
+    line n of family j:   x · v_j = λ (n − γ_j)
+    K_j(x)              = ceil( x · v_j / λ + γ_j )
+    registration gain   = n / (2λ)         (the dual's edge stays 1)
+
+Inflation with de Bruijn is then λ → φλ and nothing else — or φ² for a P1
+generation, per the note on inflation. When the time comes the threading is
+mechanical and was dry-run today: fourteen sites in `geometry/`, every one of
+the form `x·v + γ` or `n − γ`, plus the gain in `view/growth.ts` and
+`view/pentagrid.ts`; `computeRhomb`, `solveIntersection`, `computeKTuple`,
+`lineRange`, `segmentAt`, `nearestLine`, `regionPoly` and the two scans in
+`regularity.ts`. `lambda` would sit on `Pentagrid`, optional, read through a
+`spacing(pg)` helper so nothing existing changes. Reverted rather than kept:
+Jake, *"Nothing should be done. Just want to make sure it's recorded when we
+need it."*
+
 ## What the ghost lines are, exactly (2026-09-15)
 
 Jake: *"The ghost lines of the 2K-gons are not exactly a dualization of something

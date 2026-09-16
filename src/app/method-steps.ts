@@ -195,7 +195,7 @@ export const METHOD_PAGES: Page[] = [
             pg.setFeatures({ gridLines: true, intersectionDots: true,
                              penroseEdges: true, penroseVertices: true, pseudoEdges: true });
             pg.setGridAlpha(0.5);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "Caps", "Hunt", "not Penrose", "View"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "View"]);
         },
     },
 ];

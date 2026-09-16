@@ -431,3 +431,16 @@ nav.site a:hover { text-decoration: underline; }
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
+
+/* The presets popup under the reticulum's tools: a wrapped row of buttons. */
+.ret-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fafafa;
+}
+.ret-presets[hidden] { display: none; }

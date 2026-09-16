@@ -7,6 +7,7 @@ import { createGammaBank } from "../ui/dials.js";
 import type { GammaBank } from "../ui/dials.js";
 import { createReticulum } from "../ui/reticulum.js";
 import { createSumStrip } from "../ui/sumstrip.js";
+import { SINGULAR_PRESETS } from "../geometry/hunt.js";
 import { createFloatingPanel } from "../ui/floating.js";
 import type { FloatingPanel } from "../ui/floating.js";
 
@@ -160,7 +161,11 @@ export function bindToggles(view: GrowthHandle, specs: readonly ToggleSpec[]) {
 export function mountReticulum(
     set: GammaSet,
     container: HTMLElement,
-    opts: { colors: readonly string[] },
+    opts: {
+        colors: readonly string[];
+        /** Told the name of a preset once it has been applied. */
+        onPreset?: (name: string) => void;
+    },
 ): GammaControl {
     /**
      * Symmetric mode: every offset is the same g, so the control is one knob.
@@ -242,7 +247,43 @@ export function mountReticulum(
     };
     tools.appendChild(bump(-1, "bump −"));
     tools.appendChild(bump(+1, "bump +"));
+
+    // The presets, behind a button: a popup of the caps and the singularity
+    // catalog. Jake's list and order. A preset is the whole phase vector, so it
+    // releases the total first, as the Caps/Hunt rows did; the name goes back to
+    // the caller, which puts it on the title bar.
+    const PRESET_ORDER = ["sun", "star", "deca", "decagon", "couple",
+                          "octagon", "1 thick", "2 thick", "1 thin", "2 thin"];
+    const presetBtn = document.createElement("button");
+    presetBtn.className = "ret-bump";
+    presetBtn.textContent = "presets";
+    presetBtn.title = "The caps and the singularity catalog";
+    const popup = document.createElement("div");
+    popup.className = "ret-presets";
+    popup.hidden = true;
+    for (const name of PRESET_ORDER) {
+        const p = SINGULAR_PRESETS.find((q) => q.name === name);
+        if (!p) continue;
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = p.penrose ? "preset" : "preset not-penrose";
+        b.textContent = p.name;
+        b.title = p.note;
+        b.addEventListener("click", () => {
+            symmetric = false;
+            symInput.checked = false;
+            set.setLocked(-1);
+            set.setValues(p.gamma.map((q) => q / p.den));
+            popup.hidden = true;
+            opts.onPreset?.(p.name);
+            render();
+        });
+        popup.appendChild(b);
+    }
+    presetBtn.addEventListener("click", () => { popup.hidden = !popup.hidden; });
+    tools.appendChild(presetBtn);
     wrap.appendChild(tools);
+    wrap.appendChild(popup);
     container.appendChild(wrap);
 
     const render = () => {
@@ -295,7 +336,11 @@ export function mountFloatingReticulum(
         onClose: () => { reopen.hidden = false; },
     });
     document.body.appendChild(panel.element);
-    const control = mountReticulum(set, panel.body, { colors: opts.colors });
+    const control = mountReticulum(set, panel.body, {
+        colors: opts.colors,
+        // The selected preset's name replaces the title. Jake's spec.
+        onPreset: (name) => panel.setTitle(name),
+    });
 
     reopen.addEventListener("click", () => {
         panel.show();

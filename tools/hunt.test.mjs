@@ -157,6 +157,7 @@ test("isRegular is the ten-comparison corollary", () => {
 import "./domstub.mjs";
 import { makeStub } from "./domstub.mjs";
 import { createPentagrid } from "../dist/view/pentagrid.js";
+import { mountReticulum, mountFloatingReticulum } from "../dist/view/controls.js";
 
 /** Every descendant of `el`, depth first. */
 function walk(el, out = []) {
@@ -171,19 +172,28 @@ function sizedHost(w, h) {
     return host;
 }
 
-test("the Hunt buttons set the phases their labels promise", () => {
-    const panel = makeStub();
-    const h = createPentagrid({ container: sizedHost(800, 800), panel });
+/** The preset buttons in a reticulum mounted on `host`. */
+function presetButtons(host) {
+    return walk(host).filter((e) => String(e.className ?? "").startsWith("preset"));
+}
+const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
 
-    const buttons = walk(panel).filter((e) => String(e.className ?? "").startsWith("preset"));
-    assert.equal(buttons.length, SINGULAR_PRESETS.length,
-                 "the Hunt row did not render one button per preset");
+test("the reticulum's presets set the phases their labels promise", () => {
+    // Jake's list, behind a "presets" button: sun star deca decagon couple
+    // octagon 1 thick 2 thick 1 thin 2 thin. Not "regular" — that is what the
+    // reticulum is for.
+    const h = createPentagrid({ container: sizedHost(800, 800) });
+    const host = makeStub();
+    mountReticulum(h.gamma, host, { colors: COLORS });
 
-    for (const p of SINGULAR_PRESETS) {
-        const b = buttons.find((e) => e.textContent === p.name);
-        assert.ok(b, `no button for "${p.name}"`);
+    const buttons = presetButtons(host);
+    assert.deepEqual(buttons.map((b) => b.textContent),
+                     ["sun", "star", "deca", "decagon", "couple",
+                      "octagon", "1 thick", "2 thick", "1 thin", "2 thin"]);
+
+    for (const b of buttons) {
+        const p = SINGULAR_PRESETS.find((q) => q.name === b.textContent);
         assert.ok(b.on?.click?.length, `"${p.name}" has no click handler`);
-
         b.on.click.forEach((fn) => fn({}));
 
         // The phases actually landed, exactly — not near enough.
@@ -198,8 +208,18 @@ test("the Hunt buttons set the phases their labels promise", () => {
         const codes = new Set(kinds.map((k) => k.code));
         if (p.name === "octagon") assert.ok(codes.has("1112"), "no octagon");
         if (p.name === "decagon") assert.ok(codes.has("11111"), "no decagon");
-        if (p.name === "regular") assert.equal(kinds.length, 0, "not regular");
     }
+});
+
+test("choosing a preset puts its name on the floating reticulum's title bar", () => {
+    const h = createPentagrid({ container: sizedHost(800, 800) });
+    const buttons = makeStub();
+    const { panel } = mountFloatingReticulum(h.gamma, { colors: COLORS, buttons });
+    const title = panel.element.children[0].children[0];
+    assert.equal(title.textContent, "Reticulum · γ");
+    const star = presetButtons(panel.body).find((b) => b.textContent === "star");
+    star.on.click.forEach((fn) => fn({}));
+    assert.equal(title.textContent, "star", "the title did not take the preset's name");
 });
 
 test("a preset lands intact whichever index is holding the total", () => {
@@ -207,15 +227,17 @@ test("a preset lands intact whichever index is holding the total", () => {
     // it. Without that the locked index rewrites it against the stored target —
     // sun is uniform 1/5 and sums to 1, and a lock holding zero turned gamma0
     // into -4/5 while the button still said "sun".
-    const panel = makeStub();
-    const h = createPentagrid({ container: sizedHost(800, 800), panel });
-    const buttons = walk(panel).filter((e) => String(e.className ?? "").startsWith("preset"));
+    const h = createPentagrid({ container: sizedHost(800, 800) });
+    const host = makeStub();
+    mountReticulum(h.gamma, host, { colors: COLORS });
+    const buttons = presetButtons(host);
 
     for (const lock of [0, 2, 4]) {
         for (const p of SINGULAR_PRESETS) {
+            const b = buttons.find((e) => e.textContent === p.name);
+            if (!b) continue;                          // "regular" is not in the popup
             h.gamma.setLocked(lock);
-            buttons.find((e) => e.textContent === p.name)
-                .on.click.forEach((fn) => fn({}));
+            b.on.click.forEach((fn) => fn({}));
 
             const want = p.gamma.map((q) => q / p.den);
             h.gamma.model.gamma.forEach((g, j) => {

@@ -8,7 +8,6 @@ import {
 import type { GridSegment } from "../geometry/pentagrid.js";
 import { scanRegions } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
-import { addPresets } from "../ui/presets.js";
 import { findClusters, CLUSTER_FILL } from "../geometry/clusters.js";
 import type { ClusterKind } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
@@ -2245,23 +2244,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // The gridline-tiles row was built first, for its hook; it belongs on
         // the P side, under Tile style. Re-appending moves it.
         layerPanelDiv.appendChild(tilesRow);
-
-        // ── Caps and singularities ────────────────────────────────────
-        //
-        // Two rows, exposed on the page that is about them. Every button is a
-        // phase vector whose content is decided by arithmetic, not found by
-        // looking, and the tests check each name against both the rule and the
-        // scan. Shared with grow.html — see ui/presets.ts.
-        {
-            const capRow = row(layerPanelDiv, "Caps");
-            addPresets(capRow, "cap", gammaSet, draw);
-            // Two rows: the Penrose singularities, then the five that are not.
-            const huntRow = row(layerPanelDiv, "Hunt");
-            addPresets(huntRow, "hunt", gammaSet, draw, ["regular", "couple", "decagon"]);
-            const notRow = row(layerPanelDiv, "not Penrose");
-            addPresets(notRow, "hunt", gammaSet, draw,
-                       ["octagon", "1 thick", "1 thin", "2 thick", "2 thin"]);
-        }
 
         // Collapsed settings — set once, then forgotten
         const det = document.createElement("details");
