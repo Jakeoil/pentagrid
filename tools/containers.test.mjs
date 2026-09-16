@@ -517,49 +517,56 @@ test("the handle exposes the γ set", () => {
     assert.equal(h.gamma.enabledFlags().length, 5);
 });
 
-test("turning a family off through the set changes what is drawn", () => {
+test("a family at none changes nothing while the rest are at all — the filter is an OR", () => {
+    // Every tile is the crossing of two lines, so with four families still at
+    // "all" each tile still lies on a selected gridline through its other
+    // family. Only when the rest are at none does a family's own setting bite.
     const h = createPentagrid({
         container: host(700, 500), steps: [], features: { penroseTiles: true },
     });
     const before = tilesDrawn(h, "penrose-tiles", () => h.redraw());
-    h.gamma.setFamilyEnabled(2, false);
-    const after = tilesDrawn(h, "penrose-tiles", () => h.redraw());
     assert.ok(before > 0, "nothing drawn to begin with");
-    assert.ok(after < before, `family off drew as many tiles: ${after} vs ${before}`);
-});
-
-test("a single line through the set changes what is drawn", () => {
-    const h = createPentagrid({
-        container: host(700, 500), steps: [], features: { penroseTiles: true },
-    });
-    const before = tilesDrawn(h, "penrose-tiles", () => h.redraw());
     h.gamma.setFamilyLine(1, 0);
-    const after = tilesDrawn(h, "penrose-tiles", () => h.redraw());
-    assert.ok(after < before, `single line drew as many tiles: ${after} vs ${before}`);
+    assert.equal(tilesDrawn(h, "penrose-tiles", () => h.redraw()), before,
+                 "with the rest at all, one line of a family must change nothing");
+    h.gamma.setFamilyLine(1, null);
+    h.gamma.setFamilyEnabled(2, false);
+    assert.equal(tilesDrawn(h, "penrose-tiles", () => h.redraw()), before,
+                 "with the rest at all, one family at none must change nothing");
+    h.gamma.setFamilyEnabled(2, true);
+    h.gamma.setFamilyLine(1, 0);
+
+    // The rest at none, and now family 1's single line is all there is.
+    for (let j = 0; j < 5; j++) if (j !== 1) h.gamma.setFamilyEnabled(j, false);
+    const ribbon = tilesDrawn(h, "penrose-tiles", () => h.redraw());
+    assert.ok(ribbon > 0 && ribbon < before, `one ribbon drew ${ribbon} of ${before}`);
 });
 
-test("isolating a family, then one of its lines, leaves a ribbon", () => {
+test("one family dualizes its ribbons, and one line of it dualizes one ribbon", () => {
+    // The gridline-tiles filter is an OR: a tile is on a selected gridline
+    // through either of its families. So one family at "all" gives every tile
+    // that family takes part in — the union of its ribbons — where the old AND
+    // gave nothing, since a tile needed both of its families on.
     const h = createPentagrid({
         container: host(700, 500), features: { penroseTiles: true },
     });
-    // A REGULAR gamma. This is about isolation, not singularities — and the
-    // default Gamma = 0 is the maximally singular one, where most of a ribbon
-    // sits on stacked crossings and is deliberately left unfilled.
+    // A REGULAR gamma: at the singular default most of a ribbon is stacked.
     h.gamma.setSum(1, true);
     const all = tilesDrawn(h, "penrose-tiles", () => h.redraw());
-    h.gamma.setIsolated(1);
+    for (let j = 0; j < 5; j++) if (j !== 1) h.gamma.setFamilyEnabled(j, false);
     const solo = tilesDrawn(h, "penrose-tiles", () => h.redraw());
     h.gamma.setFamilyLine(1, 0);
     const ribbon = tilesDrawn(h, "penrose-tiles", () => h.redraw());
 
-    assert.ok(solo < all, "isolating drew as many tiles");
-    assert.ok(ribbon < solo, "restricting the isolated family drew as many again");
+    assert.ok(solo > 0, "one family at all should still dualize its ribbons");
+    assert.ok(solo < all, "one family drew as many tiles as all five");
+    assert.ok(ribbon < solo, "one line drew as many as the whole family");
     assert.ok(ribbon > 2, `a ribbon of only ${ribbon} tiles`);
 
-    h.gamma.setIsolated(null);
+    for (let j = 0; j < 5; j++) h.gamma.setFamilyEnabled(j, true);
     h.gamma.setFamilyLine(1, null);
     assert.equal(tilesDrawn(h, "penrose-tiles", () => h.redraw()), all,
-                 "clearing both did not restore the tiling");
+                 "restoring the filter did not restore the tiling");
 });
 
 test("the growth view's gamma set is reachable and drives the picture", () => {
@@ -635,50 +642,25 @@ const findSwitch = (panel, label) =>
 
 
 
-test("whether a family is on has ONE home: the gamma set", () => {
-    // It had two. The panel wrote gammaSet.setFamilyEnabled, the layer's own
-    // visibility read it, collectRhombs read it — but six drawing sites read
-    // stack.get(`grid-j`).userVisible, which nothing ever wrote. So the dots, the
-    // K-regions, the loupe and both K-tuple read-outs all went on treating a
-    // switched-off family as live.
+test("whether a family is dualized has ONE home: the gamma set", () => {
+    // It had two once — six drawing sites read a layer flag nothing wrote. The
+    // gamma set is the one home, and it is a TILE filter: rhomb collection
+    // follows it, the grid does not.
     const h = createPentagrid({ container: sizedHost(600, 600), steps: [] });
     const grid = h.stack.get("grid");
 
     h.gamma.setFamilyEnabled(2, false);
     assert.equal(h.gamma.familyEnabled(2), false);
     assert.equal(h.gamma.enabledFlags()[2], false, "rhomb collection must follow");
-    // the shared canvas stays up while anyone is left to draw on it
-    assert.equal(grid.visible(), true);
+    assert.equal(grid.visible(), true, "the grid is G; the filter is P");
 
     for (let j = 0; j < 5; j++) h.gamma.setFamilyEnabled(j, false);
-    assert.equal(grid.visible(), false, "with every family off there is nothing to draw");
+    assert.equal(grid.visible(), true, "every family filtered out of the tiling still draws as lines");
 
     // the layer's own flag is not a second opinion about families
     grid.userVisible = false;
     h.redraw();
     grid.userVisible = true;
-    h.redraw();
-    assert.equal(h.gamma.familyEnabled(2), false,
-                 "the layer flag must not speak for a family");
-
-    h.gamma.setFamilyEnabled(2, true);
-    assert.equal(grid.visible(), true, "and the gamma set brings it back");
-});
-
-
-
-test("the shared canvas draws only the families that are on", () => {
-    const h = createPentagrid({ container: sizedHost(600, 600), steps: [] });
-    const grid = h.stack.get("grid");
-    // stub contexts record nothing, so check the decision rather than the ink:
-    // every family off means the layer itself stands down.
-    assert.equal(grid.visible(), true);
-    for (let j = 0; j < 4; j++) h.gamma.setFamilyEnabled(j, false);
-    assert.equal(grid.visible(), true, "one family left is still worth a canvas");
-    h.gamma.setFamilyEnabled(4, false);
-    assert.equal(grid.visible(), false);
-    h.gamma.setFamilyEnabled(0, true);
-    assert.equal(grid.visible(), true);
     h.redraw();
 });
 
@@ -1078,8 +1060,8 @@ test("the panel separates what the tiling IS from how it is drawn", () => {
     const rows = panelRows(panel);
 
     // functional first: which lines exist at all
-    assert.ok(rows.has("Grid"), [...rows.keys()].join(", "));
-    assert.equal(rows.get("Grid").length, 5, "one control per family");
+    assert.ok(rows.has("gridline tiles"), [...rows.keys()].join(", "));
+    assert.equal(rows.get("gridline tiles").length, 5, "one control per family");
 
     // then the viewport
     assert.ok(rows.get("View").some((c) => c.label === "axes"));
@@ -1102,16 +1084,16 @@ test("gridline is on by default; the other two columns are not", () => {
     assert.equal(h.stack.get("grid").visible(), true, "the grid should show");
 });
 
-test("a family control is a line number and a none/one/all mode", () => {
+test("a family control is an all/none/one mode and a line number", () => {
     const panel = makeStub();
     const h = createPentagrid({ container: sizedHost(700, 700), panel });
-    const fam = panelRows(panel).get("Grid");
+    const fam = panelRows(panel).get("gridline tiles");
 
     const first = fam[0];
     assert.ok(first.sel, "no mode dropdown");
-    assert.deepEqual(first.sel.children.map((o) => o.value), ["none", "one", "all"]);
+    assert.deepEqual(first.sel.children.map((o) => o.value), ["all", "none", "one"]);
 
-    // none takes the family out of the tiling, not just out of the picture
+    // none takes the family out of the TILING — the grid still draws it
     first.sel.value = "none";
     first.sel.on.change[0]();
     assert.equal(h.gamma.familyEnabled(0), false);
@@ -1132,40 +1114,83 @@ test("a family control is a line number and a none/one/all mode", () => {
     assert.equal(h.gamma.familyLine(0), null);
 });
 
-test("all / off cancel the individual family controls rather than sitting beside them", () => {
+test("the status button reads all / some / none and cycles them", () => {
+    // Jake's rules: all -> none, some -> all, none -> all.
     const panel = makeStub();
-    const h = createPentagrid({ container: sizedHost(700, 700), panel });
+    const h = createPentagrid({ container: sizedHost(700, 700), panel,
+                                features: { penroseTiles: true } });
     const rows = panelRows(panel);
-    // the two buttons live on the Grid row, before the family controls
-    const buttons = [];
+    const fam = rows.get("gridline tiles");
+    let status = null;
     const walk = (n) => {
         if (!n.children) return;
         for (const c of n.children) {
-            if (c.tagName === "button" && ["all", "off"].includes(c.textContent)) buttons.push(c);
+            if (c.tagName === "button" && ["all", "some", "none"].includes(c.textContent)) status = c;
             walk(c);
         }
     };
     walk(panel);
-    assert.equal(buttons.length, 2, "expected an all and an off");
+    assert.ok(status, "no status button");
+    assert.equal(status.textContent, "all", "every family starts at all");
 
-    // set family 1 to a single line, then use the shortcut
-    const fam = rows.get("Grid")[1];
-    fam.sel.value = "one";
-    fam.sel.on.change[0]();
-    assert.notEqual(h.gamma.familyLine(1), null);
-
-    const off = buttons.find((b) => b.textContent === "off");
-    off.on.click[0]();
+    // all -> none: every family to none
+    status.on.click[0]();
+    assert.equal(status.textContent, "none");
     for (let j = 0; j < 5; j++) {
-        assert.equal(h.gamma.familyEnabled(j), false, `family ${j} still on`);
-        assert.equal(h.gamma.familyLine(j), null, `family ${j} kept its line`);
+        assert.equal(fam[j].sel.value, "none", `family ${j} did not follow`);
+        assert.equal(h.gamma.familyEnabled(j), false);
     }
-    assert.equal(fam.sel.value, "none", "the individual control must follow");
 
-    const all = buttons.find((b) => b.textContent === "all");
-    all.on.click[0]();
+    // none -> all
+    status.on.click[0]();
+    assert.equal(status.textContent, "all");
     for (let j = 0; j < 5; j++) assert.equal(h.gamma.familyEnabled(j), true);
-    assert.equal(fam.sel.value, "all");
+
+    // a single family changed reads as some; some -> all
+    fam[2].sel.value = "one";
+    fam[2].sel.on.change[0]();
+    assert.equal(status.textContent, "some");
+    status.on.click[0]();
+    assert.equal(status.textContent, "all");
+    assert.equal(fam[2].sel.value, "all", "some -> all resets the one");
+    assert.equal(h.gamma.familyLine(2), null);
+});
+
+test("the filter is kept while tiles are off, and none is not allowed when they come on", () => {
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(700, 700), panel,
+                                features: { penroseTiles: true } });
+    const fam = panelRows(panel).get("gridline tiles");
+
+    // Set family 1 to a single line, then turn the tiles off and on: it survives.
+    const nBox = fam[1].el.children.find((x) => x.type === "number");
+    nBox.value = "3";
+    fam[1].sel.value = "one";
+    fam[1].sel.on.change[0]();
+    h.setFeatures({ penroseTiles: false }, { merge: true });
+    h.setFeatures({ penroseTiles: true }, { merge: true });
+    assert.equal(fam[1].sel.value, "one", "the mode was lost across off/on");
+    assert.equal(h.gamma.familyLine(1), 3, "the line was lost across off/on");
+
+    // Every family none, tiles off, tiles on: none is not allowed, so all to all.
+    for (let j = 0; j < 5; j++) { fam[j].sel.value = "none"; fam[j].sel.on.change[0](); }
+    h.setFeatures({ penroseTiles: false }, { merge: true });
+    for (let j = 0; j < 5; j++) assert.equal(fam[j].sel.value, "none", "kept while off");
+    h.setFeatures({ penroseTiles: true }, { merge: true });
+    for (let j = 0; j < 5; j++) {
+        assert.equal(fam[j].sel.value, "all", `family ${j}: none should become all on tile-on`);
+        assert.equal(h.gamma.familyEnabled(j), true);
+    }
+});
+
+test("the grid draws every family whatever the tile filter says", () => {
+    // The flags filter the TILES. The grid, the dots, the loupe are G and show
+    // everything — that is the whole point of moving the row to P.
+    const h = createPentagrid({ container: sizedHost(700, 700),
+                                features: { gridLines: true, penroseTiles: true } });
+    for (let j = 0; j < 5; j++) h.gamma.setFamilyEnabled(j, false);
+    assert.equal(h.stack.get("grid").visible(), true, "the grid went away with the filter");
+    h.redraw();
 });
 
 test("a singularity is drawn as a P-region, by the tile and edge layers", () => {

@@ -46,7 +46,14 @@ function makeStub(extra = {}) {
             if (name === "data-height") return String(SH);
             return null;
         },
-        appendChild: (c) => { children.push(c); return c; },
+        // Like the DOM: appending a node that is already a child MOVES it to the
+        // end rather than adding a second entry.
+        appendChild: (c) => {
+            const i = children.indexOf(c);
+            if (i >= 0) children.splice(i, 1);
+            children.push(c);
+            return c;
+        },
         // Must really remove: code that empties a node by looping on
         // `while (children.length) removeChild(last)` spins forever otherwise,
         // which is a hang rather than a failure and takes a while to recognize.

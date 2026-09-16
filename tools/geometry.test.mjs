@@ -692,3 +692,34 @@ test("every on-screen dual vertex keeps its source region when the rect is padde
     // The fix: one tiling unit — the wobble bound — covers it, every time.
     assert.equal(missing(1), 0, `${missing(1)} source regions still missing at pad 1`);
 });
+
+// The gridline-tiles filter, at the source. A tile is the crossing of two lines
+// and is kept when EITHER is selected — the ribbons — where `active` needs both.
+test("ribbons: a tile is kept when either of its gridlines is selected", () => {
+    const g = createGammaSet({ guard: true });
+    const pg = g.model;
+    const VIS = { xMin: -5, xMax: 5, yMin: -5, yMax: 5 };
+    const R = (ribbons) => collectRhombs(pg, VIS, { gain: pg.n / 2, ribbons });
+
+    const all = R(["all", "all", "all", "all", "all"]);
+    assert.equal(R([null, null, null, null, null]).length, 0, "none is none");
+
+    // One family: exactly the tiles it takes part in, all on one of its lines.
+    const fam0 = R(["all", null, null, null, null]);
+    assert.equal(fam0.length, all.filter((r) => r.j === 0 || r.k === 0).length);
+    assert.ok(fam0.every((r) => r.j === 0 || r.k === 0));
+    assert.ok(fam0.length > 0, "the AND semantics are back: one family gave nothing");
+
+    // One line: exactly that ribbon.
+    const one = R([2, null, null, null, null]);
+    assert.ok(one.length > 2, `a ribbon of ${one.length}`);
+    assert.ok(one.every((r) => (r.j === 0 && r.nj === 2) || (r.k === 0 && r.nk === 2)),
+              "a tile off line 2 of family 0 was kept");
+
+    // Two families: the union of their ribbons, not just their mutual tiles.
+    const two = R(["all", "all", null, null, null]);
+    const union = all.filter((r) => [r.j, r.k].some((f) => f === 0 || f === 1)).length;
+    const mutual = all.filter((r) => r.j === 0 && r.k === 1).length;
+    assert.equal(two.length, union);
+    assert.ok(two.length > mutual, "an OR must keep more than the AND");
+});

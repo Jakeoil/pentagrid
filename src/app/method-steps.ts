@@ -32,7 +32,7 @@ export const METHOD_PAGES: Page[] = [
             pg.setGridAlpha(0.6);
             // Only what this page is about. The rest is still reachable from the
             // panel; it is just not shouted about here.
-            pg.exposeRows(["Pentagrid", "single line"]);
+            pg.exposeRows(["Pentagrid", "Grid style", "View"]);
         },
     },
     {
@@ -50,7 +50,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, intersectionDots: true, hoverTile: true });
             pg.setGridAlpha(0.6);
-            pg.exposeRows(["Pentagrid", "single line", "On hover"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Grid style", "View"]);
         },
     },
     {
@@ -76,7 +76,7 @@ export const METHOD_PAGES: Page[] = [
                 gridLines: true, kRegions: true, kLabels: true, hoverVertex: true,
             });
             pg.setGridAlpha(0.4);
-            pg.exposeRows(["Pentagrid", "K-regions", "On hover"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Grid style", "View"]);
         },
     },
     {
@@ -96,7 +96,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseVertices: true, hoverVertex: true });
             pg.setGridAlpha(0.28);
-            pg.exposeRows(["Pentagrid", "Penrose", "K-regions", "On hover"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "gridline tiles", "View"]);
         },
     },
     {
@@ -121,7 +121,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseEdges: true, hoverTile: true });
             pg.setGridAlpha(0.24);
-            pg.exposeRows(["Pentagrid", "Penrose", "On hover"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "gridline tiles", "View"]);
         },
     },
     {
@@ -195,7 +195,7 @@ export const METHOD_PAGES: Page[] = [
             pg.setFeatures({ gridLines: true, intersectionDots: true,
                              penroseEdges: true, penroseVertices: true, pseudoEdges: true });
             pg.setGridAlpha(0.5);
-            pg.exposeRows(["Pentagrid", "single line", "Grid style", "Caps", "Hunt"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "gridline tiles", "Caps", "Hunt", "View"]);
         },
     },
 ];

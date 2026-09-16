@@ -334,9 +334,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function collectRhombs(vis: ViewRect): Rhomb[] {
         return geoCollectRhombs(model, vis, {
             gain: gridGain(),
-            active: gammaSet.enabledFlags(),
-            lines: gammaSet.lineFlags(),
-            only: gammaSet.isolated(),
+            // The gridline-tiles filter: per family, all of its lines, one of
+            // them, or none. A tile is kept when either of its lines is selected.
+            ribbons: gammaSet.enabledFlags().map((on, j) =>
+                !on ? null : (gammaSet.lineFlags()[j] ?? "all")),
         });
     }
 
@@ -649,11 +650,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // is an `if` in the loop, which is all the separate canvases were doing.
     stack.add({
         id: "grid", label: "Grid", z: 10, group: "Pentagrid",
-        visible: () => features.gridLines && gammaSet.enabledFlags().some(Boolean),
+        visible: () => features.gridLines,
         opacity: () => gridAlpha,
         draw: (c) => withView(gridView(), () => {
             for (let j = 0; j < model.n; j++) {
-                if (!gammaSet.familyEnabled(j)) continue;
                 drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy);
             }
         }),
@@ -962,9 +962,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // through these, which is why `steps` and `presets` are gone.
 
     function setFeatures(next: Partial<Features>, opts?: { merge?: boolean }) {
+        const wasOn = features.penroseTiles;
         features = opts?.merge
             ? { ...features, ...next }
             : { ...NO_FEATURES, ...next };
+        if (!wasOn && features.penroseTiles) tilesOn?.();
         syncPanel();
         draw();
     }
@@ -1328,10 +1330,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         );
         const maxN = Math.min(Math.ceil(maxCoord) + 3, 50);
 
+        // Every crossing: the family flags filter the tiles, not the grid.
         for (let j = 0; j < model.n; j++) {
-            if (!gammaSet.familyEnabled(j)) continue;
             for (let k = j + 1; k < model.n; k++) {
-                if (!gammaSet.familyEnabled(k)) continue;
                 tc.fillStyle = pairColors.get(`${j},${k}`)!;
                 for (let nj = -maxN; nj <= maxN; nj++) {
                     for (let nk = -maxN; nk <= maxN; nk++) {
@@ -1722,7 +1723,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // Pass 1: gradient-filled parallelograms, collect label positions
         for (let j = 0; j < model.n; j++) {
-            if (!gammaSet.familyEnabled(j)) continue;
             const [vx, vy] = directions[j];
             const [r, g, b] = hexToRgb(COLORS[j]);
             const colorStr = `rgba(${r},${g},${b},0.2)`;
@@ -1996,7 +1996,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         parent: HTMLElement, key: keyof Features, label: string,
     ): HTMLInputElement {
         const cb = checkbox(parent, label, features[key], (v) => {
+            const wasOn = features.penroseTiles;
             features[key] = v;
+            if (key === "penroseTiles" && !wasOn && v) tilesOn?.();
             syncPanel();
             draw();
             if (v && onFeatureOnKeys.has(key)) {
@@ -2010,6 +2012,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     /** Refreshes the viewport read-out. Set when the panel is built. */
     let viewStats: (() => void) | null = null;
+    /** Runs when the tiles go from off to on. Set when the panel is built. */
+    let tilesOn: (() => void) | null = null;
 
     function syncPanel() {
         for (const { key, cb } of featureBoxes) cb.checked = features[key];
@@ -2017,45 +2021,72 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     function buildLayerPanel() {
-        // ── Functional: which lines exist at all ──────────────────────
+        // ── Gridline tiles: a filter on the tiling, P not G ────────────
         //
-        // Not a rendering choice. Turning a family off removes the tiles it
-        // generates as well as its lines, because the dual of a line is a ribbon
-        // of tiles — so this decides what the tiling IS, not how it looks.
-        const gridRow = row(layerPanelDiv, "Grid");
+        // Which gridlines get dualized when `tile` is on. The grid itself draws
+        // every family regardless; this row only decides which crossings become
+        // tiles. Each family is all, none, or one line (the K number beside it);
+        // the button in front reports the families as a whole — all, some or
+        // none — and cycles them: all -> none, some -> all, none -> all. The
+        // values are kept while the tiles are off, and none is not allowed when
+        // they come back on: that is the one case where the row rewrites itself.
+        const tilesRow = row(layerPanelDiv, "gridline tiles");
 
         const perFamily: { mode: HTMLSelectElement; n: HTMLInputElement }[] = [];
-        const allBtn = (label: string, on: boolean) => {
-            const b = document.createElement("button");
-            b.type = "button";
-            b.className = "line-pick";
-            b.style.width = "34px";
-            b.textContent = label;
-            b.title = on ? "Every family, every line" : "No families at all";
-            b.addEventListener("click", () => {
-                // A shortcut that means it: it cancels the individual controls
-                // rather than sitting alongside them disagreeing.
-                for (let j = 0; j < model.n; j++) {
-                    gammaSet.setFamilyEnabled(j, on);
-                    gammaSet.setFamilyLine(j, null);
-                    perFamily[j].mode.value = on ? "all" : "none";
-                    perFamily[j].n.value = "0";
-                }
-                draw();
-            });
-            gridRow.appendChild(b);
+        const status = document.createElement("button");
+        status.type = "button";
+        status.className = "line-pick";
+        status.style.width = "42px";
+        status.title = "all, some or none of the families are dualized. Click to cycle: "
+            + "all -> none, some -> all, none -> all.";
+
+        /** all / some / none, read off the family modes. */
+        const familyStatus = (): "all" | "some" | "none" => {
+            const modes = perFamily.map((f) => f.mode.value);
+            if (modes.every((m) => m === "all")) return "all";
+            if (modes.every((m) => m === "none")) return "none";
+            return "some";
         };
-        allBtn("all", true);
-        allBtn("off", false);
+        /** Push one family's control into the set, which is what the tiles read. */
+        const applyFamily = (j: number) => {
+            const m = perFamily[j].mode.value;
+            gammaSet.setFamilyEnabled(j, m !== "none");
+            gammaSet.setFamilyLine(j, m === "one"
+                ? parseInt(perFamily[j].n.value, 10) || 0 : null);
+        };
+        const setAll = (mode: "all" | "none") => {
+            for (let j = 0; j < model.n; j++) {
+                perFamily[j].mode.value = mode;
+                applyFamily(j);
+            }
+        };
+        const showStatus = () => { status.textContent = familyStatus(); };
+        status.addEventListener("click", () => {
+            setAll(familyStatus() === "all" ? "none" : "all");
+            showStatus();
+            draw();
+        });
+        tilesRow.appendChild(status);
 
         for (let j = 0; j < model.n; j++) {
             const wrap = document.createElement("label");
             wrap.className = "layer-toggle";
-            wrap.title = `Family ${j}: none, one line, or all of them.`;
+            wrap.title = `Family ${j}: dualize all its lines, none, or the one numbered here.`;
             const sw = document.createElement("span");
             sw.className = "layer-swatch";
             sw.style.background = COLORS[j % COLORS.length];
             wrap.appendChild(sw);
+
+            const mode = document.createElement("select");
+            mode.className = "line-pick";
+            mode.style.width = "52px";
+            for (const v of ["all", "none", "one"]) {
+                const o = document.createElement("option");
+                o.value = v;
+                o.textContent = v;
+                mode.appendChild(o);
+            }
+            mode.value = "all";
 
             const nBox = document.createElement("input");
             nBox.type = "number";
@@ -2064,31 +2095,23 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             nBox.value = "0";
             nBox.title = "Which line, when the mode is `one`.";
 
-            const mode = document.createElement("select");
-            mode.className = "line-pick";
-            mode.style.width = "52px";
-            for (const [v, t] of [["none", "none"], ["one", "one"], ["all", "all"]]) {
-                const o = document.createElement("option");
-                o.value = v;
-                o.textContent = t;
-                mode.appendChild(o);
-            }
-            mode.value = "all";
-
-            const apply = () => {
-                const m = mode.value;
-                gammaSet.setFamilyEnabled(j, m !== "none");
-                gammaSet.setFamilyLine(j, m === "one" ? parseInt(nBox.value, 10) || 0 : null);
-                draw();
-            };
-            mode.addEventListener("change", apply);
-            nBox.addEventListener("input", () => { if (mode.value === "one") apply(); });
-
-            wrap.appendChild(nBox);
-            wrap.appendChild(mode);
-            gridRow.appendChild(wrap);
             perFamily.push({ mode, n: nBox });
+            mode.addEventListener("change", () => { applyFamily(j); showStatus(); draw(); });
+            nBox.addEventListener("input", () => {
+                if (mode.value === "one") { applyFamily(j); draw(); }
+            });
+
+            wrap.appendChild(mode);
+            wrap.appendChild(nBox);
+            tilesRow.appendChild(wrap);
         }
+        showStatus();
+
+        // Tiles coming on with no family dualized would show nothing and say
+        // nothing about why; that is the one transition that rewrites the row.
+        tilesOn = () => {
+            if (familyStatus() === "none") { setAll("all"); showStatus(); }
+        };
 
         // ── View: the viewport itself, and what it is showing ─────────
         const viewRow = row(layerPanelDiv, "View");
@@ -2216,6 +2239,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             featureToggle(sRow, "pseudoEdges", "pseudo edges");
         }
 
+        // The gridline-tiles row was built first, for its hook; it belongs on
+        // the P side, under Tile style. Re-appending moves it.
+        layerPanelDiv.appendChild(tilesRow);
+
         // ── Caps and singularities ────────────────────────────────────
         //
         // Two rows, exposed on the page that is about them. Every button is a
@@ -2327,7 +2354,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     }
                 }
                 for (let j = 0; j < model.n; j++) {
-                    if (!gammaSet.familyEnabled(j)) continue;
                     drawGridFamily(lctx, j, lsize, lsize, lcx, lcy);
                 }
             });

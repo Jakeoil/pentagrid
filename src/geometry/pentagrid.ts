@@ -130,6 +130,22 @@ export interface CollectOptions {
      * With `lines[j] = n` as well, what is left is exactly line n's ribbon.
      */
     only?: number | null;
+    /**
+     * Dualize only the tiles ON the selected gridlines — the ribbons.
+     *
+     * One entry per family: "all" for every line of it, a number for that one
+     * line, null for none. A tile is the crossing of two lines, so it is kept
+     * when EITHER of them is selected: family j at "all" keeps every tile that
+     * family takes part in (the union of its ribbons), and family j at n keeps
+     * exactly line n's ribbon. This is an OR, where `active` is an AND — with
+     * `active`, one family on and the rest off gives nothing, because a tile
+     * needs both of its families; here it gives that family's ribbons. When
+     * `ribbons` is given, `active`, `lines` and `only` are not consulted.
+     *
+     * Jake: "dualize the tiles only on the specified gridline(family) — the tiles
+     * represented by the intersections along the gridline."
+     */
+    ribbons?: readonly ("all" | number | null)[];
     /** Hard cap on the index range, to bound the work when zoomed far out. */
     maxNCap?: number;
     /** How far outside vis a vertex may be and still count as visible. */
@@ -160,17 +176,23 @@ export function collectRhombs(
     };
 
     const only = opts.only ?? null;
+    const ribbons = opts.ribbons ?? null;
+    /** Is line n of family j one of the selected gridlines? */
+    const onRibbon = (j: number, n: number) =>
+        ribbons !== null && (ribbons[j] === "all" || ribbons[j] === n);
 
     const rhombs: Rhomb[] = [];
     for (let j = 0; j < pg.n; j++) {
-        if (active && !active[j]) continue;
-        const [jLo, jHi] = range(j);
+        if (!ribbons && active && !active[j]) continue;
+        const [jLo, jHi] = ribbons ? [-maxN, maxN] : range(j);
         for (let k = j + 1; k < pg.n; k++) {
-            if (active && !active[k]) continue;
-            if (only !== null && j !== only && k !== only) continue;
-            const [kLo, kHi] = range(k);
+            if (!ribbons && active && !active[k]) continue;
+            if (!ribbons && only !== null && j !== only && k !== only) continue;
+            const [kLo, kHi] = ribbons ? [-maxN, maxN] : range(k);
             for (let nj = jLo; nj <= jHi; nj++) {
                 for (let nk = kLo; nk <= kHi; nk++) {
+                    // On a selected gridline through either of its families.
+                    if (ribbons && !onRibbon(j, nj) && !onRibbon(k, nk)) continue;
                     const pt = solveIntersection(pg, j, k, nj, nk);
                     if (!pt) continue;
                     const rhomb = computeRhomb(pg, j, k, nj, nk, pt[0], pt[1]);
