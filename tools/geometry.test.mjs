@@ -17,7 +17,7 @@ import {
     solveIntersection, segmentAt, nearestLine,
 } from "../dist/geometry/pentagrid.js";
 import { TRIPLES, noIntegerGamma, scanRegions, singularTriples } from "../dist/geometry/regularity.js";
-import { ARC_T, rhombArcs } from "../dist/geometry/decor.js";
+import { ARC_T, rhombArcs, rhombArrows } from "../dist/geometry/decor.js";
 import { regionPoly } from "../dist/geometry/region.js";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 
@@ -722,4 +722,83 @@ test("ribbons: a tile is kept when either of its gridlines is selected", () => {
     const mutual = all.filter((r) => r.j === 0 && r.k === 1).length;
     assert.equal(two.length, union);
     assert.ok(two.length > mutual, "an OR must keep more than the AND");
+});
+
+
+// de Bruijn's AR-pattern from the indices, checked against his Fig. 1: every
+// rhomb carries two doubles at one corner and two singles at the opposite one,
+// the two tiles on a shared edge agree, and the patch reduces to Penrose's two
+// marked prototiles — thick with singles out, thin with singles in.
+test("the arrows are de Bruijn's AR-pattern: two prototiles, every shared edge agreeing", () => {
+    const g = createGammaSet({ guard: true });
+    const pg = g.model;
+    const rhombs = collectRhombs(pg, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 }, { gain: pg.n / 2 });
+    let lo = Infinity, hi = -Infinity;
+    for (const r of rhombs) for (const K of r.kTuples) {
+        const m = K.reduce((a, b) => a + b, 0);
+        lo = Math.min(lo, m); hi = Math.max(hi, m);
+    }
+    assert.equal(hi - lo, 3, "a Penrose patch has four index levels");
+
+    const seen = new Map();
+    for (const r of rhombs) {
+        const arrows = rhombArrows(pg, r, lo);
+        assert.equal(arrows.length, 4);
+        assert.equal(arrows.filter((a) => a.double).length, 2, "two doubles per rhomb");
+        // The two doubles share a corner. Edges go round the polygon, so the two
+        // at v0 are edges 0 and 3 and the two at v2 are edges 1 and 2.
+        const d = arrows.map((a) => a.double);
+        assert.ok((d[0] && d[3]) || (d[1] && d[2]), "the doubles are not at one corner");
+
+        for (const a of arrows) {
+            // Round before keying, and compare the rest numerically: toFixed
+            // prints -0 and +0 differently, and a direction component can be
+            // either side of zero by 1e-17.
+            const key = `${(Math.round(a.x * 1e6) || 0) / 1e6},${(Math.round(a.y * 1e6) || 0) / 1e6}`;
+            (seen.get(key) ?? seen.set(key, []).get(key)).push(a);
+        }
+    }
+    // De Bruijn Fig. 1. Doubles into the extreme. Singles out of the red corner
+    // on a thick, into it on a thin — and that difference is what makes the two
+    // tiles on a shared edge agree.
+    const idx = (K) => K.reduce((a, b) => a + b, 0) - lo + 1;
+    const protos = new Set();
+    for (const r of rhombs) {
+        const arrows = rhombArrows(pg, r, lo);
+        const m = idx(r.kTuples[0]);
+        const red = m === 1 ? 3 : 2;
+        arrows.forEach((a, i) => {
+            const A = r.vertices[i], B = r.vertices[(i + 1) % 4];
+            const ia = idx(r.kTuples[i]), ib = idx(r.kTuples[(i + 1) % 4]);
+            const towardB = (B[0] - A[0]) * a.dx + (B[1] - A[1]) * a.dy > 0;
+            const target = towardB ? ib : ia;
+            if (a.double) assert.ok(target === 1 || target === 4, "a double must point into an extreme");
+            else assert.equal(target === red, !r.thick,
+                              `a single points ${r.thick ? "out of" : "into"} the red corner on a ${r.thick ? "thick" : "thin"}`);
+        });
+        // The marked prototile: which way the doubles and the singles face their corners.
+        const d = arrows.filter((a) => a.double), s = arrows.filter((a) => !a.double);
+        const corner = (es) => [es[0], es[1]].map((e) => arrows.indexOf(e))
+            .map((i) => [i, (i + 1) % 4]).reduce((p, q) => p.filter((v) => q.includes(v)))[0];
+        const faces = (es, c) => es.every((e) => {
+            const i = arrows.indexOf(e);
+            const T = r.vertices[c], A = r.vertices[i], B = r.vertices[(i + 1) % 4];
+            const toB = (B[0] - A[0]) * e.dx + (B[1] - A[1]) * e.dy > 0;
+            return (toB ? B : A) === T;
+        });
+        protos.add(`${r.thick ? "thick" : "thin"}:${faces(d, corner(d)) ? "in" : "out"}/${faces(s, corner(s)) ? "in" : "out"}`);
+    }
+    // Penrose's two, and only two.
+    assert.deepEqual([...protos].sort(), ["thick:in/out", "thin:in/in"]);
+    let shared = 0;
+    for (const both of seen.values()) {
+        if (both.length === 2) {
+            shared++;
+            const [p, q] = both;
+            assert.equal(p.double, q.double, "the two sides of an edge disagree on single/double");
+            assert.ok(Math.abs(p.dx - q.dx) < 1e-9 && Math.abs(p.dy - q.dy) < 1e-9,
+                      "the two sides of an edge point their arrow different ways");
+        }
+    }
+    assert.ok(shared > 200, `only ${shared} shared edges`);
 });

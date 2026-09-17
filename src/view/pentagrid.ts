@@ -15,7 +15,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly } from "../geometry/region.js";
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
 import { createLoupe } from "../ui/loupe.js";
@@ -81,6 +81,8 @@ export interface TileStyle {
     shading: boolean;
     /** Strength of the ramp, 0..1. wieringa-roof's `shade` slider. */
     ramp: number;
+    /** Tile edges as real lines rather than a hairline, as grow.html's setting. */
+    boldEdges: boolean;
     /** Fill alpha. Edges and decoration stay solid. */
     opacity: number;
 }
@@ -101,6 +103,13 @@ export interface Features {
     penroseEdges: boolean;
     penroseVertices: boolean;
     penroseDecor: boolean;
+    /**
+     * Penrose's arrows on the edges — single and double, the matching rule as
+     * he first marked it — read off the vertex indices as de Bruijn does. Drawn
+     * only on a Penrose patch, where the index has the four values the rule
+     * needs.
+     */
+    arrows: boolean;
     /**
      * The edges inside a 2k-gon, dotted.
      *
@@ -515,6 +524,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         kRegions: false, kLabels: false, intersectionDots: false,
         penroseTiles: false, penroseEdges: false, penroseVertices: false,
         penroseDecor: false,
+        arrows: false,
         pseudoEdges: false,
         hoverVertex: false, hoverEdge: false, hoverTile: false,
     };
@@ -526,6 +536,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
+        boldEdges: false,
         ...config.tileStyle,
     };
 
@@ -716,9 +727,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     });
     stack.add({
         id: "penrose-decor", label: "Arcs", z: PENROSE_Z_FRONT + 2, group: "Penrose",
-        visible: () => features.penroseDecor,
-        draw: (c) => drawPenroseDecor(
-            c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy),
+        visible: () => features.penroseDecor || features.arrows,
+        draw: (c) => {
+            const laid = currentRhombs().filter((r) => !isStacked(r));
+            if (features.penroseDecor) drawPenroseDecor(c.ctx, laid, c.cx, c.cy);
+            if (features.arrows) drawArrows(c.ctx, laid, c.cx, c.cy);
+        },
     });
     stack.add({
         id: "penrose-vertices", label: "Vertices", z: PENROSE_Z_FRONT + 3, group: "Penrose",
@@ -1433,6 +1447,46 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     /**
+     * The arrows, as chevrons on the edge: one for a single, two for a double.
+     * Only on a Penrose patch — with five index levels the rule has no meaning
+     * and nothing is drawn, the same silence as the rhomb groups.
+     */
+    function drawArrows(
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
+    ) {
+        const { lo, hi } = indexRange();
+        if (hi - lo !== 3) return;
+        const L = 0.11;          // chevron arm, tiling units
+        const GAP = 0.09;        // between the two of a double
+        tc.strokeStyle = "#222";
+        tc.lineWidth = 1.4;
+        tc.lineCap = "round";
+        tc.lineJoin = "round";
+        for (const r of rhombs) {
+            for (const a of rhombArrows(model, r, lo)) {
+                const nx = -a.dy, ny = a.dx;
+                const chevron = (ox: number, oy: number) => {
+                    // tip at (ox,oy), arms trailing back at 45 degrees
+                    const tip = mathToScreen(ox, oy, cx, cy);
+                    const l = mathToScreen(ox - a.dx * L + nx * L, oy - a.dy * L + ny * L, cx, cy);
+                    const rr = mathToScreen(ox - a.dx * L - nx * L, oy - a.dy * L - ny * L, cx, cy);
+                    tc.beginPath();
+                    tc.moveTo(l[0], l[1]);
+                    tc.lineTo(tip[0], tip[1]);
+                    tc.lineTo(rr[0], rr[1]);
+                    tc.stroke();
+                };
+                if (a.double) {
+                    chevron(a.x + a.dx * GAP / 2, a.y + a.dy * GAP / 2);
+                    chevron(a.x - a.dx * GAP / 2, a.y - a.dy * GAP / 2);
+                } else {
+                    chevron(a.x + a.dx * L / 2, a.y + a.dy * L / 2);
+                }
+            }
+        }
+    }
+
+    /**
      * Contour lines across a rhomb, perpendicular to its long diagonal.
      *
      * The same idea as penrose-mosaic's `drawIsogloss`: evenly spaced along the
@@ -1645,8 +1699,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.restore();
                 if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
             } else {
-                tc.strokeStyle = dotted ? "#999" : "#777";
-                tc.lineWidth = 1;
+                tc.strokeStyle = dotted ? "#999" : (tileStyle.boldEdges ? "#222" : "#777");
+                tc.lineWidth = tileStyle.boldEdges && !dotted ? 2 : 1;
                 tc.stroke();
             }
         }
@@ -2237,7 +2291,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
             // Third row: the edge dressings — P, not G.
             const edgeRow = row(layerPanelDiv, "Tile edges");
+            const bold = checkbox(edgeRow, "bold edges", tileStyle.boldEdges, (v) => {
+                tileStyle.boldEdges = v;
+                draw();
+            });
+            bold.title = "Draw the tile edges as real lines, dark and two wide, rather than a gray hairline.";
             featureToggle(edgeRow, "penroseDecor", "arcs");
+            featureToggle(edgeRow, "arrows", "arrows");
             featureToggle(edgeRow, "pseudoEdges", "pseudo edges");
         }
 

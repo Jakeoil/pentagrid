@@ -1622,6 +1622,45 @@ not a redesign — and it is the same hook E1 wanted for "strips in one directio
    afterwards, not the script's own report.
 5. Then decide what `roof.html` says about levels.
 
+## The AR-pattern from the indices, with the thick/thin twist (2026-09-17)
+
+AR is de Bruijn's *arrowed rhombus*. His Fig. 1 (1981, p. 41) is the ground
+truth, read at 400 dpi from `jake/597566.pdf`, and it settles a question three
+searches could not: the direction of the single arrows is **not** a function of
+the endpoint indices — it depends on which tile the edge is on.
+
+**Fig. 1.** Green (double) arrows meet at one corner — a 72° corner of the thick
+rhomb, a 144° corner of the thin — and point INTO it. Red (single) arrows sit on
+the two edges at the opposite corner, and here the tiles differ:
+
+    thick   singles point OUT of that corner
+    thin    singles point INTO it
+
+**In index terms.** The green corner is the extreme, 1 or 4, so the doubles are
+the 1–2 and 3–4 edges pointing *into the 1* and *into the 4* — the rhomb-group
+centers, which is what Jake said: "the center of the rhomb groups determine the
+AR pattern." The red corner is the other end of that diagonal, index 3 on a
+(1,2,3,2) tile and 2 on a (2,3,4,3) tile; the singles leave it on a thick and
+enter it on a thin.
+
+**Why the twist is forced.** 291 of 387 shared 2–3 edges in a patch are shared by
+a thick of one m and a thin of the other, so any rule with one sense for both
+shapes conflicts on three quarters of them. Every index-only rule tried —
+toward higher, toward lower, doubles in/out with singles fixed either way, and
+eight line- and coordinate-parity variants — produced **four** marked
+prototiles. Fig. 1's rule produces **two**, thick in/out and thin in/in, with
+zero disagreements on 773 shared edges across three gammas. The test pins both.
+
+**What misled the reading of Fig. 2 and the Treisberg slide.** Every clean tile I
+read with "singles into the 3" — tile1 in Fig. 2, the blue tile in the slide —
+has a 144° angle at its 1. They are thin. The rule was right for them and I had
+taken them for thick. The Treisberg slide colors by the same scheme, green on
+1–2 and 3–4, red on 2–3; its arrowhead counts are decorative except where they
+are not, and are not to be trusted at that resolution.
+
+The `arrows` toggle on the Tile edges row draws this. Off a Penrose patch the
+index spans five values and nothing is drawn.
+
 ## For the record: Schoen's names, and λ (2026-09-16)
 
 Two things Jake wants written down before they are needed. Neither is a task.
