@@ -1,13 +1,13 @@
 // grow.html: the pentagrid assembling itself, flat.
 //
 // All the drawing lives in view/growth.ts. This is the page: a container, a
-// starting state, and five sliders.
+// starting state, the sliders, and the reticulum — whose presets popup is the
+// only preset control here.
 
 import { createGrowthView } from "../view/growth.js";
 import {
     bindSliders, bindToggles, mountGammaControls, mountFloatingReticulum,
 } from "../view/controls.js";
-import { addPresets } from "../ui/presets.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("grow-view");
@@ -39,12 +39,4 @@ if (host) {
         sliders: gammaHost ?? undefined,
         foldSliders: true,
     });
-
-    // The caps and the singularity catalog, shared with the method page. On
-    // this page they are worth more: a preset picks the phases, and the grow
-    // slider then shows what that singularity actually opens into.
-    const caps = document.getElementById("grow-caps");
-    if (caps) addPresets(caps, "cap", view.pentagrid.gamma, () => view.redraw());
-    const hunt = document.getElementById("grow-hunt");
-    if (hunt) addPresets(hunt, "hunt", view.pentagrid.gamma, () => view.redraw());
 }

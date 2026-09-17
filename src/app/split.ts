@@ -2,14 +2,13 @@
 //
 // The pair on the index page linked two views with a random gamma and nothing
 // else. This is the workbench version: grid objects on the left, Penrose objects
-// on the right, the reticulum and the presets driving both, and each side with
+// on the right, the reticulum and its presets driving both, and each side with
 // its own switches. Built on the same relay — setView does not fire onViewChange,
 // so the link is one hop and cannot loop.
 
 import { createPentagrid } from "../view/pentagrid.js";
 import type { PentagridHandle, View } from "../view/pentagrid.js";
 import { mountFloatingReticulum } from "../view/controls.js";
-import { addPresets } from "../ui/presets.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
 const byId = (id: string) => document.getElementById(id) ?? undefined;
@@ -58,8 +57,4 @@ if (gridHost && tileHost) {
     if (bar) {
         mountFloatingReticulum(grid.gamma, { colors: FAMILY_COLORS, buttons: bar });
     }
-    const caps = byId("split-caps");
-    if (caps) addPresets(caps, "cap", grid.gamma, () => grid.redraw());
-    const hunt = byId("split-hunt");
-    if (hunt) addPresets(hunt, "hunt", grid.gamma, () => grid.redraw());
 }
