@@ -964,6 +964,28 @@ test("rhomb groups color tiles as sun-star does, and leave the rest bare", () =>
               "a non-Penrose patch should be all bare");
 });
 
+test("the P1 style paints blue and then the pentagons, clipped to each tile", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { color: "p1" },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);      // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const styles = [];
+    layer.ctx.fill = function () { styles.push(String(this.fillStyle)); };
+    h.redraw();
+
+    const blue = styles.filter((c) => c === "#0000ff").length;
+    const yellow = styles.filter((c) => c === "#ffff00").length;
+    const orange = styles.filter((c) => c === "#e46c0a").length;
+    assert.ok(blue > 100, "every tile is painted blue first");
+    assert.ok(yellow > 50 && orange > 50, `pentagon pieces: ${yellow} yellow, ${orange} orange`);
+    assert.ok(yellow + orange > blue, "a tile is typically reached by more than one pentagon piece");
+});
+
 test("tile style is a setting, not a feature flag", () => {
     // color is a choice of three and opacity is a number; neither is the sort of
     // thing a narrative page turns on.

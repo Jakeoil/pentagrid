@@ -12,7 +12,7 @@ import { findClusters, CLUSTER_FILL } from "../geometry/clusters.js";
 import type { ClusterKind } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
-import { regionPoly as geoRegionPoly } from "../geometry/region.js";
+import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs, rhombArrows } from "../geometry/decor.js";
@@ -60,7 +60,7 @@ export interface TileStyle {
     /**
      * thick/thin, the two families that made it, its rhomb group (Pe5, Pe3, Pe1
      * in sun-star's palette; bare when it belongs to none, or when the patch is
-     * not Penrose and groups are undefined) — or
+     * not Penrose and groups are undefined), the P1 tiling it carries — or
      * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
      * them. Each band runs across the tile in its family's color, `band` wide as
      * a fraction of the edge, and the square where they cross is the composite.
@@ -68,7 +68,7 @@ export interface TileStyle {
      * below that the tile reads as two gridlines passing through. A 2k-gon takes
      * no color under it.
      */
-    color: "type" | "pair" | "bands" | "groups";
+    color: "type" | "pair" | "bands" | "groups" | "p1";
     /** Band width for `bands`, 0..1 of the edge. */
     band: number;
     /** Contour lines across each tile. */
@@ -600,6 +600,48 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return groupCache.get(rhomb) ?? null;
     }
 
+    /**
+     * penrose-mosaic's P1 palette: its `defaultColor` per type. The pentagons
+     * are Pe5 blue, Pe3 yellow, Pe1 orange; the stars, boats and diamonds are
+     * all blue, and so is everything a pentagon does not cover.
+     */
+    const P1_FILL: Record<ClusterKind, string> = { Pe5: "#0000ff", Pe3: "#ffff00", Pe1: "#e46c0a" };
+    const P1_STAR = "#0000ff";
+
+    /**
+     * The P1 tiling, read off the rhomb groups.
+     *
+     * Measured against penrose-mosaic's own drawing (Sun on Sun, gen 3, pentas
+     * with small rhombs): every pentagon is centered on a rhomb-group center,
+     * has circumradius exactly the rhomb edge, and is turned 36° from the
+     * group's spokes — its vertices point OPPOSITE to the rhomb edges leaving
+     * the center. At a minimum-index center the rhombs leave along +v_j, so the
+     * pentagon's vertices are at c - v_j; at a maximum, c + v_j. Every yellow
+     * pentagon there had four rhombs at its center and every orange three, so
+     * the kind the recognizer gives is the pentagon's type. Stars, boats and
+     * diamonds are what is left between the pentagons.
+     */
+    interface P1Pentagon { x: number; y: number; kind: ClusterKind; verts: Vec2[]; }
+    let p1Cache: P1Pentagon[] | null = null;
+    function p1Pentagons(): P1Pentagon[] {
+        if (p1Cache) return p1Cache;
+        const res = findClusters(currentRhombs());
+        const out: P1Pentagon[] = [];
+        if (res.defined) {
+            const { lo } = indexRange();
+            for (const c of res.clusters) {
+                if (!c.kind) continue;
+                const sign = c.index === lo ? -1 : 1;
+                const verts: Vec2[] = directions.map(([vx, vy]) => [c.x + sign * vx, c.y + sign * vy]);
+                // in angular order, so the polygon is simple
+                verts.sort((a, b) => Math.atan2(a[1] - c.y, a[0] - c.x) - Math.atan2(b[1] - c.y, b[0] - c.x));
+                out.push({ x: c.x, y: c.y, kind: c.kind, verts });
+            }
+        }
+        p1Cache = out;
+        return out;
+    }
+
     /** wieringa-roof's `t`: -1 at the patch's lowest vertex, +1 at its highest. */
     function rampT(index: number): number {
         const { lo, hi } = indexRange();
@@ -629,6 +671,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         stackedCache = null;
         indexRangeCache = null;
         groupCache = null;
+        p1Cache = null;
         rhombCacheKey = key;
         return rhombCache;
     }
@@ -1536,6 +1579,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function resolutionBase(r: Resolution): string | null {
         if (tileStyle.color === "bands") return null;      // Jake: not the 2k-gons
         if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
+        if (tileStyle.color === "p1") return NO_GROUP;      // and carries no P1
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -1636,6 +1680,33 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return rhomb.thick ? THICK_FILL : THIN_FILL;
     }
 
+    /**
+     * The P1 tiling on one rhomb: blue, then every pentagon that reaches it
+     * clipped to it and filled by type. A pentagon reaches at most a couple of
+     * edges from its center, so only the near ones are tried.
+     */
+    function drawP1(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    ) {
+        tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+        tc.fill();
+        const v0 = rhomb.vertices[0], v2 = rhomb.vertices[2];
+        const mx = (v0[0] + v2[0]) / 2, my = (v0[1] + v2[1]) / 2;
+        for (const pent of p1Pentagons()) {
+            if (Math.hypot(pent.x - mx, pent.y - my) > 2) continue;
+            const piece = clipToConvex(pent.verts, rhomb.vertices);
+            if (piece.length < 3) continue;
+            tc.beginPath();
+            piece.forEach(([x, y], i) => {
+                const [px, py] = mathToScreen(x, y, cx, cy);
+                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+            });
+            tc.closePath();
+            tc.fillStyle = ramped(tc, rhomb, sv, P1_FILL[pent.kind]);
+            tc.fill();
+        }
+    }
+
     /** A tile's fill for a base color: the color, or the ramp over it. */
     function ramped(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
@@ -1692,6 +1763,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.globalAlpha = tileStyle.opacity;
                 if (tileStyle.color === "bands") {
                     drawBands(tc, rhomb, sv, cx, cy);
+                } else if (tileStyle.color === "p1") {
+                    drawP1(tc, rhomb, sv, cx, cy);
                 } else {
                     tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
                     tc.fill();
@@ -2234,11 +2307,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.className = "line-pick";
             sel.style.width = "84px";
             sel.title = "thick/thin · the families that made it · the two as crossed bands "
-                + "· its rhomb group, Pe5/Pe3/Pe1 in sun-star's colors. "
+                + "· its rhomb group, Pe5/Pe3/Pe1 in sun-star's colors · the P1 tiling: "
+                + "a pentagon on every group, blue between. "
                 + "A 2k-gon follows the same choice.";
             for (const [value, text] of [
                 ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
-                ["groups", "rhomb groups"],
+                ["groups", "rhomb groups"], ["p1", "P1"],
             ] as const) {
                 const opt = document.createElement("option");
                 opt.value = value;

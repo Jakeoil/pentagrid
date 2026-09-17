@@ -165,3 +165,52 @@ test("sunstar.html's five preset caps give the verdicts the page prints", () => 
     assert.equal(capAt(3 / 5), "STAR");
     assert.equal(capAt(4 / 5), "SUN");
 });
+
+// The P1 tiling read off the groups: a pentagon of circumradius 1 at every
+// group center, turned 36° from the spokes. Measured against penrose-mosaic's
+// own drawing (Sun on Sun, gen 3): every pentagon center is a rhomb vertex, the
+// circumradius is the rhomb edge, every yellow center has four rhombs (Pe3) and
+// every orange three (Pe1), and no pentagon corner is a rhomb vertex.
+test("the P1 pentagons on the groups tile without overlap and share edges", () => {
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    for (const gam of [[0.2, 0.2, 0.2, 0.2, 0.2], [0, 0.1, -0.1, -0.1, 0.1]]) {
+        const g = createGammaSet({ guard: false });
+        g.setLocked(-1);
+        g.setValues(gam);
+        const pg = g.model, dirs = pg.directions;
+        const R = collectRhombs(pg, { xMin: -8, xMax: 8, yMin: -8, yMax: 8 }, { gain: pg.n / 2 });
+        let lo = Infinity;
+        for (const r of R) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+        const res = findClusters(R);
+        assert.ok(res.defined);
+
+        const pents = [];
+        for (const c of res.clusters) {
+            if (!c.kind) continue;
+            const sign = c.index === lo ? -1 : 1;
+            pents.push({ x: c.x, y: c.y, verts: dirs.map(([x, y]) => [c.x + sign * x, c.y + sign * y]), rhombs: c.rhombs });
+        }
+        assert.ok(pents.length > 50);
+
+        // Turned 36°: no pentagon vertex lies along a spoke of its own group.
+        for (const p of pents) for (const ri of p.rhombs) {
+            const r = R[ri];
+            for (let i = 0; i < 4; i++) {
+                if (Math.hypot(r.vertices[i][0] - p.x, r.vertices[i][1] - p.y) > 1e-6) continue;
+                for (const w of [r.vertices[(i + 1) % 4], r.vertices[(i + 3) % 4]]) {
+                    const sa = Math.atan2(w[1] - p.y, w[0] - p.x);
+                    assert.ok(!p.verts.some((q) => Math.abs(Math.atan2(q[1] - p.y, q[0] - p.x) - sa) < 1e-6),
+                              "a pentagon vertex lies on a spoke");
+                }
+            }
+        }
+        // A tiling: no two closer than phi (two inradii), and many exactly at it.
+        let adjacent = 0;
+        for (let i = 0; i < pents.length; i++) for (let j = i + 1; j < pents.length; j++) {
+            const d = Math.hypot(pents[i].x - pents[j].x, pents[i].y - pents[j].y);
+            assert.ok(d > PHI - 1e-6, `pentagons overlap at distance ${d}`);
+            if (Math.abs(d - PHI) < 1e-6) adjacent++;
+        }
+        assert.ok(adjacent > 50, `only ${adjacent} edge-adjacent pentagons`);
+    }
+});

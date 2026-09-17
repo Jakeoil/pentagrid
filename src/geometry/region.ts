@@ -43,3 +43,23 @@ export function regionPoly(pg: Pentagrid, K: readonly number[], vis: ViewRect): 
     }
     return poly;
 }
+
+/**
+ * Clip a polygon to a convex polygon, by its edges in turn. Either winding.
+ */
+export function clipToConvex(poly: Vec2[], hull: readonly Vec2[]): Vec2[] {
+    let area = 0;
+    for (let i = 0; i < hull.length; i++) {
+        const [x1, y1] = hull[i], [x2, y2] = hull[(i + 1) % hull.length];
+        area += x1 * y2 - x2 * y1;
+    }
+    const s = area >= 0 ? 1 : -1;            // so "inside" is the same side for either winding
+    let out = poly;
+    for (let i = 0; i < hull.length && out.length; i++) {
+        const [x1, y1] = hull[i], [x2, y2] = hull[(i + 1) % hull.length];
+        // inside of edge (x1,y1)->(x2,y2): s * ((x2-x1)(y-y1) - (y2-y1)(x-x1)) >= 0
+        const a = -s * (y2 - y1), b = s * (x2 - x1);
+        out = clipPoly(out, a, b, -(a * x1 + b * y1));
+    }
+    return out;
+}
