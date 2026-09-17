@@ -170,8 +170,8 @@ cross-origin import works with no build step, no bundler and no install:
   const grid = createPentagrid({
     container: document.getElementById("view"),
     gamma: [0.23, -0.41, 0.15, 0.31, -0.28],
-    steps: [],
-    features: { penroseTiles: true },
+    features: { penroseTiles: true, penroseEdges: true },
+    tileStyle: { color: "curves" },
   });
 </script>
 ```
@@ -233,16 +233,23 @@ neither is needed until somebody asks.
 | `view/pentagrid` | `createPentagrid` | the pentagrid and its dual tiling |
 | `view/growth` | `createGrowthView` | the assembling tiling, flat or folded into the roof |
 | `view/region-panel` | `createRegionPanel` | a convex region and a draggable point |
+| `ui/reticulum` | `createReticulum` | the γ instrument: one axis per family, wheel-driven |
+| `ui/sumstrip` | `createSumStrip` | the Σγ strip under the reticulum |
+| `ui/floating` | `createFloatingPanel` | a draggable, resizable panel that remembers its place |
+| `ui/presets` | `addPresets` | a row of preset buttons for a `GammaSet` |
 | `ui/loupe` | `createLoupe` | a pinned magnifier over any canvas view |
 | `ui/dials` | `createGammaBank` | a bank of linked sliders, one computed from the rest |
 | `view/layers` | `new LayerStack` | the stacked canvases the others are built on |
+| `app/narrative` | `createNarrative` | the pages that drive a handle: nav, explanation, build stamp |
 
-`view/controls` (`bindSliders`, `bindToggles`) wires page inputs to a handle, and
-is the seam between a page and a module.
+`view/controls` is the seam between a page and a module: `mountReticulum` and
+`mountFloatingReticulum` put the γ instrument, its presets popup and the folded
+slider bank on a page; `mountGammaControls` is the bank alone; `bindSliders` and
+`bindToggles` wire ordinary page inputs to a handle.
 
 Anything DOM-free lives under `geometry/` instead and is imported the same way —
-`makeDirections`, `collectRhombs`, `singularTriples` and the rest run in Node as
-happily as in a browser.
+`makeDirections`, `collectRhombs`, `classifySingularities`, `findClusters`,
+`p1Pentagons`, `rhombArrows` and the rest run in Node as happily as in a browser.
 
 ## The layers, and their z-order
 

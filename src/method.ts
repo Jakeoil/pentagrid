@@ -1,8 +1,8 @@
-// The method page: de Bruijn's construction in six steps.
+// The method page: de Bruijn's construction in seven pages.
 //
 // All the machinery is in view/pentagrid.ts now; this is the page that asks for
 // it. A second page — an exploration with its own layers — is the same shape,
-// with a different `steps` list and a `layers` callback.
+// with a different page list and a `layers` callback.
 
 import { BUILD_ID } from "./build-id.js";
 import { METHOD_PAGES } from "./app/method-steps.js";

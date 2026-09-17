@@ -5,10 +5,10 @@ tilings.
 
 **Live:** [jakeoil.github.io/pentagrid](https://jakeoil.github.io/pentagrid/)
 
-## The method page
+## The pages
 
 [`method.html`](https://jakeoil.github.io/pentagrid/method.html) walks through the
-dual construction in six steps:
+dual construction in seven steps:
 
 1. **The Pentagrid** — five families of parallel lines at 72° intervals
 2. **Intersections** — pairwise crossings, color-coded by family pair
@@ -16,22 +16,40 @@ dual construction in six steps:
 4. **Dual Vertices** — the vertex function `f(x) = Σ Kⱼ(x)·vⱼ`
 5. **Building Rhombs** — parallelograms from the four regions at a crossing
 6. **Penrose Tiling** — the complete dual (thick 72° / thin 36°)
+7. **When lines meet** — singularities: what a 2k-gon is, and the three Penrose
+   singular states
+
+The other pages are explorations on the same machinery: `grow.html` (the tiling
+assembling out of its crossings), `roof.html` (the same, folded into the
+Wieringa roof), `grow7.html` (a heptagrid), `sunstar.html` (the sun, the star and
+the deca as one family of uniform phase), `split.html` (the grid on one canvas,
+its dual on the other, one γ), `wiggle.html`, and the index's linked pair.
 
 ### Controls
 
-Five γ sliders set the grid offsets, constrained to sum to zero; click any γ label
-to choose which one is computed from the others. Pan with mouse drag, zoom with the
-scroll wheel, double-click to reset. Touch pan and pinch are supported.
+The **reticulum** is the γ instrument: a decagon with one axis per family, the
+offset shown as a signed representative in [−½, ½] and driven by the mouse wheel
+(hundredths; thousandths with a modifier). It floats, remembers where you put it,
+and carries the **presets** — the three caps (sun, star, deca) and the singular
+catalog (decagon, couple, octagon, 1 thick, 2 thick, 1 thin, 2 thin); choosing
+one puts its name on the title bar. The slider bank is still there, folded, for
+comparison.
 
-Each grid family can be toggled independently, along with the axes. The toggles are
-not only cosmetic — switching a family off also removes the rhombs it generates, so
-they answer "what does family *j* contribute?"
+The panel below the canvas is in two halves. The **G** half decides what is
+computed: which gridline is isolated, how far past the canvas edge to compute,
+the axes, the viewport statistics. The **P** half decides how the dual is
+dressed — tile style, shading, edge decorations, and the **ribbons** filter,
+which dualizes only the tiles on chosen gridlines. Between them a three-by-three
+table pairs each grid object with its Penrose counterpart and the hover helper
+that shows the correspondence:
 
-Hovering does different work per step. On step 3 it reads the K-tuple at the cursor
-— any point, at any region size — and draws an arrow to the dual vertex that region
-maps to. On step 4 it snaps to the nearest dual vertex, shows `f = Σ Kⱼ·vⱼ` term by
-term, and runs the map *backwards*, clipping half-planes to recover and highlight
-the source region.
+| Pentagrid | K-region | gridline | intersection |
+|---|---|---|---|
+| Hover | region ↔ vertex | segment ↔ edge | crossing ↔ tile |
+| Penrose | vertex | edge | tile |
+
+Pan with mouse drag, zoom with the scroll wheel, double-click to reset. Touch pan
+and pinch are supported.
 
 ### Three things that are not obvious
 
@@ -61,25 +79,34 @@ crossing that generated it and the two pictures share one coordinate system.
 ## API
 
 The page is a library with one caller. `method.html` loads `dist/method.js`,
-which is twenty lines handing `createPentagrid` a container and some config;
-`index.html` loads `dist/app/pair.js`, which does it twice. There is no bundler,
-so a new page is an HTML file and an entry point — nothing else.
+which hands `createPentagrid` a container and some config and hands the result to
+`createNarrative`; `index.html` loads `dist/app/pair.js`, which does it twice.
+There is no bundler, so a new page is an HTML file and an entry point — nothing
+else.
 
 | module | holds | DOM |
 |---|---|---|
-| `geometry/pentagrid` | directions, crossings, K-tuples, dual vertices, rhombs | no |
-| `geometry/regularity` | the exact criterion, the small-region scan | no |
-| `geometry/region` | the dual map run backwards | no |
-| `geometry/decor` | arc geometry | no |
-| `view/layers` | `LayerStack` — canvases, z-order, visibility | yes |
-| `view/growth` | `createGrowthView` — the assembling tiling, flat or folded | yes |
-| `view/region-panel` | `createRegionPanel` — a convex region and a draggable point | yes |
-| `view/controls` | `bindSliders` | yes |
+| `geometry/pentagrid` | directions, crossings, K-tuples, dual vertices, rhombs; `segmentAt`, `nearestLine` | no |
+| `geometry/gamma` | `createGammaSet` — the offsets, the total, the lock, the guard, the ribbons filter | no |
+| `geometry/regularity` | the exact singularity criterion, the small-region scan | no |
+| `geometry/hunt` | `classifySingularities`, the preset catalog | no |
+| `geometry/resolve` | what a concurrency resolves into: the 2k-gon, its angle code | no |
+| `geometry/clusters` | `findClusters` — the rhomb groups; `p1Pentagons` — the P1 tiling on them | no |
+| `geometry/region` | the dual map run backwards; `clipToConvex` | no |
+| `geometry/decor` | arc geometry; `rhombArrows` — the AR-pattern from the indices | no |
 | `geometry/roof` | the Wieringa lift | no |
 | `geometry/acceptance` | the perpendicular plane, convex boundaries | no |
+| `view/layers` | `LayerStack` — canvases, z-order, visibility | yes |
 | `view/pentagrid` | `createPentagrid` | yes |
-| `ui/dials` | `createGammaBank` | yes |
-| `ui/loupe` | `createLoupe` | yes |
+| `view/growth` | `createGrowthView` — the assembling tiling, flat or folded | yes |
+| `view/region-panel` | `createRegionPanel` — a convex region and a draggable point | yes |
+| `view/controls` | `mountReticulum`, `mountFloatingReticulum`, `mountGammaControls`, `bindSliders`, `bindToggles` | yes |
+| `app/narrative` | `createNarrative` — the pages that drive a view | yes |
+| `app/method-steps` | the seven pages of method.html | yes |
+| `ui/reticulum`, `ui/sumstrip` | the γ instrument and its Σ strip | yes |
+| `ui/floating` | `createFloatingPanel` — a draggable, resizable, remembered panel | yes |
+| `ui/presets` | the preset buttons, for any page that wants a row of them | yes |
+| `ui/dials`, `ui/loupe`, `ui/wheel` | the slider bank, the magnifier, the wheel step | yes |
 
 ### Two viewports on one pentagrid, locked together
 
@@ -99,8 +126,7 @@ const relay = (to: () => PentagridHandle) => (v: View) => to().setView(v);
 
 lines = createPentagrid({
     container: document.getElementById("grid")!,
-    gamma,
-    steps: [],                                   // no narration, no step nav
+    gamma,                                       // no controls, no panel: a bare viewport
     features: { gridLines: true, axes: false },
     onViewChange: relay(() => tiles),
 });
@@ -108,30 +134,53 @@ lines = createPentagrid({
 tiles = createPentagrid({
     container: document.getElementById("tiles")!,
     gamma,
-    steps: [],
     // gridLines hides the grid. Switching a family off via its layer would also
-    // remove the rhombs that family generates, leaving nothing to draw.
-    features: { gridLines: false, axes: false, penroseTiles: true },
+    // remove the rhombs that family generates, leaving nothing to draw. Tiles
+    // and edges both: a tile is only its fill now, and a tiling with no edges
+    // is a color field.
+    features: { gridLines: false, axes: false, penroseTiles: true, penroseEdges: true },
     onViewChange: relay(() => lines),
 });
 ```
 
 `setView` deliberately does **not** fire `onViewChange`. That is what makes the
 relay one hop rather than two instances bouncing updates off each other forever.
+`split.html` is the same pair with the panel and the reticulum attached, and
+`createNarrative` (`app/narrative.ts`) is how `method.html` puts pages in front
+of a single handle: each page's `enter` imposes a feature set and exposes the
+panel rows that matter to it, and `onFeatureOn` sends a switch flipped on the
+panel to the page that is about it.
 
 ### Config
 
 | field | meaning |
 |---|---|
 | `container` | required; where the canvases go, and the source of implicit sizing |
-| `controls`, `stepNav`, `panel`, `explanation` | optional; omit for a bare viewport |
-| `steps` | narration. `[]` for none |
-| `presets` | which features each step turns on |
-| `features` | starting feature set, for a page with no steps to impose one |
-| `gamma` | starting offsets |
+| `controls`, `panel` | optional hosts for the meter and the layer panel; omit for a bare viewport |
+| `features` | starting feature set (see below). A page's `enter` usually imposes its own |
+| `tileStyle` | how the tiles are dressed (see below) |
+| `gamma` | starting offsets. Omitted means the sun, uniform 1/5 |
+| `n` | how many line families. 5 is the pentagrid; 7 gives Lutfalla's heptagrid |
+| `layers` | a callback for registering your own layers, before the first draw |
+| `onViewChange` | fired on pan or zoom — not by `setView`, so two linked views cannot loop |
+| `onOrbit` | right-drag deltas, for a host with a camera; also suppresses the context menu |
+| `collectRect` | widen the rect tiles are collected from, for a host that sees more than a flat view |
+| `computePad` | how far beyond the canvas to compute, in tiling units. Default 1, the wobble bound |
+| `hoverBox` | where the hover readout sits: `"corner"` (default) or `"pointer"` |
 | `loupe` | the magnifier that opens on tiny regions. Off by default |
-| `buildId` | a stamp shown beside the step indicator |
-| `layers` | a callback for registering your own layers |
+
+**Features** are the on/off switches a page or the panel flips: `gridLines`,
+`axes`, `kRegions`, `kLabels`, `intersectionDots`, `penroseTiles`,
+`penroseEdges`, `penroseVertices`, `penroseDecor` (the arcs), `arrows` (the
+AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon), and the
+three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
+
+**Tile style** is not a feature set but a dressing: `color` is one of `type`
+(thick/thin), `pair` (the two families, blended), `bands` (families2 — the two
+families as crossed bands, `band` wide), `groups` (the rhomb groups in sun-star's
+colors), `p1` (the pentagon tiling on the groups) or `curves` (Penrose's matching
+curves as filled regions); plus `isogloss`, `shading` with its `ramp` (the
+Wieringa height ramp, over any color), `boldEdges`, and `opacity`.
 
 Size comes from `data-width` / `data-height` on the container, or from the
 container's laid-out size. **Those two behave differently on resize**: naming a
@@ -140,7 +189,20 @@ container and follows it, redrawing as it goes. Only pin a size when the page
 really wants that exact number of pixels — a `width: 100%` viewport should say
 nothing and let the CSS decide.
 
-The handle is `{ redraw, setStep, getView, setView, setGamma, stack }`.
+The handle:
+
+| member | does |
+|---|---|
+| `redraw()` | draw everything |
+| `setFeatures(f, { merge? })` | impose a feature set — replaces unless `merge` |
+| `setGridAlpha(a)` | fade the grid, as the pages do when the tiling takes over |
+| `setTileStyle(s)` | change the dressing; merges |
+| `exposeRows(labels \| null)` | which panel rows a page shows |
+| `onFeatureOn(cb)` | a panel switch turned a feature on — a narrative can go to its page |
+| `getView()`, `setView(v)` | the pan and zoom, read and driven |
+| `setGamma(g)` | set the offsets outright |
+| `gamma` | the `GammaSet` itself: values, total, lock, guard, ribbons, `onChange` |
+| `stack` | the `LayerStack` |
 
 ### Registering a layer
 
@@ -151,7 +213,6 @@ without the panel knowing it exists.
 ```ts
 createPentagrid({
     container: document.getElementById("explore")!,
-    steps: [],
     features: { gridLines: true },
     layers: ({ stack, currentRhombs }) => {
         stack.add({
@@ -271,7 +332,8 @@ import { collectRhombs, computeKTuple, dualVertex, makeDirections }
 import { singularTriples } from "./dist/geometry/regularity.js";
 
 const grid = {
-    directions: makeDirections(true),            // true = v0 points up
+    n: 5,                                        // 7 for a heptagrid; every geometry call reads it
+    directions: makeDirections(true),            // true = v0 points up; makeDirections(true, 7) for n=7
     gamma: [0.23, -0.41, 0.15, 0.31, -0.28],
 };
 
@@ -298,18 +360,19 @@ npm install
 npm run build    # stamp the build id, then compile TypeScript
 npm run dev      # tsc watch mode
 npm run serve    # static server on :8001
-npm test         # geometry, layers, factory and UI clusters
-npm run check    # pagecheck: import a built page against a stub DOM
+npm test         # every tools/*.test.mjs, plus the spelling and layer-chart guards
+npm run check    # pagecheck: import a built page against a stub DOM and fire its handlers
+node tools/layerchart.mjs --write   # regenerate the layer chart in MODULES.md
 ```
 
 `npm run check` exists because typechecking says nothing about whether a page
 renders — a throw during module evaluation leaves a blank canvas and an error
 only in the console. It stubs the DOM, imports the built page, turns every
-checkbox on, walks the steps and fires the hover paths. `PAGECHECK_SIZE=640x480`
+checkbox on, walks the pages and fires the hover paths. `PAGECHECK_SIZE=640x480`
 runs it at another canvas size; non-square ones catch code that assumed `w === h`.
 
-`npm run build` writes `src/build-id.ts` first; the page shows that stamp next to
-the step indicator and logs it to the console, so a stale script is obvious at a
+`npm run build` writes `src/build-id.ts` first; the narrative shows that stamp next to
+the page indicator and logs it to the console, so a stale script is obvious at a
 glance. Both `dist/` and `src/build-id.ts` are generated and gitignored — CI
 regenerates them, since the Pages workflow runs the same build.
 
