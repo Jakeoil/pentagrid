@@ -802,3 +802,41 @@ test("the arrows are de Bruijn's AR-pattern: two prototiles, every shared edge a
     }
     assert.ok(shared > 200, `only ${shared} shared edges`);
 });
+
+// Wikipedia's rhombus-with-arcs decoration is the AR-pattern drawn as curves:
+// a dark sector of radius 1/4 at the corner where the double arrows meet, blue
+// at the red corner — a 3/4..1 band on the thick, a 1/4 sector on the thin.
+// The curves join iff the crossing points on a shared edge coincide in color.
+test("the filled curves join across every shared edge when dark sits at the arrow corner", () => {
+    const g = createGammaSet({ guard: true });
+    const pg = g.model;
+    const R = collectRhombs(pg, { xMin: -7, xMax: 7, yMin: -7, yMax: 7 }, { gain: pg.n / 2 });
+    let lo = Infinity;
+    for (const r of R) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+    const idx = (K) => K.reduce((a, b) => a + b, 0) - lo + 1;
+    const key = (p) => `${(Math.round(p[0] * 1e5) || 0) / 1e5},${(Math.round(p[1] * 1e5) || 0) / 1e5}`;
+    const agree = (darkAtExtreme) => {
+        const byEdge = new Map();
+        for (const r of R) {
+            const m = idx(r.kTuples[0]);
+            const extreme = m === 1 ? 0 : 2;
+            const X = darkAtExtreme ? extreme : (extreme === 0 ? 2 : 0), Y = X === 0 ? 2 : 0;
+            const V = r.vertices;
+            const along = (a, b, t) => [V[a][0] + t * (V[b][0] - V[a][0]), V[a][1] + t * (V[b][1] - V[a][1])];
+            const marks = [];
+            for (const n of [(X + 1) % 4, (X + 3) % 4]) marks.push([X, n, along(X, n, 0.25), "dark"]);
+            for (const n of [(Y + 1) % 4, (Y + 3) % 4]) marks.push([Y, n, along(Y, n, r.thick ? 0.75 : 0.25), "blue"]);
+            for (const [a, b, p, c] of marks) {
+                const ek = [V[a], V[b]].map(key).sort().join("|");
+                (byEdge.get(ek) ?? byEdge.set(ek, []).get(ek)).push(`${c}@${key(p)}`);
+            }
+        }
+        let shared = 0, ok = 0;
+        for (const l of byEdge.values()) if (l.length === 2) { shared++; if (l[0] === l[1]) ok++; }
+        return { shared, ok };
+    };
+    const yes = agree(true), no = agree(false);
+    assert.ok(yes.shared > 500);
+    assert.equal(yes.ok, yes.shared, "dark at the arrow corner: every curve must join");
+    assert.ok(no.ok < no.shared / 2, "dark at the red corner must NOT join — or the test proves nothing");
+});

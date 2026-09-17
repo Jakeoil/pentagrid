@@ -60,7 +60,8 @@ export interface TileStyle {
     /**
      * thick/thin, the two families that made it, its rhomb group (Pe5, Pe3, Pe1
      * in sun-star's palette; bare when it belongs to none, or when the patch is
-     * not Penrose and groups are undefined), the P1 tiling it carries — or
+     * not Penrose and groups are undefined), the P1 tiling it carries, the
+     * matching curves as filled regions (Wikipedia's rhombus-with-arcs) — or
      * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
      * them. Each band runs across the tile in its family's color, `band` wide as
      * a fraction of the edge, and the square where they cross is the composite.
@@ -68,7 +69,7 @@ export interface TileStyle {
      * below that the tile reads as two gridlines passing through. A 2k-gon takes
      * no color under it.
      */
-    color: "type" | "pair" | "bands" | "groups" | "p1";
+    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves";
     /** Band width for `bands`, 0..1 of the edge. */
     band: number;
     /** Contour lines across each tile. */
@@ -1545,6 +1546,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (tileStyle.color === "bands") return null;      // Jake: not the 2k-gons
         if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
         if (tileStyle.color === "p1") return NO_GROUP;      // and carries no P1
+        if (tileStyle.color === "curves") return CURVE_FACE; // a bare face
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -1672,6 +1674,67 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
     }
 
+    /**
+     * The matching curves as filled regions — Wikipedia's "Rhombus Penrose
+     * tiling with arcs", read exactly from its SVG and placed by the indices.
+     *
+     * The SVG's two prototiles: on the thick, a dark sector of radius 1/4 at one
+     * 72° corner and a blue band of radii 3/4..1 at the other; on the thin, a
+     * blue sector of radius 1/4 at one 144° corner and a dark sector of radius
+     * 1/4 at the other. Which corner is which is de Bruijn's: the dark sector
+     * sits at the corner where the double arrows meet — the index extreme — and
+     * the blue at the red corner. Tested on 781 shared edges: every curve meets
+     * its continuation at the same point in the same color; the other
+     * assignment fails on 482 of them.
+     */
+    const CURVE_FACE = "#f2f2f2", CURVE_DARK = "#1a203b", CURVE_BLUE = "#47589c";
+    function drawCurves(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    ) {
+        tc.fillStyle = ramped(tc, rhomb, sv, CURVE_FACE);
+        tc.fill();
+        const { lo, hi } = indexRange();
+        if (hi - lo !== 3) return;                       // no indices to place it by
+        const m = vertexIndex(rhomb.kTuples[0]) - lo + 1;
+        const X = m === 1 ? 0 : 2;                        // the extreme: v0 is 1, or v2 is 4
+        const Y = X === 0 ? 2 : 0;
+        const V = rhomb.vertices;
+        const sector = (c: number, rIn: number, rOut: number, style: string) => {
+            const C = V[c], A = V[(c + 1) % 4], B = V[(c + 3) % 4];
+            let a0 = Math.atan2(A[1] - C[1], A[0] - C[0]);
+            let a1 = Math.atan2(B[1] - C[1], B[0] - C[0]);
+            // sweep the short way round, which is the corner's own angle
+            let d = a1 - a0;
+            while (d > Math.PI) d -= 2 * Math.PI;
+            while (d < -Math.PI) d += 2 * Math.PI;
+            const N = 10;
+            const pts: [number, number][] = [];
+            for (let i = 0; i <= N; i++) {
+                const t = a0 + d * i / N;
+                pts.push([C[0] + rOut * Math.cos(t), C[1] + rOut * Math.sin(t)]);
+            }
+            if (rIn > 0) {
+                for (let i = N; i >= 0; i--) {
+                    const t = a0 + d * i / N;
+                    pts.push([C[0] + rIn * Math.cos(t), C[1] + rIn * Math.sin(t)]);
+                }
+            } else {
+                pts.push([C[0], C[1]]);
+            }
+            tc.beginPath();
+            pts.forEach(([x, y], i) => {
+                const [px, py] = mathToScreen(x, y, cx, cy);
+                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+            });
+            tc.closePath();
+            tc.fillStyle = ramped(tc, rhomb, sv, style);
+            tc.fill();
+        };
+        sector(X, 0, 0.25, CURVE_DARK);
+        if (rhomb.thick) sector(Y, 0.75, 1, CURVE_BLUE);
+        else sector(Y, 0, 0.25, CURVE_BLUE);
+    }
+
     /** A tile's fill for a base color: the color, or the ramp over it. */
     function ramped(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
@@ -1730,6 +1793,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     drawBands(tc, rhomb, sv, cx, cy);
                 } else if (tileStyle.color === "p1") {
                     drawP1(tc, rhomb, sv, cx, cy);
+                } else if (tileStyle.color === "curves") {
+                    drawCurves(tc, rhomb, sv, cx, cy);
                 } else {
                     tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
                     tc.fill();
@@ -2273,11 +2338,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.style.width = "84px";
             sel.title = "thick/thin · the families that made it · the two as crossed bands "
                 + "· its rhomb group, Pe5/Pe3/Pe1 in sun-star's colors · the P1 tiling: "
-                + "a pentagon on every group, blue between. "
+                + "a pentagon on every group, blue between · the matching curves as "
+                + "filled regions, dark at the arrow corner. "
                 + "A 2k-gon follows the same choice.";
             for (const [value, text] of [
                 ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
-                ["groups", "rhomb groups"], ["p1", "P1"],
+                ["groups", "rhomb groups"], ["p1", "P1"], ["curves", "curves"],
             ] as const) {
                 const opt = document.createElement("option");
                 opt.value = value;
@@ -2931,7 +2997,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         ro.observe(container);
     }
 
+    // The default is the sun — uniform 1/5, total 1 — not the singular Gamma = 0
+    // the set starts on. Jake: "the default preset is decagon. Not a good one."
+    // A page that wants the singular point asks for it (step 7 does).
     if (config.gamma) gammaSet.setValues(config.gamma);
+    else gammaSet.setSum(1, true);
 
     // One subscription: any change to γ, the lock, the sum, the symmetry or the
     // guard lands here rather than each call site remembering to redraw.

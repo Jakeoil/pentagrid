@@ -103,16 +103,6 @@ export interface GammaSet {
     /** All as equal as possible for the current sum, then guarded. */
     reset: () => void;
 
-    /**
-     * Nudge one offset by a single unit of the denominator, up or down.
-     *
-     * The deliberate way off a singular configuration, for when the guard is off
-     * and you would rather move than be moved. One unit is the smallest step that
-     * changes the rationality class, which is all regularity turns on — the
-     * magnitude is irrelevant, and a symmetric nudge of any size is not enough.
-     */
-    bump: (index: number, direction: number) => void;
-
     /** How many line families this set has. */
     readonly n: number;
 
@@ -380,12 +370,6 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         getGuard: () => guard,
 
         reset,
-        bump: (index, direction) => {
-            if (index < 0 || index >= n || index === locked) return;
-            q[index] += direction >= 0 ? 1 : -1;
-            uniformIntent = false;
-            settle();
-        },
         n,
         singular: () => (n === 5 ? singularTriples(q, den) : []),
         provenRegular: () => {

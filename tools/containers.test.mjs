@@ -1015,6 +1015,16 @@ test("the P1 style paints blue and then the pentagons, clipped to each tile", ()
     assert.ok(yellow + orange > blue, "a tile is typically reached by more than one pentagon piece");
 });
 
+test("a fresh view opens on the sun, not the singular point", () => {
+    // Jake: "the default preset is decagon. Not a good one, make it sun."
+    const h = createPentagrid({ container: sizedHost(600, 600) });
+    for (const v of h.gamma.values()) assert.ok(Math.abs(v - 0.2) < 1e-12, `gamma = ${h.gamma.values()}`);
+    assert.equal(h.gamma.singular().length, 0, "the sun is regular");
+    // A page can still ask for Gamma = 0, and a config gamma still wins.
+    const z = createPentagrid({ container: sizedHost(600, 600), gamma: [0, 0, 0, 0, 0] });
+    assert.equal(z.gamma.singular().length, 10);
+});
+
 test("tile style is a setting, not a feature flag", () => {
     // color is a choice of three and opacity is a number; neither is the sort of
     // thing a narrative page turns on.
@@ -1055,8 +1065,10 @@ test("a superposed rhomb gets no fill and no arc, but keeps its edges", () => {
             penroseDecor: true, penroseVertices: true,
         },
     });
-    // the default Γ = 0 is the maximally singular pentagrid
-    assert.ok(h.gamma.singular().length > 0, "expected a singular default");
+    // Γ = 0 is the maximally singular pentagrid; the default is the sun now, so
+    // ask for it.
+    h.gamma.setSum(0, true);
+    assert.ok(h.gamma.singular().length > 0, "expected a singular configuration");
 
     // tilesDrawn counts fill(), so it measures exactly what is withheld.
     const singular = tilesDrawn(h, "penrose-tiles", () => h.redraw());
@@ -1265,7 +1277,7 @@ test("a singularity is drawn as a P-region, by the tile and edge layers", () => 
     assert.ok(filled > 0, "nothing was filled at all");
 
     // and the style choice reaches them
-    for (const color of ["type", "pair", "bands", "groups"]) {
+    for (const color of ["type", "pair", "bands", "groups", "p1", "curves"]) {
         h.setTileStyle({ color });
         assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, color);
     }

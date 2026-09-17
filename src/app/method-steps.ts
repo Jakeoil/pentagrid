@@ -194,6 +194,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, intersectionDots: true,
                              penroseEdges: true, penroseVertices: true, pseudoEdges: true });
+            pg.gamma.setSum(0, true);            // the page is about the singular point
             pg.setGridAlpha(0.5);
             pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "View"]);
         },

@@ -224,30 +224,6 @@ export function mountReticulum(
     symBox.appendChild(document.createTextNode(" symmetric"));
     tools.appendChild(symBox);
 
-    // An explicit way off a singular configuration. Not automatic: the guard is
-    // off by default now, and moving someone's offsets uninvited hides the very
-    // cases worth looking at.
-    const bump = (dir: number, text: string) => {
-        const b = document.createElement("button");
-        b.className = "ret-bump";
-        b.textContent = text;
-        b.title = `Nudge the selected γ ${dir > 0 ? "up" : "down"} by one unit `
-            + `(${(1 / set.denominator).toExponential(0)}) — off the singular set`;
-        b.addEventListener("click", () => {
-            const j = ret.selected();
-            if (j < 0) return;
-            if (symmetric) {
-                const v = (set.values()[j] ?? 0) + dir / set.denominator;
-                set.setValues(new Array(set.values().length).fill(v));
-            } else {
-                set.bump(j, dir);
-            }
-        });
-        return b;
-    };
-    tools.appendChild(bump(-1, "bump −"));
-    tools.appendChild(bump(+1, "bump +"));
-
     // The presets, behind a button: a popup of the caps and the singularity
     // catalog. Jake's list and order. A preset is the whole phase vector, so it
     // releases the total first, as the Caps/Hunt rows did; the name goes back to

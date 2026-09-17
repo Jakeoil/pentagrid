@@ -20,6 +20,7 @@ if (host) {
     bindToggles(view, [
         { id: "grow-edges", key: "boldEdges" },
         { id: "grow-2kgons", key: "showResolutions" },
+        { id: "grow-p1", key: "p1" },
     ]);
 
     // The γ controls are a cluster, not markup: one call mounts the five linked
