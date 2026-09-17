@@ -1,980 +1,691 @@
 # Pentagrid — Plan
 
-What this project is, what is open, and what to build next.
+What this project is, what is open, and the record of what was found while
+building it. Research questions with real mathematical content live in
+[RESEARCH.md](RESEARCH.md); how to write and use a canvas module is in
+[MODULES.md](MODULES.md); the public surface is in [README.md](README.md).
 
-Research questions with real mathematical content live in [RESEARCH.md](RESEARCH.md).
-This file is the working plan.
+Sections 1–4 are live and are rewritten when they go stale. Section 5 is the
+record: dated findings, newest first, kept as written except where a later
+result overturned them — those carry a marked correction rather than a silent
+edit. Section 6 is what has been thought about and not built.
 
----
-
-## Orientation
-
-State of play, verified 2026-09-05. Working tree clean and in sync with origin.
-
-- `src/method.ts` (~2100 lines) is essentially the whole project. Plain `tsc` to
-  `dist/`, no bundler, no runtime dependencies. `.github/workflows/deploy.yml`
-  builds and publishes the repo root to Pages, so any new top-level `.html` is
-  live on push with no configuration. `npm run build` stamps `src/build-id.ts`
-  first; the page shows that id beside the step indicator.
-- Stacked canvases in a relative container: `background` (z 5), `grid-0..4`
-  (z 10–14), `axes` (z 20), `content` (z 50), `highlight` (z 55), `footprint`
-  (z 60), `event` (z 100, takes all input), plus the pinned loupe panel.
-- Visibility is two-level: `layer.visible` is step-driven, `layer.userVisible` is
-  the checkbox. Grid alpha is CSS opacity per step, not a redraw. `userVisible`
-  is not merely cosmetic — `collectRhombs` skips family pairs whose layer is off.
-- The math layer is clean. `solveIntersection` / `computeRhomb` / `collectRhombs`
-  return plain data; every draw function takes its target context first. `scale`,
-  `viewX`, `viewY` are globals swapped by `withView` rather than threaded.
-- Regularity is decided exactly (item 1), the loupe is built (item 2), and the
-  5/2 gain is understood and has a toggle (item 3).
-- **Still open: item 4, rhomb provenance.** `Rhomb` is `{vertices, kTuples,
-  thick}`; `computeRhomb` receives `j, k, nj, nk, x0, y0` and discards all six.
-  Item 5 (split geometry recompute from render) is also open. Both gate the work
-  in *The method page, reorganized* below, and item 4 gates the explorations.
+1. [Orientation](#1-orientation)
+2. [Pages](#2-pages)
+3. [Open items](#3-open-items)
+4. [Standing rules](#4-standing-rules)
+5. [The record](#5-the-record)
+6. [Not built](#6-not-built)
 
 ---
 
-## The math is diffusing — a standing concern (Jake, 2026-09-10)
+## 1. Orientation
+
+State of play, 2026-09-17.
+
+- **Shape.** Plain `tsc` to `dist/`, no bundler, no runtime dependencies. DOM-free
+  mathematics in `src/geometry/` (~2000 lines), the canvas modules in `src/view/`
+  (`pentagrid.ts` is 3000 of them), the γ instrument and panels in `src/ui/`, one
+  entry point per page in `src/app/`. `.github/workflows/deploy.yml` builds and
+  publishes the repo root to Pages, so a new top-level `.html` is live on push.
+  `npm run build` stamps `src/build-id.ts` first and the narrative shows it beside
+  the page indicator; both `dist/` and the stamp are generated and gitignored.
+- **One factory.** `createPentagrid(config)` owns a `LayerStack` of canvases —
+  front to back: axes 70; Penrose vertices 34, arcs 33, pseudo edges 32, edges 31,
+  tiles 30; dots 29, K-labels 28, grid 10, K-regions 5 — plus the growth pages'
+  2k-gons 41 and growth 40. The chart in MODULES.md is generated from the code
+  and a test fails if it drifts. Features are independent booleans; a narrative
+  page imposes a set and exposes the panel rows it cares about.
+- **γ is a `GammaSet`** (`geometry/gamma.ts`): exact rationals over `2000n`, a
+  total that may be locked or free, a guard that holds off the singular set, the
+  per-family enable / single line / isolate / ribbons filters. Every view is a
+  view over it; the reticulum and the folded slider bank drive the same set.
+- **Regularity is decided, not tested** — the exact criterion for rational γ at
+  n = 5, Lutfalla's theorems for other n — and singularities are drawn rather
+  than avoided: k concurrent lines dualize to a 2k-gon (`geometry/resolve.ts`),
+  named by its angle code, with its C(k,2) superposed rhombs' edges and vertices
+  shown and its fills and arcs withheld.
+- **The dual is registered**: the grid is drawn at gain n/2 so each rhomb lands
+  on the crossing that made it. Rhombs carry their provenance (`j, k, nj, nk,
+  x0, y0`) and are cached per (γ, view); the P1 pentagons and rhomb groups are
+  cached on top.
+- **Tests.** 13 `tools/*.test.mjs` files, 265 tests, `npm test`, against the real
+  modules — geometry, γ set, hunt, resolve, clusters, layers, factory, containers,
+  floating panel, plus the spelling and layer-chart guards. `npm run check`
+  imports every built page against a stub DOM and fires its handlers; the split
+  page takes ~4 minutes there because the regularity scan reruns uncached on
+  every draw (open item below).
+
+## 2. Pages
+
+| page | what it is | entry |
+|---|---|---|
+| `index.html` | front door: the construction stated, and two linked viewports — the same γ as lines and as tiles | `app/pair.ts` |
+| `method.html` | de Bruijn's construction in seven pages; the full panel and the reticulum | `method.ts` + `app/method-steps.ts` |
+| `grow.html` | tiles growing out of their crossings; the 2k-gons grow with them; ribbons routed through the pseudo edges; P1 overlay | `app/grow.ts` |
+| `roof.html` | the same growth folded into the Wieringa roof; right-drag orbits; P1 overlay | `app/roof.ts` |
+| `grow7.html` | the heptagrid: three rhomb shapes, no Penrose cap, no roof | `app/grow7.ts` |
+| `sunstar.html` | the uniform family: sun, star, 5-fold, deca; rhomb groups colored | `app/sunstar.ts` |
+| `split.html` | grid on one canvas, dual on the other, one γ, one panel | `app/split.ts` |
+| `wiggle.html` | the acceptance region: drag γ in E⊥ and watch the patch hold or break | `app/wiggle.ts` |
+
+Every page carries the top nav and the floating reticulum with its presets
+popup (sun, star, deca; decagon, couple, octagon, 1 thick, 2 thick, 1 thin,
+2 thin). Explorations are pages, not modes: sharing happens in `src/`, never by
+overloading one page. There is no explorations index; the nav is it.
+
+## 3. Open items
+
+Nothing here blocks anything. Ordered by how likely they are to be wanted.
+
+1. **Scan cache.** `scanRegions` reruns on every draw. Key it on (γ, rect,
+   scale) the way the rhomb cache is; the split page's four-minute pagecheck is
+   the symptom, and any page with two views pays twice per pan frame.
+2. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
+   from `directions` so only the rim needs to follow n.
+3. **Cross-canvas hover on split.** Hover on the grid should light the tile on
+   the other canvas and vice versa — the same map the hover trio already uses,
+   relayed like the view is.
+4. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
+   turned; count whether the de Bruijn resolutions of the decagon are exactly
+   the ten orientations, against the 62 rhombic tilings the zonogon admits, and
+   whether the mirror-symmetric one-parameter family is one tiling or several
+   (`perpOfGamma` in `acceptance.ts` is the tool). See §5.4.
+5. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
+   made it. Every rhomb carries `(j, nj, k, nk)`, so the lines are known; what
+   is missing is a page that starts from the tiling. Estimated as a layer plus
+   a hit-test, not a redesign.
+6. **Two-tries preset.** Jake saw a preset needing a second click once; never
+   reproduced. Presets now `setLocked(-1)` before writing, which removed the one
+   mechanism found.
+7. **The timing test is flaky.** "Nothing consumes the scan" asserts on
+   wall-clock and can fail on a loaded machine.
+
+## 4. Standing rules
+
+### 4.1 Canvas containers
+
+Set 2026-09-06. **Anything with real drawing in it gets a container**, the way
+`createPentagrid` does: own your canvases, take a config, hand back a handle. A
+page is a container element, a config object and some controls; a second page
+wanting the same picture is a config change, not a copy (`grow.html` and
+`roof.html` are one container behind a few lines each). DOM-free mathematics
+goes in `geometry/`, drawing in `view/`, and the renderer is tested with no page
+in sight. Controls and picture share a screen: the bar is sticky, the viewport
+is capped so the whole thing fits, and gestures beat sliders for a camera
+(right-drag orbits the roof). Written up in MODULES.md.
+
+### 4.2 No animation library
+
+Theatre.js is a tool in search of an application and this is not it. A
+continuous parameter is a float and a `render(t)`; the growth pages are exactly
+that. The transition worth having is not a mesh morph — each rhomb moves from
+`(n/2)·x₀` to `f` by only the bounded wobble, which is the theorem (§5.19).
+
+### 4.3 Nomenclature
+
+| symbol | meaning |
+|---|---|
+| `ζ_n` | the fundamental n-fold direction / rotation |
+| `v_j` | normal vector of family j |
+| `γ_j` | **phase** of family j |
+| `Γ = (γ_0 … γ_{n−1})` | the **phase vector** |
+| `Σγ` | the total; Penrose ⟺ Σγ ∈ ℤ |
+| `λ` | gridline spacing, currently 1 and unnamed (§5.2) |
+| `c` | the uniform phase, every γ_j = c |
+
+Replace `ζ_5` with `ζ_7` and nothing in the notation changes — only the
+cyclotomic field underneath.
+
+**The correction that keeps being needed (Jake):** Σγ = 0, 1, 2, 3, 4 are
+identical mod 1 — all Penrose, all one LI class. What distinguishes the caps is
+`Γ`, the uniform phase `c = k/5`:
+
+    sun    c = 1/5, 4/5      Pe5 at the origin
+    star   c = 2/5, 3/5      origin in an St5 gap
+    5-fold c = 0             singular; resolves to the deca under a mirror nudge
+
+The mirror `c ↔ 1−c` pairs 1/5 with 4/5 and 2/5 with 3/5 and fixes 0. Never say
+"Σγ = 1 is a sun".
+
+**P1 patch names, not P3 vertex figures.** `Pe5` is the sun even though a *star
+rhomb group* (5 thick) sits at its center; `St5` is the star even though it holds
+five *diamond* groups; the `deca` = the queen = one `Pe3` with two `Pe1`. The
+rhomb-group vocabulary (star, boat, diamond) and the patch vocabulary must not be
+crossed. **Alan Schoen names the tilings the other way round** — our sun is his
+STAR, our star his SUN, our deca his CARTWHEEL (Conway's mirror-symmetric
+tiling). Ours stays; his is for reading his pages.
+
+**Vertex keys**: build them from rounded integers with an explicit `r === 0 ? 0
+: r`, never `toFixed` — `(-1e-16).toFixed(6)` is `"-0.000000"`. And corner 0 of
+a rhomb spans `v_j` to `v_k`, so it is 72° for |Δ| = 1 and **144°** for |Δ| = 2.
+Both cost a session each.
+
+### 4.4 The math is diffusing — a standing concern (Jake, 2026-09-10)
 
 Jake: *penrose-mosaic was my source of truth, but it has kind of moved to
 wieringa, especially as far as the real is concerned. It's getting diffused, the
-math is.*
+math is.* The same mathematics has independent implementations in three
+repositories:
 
-Not a vague worry. The same mathematics now has independent implementations in
-three repositories:
+| what | where |
+|---|---|
+| the Wieringa lift | `pentagrid/src/geometry/roof.ts` **and** `wieringa-roof` — derived separately, cross-validated once |
+| the cluster definitions | `wieringa-roof`'s `emitRhombs` **and** `pentagrid/src/geometry/clusters.ts` |
+| the wheels | `penrose-mosaic/wheels.js` **and** `wieringa-roof/src/geometry.ts` |
+| φ and the golden constants | everywhere |
 
-| what | where | note |
-|---|---|---|
-| the Wieringa lift | `pentagrid/src/geometry/roof.ts` (RISE, `vertexIndex`, `vertexHeight`, `generator`) **and** `wieringa-roof` (`computeLift`, `getLift`, `pos3D`, `GOLDEN_SIDE`) | derived separately, cross-validated against each other's fold-angle table **once**, and not since |
-| the cluster definitions | `wieringa-roof`'s `emitRhombs` **and** `pentagrid/src/geometry/clusters.ts` | star = 5 thick, boat = 3 thick + 1 thin, diamond = 1 thick + 2 thin, encoded twice. The pentagrid one was written 2026-09-09 from the index rule without reference to the other — this session made the problem worse |
-| the wheels | `penrose-mosaic/wheels.js` **and** `wieringa-roof/src/geometry.ts` | `interpolateWheel` / `predecessorPoint` is literally the same function in both |
-| phi and the golden constants | everywhere | |
+It has already bitten — "one inflation apart" was ambiguous because the projects
+count generations differently (§5.14). This file became the hub for
+cross-project mathematics, which is either the fix or a fourth place for it to
+live. The cheap move, if wanted: an authority **per topic** — the lift to
+`wieringa-roof`, the discrete wheels to `penrose-mosaic`, de Bruijn (the
+pentagrid, the regularity criterion, γ) to `pentagrid` — so duplicates become
+deliberate copies with a named source. Not decided; recorded so the drift is
+visible.
 
-**It has already bitten.** "One inflation apart" in
-[[penrose-mosaic-rhomb-groups]] was ambiguous precisely because the projects
-count generations differently — P1 generations at phi^2 in one, Robinson steps at
-phi in the other — and it took Jake's correction to resolve. That is what silent
-divergence looks like before anyone notices.
+### 4.5 What was planned and is now built
 
-**And this file is now part of it.** PLAN.md became the de facto hub for
-cross-project mathematics during this session: the nomenclature, the gen-2
-substitution, the wheel factor, the mosaic-is-primary stance. That is either the
-fix or a fourth place for the math to live, depending on whether any code ever
-points at it. Right now it is prose about three codebases, sitting inside one of
-them.
+The plans themselves are gone from this file; what they left behind:
 
-**The cheap move, if one is wanted.** Not wholesale consolidation — that cuts
-across three working projects and is not obviously worth it. Pick an authority
-**per topic** instead:
-
-- the **lift** belongs to `wieringa-roof`
-- the **discrete wheels** to `penrose-mosaic` (it is the heart; see the wheel
-  section)
-- **de Bruijn** — the pentagrid, the regularity criterion, the gamma cluster —
-  to `pentagrid`
-
-Then the duplicates become deliberate copies with a named source, rather than
-parallel derivations that can quietly disagree. Nothing here is a decision;
-recorded so the drift is visible rather than discovered.
-
-## Open items
-
-These come first because they are cheap, and because items 4 and 5 gate the
-explorations below — and item 3 changes what two of them should say.
-
-### 1. Regularity: prove it, and guard it — DECIDED 2026-09-04, corrected same day
-
-**Correction first.** An earlier draft of this item said regularity could not be
-enforced and should only be measured. That conflated two different claims and
-one of them is false. Region *size* cannot be bounded below — that argument, and
-the 0.042 px measurement under it, still stand. But exact *concurrency* is a
-measure-zero condition, and it turns out to be not merely avoidable but
-**decidable in closed form**. The guard was always achievable; it was removed on
-the strength of an argument that did not apply to it.
-
-**The criterion.** Three lines `(j,n): x·vⱼ = n − γⱼ =: cⱼ` are concurrent iff the
-3×3 determinant vanishes, which expands to
-
-```
-c_a·sin(θ_c−θ_b) + c_b·sin(θ_a−θ_c) + c_c·sin(θ_b−θ_a) = 0
-```
-
-For the pentagrid the θ are multiples of 72°, so dividing by sin 144° leaves every
-coefficient in {±1, ±φ} — and for all ten triples the split has the same shape:
-one `c_j` alone on one side, the other two together on the other. Each condition
-therefore reads `u + φ·v = 0` with `u, v` rational, and since φ is irrational
-**both** must vanish. The lone term gives `c_L = 0`, i.e. `γ_L ∈ ℤ`; the pair
-gives `c_P + c_Q = 0`, i.e. `γ_P + γ_Q ∈ ℤ`. So
-
-```
-triple (a,b,c) is singular  ⟺  γ_L ∈ ℤ  and  γ_P + γ_Q ∈ ℤ
-```
-
-| triple | lone | pair | triple | lone | pair |
-|---|---|---|---|---|---|
-| 012 | γ₁ | γ₀+γ₂ | 034 | γ₄ | γ₀+γ₃ |
-| 013 | γ₃ | γ₀+γ₁ | 123 | γ₂ | γ₁+γ₃ |
-| 014 | γ₀ | γ₁+γ₄ | 124 | γ₄ | γ₁+γ₂ |
-| 023 | γ₀ | γ₂+γ₃ | 134 | γ₁ | γ₃+γ₄ |
-| 024 | γ₂ | γ₀+γ₄ | 234 | γ₃ | γ₂+γ₄ |
-
-**Corollary: if no γⱼ is an integer, the pentagrid is regular everywhere.** Ten
-integer comparisons, no tolerance, no window. This *decides* legality rather than
-testing it — which is the thing the float scan can never do, however small its
-epsilon.
-
-Verified 205/205 against brute-force search, and the guarded default
-(γ = [1,2,3,4,−10]/10⁴) has zero concurrencies out to radius 40 where γ = 0 has
-380 out to radius 25.
-
-**Why the old 5e-9 nudge failed, exactly.** Magnitude was never the issue. It left
-γ₀, γ₂, γ₃ at exactly 0, and being *symmetric* it preserved γ₁ + γ₄ = 0 — so
-triples 014 and 023 stayed singular for any step size whatsoever. Correctness here
-is about rationality class, not smallness. The guard now shifts by 1/10⁴ with a
-different offset per family, which is both invisible and provably sufficient.
-
-**Everything below still holds, about size rather than legality:**
-
-- **The old test was a proxy, and a narrow one.** Singularity is a condition on
-  integer combinations of the γ's, not on pairwise equality; the table above is
-  what it actually looks like.
-- **A minimum region *size* still cannot be enforced.** Regularity buys *positive*
-  area, never area *bounded below*. As the line indices range over ℤ the
-  near-concurrency defects equidistribute (Weyl — the direction ratios are
-  irrational), so for **every** γ the infimum of region size over the plane is
-  zero. This is why the meter and the loupe are still needed even when γ is
-  provably regular.
-- **The small triangle is the content.** Three nearly-concurrent lines bound a
-  genuine region with a genuine dual vertex; as γ crosses the singular value it
-  collapses through zero and the tiling rearranges. That is the phason flip
-  Step 6 already promises. Nudging γ to keep triangles fat makes the most
-  interesting phenomenon on the page unreachable.
-
-**One more reason, found by measurement.** The old nudge did not even do its one
-job. Perturbing `γ₁ += 5e-9`, `γ₄ -= 5e-9` from the singular default still leaves
-**29 exact three-line concurrencies** in view. Of course it does: a concurrency
-among families {0,2,3} is a condition on γ₀, γ₂, γ₃ alone, so moving γ₁ and γ₄
-cannot touch it. Pairwise γ nudging can never remove concurrencies.
-
-**What to build instead — a regularity meter.** Measured over the visible window,
-in **pixels**, live. Geometric rather than a proxy, continuous rather than binary,
-in screen units so it means what it needs to mean.
-
-**Report the count, not the minimum.** The minimum alone is useless: a *generic*
-sum-zero γ at default zoom already has a smallest region of **0.042 px**. Not a
-near-singular configuration — an ordinary one. With ~1000 triples in a window,
-equidistribution guarantees the minimum is tiny essentially always, so a bare
-minimum reads red permanently and says nothing. The count of regions under the
-hoverable threshold is the number that responds: zoom in and it falls, because
-fewer triples are in view and each renders larger. (Generic γ at default zoom:
-308 regions under 5 px.)
-
-This is a stronger form of the argument above. It is not merely that no γ bounds
-region size below over the plane — no γ bounds it below over a *single 800 px
-window at default zoom*. Sub-pixel regions are the normal state of the picture,
-not an exceptional one, which makes the loupe the actual answer and the meter a
-readout of how much is hiding.
-
-Finding it cheaply. The candidate filter is exact, because the direction vectors
-are unit vectors:
-
-```
-for each family pair (a,b) and line indices (na,nb):
-    P = intersection                    # collectRhombs already computes this
-    for each third family c:
-        d = P·v_c + γ_c
-        h = |d − round(d)|               # ⊥ distance from P to the nearest
-                                        # line of family c, exactly
-        if h·scale < ~20 px:            # candidate
-            build the triangle from (a,na), (b,nb), (c,round(d))
-            size = 2·inradius, in pixels # "how big a target is it"
-```
-
-Caveat worth a comment in the code: a fourth line can cut the triangle, in which
-case the true region is smaller than reported. Rare at the sizes that matter —
-lines are one unit apart and these triangles are tiny — but the meter is
-optimistic, not conservative, when it happens.
-
-**Concurrencies are a separate finding and must be reported separately.** A small
-triangle has an interior and the loupe can open it up. Three or more lines
-actually meeting have no interior at all, and no magnification will ever help —
-that is where the dual stops being a rhombus tiling — the construction is not
-undefined there, which is what an earlier draft of this said. Lutfalla: *the dual
-of an intersection point where k lines meet is a 2k-gon with unit sides.* Three
-lines through a point give a hexagon, not three rhombs. The
-scan's triangle test misses them by construction (the triangle degenerates and
-falls out of the perimeter guard), so they need their own branch: inradius below
-a tolerance in **math units**, then dedupe by position and count how many
-families pass through the point.
-
-The page's **default γ = 0 is fully singular** — all ten triples, 97 concurrency
-points in the default window, the origin among them with all five lines. It is the
-classic five-fold symmetric configuration, so the guard (on by default, one
-checkbox) moves off it by 1/10⁴ and says so; unchecking the guard sits on it
-deliberately, which is how a phason flip gets watched.
-
-Companion control: **go to the smallest region in view.** Turns the near-singular
-configuration from a hazard into a destination, and is the entry point for a
-phason-flip page later.
-
-### 2. The loupe — DECIDED 2026-09-04
-
-Regions are hoverable at *any* size already: step 3's hover calls
-`computeKTuple(mx, my)` at the cursor point, which is exact — no threshold, no
-nearest-neighbor search. A 0.1 px triangle already returns the right K-tuple.
-**The only thing that fails is aiming.** So this is magnification and no new
-picking code at all.
-
-**Inset panel, not a fisheye.** A radial magnifier is not conformal, so inside it
-straight lines become curves and 72° stops being 72° — an unusually expensive
-distortion for a page whose whole subject is straight lines at exact angles.
-A constraint bites even before that: with `g(0)=0` and `g(R)=R`, the mean of `g′`
-over `[0,R]` is exactly 1, so `g′(0) = n > 1` forces `g′ < 1` somewhere — a
-compression annulus just inside the rim, where things are *harder* to hit than at
-1×. Avoiding it needs `g(R) > R`, which puts the discontinuity back. Compression
-ring or discontinuity; there is no third option.
-
-The inset costs none of that: lines stay straight, angles stay true, and picking
-is `screenToMath` at a different scale and center.
-
-Behavior, as settled:
-
-- **Pinned to a fixed corner** of the canvas. Not floating — it must never
-  occlude what is being studied, and traveling to it must be an unambiguous
-  gesture rather than something that happens while aiming.
-- **Opens automatically** when the smallest region within ~20 px of the cursor
-  falls below ~5 px. Same quantity as the meter at a different radius: meter =
-  min over the window, loupe = min near the cursor.
-- **Adaptive magnification**, `n = 40 / size_px`, so the target always arrives at
-  a workable size — 8× or 800× as needed. **Latched on open**, otherwise the
-  content zooms continuously as the cursor moves and the panel is unreadable.
-- **Freezes when the cursor enters it.** Entering is the commit gesture: the view
-  locks and stays locked while hovering inside, and leaving releases it. This is
-  what removes the trapping problem — whatever would re-trigger the loupe is in a
-  different panel from the thing now being hovered.
-- **Never closes on distance.** The first cut closed the loupe as soon as the
-  cursor moved off the target, which meant it vanished on the way to the panel and
-  could not be entered at all. It retargets on approach to something new, and is
-  dismissed with Esc — but "nothing nearby" is not a reason to close, because
-  traveling to the panel *is* moving away from the target.
-- **Says what it is showing.** `12k×  5 lines concurrent`, or `40×  region 0.04
-  px`, plus a "move in to hover" hint while unfrozen. Without the hint there is no
-  way to discover the panel is interactive.
-- A **footprint rectangle** in the main view showing what the loupe covers, and a
-  **magnification label** on the loupe, since `n` is adaptive and ranges over
-  orders of magnitude.
-
-Fallback if auto-open proves twitchy: **click-to-lock** — click within a few px of
-the tight spot, loupe locks there, Esc releases. No hysteresis tuning at all.
-
-**Prerequisite:** `scale`, `viewX`, `viewY` are module-level globals read
-implicitly by every draw function, and the loupe is a second view. Either thread a
-view parameter through everything, or save/swap/restore the globals around the
-loupe's render. The latter is far less invasive and needs no change to any draw
-function.
-
-### 3. The dual map has gain 5/2 — FOUND 2026-09-05
-
-The tiling is drawn 2½ times the size of the pentagrid that generates it. Not an
-error; a consequence of drawing unit rhombs. But it means the two pictures do not
-register, and it quietly corrupts two specs below.
-
-Writing `K_j(x) = x·v_j + γ_j + ε_j` with `ε_j ∈ [0,1)`,
-
-```
-f(x) = Σ K_j v_j = Σ (x·v_j) v_j + Σ γ_j v_j + Σ ε_j v_j
-     = (5/2)·x   + const         + bounded wobble
-```
-
-because `Σ_j v_j v_jᵀ = (5/2)·I`. That value is forced and cannot involve φ: the
-operator is isotropic by the five-fold symmetry, so it is a scalar times the
-identity, and the scalar is `tr/2 = (Σ|v_j|²)/2 = 5/2`. The computation never
-looks at the angles — five unit vectors, two dimensions.
-
-**What it really is: 5 dimensions to 2.** The construction is the projection of
-ℤ⁵ onto a 2-plane. For the orthogonal projection `P: ℝ⁵ → E∥`, each basis vector
-satisfies `|Pe_j|² = 2/5` exactly — 2/5 of its squared length lands in the
-physical plane, 3/5 in the perpendicular space, and `Σ|Pe_j|² = tr(P) = dim E∥ =
-2`. Pythagoras in ℝ⁵. With those correctly normalized images (`|u_j| = √(2/5)`)
-the frame operator is exactly the identity and **the dual map has gain 1**. The
-5/2 appears only because the page renormalizes to unit rhombs, inflating each
-vector by `√(5/2)`. So `5/2 = 1/(2/5)`, and in general n dimensions to d gives
-gain n/d.
-
-Which also means registration is not a fudge — it is the natural normalization.
-
-**Where φ actually lives.** Walking one unit along v₀ you cross `2φ = 3.236068`
-rhomb edges but net-displace only `5/2`, because the edges are not collinear
-(ratio `4φ/5`). φ owns the combinatorics and the shapes; n/d owns the isotropic
-gain. A φ-flavored gain would have meant the frame operator was not isotropic,
-contradicting the five-fold symmetry the whole construction rests on.
-
-Verified three ways: `n/2` holds for n = 3,5,7,9,11 to nine decimals, so it is a
-frame fact and not a Penrose one; direct measurement over 38,550 rhombs built the
-way the page builds them gives 2.50156 → 2.50044 → 2.50014 as the patch grows;
-and the density ratio (7.6942 regions per unit area against 1.2311 rhombs) is
-6.250000 = (5/2)².
-
-**Consequences, both of which correct specs written earlier:**
-
-- The transition lerp recorded under *On animation* is wrong. `lerp(x₀, f, t)`
-  interpolates between grid scale and 2.5× scale, so the animation is dominated
-  by a 2.5× zoom-out with the real content buried under it. It must be
-  `lerp((5/2)·x₀, f, t)`. Then the motion is *only* the wobble — each rhomb moves
-  at most ~1.6 units and settles — which shows the actual theorem: **the dual map
-  is a similarity plus a bounded perturbation.**
-- E1's ribbon straightening has the same defect. Comparing a wiggly dual path
-  against its straight generator only means something at matched scale, or the
-  2.5× swamps the wiggle being looked at.
-
-**On the page:** a *register scales* toggle drawing the pentagrid under
-`x ↦ (5/2)x`, so lines sit 2.5 apart and each rhomb lands on the crossing that
-made it. Scaling the grid up rather than the tiling down keeps the rhombs at the
-size they deserve. You cannot have both registration and edge = line spacing;
-the gain is the reason.
-
-### 4. Rhombs should carry their provenance
-
-`computeRhomb(j, k, nj, nk, x0, y0)` receives everything about where the rhomb
-came from and stores none of it — the `Rhomb` interface keeps only
-`{vertices, kTuples, thick}`. `x0, y0` are used to resolve the three
-non-participating K values and then discarded.
-
-Store `j, k, nj, nk, x0, y0` on the `Rhomb`. It is a few lines, and it is the
-single change that unlocks **both** the transition animation and Exploration 1.
-Do this before either.
-
-### 5. Split geometry recompute from render
-
-Right now `collectRhombs` runs on every `draw()`. At default zoom that is a few
-thousand `solveIntersection` calls — fine. Zoomed out, `maxN` clamps at 50, so
-101² × 10 ≈ **100k solves per frame**. Fine at one frame per click; fatal at 60.
-
-`drawKRegions` is the same story from the other direction: a per-pixel
-`ImageData` fill over 720×720, five dot products and a ceiling each.
-
-The fix for both: **the rhomb set and the K-region bitmap depend on γ and the
-view, not on any animation parameter.** Recompute them when γ or the view
-changes; at scrub time only re-render. The layer architecture already makes the
-K-region cache easy, since it is its own canvas.
-
-The regularity scan (item 1) has exactly the same dependency and should share
-whatever cache this produces.
-
-### 6. ~~README is stale~~ — DONE 2026-09-05
-
-Rewritten: six steps with the current titles, the layer toggles and the two hover
-behaviors, the three non-obvious findings (exact regularity, sub-pixel regions
-and the loupe, the 5/2 gain), the build-stamp workflow, and pointers here and to
-RESEARCH.md. Live link now points at the site root rather than `method.html`.
-
-### 7. ~~`src/index.ts` is vestigial~~ — DONE 2026-09-05
-
-Deleted along with its `dist/` output when `index.html` became a static page.
+- **Parameterizing the canvas (2026-09-05).** `geometry/` extracted DOM-free with
+  tests importing the real code (which found the scan reading the tiling rect
+  instead of the grid rect, and a 5e-9 nudge the 10⁴ denominator could not
+  represent); `LayerStack` with declared `visible`/`opacity` predicates and a
+  panel generated from the registered layers; `createPentagrid(config)` with a
+  `layers` callback; implicit sizing observes the container, `data-width` pins
+  it. `index.html`'s linked pair was the exercise that proved it — `setView`
+  does not fire `onViewChange`, which is what keeps two instances from looping.
+- **The method page reorganized (2026-09-05).** Features stopped being
+  step-gated: independent booleans, the pages presets over them. Penrose split
+  into tiles / edges / vertices / decor layers, orderable behind the grid;
+  registration permanent; settings collapsed (force regular, vertical-axis
+  symmetry, compute beyond the edge, readout placement).
+- **The γ cluster (2026-09-09).** One `GammaSet` owning directions, phases, the
+  total, the lock and the guard; the sum generalized and spread evenly on
+  change; per-family enable, single line, isolate; the duplicate regularity
+  checkbox found and removed. A lesson from the wiring: three of four view edits
+  were never written because a patch batch asserted out partway and every test
+  called the geometry directly — there are now tests that go through the view.
+- **The reticulum (2026-09-11).** Built as a second `GammaControl` over the same
+  set, SVG, one chord per family at `frac(γ_j)·SPACING`, labels on the rim,
+  wheel-driven. Then floated, resized, given the presets popup, and put on every
+  page; the slider bank kept, folded. §5.9 has what changed in the doing.
+- **Singularities (2026-09-12 → 09-15).** Angle-code names, the 2k-gon drawn and
+  described, the Penrose catalog decided by arithmetic and offered as presets,
+  the superposed rhombs' edges restored, the pseudo-edge toggle, grow routing
+  its bands through them.
+- **Tile styles (2026-09-15 → 09-17).** type, pair, bands (families2), rhomb
+  groups, P1, curves; isogloss, Wieringa height shading with ramp, bold edges,
+  arcs, AR arrows; opacity; ribbons with OR semantics.
 
 ---
 
-## The method page, reorganized
+## 5. The record
 
-Requested 2026-09-05. The individual asks below are one design, and this is the
-idea holding them together:
+Newest first. Each entry is dated to the session that found it.
 
-> **Features stop being step-gated. They become independent booleans, and the six
-> steps become presets over them.**
+### 5.1 The AR-pattern from the indices, with the thick/thin twist (2026-09-17)
 
-Right now eight places switch on `currentStep`, so every capability is welded to
-the step that introduced it — intersection dots exist only at step 2, filled
-tiles only at step 6. Making them flags and letting the steps *set* the flags
-costs little and answers most of the list at once. Prev/Next still walks the
-narrative; it just stops being the only way to reach anything.
+AR is de Bruijn's *arrowed rhombus*. His Fig. 1 (1981, p. 41) is the ground
+truth, read at 400 dpi from `jake/597566.pdf`, and it settles a question three
+searches could not: the direction of the single arrows is **not** a function of
+the endpoint indices — it depends on which tile the edge is on.
 
-### Layers
+**Fig. 1.** Green (double) arrows meet at one corner — a 72° corner of the thick
+rhomb, a 144° corner of the thin — and point INTO it. Red (single) arrows sit on
+the two edges at the opposite corner, and here the tiles differ:
 
-- **Penrose gets its own layers**, split by what they draw: tiles, edges,
-  vertices, decoration. Cleans up the `content` catch-all, which currently holds
-  four unrelated things behind a switch.
-- **Orderable front or back** relative to the grid, so the tiling can sit over
-  the pentagrid or under it.
-- **One coordinate system, not two.** Registration (item 3) becomes permanent
-  rather than a toggle, so grid and tiling always share coordinates. The toggle
-  existed to make the 5/2 visible; the layer switch replaces it, and the tiling
-  can simply be hidden instead.
+    thick   singles point OUT of that corner
+    thin    singles point INTO it
 
-### Settings, collapsed
+**In index terms.** The green corner is the extreme, 1 or 4, so the doubles are
+the 1–2 and 3–4 edges pointing *into the 1* and *into the 4* — the rhomb-group
+centers, which is what Jake said: "the center of the rhomb groups determine the
+AR pattern." The red corner is the other end of that diagonal, index 3 on a
+(1,2,3,2) tile and 2 on a (2,3,4,3) tile; the singles leave it on a thick and
+enter it on a thin.
 
-Behind a settings button — set once, then forgotten:
+**Why the twist is forced.** 291 of 387 shared 2–3 edges in a patch are shared by
+a thick of one m and a thin of the other, so any rule with one sense for both
+shapes conflicts on three quarters of them. Every index-only rule tried —
+toward higher, toward lower, doubles in/out with singles fixed either way, and
+eight line- and coordinate-parity variants — produced **four** marked
+prototiles. Fig. 1's rule produces **two**, thick in/out and thin in/in, with
+zero disagreements on 773 shared edges across three gammas. The test pins both.
 
-- **`allow singularities`, default false.** The inverse of today's `keep γ
-  regular`. The current framing exposes as a choice something that is almost
-  always wrong to want; the escape hatch is only there to sit on a singularity
-  and watch a phason flip, which is a deliberate act, not a default-facing knob.
-- **Vertical-axis symmetry, default on.** Rotate the directions 90° so v₀ points
-  up and family 0's lines are *horizontal*. The five directions are then mirror
-  symmetric about the vertical axis (angles 90, 162, 234, 306, 18). Jake's
-  preferred orientation across all his Penrose work, so it is the default rather
-  than an option to find. Note this cannot disturb item 1: the concurrency
-  condition depends only on angle *differences*, which a common rotation
-  preserves.
-- **Gridline thickness.** Sometimes you just have to see them.
+**What misled the reading of Fig. 2 and the Treisberg slide.** Every clean tile I
+read with "singles into the 3" — tile1 in Fig. 2, the blue tile in the slide —
+has a 144° angle at its 1. They are thin. The rule was right for them and I had
+taken them for thick. The Treisberg slide colors by the same scheme, green on
+1–2 and 3–4, red on 2–3; its arrowhead counts are decorative except where they
+are not, and are not to be trusted at that resolution.
 
-### Settings, out in the open
+The `arrows` toggle on the Tile edges row draws this. Off a Penrose patch the
+index spans five values and nothing is drawn.
 
-Per-view toggles, visible next to the layer switches:
+### 5.2 λ, the gridline spacing (2026-09-16)
 
-- Dots on intersections — at any step, not only step 2
-- Show the corresponding Penrose **vertex** on region hover
-- Show the corresponding Penrose **tile** on intersection hover
-- Show **all** Penrose vertices, restricted to the active grid layers
-- Show **all** Penrose edges
-- Show **all** Penrose tiles — solid fill, and/or the standard arc decoration
+Recorded, not a task. Every page runs with the lines one unit apart, and that 1 is not named anywhere.
+It should be **λ** (§4.3), and it is the one knob inflation needs:
 
-### Order of work
+    line n of family j:   x · v_j = λ (n − γ_j)
+    K_j(x)              = ceil( x · v_j / λ + γ_j )
+    registration gain   = n / (2λ)         (the dual's edge stays 1)
 
-1. **Item 4 first — rhomb provenance.** "Penrose tile on intersection hover"
-   cannot be built without it: hovering a crossing has to find *its* rhomb, which
-   means the rhomb must remember the `(j, k, nj, nk, x₀)` that made it. This is
-   the same few lines the explorations have been waiting on.
-2. Feature flags, and the steps rewritten as presets over them.
-3. Penrose layers split out, ordering control, registration made permanent.
-4. The settings panel: collapsed group, symmetry, thickness.
-5. The open toggles, and intersection picking for the tile-on-hover.
-6. The arc decoration — the classic two-arcs-per-rhomb marking whose curves close
-   into loops across the tiling. Self-contained, and last.
+Inflation with de Bruijn is then λ → φλ and nothing else — or φ² for a P1
+generation, per the note on inflation. When the time comes the threading is
+mechanical and was dry-run today: fourteen sites in `geometry/`, every one of
+the form `x·v + γ` or `n − γ`, plus the gain in `view/growth.ts` and
+`view/pentagrid.ts`; `computeRhomb`, `solveIntersection`, `computeKTuple`,
+`lineRange`, `segmentAt`, `nearestLine`, `regionPoly` and the two scans in
+`regularity.ts`. `lambda` would sit on `Pentagrid`, optional, read through a
+`spacing(pg)` helper so nothing existing changes. Reverted rather than kept:
+Jake, *"Nothing should be done. Just want to make sure it's recorded when we
+need it."*
 
-### One thing to watch
+### 5.3 What the ghost lines are, exactly (2026-09-15)
 
-Item 5 (split geometry recompute from render) stops being optional here. Every new
-"show all" toggle is another consumer of `collectRhombs`, which already runs on
-every draw and hits ~100k intersection solves per frame when zoomed out. Turning
-three of these on at once with no cache will be felt.
+Jake: *"The ghost lines of the 2K-gons are not exactly a dualization of something
+on the Pentagrid. Some of the vertex dots within the 2K-gon apparently are."*
+Right, and here is the precise version, measured at `Gamma = 0`:
 
-## Parameterizing the canvas
+| | tiles | fan corners | real sectors | ghost | edges | real (outline) | ghost |
+|---|---|---|---|---|---|---|---|
+| thin hexagon | 3 | 7 | 6 | 1 | 9 | 6 | 3 |
+| thick hexagon | 3 | 7 | 5 | 2 | 9 | 4 | 5 |
+| decagon | 10 | 16 | 5 | 11 | 25 | **0** | **25** |
 
-Decided 2026-09-05, after weighing four shapes for it: a config object plus
-`createPentagrid()`, a class, a module split with explicit context, or a web
-component. The component turned out not to be an alternative — it is a wrapper
-over whichever of the other three you pick, so it is a later skin, not a choice
-instead of them.
+**The method — there isn't a special one.** The ghost lines are the four edges of
+each rhomb `computeRhomb` emits for each pair of the k concurrent lines. It takes
+the crossing point and gets the base K-tuple by `ceil` there. At a concurrency
+every participating family sits *exactly* on its line, so `ceil` returns the low
+index for all of them at once: every rhomb in the stack has the **same** base
+tuple `K0`, and they all **fan** from `f(K0)`. Corners are `f(K0)`, `f(K0+e_j)`,
+`f(K0+e_k)`, `f(K0+e_j+e_k)`.
 
-**Chosen: the module split, reached in stages**, each independently useful and
-committable. What decides it is the explorations: `wiggle.html` needs the same γ
-cluster and grid layers but its *own* content layer, and no feature flag in
-`method.ts` will ever name "ribbons". A closed `Features` enum cannot express
-that; layer registration can, and only the split lets an exploration's draw
-function be written without importing the whole page.
+**Which dots are real.** A corner is the dual of an actual region iff its tuple
+is a *sector* — one of the 2k regions around the point, i.e. an outline corner.
+The other tuples in the fan name regions of zero area. `f(K0)`, the all-low
+tuple, is a sector only when the k normals fit in a half-plane: true for three
+lines, false for four or five. So the decagon's fan point is its center,
+`f(empty) = f(all) = 0`, dual to nothing; its five `v_i` corners are ghosts too;
+the only real dots the fan touches are the five adjacent-pair sums.
 
-A second reason, particular to how this project gets verified: every check this
-session re-implemented the geometry from scratch — the small-region scan, the
-regularity criterion, the 5/2 gain, the arc joins. Four re-derivations, any of
-which could drift from what the page actually runs. With a DOM-free `geometry/`
-they become tests importing the real code, and `pagecheck` goes back to covering
-wiring, which is all it should ever have covered.
+**Which lines are real.** An edge joins two tuples differing by one `e_j`. It is
+a genuine Penrose edge iff *both* ends are sectors — and then it is an outline
+side. Any edge touching a ghost vertex is a ghost edge: its source segment has
+zero length and one end-region has zero area. For the decagon **all 25 are
+ghosts**; its outline is drawn by `drawResolutions`, not by the fan.
 
-The build already supports this for free: `tsc` with `include: ["src"]` and plain
-ES modules means multiple entry points need no bundler and no configuration.
+**The fan is not "the superposition of the tilings."** That phrase had been used
+loosely. For the thin hexagon the fan happens to be one genuine tiling — three
+rhombs around an interior vertex, all six outline sides present. For the thick
+hexagon it is not a tiling at all: it fans from an outline corner, overlaps near
+it, and misses the opposite corner. For the decagon it overlaps three-fold at
+the center (the ten corner angles sum to three turns).
 
-### Stages
+**What the ghost lines are good for.** They are a record of the fan, and every
+ghost edge parallel to `v_fam` is where that family's zone would cross if the fan
+were pulled apart — which is exactly why routing the grow band through them
+(`stackChain` in `view/growth.ts`) seals against the neighboring tiles with zero
+failures. The ghost vertices are the cube corners from the earlier note: the
+regions that *open up* under perturbation.
 
-1. **~~Canvas size into the view~~ — DONE 2026-09-05.** `CANVAS_W`/`CANVAS_H` and
-   `MARGIN` are gone; a `CanvasSpec` is read once from the page and everything
-   downstream goes through it (83 sites). Explicit `data-width` / `data-height` /
-   `data-margin` on `#canvas-container` win; otherwise the container's own
-   laid-out size, then 800. Margin keeps its *proportion* (5% of the short side,
-   still 40 at 800) rather than its number, so the K-labels keep a gutter at any
-   size. `pagecheck` now takes `PAGECHECK_SIZE` and `PAGECHECK_ATTR` and is run at
-   several sizes including non-square.
-2. **~~Extract `geometry/`~~ — DONE 2026-09-05.** Five modules, no DOM and no
-   module state: `types`, `pentagrid` (directions, crossings, K-tuples, rhombs),
-   `regularity` (the criterion and the small-region scan), `region` (the map run
-   backwards), `decor` (arc geometry; drawing stays in the page). `method.ts`
-   keeps thin adapters over a `model` built once from the two const arrays it
-   mutates in place, so the call sites did not change: −281 lines, +74.
+### 5.4 The deca is the resolution of the 5-fold (2026-09-14)
 
-   **16 tests** in `tools/geometry.test.mjs` (`npm test`) against the real
-   modules, replacing four throwaway re-derivations. Where a test needs an oracle
-   — the brute-force concurrency search — it is written longhand in the test file
-   on purpose: an oracle that imports the code under test proves nothing.
+Jake: *"No the deca is not the 2K-gon decagon, in wieringa it is the queen
+(misnamed) patch. It has 2 fold symmetry."* The first Caps row had `deca` as
+`Gamma = 0`, the singular point, which is not a tiling at all. Corrected.
 
-   Writing them found two real defects, which is the argument for having done it:
+**What it is.** One `Pe3` flanked by two `Pe1`: 3 thick + 1 thin, plus twice
+(1 thick + 2 thin), so **5 thick + 5 thin, ten rhombs** — which is exactly what
+the 5-fold singularity holds, C(5,2) = 10 with 5 of each. That is the clue.
 
-   - **The scan was reading the wrong rectangle.** It was handed the *tiling*
-     visible rect while working in grid coordinates. Harmless when the gain was 1;
-     once registration became permanent it meant scanning 6.25× the area and
-     counting regions that are not on screen toward the meter. Now takes the grid
-     rect.
-   - **The page's γ cannot represent a 5e-9 nudge.** Over a denominator of 10⁴ it
-     rounds to zero, so in the shipped code the old nudge was not merely
-     ineffective — it did not exist. A second reason, independent of the symmetry
-     argument in item 1, that it could never have worked. Locked in as a test.
+**Where it is.** Nudge `Gamma = 0` in any mirror-symmetric direction with the
+total held at zero — `gamma1 = gamma4`, `gamma2 = gamma3` — and the decagon at the
+origin resolves into the queen, every time, with the `Pe3` on the mirror axis and
+the two `Pe1` straddling it. Measured for five different mirror directions at
+e = 0.01, and along the line `(0, e, -e, -e, e)` it persists out to **e = 0.3**;
+the line hits a singular couple at e = 1/2 (`gamma0` integral, `gamma1 + gamma4 =
+1`). The preset is e = 0.1, comfortably inside — `+1/10` on families 1 and 4, `-1/10`
+on 2 and 3, `gamma0 = 0` on the axis. On the Caps row it is **deca**; *queen* is
+the wieringa-roof name for the same patch. "Decagon" stays for the k = 5 2k-gon
+on the Hunt row, which is a different thing.
 
-   Also worth knowing: `Math.round` of a tiny negative gives `-0`, which is
-   strictly-deep-unequal to `0` but behaves as zero everywhere it matters,
-   including the criterion's `% den === 0`.
-3. **~~Two clusters as factories~~ — DONE 2026-09-05.**
+**The involution.** Negating the phases flips the queen end for end: `(0,e,-e,-e,e)`
+puts the `Pe3` below the origin, `(0,-e,e,e,-e)` above. That is the "magic
+mirroring of the sides" Jake remembers from inflation, seen here as `Gamma -> -Gamma`.
 
-   `src/ui/dials.ts` — `createGammaBank({count, colors, onChange, onLock})`
-   returning `{element, sync}`. It is a view over a vector of numbers with one
-   index held as the dependent one: it reports which slider moved and which label
-   was clicked, and renders what it is told. **It never computes the locked
-   value** — that Σγ = 0 is the constraint is the page's business, not the bank's,
-   which is what makes it a multigrid widget rather than a pentagrid one.
+**A generic nudge gives the queen too**, just turned. `(e, 2e, 3e, 4e, -10e)` gave
+a `Pe3` and two `Pe1` at the same three radii and the same angular gaps —
+144/108/108 — rotated. So the decagon's *de Bruijn* resolutions look to be queens
+in one of ten orientations, not the 62 rhombic tilings the zonogon admits. Worth
+a proper count some day; not done.
 
-   One detail worth keeping: `sync` writes back to the *computed* slider only.
-   Writing to the one under the user's thumb would fight the drag.
+**On uniqueness.** Jake surmises the queen is the only Penrose tiling with exactly
+2-fold symmetry. The mirror-symmetric subspace at `Sum = 0` is two-dimensional;
+one direction is translation along the axis, which changes nothing, leaving a
+**one-parameter family** in `E-perp` of genuinely different mirror-symmetric
+tilings, of which the queen-at-origin segment is `0 < e <= 0.3`. Whether that
+whole family is "the queen" moved along its axis, or several tilings, is the open
+question — `perpOfGamma` in `acceptance.ts` is the tool to settle it.
 
-   `src/ui/loupe.ts` — `createLoupe({container, render, onHover, tooltip})`. Given
-   a point, a magnification and a label, plus a callback that paints its own
-   content at the panel's view. It has no idea what it is magnifying. What stayed
-   behind in `pentagrid.ts` is only what this page can say: what counts as a
-   target, how to paint the magnified grid, and what a point under the cursor
-   means.
+The `sunstar.html` button for `c = 0` is relabeled **5-fold**; it never was the
+deca.
 
-   **13 tests** in `tools/ui.test.mjs`, driving both with no pentagrid in sight —
-   which is the only way the reuse claim means anything. The DOM stub grew
-   per-element `children` and `on` so a test can walk what a factory built and
-   fire its handlers, rather than only checking construction did not throw.
-4. **~~Layer registration~~ — DONE 2026-09-05** (out of order; it does not depend
-   on stage 3). `src/view/layers.ts` holds `LayerStack`, page-agnostic: it knows
-   about canvases, z-order and visibility, and nothing about pentagrids. An
-   exploration registers a spec rather than importing the method page.
+### 5.5 The Penrose singularity catalog — it has three entries (2026-09-14)
 
-   Layers **declare** instead of being commanded. `visible` and `opacity` are
-   predicates read at draw time, so a step preset changes what is drawn by
-   changing what those predicates see — no caller has to remember to update a
-   flag on a layer, which is what `draw()` used to spend twenty lines doing. The
-   stack also clears before each draw, so no layer has to remember that either,
-   and hides with `display:none` rather than clearing, so hiding an expensive
-   layer costs nothing.
+Jake: *"I'm looking for penrose singularities. Gamma must equal 0."* Under that
+constraint the hunt closes completely. `geometry/hunt.ts` decides it by arithmetic
+rather than by looking, so the answer holds for the whole plane and not a window.
 
-   **The panel is generated from the stack.** A layer registered with a `group`
-   gets its switch without anyone editing the panel code — which is the test of
-   whether registration is real. `addRaw` covers the canvases the stack should
-   size and position but never draw: the highlight and footprint overlays and the
-   input surface.
+**No octagon is Penrose.**
 
-   The old `overlay` catch-all is gone: intersection dots and K-labels are their
-   own layers now, so they toggle independently like everything else.
+Not rare — impossible. Since `Sum(v_j) = 0`, at a point where families a,b,c,d meet:
 
-   **10 tests** in `tools/layers.test.mjs`, the last of which is the reason the
-   stage exists — it registers a "ribbons" layer after the fact, knowing nothing
-   about the layers already there, and checks it draws, receives a usable context,
-   gets its own panel section, and is gated by the generated toggle. The DOM stub
-   moved to `tools/domstub.mjs` so pagecheck and the tests share one.
-5. **~~`createPentagrid(config)`~~ — DONE 2026-09-05.** `src/view/pentagrid.ts`
-   holds the factory; `src/method.ts` is now twenty lines that hand it the page's
-   five elements, `METHOD_STEPS` and the build id. `src/app/method-steps.ts`
-   holds the narration, because a page's prose is content, not machinery.
+```
+x·v_e + gamma_e  =  −Sum(n_j) + Sum(gamma)
+```
 
-   The config takes container, the four control elements, `steps`, `presets`,
-   `buildId`, and a **`layers` callback** — the registration hook. It runs before
-   the panel is generated, so an exploration's layers get their switches like
-   anything else, and it is handed `{ stack, model, currentRhombs, withView,
-   gridView, redraw }`: what a layer needs and nothing more.
+so the fifth family passes through **that same point** exactly when `Sum(gamma)` is
+an integer. Penrose *is* `Sum(gamma) in Z`, so every 4-fold is swallowed by a
+5-fold. This is why the map never offered one. Step 7 previously said "the octagon
+is real but rare"; it is real and *outside the condition*, which is a different
+claim. Release the total and four integral phases give one immediately — that is
+the proof, and the classifier still handles it, it is just not a destination.
 
-   Sizing stayed implicit-from-container, so a second instance sizes itself from
-   its own host. Two instances on one page are independent.
+**The hexagons come in couples.**
 
-   **5 tests** in `tools/factory.test.mjs`: constructs from a bare container,
-   builds two independent instances at different sizes, takes custom narration
-   and clamps out-of-range steps, and registers a "ribbons" layer through the
-   config — checking it draws, gets a live `currentRhombs` whose rhombs carry
-   provenance, and gets its own panel section without the panel knowing.
+The ten triples pair by **shared lone family and complementary pair**:
 
-   Stage 3 (γ bank and loupe as `{element, sync}` factories) is the only one left,
-   and it is now optional rather than blocking: a second page can already exist.
+    012 <-> 134    013 <-> 234    014 <-> 023    024 <-> 123    034 <-> 124
 
-State ownership, decided alongside: **a central model with clusters as views over
-it**, each with a `sync()`. That is already the seam — `syncPanel()` is exactly
-this — and it survives a page that drives γ from something other than sliders.
+A triple is `{L,P,Q}` with `gamma_L` integral and `gamma_P + gamma_Q` integral. Its
+partner is `{L} + complement`, same lone, complementary pair — and `Sum(gamma)` in
+Z forces that pair sum too. So the two stand or fall together. **Every couple is
+one K122 and one K113**, so at `Sum(gamma) = 0` the thick and thin hexagons only
+ever appear together, never one alone. (That invalidated two presets from the
+first draft of this work, "Thick hexagon" and "Thin hexagon" alone — both were
+non-Penrose without my noticing, and the test caught it.)
 
-Which clusters are honestly reusable: the **γ dial bank** (any multigrid), the
-**loupe** (any canvas view — the most portable code in the file), the **step nav
-and explanation** (any narrated page). The **layer panel** should be *generated
-from* the layer list rather than reused, and the **regularity meter** is
-pentagrid-specific and should not try to be general.
+**And nothing in the middle.**
 
-### The exercise that proved it
+Two couples mean two integral phases; their pair conditions drag in two more, and
+an integral total supplies the fifth. So the hexagon count is **0, 2 or 10** —
+never 4, 6 or 8. The whole catalog, searched exhaustively over every rational
+phase vector at denominators 12, 15, 20, 24 and 25:
 
-`index.html` now carries two linked viewports — the same random pentagrid drawn
-as lines on the left and as its dual tiling on the right, with pan and zoom on
-either driving the other. `src/app/pair.ts` is 50 lines and imports nothing from
-`method.ts`, which is the whole claim.
-
-It found four things the factory was missing, all now added:
-
-- **`gridLines` and `axes` as features.** A family's `userVisible` also removes
-  the rhombs that family generates, so switching the grid off on the tiling side
-  would have left nothing to draw. Hiding and not-participating had to become
-  separate ideas.
-- **`config.features`**, so a page with no steps can state its own set rather
-  than inheriting step 1's.
-- **`config.gamma`**, so two instances can be given the same pentagrid.
-- **`getView` / `setView` / `onViewChange`.** `setView` deliberately does *not*
-  fire `onViewChange`, which is what stops two linked instances bouncing updates
-  off each other forever — a one-hop relay rather than a loop.
-
-Also needed: a page with no steps had to stop throwing. `updateStepUI` indexed
-`stepContent[currentStep]` unconditionally, and `setStep` is now a no-op rather
-than an error when there is nothing to step through.
-
-Six more tests, including the two that matter for this shape: `setView` does not
-notify, and two instances given the same γ produce rhomb-for-rhomb identical
-tilings while different γ do not.
-
-**The loupe is now off by default** (item 2's `loupe` config flag, and a
-checkbox in the method page's settings). It is a tool for inspecting
-near-singular configurations and it gets in the way of simply looking at the
-picture. Turning it off exposed a worse problem: `scanSmallRegions` — the
-expensive call in the file — was running on every draw whether or not anything
-would read the result, so the paired views were paying for it twice per pan
-frame. It is now skipped unless the loupe is on or the page has somewhere to put
-the meter.
-
-### Still available, not taken
-
-- **devicePixelRatio.** The canvas is an 800-wide backing store at 800 CSS px, so
-  it is soft on a retina display. Now that size flows through one place this is a
-  couple of lines — but it changes how everything renders, so it is its own step.
-- ~~**`ResizeObserver`.**~~ **DONE 2026-09-06.** Implicit sizing now observes the
-  container and follows it; explicit `data-width` / `data-height` still pins the
-  box and does not reflow. `LayerStack.resize` reaches the raw canvases as well as
-  the drawn ones, and does not redraw itself — setting a canvas's width clears it,
-  so the host decides when that cost is paid.
-
-  The thing actually blocking this was not the observer. `createPentagrid` wrote
-  the measured size back onto the container as px, which overrode the page's own
-  CSS, so a `width: 100%` viewport could never have reflowed no matter what
-  watched it. That write now happens only for an explicitly sized view.
-
-## Canvas containers — a standing rule
-
-Set 2026-09-06, after `grow.html` and `roof.html` were built as page code.
-
-**Anything with real drawing in it gets a container**, the way `createPentagrid`
-does: own your canvases, take a config, hand back a handle. A page should be a
-container element, a config object and some sliders.
-
-Two things follow. A second page wanting the same picture becomes a config change
-rather than a copy — `grow.html` and `roof.html` are now the same container
-behind 16 and 19 lines each, down from 194 and 175. And the renderer can be
-tested with no page in sight, which is where the container tests come from.
-
-| container | what it draws |
+| state | shows |
 |---|---|
-| `view/pentagrid` `createPentagrid` | the pentagrid and its dual |
-| `view/growth` `createGrowthView` | the assembling tiling, flat or folded |
-| `view/region-panel` `createRegionPanel` | a convex region and a draggable point |
+| regular | nothing concurrent anywhere |
+| one couple | one K122 + one K113, and nothing else |
+| `Gamma = 0` | five of each, plus the unique decagon |
 
-`view/controls` `bindSliders` goes with them: every page was repeating the same
-range-input wiring.
+Those are the Penrose entries of the reticulum's presets popup (decagon, couple;
+regular is the sun). The popup also carries every unique non-Penrose signature —
+octagon, 1 thick, 2 thick, 1 thin, 2 thin — seven signatures in all, each checked
+against the rule AND against the scan, so a label cannot lie about what the map
+shows. `classifySingularities` in `geometry/hunt.ts` is the decider.
 
-**Gestures beat sliders for a camera.** roof.html's spin and tilt were sliders;
-they are a right-button drag on the picture now, the same gesture as the
-left-button pan. `createPentagrid` takes an `onOrbit(dx, dy)` callback and
-suppresses the context menu when one is given — it has no camera of its own and
-does not interpret the numbers. Orbit defaults on wherever there is a lift to
-see, so a stray right-drag cannot tilt the flat page.
+**Two things the tests caught.**
 
-**Controls and picture share a screen.** A slider is useless if using it scrolls
-the drawing out of view, so `.bar` is sticky and laid out across rather than down
-— roof's five sliders are one row, not five — and `.viewport` is capped at
-`min(calc(100vh - 150px), 720px)` so the whole thing fits below the pinned bar.
-`.viewport` also carries `z-index: 0` to make its own stacking context; without
-it the layer canvases, which run up to z 200, paint straight over the bar.
+- **Preset denominators must divide the gamma set's.** It carries rationals over
+  `2000n` — 10000 at n = 5 — so presets over 60 were silently rounded on the way
+  in and `7/60` arrived as `0.1167`. The vector on screen was then not the vector
+  the rule had been checked against. Presets are over 100, and the round trip is
+  pinned.
+- **The rationality assumption is load-bearing.** The triple condition is one
+  equation `u + phi*v = 0`; it splits into `u = 0` and `v = 0` only because u and v
+  are rational, which holds only for rational phases. The dials and wheel produce
+  hundredths and thousandths so every reachable phase is rational — but this is
+  stated in `hunt.ts` rather than assumed.
 
-The split to keep making: DOM-free mathematics into `geometry/`, drawing into
-`view/`. `geometry/roof` (the lift) and `geometry/acceptance` (the perpendicular
-plane, convex boundaries by ray cast) came out of the pages at the same time, and
-are tested directly.
+### 5.6 The superposition, and how it went missing (2026-09-14)
 
-Documented in the README under *Canvas containers*.
+**The regression.**
 
-## The γ cluster — planned 2026-09-09
+The lines inside every 2k-gon are the **C(k,2) superposed rhombs**, drawn where the
+construction puts them. Nothing synthesizes them; they are ordinary rhombs that
+happen to share a crossing, and they join vertex dots that were being drawn all
+along. `f7a4a7e` had them. `469dbcb` took them away, and its own commit message
+states the rule it broke:
 
-A self-contained thing holding *all* the pentagrid: five directions, five
-offsets, the constraint tying them together, and the rules about what counts as a
-legal configuration. DOM-free, so it belongs in `geometry/`, not `view/` — the
-γ bank in `ui/dials.ts` is a *view over* it and should stay that way.
+> those now take no fill and no arc, while **edges and vertices are untouched**
 
-### First, a bug, and the answer to "what's the difference"
+The filter went onto three layers when it belonged on two. Tiles filtered
+correctly, arcs filtered correctly, vertices correctly did not — and edges wrongly
+did, which hollowed out every 2k-gon. One line. The rule was already written down
+in this file, under *"Vertices, then edges — these are wanted"*, which is worth
+noticing: it was recorded, agreed, and then violated by a filter added for a
+different purpose.
 
-**There is no difference. They are one switch, and having two is my mistake.**
-`pentagrid.ts` builds two checkboxes bound to the same `guardRegular`:
+**The rule, stated once more so it is testable:** at a concurrency a fill asserts
+which of the many rhombic tilings of the 2k-gon is real, and an arc asserts a
+shared edge to join across when inside a stack there is none. Edges and vertices
+assert neither. `containers.test.mjs` now pins it by comparing the edge count
+against the fill count at Gamma = 0, and the arcs/edges *ratio* against a regular
+configuration — the raw arc count says nothing, since the decor layer strokes two
+arcs per rhomb where the edge layer strokes one.
 
-| where | label | sense |
-|---|---|---|
-| the controls area | `keep γ regular` | checked = guard on |
-| the settings panel | `allow singularities` | checked = guard **off** |
+**Two measurements.**
 
-Neither syncs to the other, so toggling one leaves the other showing the
-opposite of the truth. I inverted the control when the settings panel was added
-and never removed the original. One control, and `allow singularities` is the
-better name — it says what unchecking gets you.
+**The five octagons are the 4-faces of the 5-cube.** Where k lines meet, each
+`K_j` is free either way, so the surrounding regions are the 2^k corners of a
+k-cube and `f` projects it into the plane: the shadow is the 2k-gon, the 2-faces
+are the C(k,2) rhombs, the monotone surfaces are the rhombic tilings. Drop one
+generator and the rest is a 4-cube, which projects to an octagon — five of them,
+unit sides, centers at radius 1/2 and **72 degrees apart** (54, 126, 198, 270,
+342). This confirms "the decagon is five octagons turned" above, and explains why:
+they are sub-cubes, not an accident of the drawing.
 
-### What the literature says — Lutfalla 2021
+The decagon's cube has **31 corners, not 32** — `Sum v_j = 0` collapses `f(empty)`
+onto `f(all)` — 80 edges, and 21 corners strictly inside the outline. That count
+is why drawing the cube itself is unreadable: tried, and Jake's verdict was "the
+decagon is too busy". The superposed rhombs are the right object; the cube is the
+explanation for their structure, not a thing to draw.
 
-V. H. Lutfalla, *An Effective Construction for Cut-And-Project Rhombus Tilings
-with Global n-Fold Rotational Symmetry*, AUTOMATA 2021,
-[doi:10.4230/OASIcs.AUTOMATA.2021.9](https://doi.org/10.4230/OASIcs.AUTOMATA.2021.9);
-SageMath companion at [doi:10.5281/zenodo.4698387](https://doi.org/10.5281/zenodo.4698387).
-Jake has it locally as `multigrids.pdf`, deliberately not committed — the Pages
-workflow publishes the repo root, and republishing someone else's paper on the
-site is not ours to decide. It settles the ½ question and corrects two things
-recorded here.
+**Correction — the thin hexagon has two tilings, not one.** The note above that
+K122 and K113 are "not superposable" is right and stands: they are not congruent,
+144/108/108 against 144/144/72. But the stronger claim, that K113 "has only one
+vertex mapped to its center and thus has only one tiling combination by rhombs",
+does not survive measurement. Both hexagons have exactly **two** interior cube
+corners, and perturbing Gamma 400 ways reaches both in each case — thick 64/66,
+thin 74/90. Every 3-cube has two monotone surfaces and neither hexagon is an
+exception. The one interior point that is genuinely unreachable is the **decagon's
+center**, realised 0 times in 400, which is the `f(empty) = f(all)` collapse.
 
-**Notation.** Lutfalla writes `H(ξ, γ) = {z : Re(z·ξ̄) − γ ∈ ℤ}` — offset
-*subtracted*, and restricted to γ ∈ [0,1). Ours adds it, so their γ is our −γ mod
-1. Nothing that matters turns on it, but translations should watch the sign.
-`Gn(x)` means **all n offsets equal to x**.
+**Also landed.**
 
-**So the ½ is per-offset, not the sum.** `G5(½)` is five offsets of ½ each, which
-in our terms is Σγ = 5/2 — the largest pentagon. The measurement above was right
-and the sketch's "sum of ½" was not. This also generalises, which a sum cannot:
-`Gn(½)` means the same thing for every n.
+- **`hoverEdge` is wired.** It had sat in the feature list, the panel and the
+  correspondence table with nothing reading it. A gridline segment separates two
+  regions, so it is dual to the **edge joining the vertices those regions become** —
+  the same map as region → vertex and crossing → tile, one dimension down.
+  `segmentAt` finds the bracketing crossings and the regions either side;
+  `nearestLine` picks the line. Hit-test order is crossing, then segment, then
+  region: a point, a line, an area, or the line swallows every hover near a
+  gridline. Verified against a collected patch — for every dual edge comfortably
+  inside it, 1175 of 1175 were genuine tile edges.
+- **The scan ran only when the meter or loupe wanted it**, but the tile and edge
+  layers draw the 2k-gons from that same scan. On any page without `controls` the
+  resolutions were never drawn at all. `scanSmallRegions` now also runs when the
+  tiling needs it, and the factory test that asserted the old behavior was
+  measuring a viewport with tiles on — it now measures a grid-only one, which is
+  the saving it was always about.
 
-**Theorem 1.** `Pn(½)` has global **2n**-fold symmetry for any n ≥ 4; `Pn(1/n)`
-has global **n**-fold symmetry for odd n ≥ 5. So for genuine 7-fold symmetry the
-target is **P₇(1/7)**, not P₇(½) — that one gives 14-fold.
+### 5.7 Naming the resolutions, and what a Penrose setting should be (Jake, 2026-09-13)
 
-**Theorem 2, the regularity result.** For any n ≥ 3 and any non-zero rational
-r ∈ (0,1), `Gn(r)` is regular; and for **odd** n ≥ 3, *any tuple* of non-zero
-rational offsets is regular. Proved via Conway–Jones on trigonometric diophantine
-equations — vanishing sums of roots of unity.
+**The angle code — Jake's scheme, and it is complete.**
 
-Three consequences for us:
+A 2k-gon is named by the **supplements of its angle sequence**, in units of
+`180/n`: a digit `d` is a vertex whose interior angle is `180 - d*(180/n)`, which
+is the gap between two consecutive generator directions. Sorted, those digits are
 
-- **At n = 5 that is exactly our corollary**, arrived at independently: no γⱼ an
-  integer ⟹ regular. Lutfalla proves it for all odd n.
-- **Our statement is under-qualified.** The split `u + φv = 0 ⟹ u = v = 0` needs
-  u and v *rational*, so the corollary holds for **rational γ**. The code is safe
-  — γ is exact rationals over 2000n by construction — but the claim as written in
-  item 1 is stronger than the derivation supports and should say so.
-- **n = 7 is much easier than this plan assumed.** The note that the ℚ(ζ₇) split
-  would need a real rederivation is wrong in practice: for odd n the guard is just
-  "every offset a non-zero rational", which is trivially enforceable. What does
-  *not* generalise is the **exact** criterion — knowing *which* triples are
-  singular, which the meter reports. That stays n = 5 for now. And for **even** n
-  only the all-equal case is covered, not arbitrary tuples.
+> **a partition of n into k parts, always** — the gaps span a half turn, so they
+> must add to n.
 
-**Done — n is a parameter (2026-09-09).** `NUM_GRIDS` is no longer a module
-constant that everything reads: `Pentagrid` carries `n`, every family loop in the
-geometry and the view reads `pg.n`, and `createGammaSet({ n })` /
-`createPentagrid({ n })` take it. n = 5 is unchanged in every observable way —
-same denominator, same wording, same palette — and a test pins that, because
-method.html must not move under this.
+Which makes the available shapes exactly the **partitions of n into two or more
+parts**. Verified both ways: n = 5 gives six codes and six partitions, n = 7 gives
+fourteen and fourteen, identical sets.
 
-What the threading turned up:
+    14     thin rhomb          113    thin hexagon
+    23     thick rhomb         1112   octagon
+    122    thick hexagon       11111  decagon
 
-- **The denominator has to be a multiple of n.** γ is carried as exact rationals
-  so the guard can *decide*, and the distinguished uniform offset is 1/n — but
-  10000/7 is not an integer, so P₇(1/7) was not representable at all. The default
-  is now `2000n`, which is 10000 at n = 5 (unchanged) and 14000 at n = 7, and
-  keeps both 1/n and ½ exact.
-- **`thick` is an n = 5 name.** A grid of order n makes ⌊n/2⌋ rhombs, corner
-  angle 2πc/n, so a heptagrid has three. `Rhomb.cls` carries that separation;
-  `thick` stays as the pentagrid reading of it (cls 1 is the fat one at 72°,
-  but the most *acute* of the three at n = 7).
-- **"Regular" needed splitting from "proved regular".** An empty triple list is a
-  proof only where the criterion is exact. `provenRegular()` now picks the result
-  that applies — exact at n = 5, Thm 2.2 for odd n, Thm 2.1 (uniform only) for
-  even n — and the meter says *regularity unproved* rather than *regular, proved*
-  when nothing covers the case. `singular()` returns [] off the pentagrid and
-  documents that this means "no characterization exists", not "regular".
-- **Theorem 2.1 is `isUniform() && noIntegerGamma()`**, which the Σγ-note work had
-  already built for a different reason.
+The code is the real name — it needs no lookup table, it says the shape's angles
+outright, and **nothing about it changes when n does**, which is the whole point
+of the `zeta_n` nomenclature. Friendly names ride along where one has been earned.
+`describeResolution` now reads "K122 thick hexagon · 2 thick + 1 thin".
 
-Still n = 5 only, and not needed by a grow page: the Wieringa lift (ℝ⁷ has a
-5-dimensional perpendicular space, so there is no height function), the Penrose
-decorations, `perpBasis` (returns the first of n = 7's two perpendicular planes),
-and the exact `TRIPLES` criterion.
+**Jake had not noticed there are two hexagons**, and they are not congruent —
+"not superposable". K122 is 144/108/108 and holds 2 thick + 1 thin; K113 is
+144/144/72 and holds 1 thick + 2 thin. Worth saying that the thick/thin content
+follows from the code, so the code alone distinguishes them.
 
-### Caps, the index, and the star/sun/decagon question (2026-09-09)
+**And the decagon is five octagons turned.** Dropping any one of the five
+generators from K11111 leaves K1112, and the five choices are rotations of each
+other — a superposition in the same sense the rhombs are.
 
-Prompted by Levochik's `Penrose_LI_classes.svg` on Wikipedia's *Aperiodic tiling*
-(CC BY-SA 3.0, so we should redraw rather than embed). Eighteen patches, 6 across
-and 3 down — the SVG is internally 3x6 with `matrix(0,1,-1,0,8833.5,-0.5)`
-rotating it. Rendering note: `qlmanage` forces a square and silently gives a 3x3
-crop; ImageMagick has no SVG delegate here; headless Chrome is correct.
+**Singularities stay on, and want hunting.**
 
-**Measured: all eighteen are origin-centered.** 72 and 144 degree self-agreement
-0.70-0.85 against a 0.21-0.28 control at 30/50/100 degrees. Five-fold symmetry
-about the origin forces every offset equal — rotating by 72 sends v_j to v_{j+1},
-so family j's lines land on family j+1's only if gamma_{j+1} = gamma_j mod 1. So
-the figure is the *uniform* family Gn(c), one parameter.
+Jake: *"Singularities happen, this one just happens to be in your face because our
+initialization happens to be quote illegal unquote."* So the layer stays on by
+default and the rest follows from assuming they occur.
 
-**Sum arithmetic.** With every offset equal to c, Sigma-gamma = 5c. If c runs over
-[0,1) then Sigma-gamma runs over [0,5) and the LI-class circle is traversed FIVE
-times. One lap — the complete gamut — is c in [0, 1/5). The eighteen are a finite
-sample of a continuum, and *origin-centered* is a second restriction: for a fixed
-Sigma-gamma you can spread the dials and get a different tiling in the SAME LI
-class with no symmetry at all. They are the symmetric representatives.
+The next thing was **finding** them — now the presets popup on the reticulum,
+decided by `geometry/hunt.ts` (§5.5). The rules:
 
-**Jake was right about mod 1.** Sigma-gamma = 2.5 and 0.5 are the same LI class.
-Confirmed: flowers at both, none at integers or generic values.
+    3-fold   gamma_L in Z  AND  gamma_P + gamma_Q in Z   — no other integral phase
+    4-fold   four integral phases                        — rare, and real
+    5-fold   all five                                    — unique, Gamma = 0
 
-**Cap = a minimum of the vertex-type count.** Sweeping Sigma-gamma at n = 5, in a
-+-12 window:
+**What a Penrose setting is, and what it does on a 2k-gon.** Built as stated,
+and pinned by `containers.test.mjs` (§5.6). The layers behave differently over a
+singularity, deliberately:
 
-    Sum  0.000  types  7   <== MIN      Sum  1.000  types  7   <== MIN
-    Sum  0.375  types 12               Sum  2.000  types  7   <== MIN
-    Sum  0.500  types 11               Sum  2.500  types 10
+- **Vertices, then edges** — these are wanted. They give a singularity structure
+  and make it legible rather than decorating it.
+- **Tiles, especially opaque ones** — NOT over a 2k-gon. An opaque fill asserts a
+  layout that the superposition does not have, which is the same objection that
+  stopped the rhomb tiling being drawn.
+- **Arcs and the other decorations** — curtail them on a 2k-gon unless a sensible
+  reading is found. An arc joins across a shared edge by construction, and inside
+  a superposition there is no shared edge to join across.
 
-A sharp dip to 7 (classically 8; rare types need a bigger window) exactly at
-integer Sigma-gamma, 10-12 everywhere else. Penrose is the minimum-complexity
-member of the family, which is exactly the cap idea.
+The longer list that went with it — the two-color composites of the bands, the
+five-color tiling at full width, isoglosses, index shading, transparency — is the
+Tile style / Tile shade / Tile edges rows of the panel.
 
-**No harmonics at 1/3 or 2/3.** The only distinguished points in [0,1) are
-Sigma-gamma = 0, the type-count cap, and 1/2, where the ten-thin flower appears.
-The flower band is Sigma-gamma in [0.34, 0.64], a symmetric staircase peaking at
-1/2 (density 0, 5, 11, 21, 11, 5, 0) — the symmetry about 1/2 is the mirror
-identification Sigma-gamma <-> 1 - Sigma-gamma. Nothing happens at 1/3.
+### 5.8 One deliberate singularity, and the space a resolution takes (Jake, 2026-09-12)
 
-**The index runs 4 values at integer Sigma-gamma and 5 otherwise.** The sharpest
-Penrose test in the whole family:
+**Only one deliberate singularity, and that is provable.**
 
-    c     Sum   types  flowers  index    levels
-    0.00  0.00    7      0      1..4       4    integer
-    0.05  0.25   11      0      1..5       5
-    0.10  0.50   12      9      1..5       5
-    0.20  1.00    8      0      2..5       4    integer
-    0.40  2.00    8      0      3..6       4    integer
-    0.50  2.50   13     10      3..7       5
+Jake's intuition: with exact arithmetic there should be essentially **one**
+singularity available on purpose. It falls straight out of the exact criterion.
 
-Reason: Sum_j v_j = 0, so Sum_j (x . v_j) = 0 and the index Sum K is a sum of five
-ceilings of numbers totalling Sigma-gamma. An integer total collapses one case.
-That is de Bruijn's index result, arrived at by measurement here.
+A triple is singular iff `gamma_L` is an integer AND `gamma_P + gamma_Q` is an
+integer. On the **uniform** family every offset is `c`, so the two conditions
+become `c` in Z and `2c` in Z — and the first implies the second. Hence:
 
-**Correction — the Wieringa roof is NOT Penrose-only.** Checked at Sigma-gamma =
-0, 0.5, 1, 1.23, 2.5: every lifted edge is exactly sqrt(5)/2 (max deviation 2e-15)
-and every index step is +-1. The roof stands for the generalised tilings too; it
-just sits on FIVE levels instead of four. The roof's restriction is n = 5, which
-is a different thing from Sigma-gamma integer, and it is easy to slide between
-them.
+> Within the symmetric family, `Gamma` is singular **iff c = 0 (mod 1)**, and then
+> all ten triples go at once.
 
-**VOCABULARY CORRECTION (Jake, 2026-09-09).** Everything in the next paragraph
-was written in the wrong language and its conclusion is misframed. The names
-star / sun / deca are **P1 mother-patch** names, not P3 vertex figures:
+One configuration, the five-fold one, and nothing else. Everything else singular
+requires leaving the symmetric family. That is why the reticulum's symmetric mode
+can be swept without ever tripping over a singularity except at the origin.
 
-| patch | is the | contains |
-|---|---|---|
-| `Pe5` | **sun** | a *star rhomb group* (5 thick) at its center |
-| `St5` | **star** | five *diamond rhomb groups* (1 thick + 2 thin each) |
-| `deca` = `queen` | the mirror-symmetric patch | a queen is one `Pe3` with two `Pe1` |
+**Reserve the space for the resolution — verified.**
 
-The patch names are as intended: `Pe5` is the sun even though a *star rhomb
-group* sits at its center, and `St5` is the star even though what it contains
-are diamonds. The rhomb-group names and the patch names are different
-vocabularies and must not be crossed. See [[penrose-mosaic-rhomb-groups]] and
-[[wieringa-cluster-definitions]], and `expandSun` / `expandStarComposite` in
-`wieringa-roof/src/geometry.ts`.
+k concurrent lines dualise to a 2k-gon, which decomposes into C(k,2) rhombs. For
+n = 5, enumerated over every subset:
 
-So the "5 fat rhombs at the origin" measured below is the **star rhomb group**,
-which is the center of a `Pe5` — meaning every uniform c gives a **SUN**, and the
-measurement never had anything to say about the star. The conclusion "there is no
-star" is wrong; what is true is that the sun is the only thing the uniform family
-puts at the origin *as a vertex*.
+    3 lines -> hexagon,   3 rhombs    2 thick + 1 thin   x5   {012}{014}{034}{123}{234}
+                                      1 thick + 2 thin   x5   {013}{023}{024}{124}{134}
+    4 lines -> octagon,   6 rhombs    3 thick + 3 thin   x5
+    5 lines -> decagon,  10 rhombs    5 thick + 5 thin   x1   {01234}
 
-**What the star actually is.** `expandStar` emits nothing only at its gen-1
-bottom-out — "that is not a failure, it is what a gap *is*". From **gen 2 on it
-does emit**: it places a central `St5(gen-1)` plus, in five slots, a `Pe1` and an
-`St3`, and those five `Pe1` are exactly the five **diamond rhomb groups**. The
-source gives both composites outright:
+Jake's counts confirmed: the hexagon really does have exactly **two** combos, and
+the octagon is "a boat and two thins" — a boat being 3 thick + 1 thin, so
+3 + 1 + 2 = the 3 thick + 3 thin measured. The decagon's 5 + 5 is the
+configuration already measured at `c = 0`.
 
-    Sun  = one Pe5 ringed by five Pe3   - a blue star inside five yellow boats
-    Star = five Pe1 ringed by five Pe3  - five orange diamonds inside five boats,
-                                          around a central star-shaped gap
+The ten hexagon subsets are the same ten triples as `TRIPLES` in
+`geometry/regularity.ts`, split five and five by combo — a second reading of the
+same table.
 
-So the star's center is a star-shaped *gap* ringed by diamonds, not a vertex
-figure — which is why probing P3 vertex configurations for it found nothing. The
-angle argument below is true but answers a question nobody asked.
+**Lutfalla states the rule and draws it** (`multigrids.pdf`, gitignored; DOI
+10.4230/OASIcs.AUTOMATA.2021.9):
 
-**Restated open question.** Which gamma centers the origin on an `St5` gap rather
-than a `Pe5`? That is the Sun/Star pair — the only two Penrose tilings with
-global five-fold symmetry, distinguished exactly by choice of center
-([[penrose-mosaic-rhomb-groups]], TODO 4a). Answering it needs cluster
-recognition, which `pentagrid` does not have and `penrose-mosaic` /
-`wieringa-roof` do. Until then this stays open, and the sun/deca/flower results
-below stand only as vertex measurements.
+> "In this dualization process each cell or mesh of the multigrid is sent to a
+> vertex of the dual tiling [...] and each intersection point of the multigrid is
+> sent to a tile of the dual tiling. **The dual of an intersection point where k
+> lines intersect is a 2k-gon with unit sides** as shown in Figure 3 for the case
+> of 5-fold multigrids."
 
-**The star / sun / decagon question — MISFRAMED, see the correction above.**
-For the uniform family, what sits at the origin-centered vertex:
+Figure 3 draws the cases left to right: two lines to a rhomb, then three lines to
+a **hexagon**, then four lines to an **octagon**. The decagon is not drawn but is
+the same rule at k = 5. His definition of singular is ours: "at least one
+intersection point where at least 3 lines intersect".
 
-    c = 0        SINGULAR, all ten triples   DECAGON, 10 tiles (5 fat + 5 thin)
-    c = 1/5,2/5,3/5,4/5 (Penrose)            SUN, 5 fat
-    c = 1/10, 3/10, and every other c        SUN, 5 fat
-    c = 1/2                                  FLOWER, 10 thin
+**And his Proposition 3 is the determinant condition in `regularity.ts`.** For
+odd n, with `r_j` in `Z - gamma_j`, a grid is regular when
 
-Approaching c = 0 from both sides (+-0.001, +-0.01, +-0.1) gives a SUN either way.
-So the decagon's two resolutions are not sun-and-star: within the uniform family
-the origin is *always* inside a small pentagon whose five corners are Delta = 1
-crossings, and Delta = 1 is the fat rhomb. **The star is not an origin-centered cap
-at all.** What looks like a star at the center of r3c4 is the ring of dark thin
-rhombs drawn *around* a sun vertex — the ink makes a five-pointed star, the vertex
-is five fat rhombs. Verified by cropping the center of that patch.
+    r_0 sin(2(p-q)pi/n) + r_p sin(2q pi/n) - r_q sin(2p pi/n) != 0
 
-So "0 doesn't make a star" because 0 makes a *decagon*, and every regular
-neighbor of it makes a sun. The angle arithmetic — five corners from {36, 144} cannot sum to 360, so no
-five-thin vertex exists — is true but answers the wrong question, since `St5`
-emits no rhombs and was never going to appear as a vertex figure at all.
+for every triple. That is exactly the expansion this repo's `regularity.ts`
+header derives from the 3x3 determinant, relabeled to families 0, q, p — so the
+exact n = 5 criterion here is **Proposition 3 specialized to five and then split
+over Q(phi)**, which is the step Lutfalla does not take and says does not
+generalise. Good to know the derivation agrees with the published one rather than
+merely not contradicting it.
 
-**n = 7 has no Penrose-like cap.** At exact integers and halves:
+**Built** as `geometry/resolve.ts`: a concurrency is drawn as the 2k-gon it
+dualizes to, the space the rhombs would occupy if the lines were pulled apart,
+and `describeResolution` names it from the combo — "K122 thick hexagon · 2 thick
++ 1 thin" rather than "3 lines".
 
-    Sum   0.0  0.5  1.0  1.5  2.0  2.5  3.0  3.5
-    types  23   24   21   25   20   23   25   20
-    levels  6    6    6    5    6    6    6    5
+### 5.9 The reticulum: what changed in the doing (2026-09-11)
 
-No dip at the integers — the type count wanders in 20-25 with minima at 2.0 and
-3.5 that are not obviously structural. The index span is 6 (= n-1) at most sums
-and 5 at 1.5 and 3.5, which does *not* follow the n = 5 pattern of "integer gives
-n-1". Measured, not explained. So the thing that makes Penrose special at five
-appears to have no analogue at seven, which is worth saying on grow7.html.
+The plan was five axes on a decagon, each family's phase sitting on its own
+grid direction so that mod 1 is structural rather than enforced; wheel primary,
+hundredths a notch and thousandths with shift; the same `{element, sync}` handle
+as the dial bank so a page swaps one for the other. `src/ui/reticulum.ts`,
+`mountReticulum` in `view/controls.ts`; SVG, pure view, no pentagrid mathematics
+inside it.
 
-**Ideas, not yet built.**
+Two revisions from Jake once it was running:
 
-- A *tweaking mode* for the dials: snap or nudge Sigma-gamma to the distinguished
-  values (integers for the cap, n/2 for the flower/10-fold) instead of hunting for
-  them at 0.05 resolution. Jake's phrase: "it could tweak to a sun".
-- Our own version of the LI-class grid: a row of patches across Sigma-gamma in
-  [0,1), same even split, so the flowers appear and disappear as you sweep. All
-  the geometry exists; it is a layout job.
-- Read Figure 3 of `multigrids.pdf` — "Some possible intersection points in G5(γ)
-  and their dual tiles" — against the decagon case above.
+- **One line per family, not a train of hatch marks.** The reticulum draws the
+  single line of family j nearest the origin, as a chord perpendicular to its
+  axis at distance `frac(gamma_j) * SPACING`. Mod 1 survives the change — a whole
+  turn reproduces the chord exactly, and a test pins that at gamma = 0, 1, -2 and
+  7.25 — but the wrap is now a visible return rather than an invisible slide. A
+  clock hand passing twelve, which is the metaphor the labels ask for anyway.
+- **Labels round the rim, on their own axes**, colored, with the dependent one
+  grayed. For an untwisted star they land at 0, 72, 144, 216, 288 degrees;
+  `setSymmetry` turns them with their axes, since they are placed from
+  `directions` rather than from fixed angles.
 
-**Two measurement gotchas that cost time here.**
+**Sigma joins the lock group — a model change.** Clicking a colored label makes
+that offset the dependent one. Clicking **Sigma at the hub** makes the *total*
+the dependent member: nothing holds it, and all n offsets are free at once.
+Exactly one of the n+1 is gray, always.
 
-- Vertex keys built with `toFixed` split the origin across buckets, because
-  `(-1e-16).toFixed(6)` is `"-0.000000"` and `(1e-16).toFixed(6)` is
-  `"0.000000"`. Key on rounded integers with an explicit `r === 0 ? 0 : r`.
-- Corner 0 of a rhomb spans v_j to v_k, so its angle is 72 for Delta = 1 and
-  **144** for Delta = 2 — not 36. Getting it backwards makes every vertex fail
-  the 360-degree check and collapses the type count to one or two.
+That needed `GammaSet` to accept `setLocked(-1)`: `relock()` now recomputes
+`sumQ` from the offsets instead of writing a dependent one, and the guard skips
+its `q[locked]` check. `setSum` on an unconstrained set spreads evenly, since
+there is no index left to absorb a change. **The dial bank gets the same
+behavior** — its Sigma readout is clickable and grays the same way — because the
+change is in the model, not in either view.
 
-### The gamma cluster wants a revamp (Jake, 2026-09-09) — parked
+**Since then.** It floats (`ui/floating.ts`: draggable, resizable, position and
+width remembered), carries the presets popup whose choice names the title bar,
+and is on every page with the slider bank folded beneath it. Presets call
+`setLocked(-1)` before writing so a locked index cannot fight the values. Both
+controls drive one `GammaSet`; nothing should assume there is exactly one set
+per page.
 
-The dial bank is the wrong instrument and Jake has said so. `method.html` is a
-mess: `createPentagrid` is a proper container and the controls beside it are an
-instrument cluster, but the gamma bank grew by accretion — five vertical dials, a
-total slider bolted on, a note underneath, a lock, per-family enable, single-line
-and isolation, all in one strip.
-
-What `sunstar.html` demonstrates as an alternative, and what a revamp should
-probably take from it:
-
-- **One line at a time.** Roll the wheel over a line to slide it along its own
-  direction. No dial, no drag target, no fixed range.
-- **Shift for fine.** 0.01 a notch, 0.001 with shift.
-- **Everything modulo 1.** Only the fractional part moves the grid, so that is
-  what the readout should show.
-- **One free index, marked as such.** The locked offset absorbs whatever the
-  others do; calling it "free" and dimming it says more than "locked" did.
-- **Named caps as buttons**, not values to hunt for at slider resolution — the
-  "tweaking mode" idea. `sunstar.html` has five.
-
-Not started, and deliberately not folded into `method.html` yet: the new page is
-the place to find out whether the interaction is actually better before anything
-that works is disturbed.
-
-### Inflation — nothing implemented, and the open question (2026-09-10)
+### 5.10 Inflation — nothing implemented, and the open question (2026-09-10)
 
 Reference images, both in `jake/` (untracked):
 
@@ -998,7 +709,7 @@ those four values. Untested — there is no inflation to test it with.
 
 **Settled: big rhombs and little rhombs are TWO inflations apart**, i.e. one full
 P1 generation, phi^2 — not the intermediate phi level. That closes the question
-left open in the nomenclature section below, and kills the guess made there that
+left open in §5.14, and kills the guess made there that
 `penrose-mosaic`'s small/large rhomb pair might already be the missing half step.
 It is not; it is a whole P1 generation. [[penrose-mosaic-rhomb-groups]] updated.
 
@@ -1061,8 +772,8 @@ seeded on Pe5, generation by generation:
     ratio    -  5.000  5.600  5.964  6.257    6.473    6.618      -> phi^4 = 6.854
 
 The shortfall from phi^4 falls by roughly 1/phi each generation, which is the
-boundary of a seeded patch. **This settles the nomenclature section's caveat that
-nothing there had been measured in this repo: it has been now.** One P1
+boundary of a seeded patch. **This settles §5.14's caveat that nothing there
+had been measured in this repo: it has been now.** One P1
 generation is linear phi^2, and the count/area factor is phi^4.
 
 **The mosaic is the heart; real was the expansion (Jake, 2026-09-10).** Worth
@@ -1075,23 +786,6 @@ wheels exist for the *discrete* side, where the arithmetic is integer and exact.
 So "the wheels are an artifact of the discrete tiling" is exact, not loose, and
 the intermediate-level work below belongs in the discrete world by default rather
 than as a port to it.
-
-**Corollary: the Fibonacci extrapolation was applied across a skip.** The origin
-story ([[penrose-mosaic-wheels]]) is that the discrete wheels were
-reverse-engineered by counting squares on a mosaic printout, and once two
-generations were in hand a Fibonacci recurrence `k(n+2) = k(n) + k(n+1)`
-extrapolated the rest. But that recurrence has ratio **phi**, while a wheel
-generation steps by **phi^2** — so it was being applied to every *other* term.
-That is Jake's "so far off".
-
-Two ways to fix it, both checked:
-
-- **Stay on the phi^2 ladder** and use the right recurrence,
-  `a(n+2) = 3a(n+1) - a(n)`, since `phi^4 = 3phi^2 - 1`. On the skipped Fibonacci
-  numbers F(2n) = 0, 1, 3, 8, 21, 55, 144 it reproduces every term exactly, where
-  plain Fibonacci gives 1 for the term that should be 3.
-- **Or generate the intermediate** (the two-term sum above) and then plain
-  Fibonacci is correct, because the ladder is no longer skipping.
 
 **The wheels skip a level, and the missing one is a subtraction (Jake,
 2026-09-10 — verified).** Jake's diagnosis of why the Fibonacci-like series in
@@ -1121,26 +815,17 @@ level, and in wheel terms it has a two-line construction.
 
 **Not unfound — already explored (Jake).** "There's a whole set of discrete tiles
 in between, ready to generate." `penrose-mosaic`'s wheels use the same three-term
-successor, written there as `s0 = p9 + p0 + p1`, and carry an **exact integer
-deflation**: `predecessorPoint` / `interpolateWheel`, the same function twice, with
-`interpolateWheel(successorPoint(v)) === v` verified over 20,000 random triples
-with no rounding slack (`wheels.js`, `docs/wheels.md`). Everything there is
-integer arithmetic on the discrete wheels.
+successor and carry an exact integer deflation (`predecessorPoint` /
+`interpolateWheel`, round-trip verified over 20,000 triples). So the intermediate
+is a two-term sum instead of a three-term one, exact in integers. **Inference, not
+verified**: nobody has run the two-term sum on the discrete wheels and looked at
+what comes out, or whether it lands as a clean set of the six P1 shapes.
 
-So the intermediate is not a research problem, it is a two-term sum instead of a
-three-term one, and on the discrete wheels it should be exact in integers the way
-the existing step is. **Inference, not yet verified**: I checked `2cos36 = phi` in
-the real geometry and read the discrete round-trip claim; nobody has actually run
-the two-term sum on the discrete wheels and looked at what comes out.
-
-Whether the resulting level lands as a clean set of the six P1 shapes is the
-separate question, and it is what the round trip above would answer.
-
-Two notes. `interpolateWheel` already builds wheel index 0 from the seeds, but
-that is a full generation *backwards*, not a half step — a different mechanism.
-And Jake's framing: the wheels are an artifact of the discrete tiling, so this
-connects to **E2**, the discrete pentagrid exploration.
-
+**The Fibonacci extrapolation was applied across a skip.** The discrete wheels
+were extrapolated with `k(n+2) = k(n) + k(n+1)`, ratio φ, but a wheel generation
+steps by φ² — every other term. Either stay on the φ² ladder with
+`a(n+2) = 3a(n+1) − a(n)` (since φ⁴ = 3φ² − 1; reproduces F(2n) exactly), or
+generate the intermediate and plain Fibonacci is right again.
 **The St* family are second-class citizens (Jake, 2026-09-10).** Not a figure of
 speech — it is structural, and it is why the round trip below is stuck:
 
@@ -1183,8 +868,8 @@ phi, the chain
     P1(n) -> rhombs -> one Robinson step -> rhombs -> P1
 
 lands *between* P1 generations. That is the intermediate phi level, expressed
-back in the six P1 shapes — exactly the thing the nomenclature section below
-calls unfound. It turns an open question into a construction.
+back in the six P1 shapes — exactly the thing §5.14
+called unfound. It turns an open question into a construction.
 
 **State of the two directions.**
 
@@ -1215,7 +900,308 @@ recognition. Missing is the map itself, the Robinson half-step, and any way to
 iterate. TODO, and it is the prerequisite for the deflation-tower idea above —
 that proposal drives `acceptance.ts` from a tower nobody can currently build.
 
-### Nomenclature: which inflation, phi or phi squared (Jake, 2026-09-09)
+### 5.11 Caps, the index, and sun versus star (2026-09-09)
+
+Prompted by Levochik's `Penrose_LI_classes.svg` on Wikipedia's *Aperiodic tiling*
+(CC BY-SA 3.0, so we should redraw rather than embed). Eighteen patches, 6 across
+and 3 down — the SVG is internally 3x6 with `matrix(0,1,-1,0,8833.5,-0.5)`
+rotating it. Rendering note: `qlmanage` forces a square and silently gives a 3x3
+crop; ImageMagick has no SVG delegate here; headless Chrome is correct.
+
+**Measured: all eighteen are origin-centered.** 72 and 144 degree self-agreement
+0.70-0.85 against a 0.21-0.28 control at 30/50/100 degrees. Five-fold symmetry
+about the origin forces every offset equal — rotating by 72 sends v_j to v_{j+1},
+so family j's lines land on family j+1's only if gamma_{j+1} = gamma_j mod 1. So
+the figure is the *uniform* family Gn(c), one parameter.
+
+**Sum arithmetic.** With every offset equal to c, Sigma-gamma = 5c. If c runs over
+[0,1) then Sigma-gamma runs over [0,5) and the LI-class circle is traversed FIVE
+times. One lap — the complete gamut — is c in [0, 1/5). The eighteen are a finite
+sample of a continuum, and *origin-centered* is a second restriction: for a fixed
+Sigma-gamma you can spread the dials and get a different tiling in the SAME LI
+class with no symmetry at all. They are the symmetric representatives.
+
+**Jake was right about mod 1.** Sigma-gamma = 2.5 and 0.5 are the same LI class.
+Confirmed: flowers at both, none at integers or generic values.
+
+**Cap = a minimum of the vertex-type count.** Sweeping Sigma-gamma at n = 5, in a
++-12 window:
+
+    Sum  0.000  types  7   <== MIN      Sum  1.000  types  7   <== MIN
+    Sum  0.375  types 12               Sum  2.000  types  7   <== MIN
+    Sum  0.500  types 11               Sum  2.500  types 10
+
+A sharp dip to 7 (classically 8; rare types need a bigger window) exactly at
+integer Sigma-gamma, 10-12 everywhere else. Penrose is the minimum-complexity
+member of the family, which is exactly the cap idea.
+
+**No harmonics at 1/3 or 2/3.** The only distinguished points in [0,1) are
+Sigma-gamma = 0, the type-count cap, and 1/2, where the ten-thin flower appears.
+The flower band is Sigma-gamma in [0.34, 0.64], a symmetric staircase peaking at
+1/2 (density 0, 5, 11, 21, 11, 5, 0) — the symmetry about 1/2 is the mirror
+identification Sigma-gamma <-> 1 - Sigma-gamma. Nothing happens at 1/3.
+
+**The index runs 4 values at integer Sigma-gamma and 5 otherwise.** The sharpest
+Penrose test in the whole family:
+
+    c     Sum   types  flowers  index    levels
+    0.00  0.00    7      0      1..4       4    integer
+    0.05  0.25   11      0      1..5       5
+    0.10  0.50   12      9      1..5       5
+    0.20  1.00    8      0      2..5       4    integer
+    0.40  2.00    8      0      3..6       4    integer
+    0.50  2.50   13     10      3..7       5
+
+Reason: Sum_j v_j = 0, so Sum_j (x . v_j) = 0 and the index Sum K is a sum of five
+ceilings of numbers totalling Sigma-gamma. An integer total collapses one case.
+That is de Bruijn's index result, arrived at by measurement here.
+
+**Correction — the Wieringa roof is NOT Penrose-only.** Checked at Sigma-gamma =
+0, 0.5, 1, 1.23, 2.5: every lifted edge is exactly sqrt(5)/2 (max deviation 2e-15)
+and every index step is +-1. The roof stands for the generalised tilings too; it
+just sits on FIVE levels instead of four. The roof's restriction is n = 5, which
+is a different thing from Sigma-gamma integer, and it is easy to slide between
+them.
+
+**The star/sun question was misframed here at first** — measured as P3 vertex
+figures, every uniform c put five fat rhombs at the origin and the conclusion
+"there is no star" followed. Wrong vocabulary: sun and star are P1 patch names
+(§4.3), a star's center is an `St5` *gap*, and vertex probing could never find
+it. The cluster recognizer settles it below.
+
+**n = 7 has no Penrose-like cap.** At exact integers and halves:
+
+    Sum   0.0  0.5  1.0  1.5  2.0  2.5  3.0  3.5
+    types  23   24   21   25   20   23   25   20
+    levels  6    6    6    5    6    6    6    5
+
+No dip at the integers — the type count wanders in 20-25 with minima at 2.0 and
+3.5 that are not obviously structural. The index span is 6 (= n-1) at most sums
+and 5 at 1.5 and 3.5, which does *not* follow the n = 5 pattern of "integer gives
+n-1". Measured, not explained. So the thing that makes Penrose special at five
+appears to have no analogue at seven, which is worth saying on grow7.html.
+
+**Ideas, not yet built.**
+
+- ~~A *tweaking mode* for the dials~~ — the presets popup is this.
+- Our own version of the LI-class grid: a row of patches across Sigma-gamma in
+  [0,1), same even split, so the flowers appear and disappear as you sweep. All
+  the geometry exists; it is a layout job.
+- ~~Read Figure 3 of `multigrids.pdf`~~ — done, §5.8.
+
+Two measurement gotchas from here are now standing rules (§4.3).
+
+**The cluster recognizer (`geometry/clusters.ts`), and it settles Sun/Star.**
+
+The rule is local and exact. Lift every vertex to its Wieringa index; a rhomb's
+corners carry m, m+1, m+2, m+1, and Penrose uses exactly four levels, so a rhomb
+spans either the bottom three or the top three and touches **exactly one**
+extreme. Grouping rhombs by that vertex partitions the patch with nothing over:
+
+    5 thick + 0 thin   star rhomb group     center of a Pe5  (the SUN)
+    3 thick + 1 thin   boat rhomb group     center of a Pe3
+    1 thick + 2 thin   diamond rhomb group  center of a Pe1
+
+Measured on 1958 rhombs: no rhomb without an extreme, none with two, and 100% of
+groups away from the patch edge are one of those three at every radius tried.
+Off the integers the index takes five levels, a rhomb can span the middle three
+and touch no extreme, and 1451 of 1952 rhombs go unassigned — so `defined` is
+false and the reason says "not Penrose". That is correct, not a gap: P1
+pentagons are a Penrose structure.
+
+**Sun and Star, answered.** All four origin-centered Penrose caps show FIVE FAT
+rhombs at the origin, so the vertex configuration cannot tell them apart — the
+earlier reading above called them all suns on exactly that evidence and was
+**wrong**. The index decides. The origin's K-tuple is (1,1,1,1,1) for a
+uniform offset in (0,1), so its index is always 5, while the patch range is
+[Sigma-gamma + 1, Sigma-gamma + 4]. Five is an extreme, hence a Pe5 center, only
+at the ends:
+
+    Sum-gamma = 1  origin index 5, range 2..5   MAX -> Pe5 -> SUN
+    Sum-gamma = 2  origin index 5, range 3..6   middle -> no cluster -> STAR
+    Sum-gamma = 3  origin index 5, range 4..7   middle -> no cluster -> STAR
+    Sum-gamma = 4  origin index 5, range 5..8   MIN -> Pe5 -> SUN
+
+So **Sun is the uniform offset 1/5 or 4/5, Star is 2/5 or 3/5**, and the pairing
+1<->4, 2<->3 is the Sigma-gamma <-> -Sigma-gamma mirror again. A star's center
+belongs to no cluster because it is an `St5` gap, which is why vertex probing
+could never find it and why this needed the recognizer.
+
+Lesson worth keeping: a five-fat-rhomb vertex is the *star rhomb group* wherever
+it occurs, but it is a **Pe5 center** only when its index is extreme. Middle-index
+sun-shaped vertices exist (7 at index 3 and 5 at index 4 in one patch) and are not
+cluster centers.
+
+**What is still missing.** Two dimensions of gamma never shrink: sliding along
+E-parallel translates the pentagrid and leaves the tiling alone, so what converges
+is the E-perp position plus Sigma-gamma, and the tower pins gamma only up to that
+slide. And `pentagrid` has no cluster recognition — it knows rhombs, not `Pe5` /
+`St5` / `deca` — so the seeding has to come from `penrose-mosaic` or
+`wieringa-roof`, or a recognizer has to be written here. That is the real cost of
+the idea, and it is worth scoping before starting.
+
+**Also worth having.** Lutfalla notes de Bruijn's exact characterisation of
+regular pentagrids covers only the Penrose case, Σγ ∈ ℤ. Ours was verified against
+brute force at sums of 0.5, 0.9 and 2.5 as well, so it appears to cover the
+generalised case too — for rational γ. Worth stating carefully rather than
+claiming priority.
+
+### 5.12 What the literature says — Lutfalla 2021, and n as a parameter (2026-09-09)
+
+V. H. Lutfalla, *An Effective Construction for Cut-And-Project Rhombus Tilings
+with Global n-Fold Rotational Symmetry*, AUTOMATA 2021,
+[doi:10.4230/OASIcs.AUTOMATA.2021.9](https://doi.org/10.4230/OASIcs.AUTOMATA.2021.9);
+SageMath companion at [doi:10.5281/zenodo.4698387](https://doi.org/10.5281/zenodo.4698387).
+Jake has it locally as `multigrids.pdf`, deliberately not committed — the Pages
+workflow publishes the repo root, and republishing someone else's paper on the
+site is not ours to decide. It settled the ½ question and corrected two things
+recorded here.
+
+**Notation.** Lutfalla writes `H(ξ, γ) = {z : Re(z·ξ̄) − γ ∈ ℤ}` — offset
+*subtracted*, and restricted to γ ∈ [0,1). Ours adds it, so their γ is our −γ mod
+1. Nothing that matters turns on it, but translations should watch the sign.
+`Gn(x)` means **all n offsets equal to x**.
+
+**So the ½ is per-offset, not the sum.** `G5(½)` is five offsets of ½ each, which
+in our terms is Σγ = 5/2 — the largest pentagon (§5.13). This also generalises, which a sum cannot:
+`Gn(½)` means the same thing for every n.
+
+**Theorem 1.** `Pn(½)` has global **2n**-fold symmetry for any n ≥ 4; `Pn(1/n)`
+has global **n**-fold symmetry for odd n ≥ 5. So for genuine 7-fold symmetry the
+target is **P₇(1/7)**, not P₇(½) — that one gives 14-fold.
+
+**Theorem 2, the regularity result.** For any n ≥ 3 and any non-zero rational
+r ∈ (0,1), `Gn(r)` is regular; and for **odd** n ≥ 3, *any tuple* of non-zero
+rational offsets is regular. Proved via Conway–Jones on trigonometric diophantine
+equations — vanishing sums of roots of unity.
+
+Three consequences for us:
+
+- **At n = 5 that is exactly our corollary**, arrived at independently: no γⱼ an
+  integer ⟹ regular. Lutfalla proves it for all odd n.
+- **Our statement is under-qualified.** The split `u + φv = 0 ⟹ u = v = 0` needs
+  u and v *rational*, so the corollary holds for **rational γ**. The code is safe
+  — γ is exact rationals over 2000n by construction — and §5.20 now says
+  so.
+- **n = 7 is much easier than this plan assumed.** An earlier note that the ℚ(ζ₇) split
+  would need a real rederivation was wrong in practice: for odd n the guard is just
+  "every offset a non-zero rational", which is trivially enforceable. What does
+  *not* generalise is the **exact** criterion — knowing *which* triples are
+  singular, which the meter reports. That stays n = 5 for now. And for **even** n
+  only the all-equal case is covered, not arbitrary tuples.
+
+**Done — n is a parameter (2026-09-09).** `NUM_GRIDS` is no longer a module
+constant that everything reads: `Pentagrid` carries `n`, every family loop in the
+geometry and the view reads `pg.n`, and `createGammaSet({ n })` /
+`createPentagrid({ n })` take it. n = 5 is unchanged in every observable way —
+same denominator, same wording, same palette — and a test pins that, because
+method.html must not move under this.
+
+What the threading turned up:
+
+- **The denominator has to be a multiple of n.** γ is carried as exact rationals
+  so the guard can *decide*, and the distinguished uniform offset is 1/n — but
+  10000/7 is not an integer, so P₇(1/7) was not representable at all. The default
+  is now `2000n`, which is 10000 at n = 5 (unchanged) and 14000 at n = 7, and
+  keeps both 1/n and ½ exact.
+- **`thick` is an n = 5 name.** A grid of order n makes ⌊n/2⌋ rhombs, corner
+  angle 2πc/n, so a heptagrid has three. `Rhomb.cls` carries that separation;
+  `thick` stays as the pentagrid reading of it (cls 1 is the fat one at 72°,
+  but the most *acute* of the three at n = 7).
+- **"Regular" needed splitting from "proved regular".** An empty triple list is a
+  proof only where the criterion is exact. `provenRegular()` now picks the result
+  that applies — exact at n = 5, Thm 2.2 for odd n, Thm 2.1 (uniform only) for
+  even n — and the meter says *regularity unproved* rather than *regular, proved*
+  when nothing covers the case. `singular()` returns [] off the pentagrid and
+  documents that this means "no characterization exists", not "regular".
+- **Theorem 2.1 is `isUniform() && noIntegerGamma()`**, which the Σγ-note work had
+  already built for a different reason.
+
+Still n = 5 only, and not needed by a grow page: the Wieringa lift (ℝ⁷ has a
+5-dimensional perpendicular space, so there is no height function), the Penrose
+decorations, `perpBasis` (returns the first of n = 7's two perpendicular planes),
+and the exact `TRIPLES` criterion.
+
+### 5.13 The sum, and the flowers (2026-09-09)
+
+Σγ = 0 was hardwired at the time; generalizing it to Σγ = s opened real ground.
+
+**Measured, with all five γ equal to g (so s = 5g):**
+
+| s | g | central figure | index range | thick : thin |
+|---|---|---|---|---|
+| 0 | 0 | inradius 0 — all five lines concurrent | 0…4 | 1.686 |
+| 0.5 | 0.1 | pentagon, inradius 0.1 | 1…5 | 1.656 |
+| 1 | 0.2 | pentagon, inradius 0.2 | 2…5 | 1.638 |
+| **2.5** | **0.5** | **pentagon, inradius 0.5 — the largest** | 3…7 | 1.589 |
+
+**One correction to the sketch.** The largest pentagon is **γ = ½ each, which
+makes the sum 5/2**, not a sum of ½. A *sum* of ½ puts each γ at 0.1 and gives a
+small pentagon. Both are worth presets; they are different pictures and it is
+worth deciding which "½" the control means. Recommended: the control sets the
+**sum**, and the presets are named for what they show rather than for a number.
+
+Beyond g = ½ the pentagon shrinks again — the lines are at `x·v ∈ ℤ − γ`, so g and
+1 − g give the same figure. The useful range for the "all equal" preset is g ∈
+[0, ½], i.e. s ∈ [0, 5/2].
+
+Worth knowing: **Σγ ∈ ℤ gives Penrose tilings; other sums give the generalised
+Penrose tilings.** Still the same two rhombs — thick:thin stays near φ across the
+whole range — but not locally isomorphic to Penrose. That is a feature, not a
+hazard, and it is most of the reason to want the control.
+
+**Two consequences.**
+
+**The regularity criterion does not care about the sum.** The derivation is
+per-triple and only ever involves three γ; it never used Σγ = 0. Verified against
+brute force at sums of 0, 0.5, 0.9 and 2.5 — 5/5 agree. So the guard, the meter
+and `singularTriples` all keep working untouched.
+
+**The index range does.** It is {1,2,3,4} only when Σγ = 0; at other sums it
+shifts and can narrow. The Wieringa roof's "four levels" is therefore a property
+of Σγ = 0, not of the construction; `roof.html` and `geometry/roof.ts` both say
+so now, and the golden rhombus is untouched either way — a face is spanned by
+two E_j, which know nothing about γ.
+
+**The flowers — Σγ ≡ ½ is not Penrose, and we reproduce Figure 4(d).**
+
+Jake, looking at Σγ = 5/2: *"I see the flowers of thin rhombs. We're not in
+Penrose anymore there."* Both halves check out, and the second is sharper than
+"non-integer sum".
+
+**A vertex census over a ±20 patch**, counting only vertices whose corner angles
+sum to 360:
+
+| Σγ | mod 1 | vertex types | all-thin vertices |
+|---|---|---|---|
+| 0, 1, 2 | 0 | 7 | **0** |
+| 0.25, 0.75, 1.25 | ¼, ¾ | 11 | **0** |
+| 0.5, 1.5, 2.5 | ½ | 11–12 | **16–25** |
+
+So the flower is the signature of a **half-integer** sum specifically, not of any
+non-integer one. Every one of them is `0 thick + 10 thin` — ten thin rhombs at
+their 36° corners, 10 × 36 = 360. Penrose has none.
+
+The class turns on **Σγ mod 1**: 0/1/2 share a vertex-type set, 0.5/1.5 share
+another, and 0.25 groups with 0.75 by the γ ↔ 1−γ reflection.
+
+**And Σγ = 5/2 is Lutfalla's P₅(½)** — his `Gn(x)` is every offset equal to x, so
+G₅(½) is our sum of 5/2. It is Figure 4(d) of the paper, captioned *10-fold*, and
+visibly covered in the same blue rosettes. Checked: rotating our tiling by 36°
+about the origin maps **100.0%** of vertices onto vertices, which is Theorem 1
+confirmed on this implementation. Guarded Σγ = 0 manages only 92.6%, because
+all-zeros is singular and forcing regularity costs the exact symmetry.
+
+That is the second independent source this project has agreed with from the other
+direction, after wieringa-roof's fold angles.
+
+**One accounting error worth recording.** The first census gave vertices summing
+to 576° and 792°, which is impossible in the plane. The corner angle at vertex 0
+is the angle *between* v_j and v_k — 72° for |Δ|=1 but **144°** for |Δ|=2 — and I
+had written the thin rhomb's angles the other way round, so its 36° and 144°
+corners were swapped. The impossible totals are what caught it.
+
+### 5.14 Which inflation, φ or φ² (Jake, 2026-09-09)
 
 Shared vocabulary, so "one generation" stops being ambiguous. There are **two
 natural notions of a step**, and they differ by a factor of phi:
@@ -1242,50 +1228,29 @@ about the large and small rhomb groups, and it matters: if they are a *Robinson*
 step apart they are the intermediate phi level, and if a *P1 generation* apart
 they are not. Say which from now on.
 
-**A lead, not a result.** The conventional P1 substitution jumps by phi^2 because
-there is no clean "large P1 tile made entirely of small P1 tiles" at the half
-step — but the intermediate phi level exists, and Robinson triangles are the
-usual way to expose it (they are MLD with the rhombs). The interesting question
-is what that intermediate level looks like written back in the six P1 shapes.
-**The wheels give it directly, and Jake has been here before** — see the wheel
-section above. The recurrence is a three-term sum with factor phi^2; dropping the
-middle term (or subtracting) gives phi, and `penrose-mosaic`'s discrete wheels do
-the whole thing in exact integer arithmetic. Jake: "a whole set of discrete tiles
-in between, ready to generate". So the intermediate level is not unfound — it is
-ungenerated. Whether it corresponds to a clean level in the six P1 shapes is the
-part still open.
+**Answered 2026-09-10** — big and little rhombs are **two** Robinson steps apart,
+a full P1 generation of φ², so `penrose-mosaic`'s small/large pair is not the
+missing half step. The intermediate φ level is ungenerated rather than unfound:
+the wheels give it by dropping the middle term of the three-term successor
+(§5.10). Measured in this repo: rhomb counts seeded on Pe5 grow toward φ⁴ = 6.854
+per P1 generation. Attribution: the φ/φ² distinction and the intermediate-level
+conjecture are Jake's.
 
-`penrose-mosaic` may already contain it unlabeled: the small rhomb groups center
-on **every** pentagon type (Pe5, Pe3, Pe1) while the large ones center only on the
-blue Pe5. **ANSWERED 2026-09-10 and the guess was wrong** — Jake: big rhombs and
-little rhombs are **two** inflations apart, a full P1 generation of phi^2, so the
-small/large pair is not the missing half step and the lopsidedness has some other
-cause. The intermediate phi level is **ungenerated rather than unfound** — see
-the wheel section, and Jake has explored it before. Not verified — `wieringa-roof` indexes `wheels.s[gen]` and `wheels.t[gen]`,
-so the ratio of wheel magnitudes between consecutive generations would settle
-whether the code's generations step by phi or phi^2. Nobody has measured it.
-
-Attribution: the phi/phi^2 distinction and the intermediate-level conjecture are
-Jake's, with a supporting reply from ChatGPT citing de Bruijn's scale factor of
-(1+sqrt5)/2 for the inflated rhomb pattern. **Since measured** — see the gen-2
-substitution above: rhomb counts seeded on Pe5 grow toward phi^4 = 6.854 per P1
-generation, confirming phi^2 linear.
-
-### A hall of mirrors, and telling the mirrors apart (2026-09-09)
+### 5.15 A hall of mirrors, and telling the mirrors apart (2026-09-09)
 
 Jake's framing: aperiodic tiling is a hall of mirrors — dichotomies, duals,
 conjugates, parity, involutions everywhere — and **P1 is the ground truth.
 Everything falls from there.** P3 rhombs are the derived view. That is a stance
 about the project, not just about the maths: when the two disagree about what a
 thing is called, P1 wins, which is exactly what the `Pe5` / `St5` correction
-above was about.
+in §4.3 was about.
 
 The discipline the hall of mirrors demands is telling structural resemblance from
 accidental. Three kinds turned up, and they behave differently:
 
 **1. Real involutions.** `Sigma-gamma -> -Sigma-gamma` on R/Z. Its fixed points
 are exactly 0 and 1/2 — arithmetic, since 2x = 0 mod 1 — and those are precisely
-the two distinguished values measured above: 0 is the vertex-type cap (Penrose),
+the two distinguished values measured in §5.11: 0 is the vertex-type cap (Penrose),
 1/2 is the flower. **That is why there is no harmonic at 1/3 or 2/3**: they are
 not fixed points. The symmetric flower staircase is the same involution seen
 sideways. (Empirically, comparing vertex-type multisets at c and 1-c gives 4-10%
@@ -1324,7 +1289,7 @@ at n = 7: 23, 21, 20, 25 types at sums 0, 1, 2, 3, no dip. So being a fixed poin
 of the involution is not sufficient for distinction, and Penrose's minimality at
 five needs something the involution does not supply. Unexplained.
 
-### Reverse-engineering a patch back to a pentagrid (Jake, 2026-09-09)
+### 5.16 Reverse-engineering a patch back to a pentagrid (Jake, 2026-09-09)
 
 **The question.** Start from a gen-0 core — `Pe5`, `St5` or `deca` — draw the
 pentagrid lines that produce it, then step to the next generation and narrow the
@@ -1356,991 +1321,23 @@ converge.
 
 **What it would settle.** Seeding from each of the three cores should converge to
 three different gammas — and the `St5` seed is a *constructive* answer to the
-open Sun/Star centring question above, which vertex probing could not reach
+Sun/Star centering question, which vertex probing could not reach
 because a star's center is a star-shaped gap rather than a vertex figure. That is
 the payoff, and it is the reason to build it.
 
-**Done — the cluster recognizer (`geometry/clusters.ts`, 2026-09-09), and it
-settles Sun/Star.**
-
-The rule is local and exact. Lift every vertex to its Wieringa index; a rhomb's
-corners carry m, m+1, m+2, m+1, and Penrose uses exactly four levels, so a rhomb
-spans either the bottom three or the top three and touches **exactly one**
-extreme. Grouping rhombs by that vertex partitions the patch with nothing over:
-
-    5 thick + 0 thin   star rhomb group     center of a Pe5  (the SUN)
-    3 thick + 1 thin   boat rhomb group     center of a Pe3
-    1 thick + 2 thin   diamond rhomb group  center of a Pe1
-
-Measured on 1958 rhombs: no rhomb without an extreme, none with two, and 100% of
-groups away from the patch edge are one of those three at every radius tried.
-Off the integers the index takes five levels, a rhomb can span the middle three
-and touch no extreme, and 1451 of 1952 rhombs go unassigned — so `defined` is
-false and the reason says "not Penrose". That is correct, not a gap: P1
-pentagons are a Penrose structure.
-
-**Sun and Star, answered.** All four origin-centered Penrose caps show FIVE FAT
-rhombs at the origin, so the vertex configuration cannot tell them apart — the
-earlier reading in this plan called them all suns on exactly that evidence and
-was **wrong**. The index decides. The origin's K-tuple is (1,1,1,1,1) for a
-uniform offset in (0,1), so its index is always 5, while the patch range is
-[Sigma-gamma + 1, Sigma-gamma + 4]. Five is an extreme, hence a Pe5 center, only
-at the ends:
-
-    Sum-gamma = 1  origin index 5, range 2..5   MAX -> Pe5 -> SUN
-    Sum-gamma = 2  origin index 5, range 3..6   middle -> no cluster -> STAR
-    Sum-gamma = 3  origin index 5, range 4..7   middle -> no cluster -> STAR
-    Sum-gamma = 4  origin index 5, range 5..8   MIN -> Pe5 -> SUN
-
-So **Sun is the uniform offset 1/5 or 4/5, Star is 2/5 or 3/5**, and the pairing
-1<->4, 2<->3 is the Sigma-gamma <-> -Sigma-gamma mirror again. A star's center
-belongs to no cluster because it is an `St5` gap, which is why vertex probing
-could never find it and why this needed the recognizer.
-
-Lesson worth keeping: a five-fat-rhomb vertex is the *star rhomb group* wherever
-it occurs, but it is a **Pe5 center** only when its index is extreme. Middle-index
-sun-shaped vertices exist (7 at index 3 and 5 at index 4 in one patch) and are not
-cluster centers.
-
-**What is still missing.** Two dimensions of gamma never shrink: sliding along
-E-parallel translates the pentagrid and leaves the tiling alone, so what converges
-is the E-perp position plus Sigma-gamma, and the tower pins gamma only up to that
-slide. And `pentagrid` has no cluster recognition — it knows rhombs, not `Pe5` /
-`St5` / `deca` — so the seeding has to come from `penrose-mosaic` or
-`wieringa-roof`, or a recognizer has to be written here. That is the real cost of
-the idea, and it is worth scoping before starting.
-
-**Also worth having.** Lutfalla notes de Bruijn's exact characterisation of
-regular pentagrids covers only the Penrose case, Σγ ∈ ℤ. Ours was verified against
-brute force at sums of 0.5, 0.9 and 2.5 as well, so it appears to cover the
-generalised case too — for rational γ. Worth stating carefully rather than
-claiming priority.
-
-### The sum, and what it buys
-
-Σγ = 0 is hardwired: `relock()` sets the locked index to minus the sum of the
-rest. Generalising it to Σγ = s is a small change and opens up real ground.
-
-**Measured, with all five γ equal to g (so s = 5g):**
-
-| s | g | central figure | index range | thick : thin |
-|---|---|---|---|---|
-| 0 | 0 | inradius 0 — all five lines concurrent | 0…4 | 1.686 |
-| 0.5 | 0.1 | pentagon, inradius 0.1 | 1…5 | 1.656 |
-| 1 | 0.2 | pentagon, inradius 0.2 | 2…5 | 1.638 |
-| **2.5** | **0.5** | **pentagon, inradius 0.5 — the largest** | 3…7 | 1.589 |
-
-**One correction to the sketch.** The largest pentagon is **γ = ½ each, which
-makes the sum 5/2**, not a sum of ½. A *sum* of ½ puts each γ at 0.1 and gives a
-small pentagon. Both are worth presets; they are different pictures and it is
-worth deciding which "½" the control means. Recommended: the control sets the
-**sum**, and the presets are named for what they show rather than for a number.
-
-Beyond g = ½ the pentagon shrinks again — the lines are at `x·v ∈ ℤ − γ`, so g and
-1 − g give the same figure. The useful range for the "all equal" preset is g ∈
-[0, ½], i.e. s ∈ [0, 5/2].
-
-Worth knowing: **Σγ ∈ ℤ gives Penrose tilings; other sums give the generalised
-Penrose tilings.** Still the same two rhombs — thick:thin stays near φ across the
-whole range — but not locally isomorphic to Penrose. That is a feature, not a
-hazard, and it is most of the reason to want the control.
-
-### Two consequences to plan around
-
-**The regularity criterion does not care about the sum.** The derivation is
-per-triple and only ever involves three γ; it never used Σγ = 0. Verified against
-brute force at sums of 0, 0.5, 0.9 and 2.5 — 5/5 agree. So the guard, the meter
-and `singularTriples` all keep working untouched.
-
-**The index range does.** It is {1,2,3,4} only when Σγ = 0; at other sums it
-shifts and can narrow. The Wieringa roof's "four levels" is therefore a property
-of Σγ = 0, not of the construction, and `roof.html` should either say so or pin
-the sum. Whichever, `geometry/roof.ts` should stop implying four levels are
-universal.
-
-### The flowers — Σγ ≡ ½ is not Penrose, and we reproduce Figure 4(d)
-
-Jake, looking at Σγ = 5/2: *"I see the flowers of thin rhombs. We're not in
-Penrose anymore there."* Both halves check out, and the second is sharper than
-"non-integer sum".
-
-**A vertex census over a ±20 patch**, counting only vertices whose corner angles
-sum to 360:
-
-| Σγ | mod 1 | vertex types | all-thin vertices |
-|---|---|---|---|
-| 0, 1, 2 | 0 | 7 | **0** |
-| 0.25, 0.75, 1.25 | ¼, ¾ | 11 | **0** |
-| 0.5, 1.5, 2.5 | ½ | 11–12 | **16–25** |
-
-So the flower is the signature of a **half-integer** sum specifically, not of any
-non-integer one. Every one of them is `0 thick + 10 thin` — ten thin rhombs at
-their 36° corners, 10 × 36 = 360. Penrose has none.
-
-The class turns on **Σγ mod 1**: 0/1/2 share a vertex-type set, 0.5/1.5 share
-another, and 0.25 groups with 0.75 by the γ ↔ 1−γ reflection.
-
-**And Σγ = 5/2 is Lutfalla's P₅(½)** — his `Gn(x)` is every offset equal to x, so
-G₅(½) is our sum of 5/2. It is Figure 4(d) of the paper, captioned *10-fold*, and
-visibly covered in the same blue rosettes. Checked: rotating our tiling by 36°
-about the origin maps **100.0%** of vertices onto vertices, which is Theorem 1
-confirmed on this implementation. Guarded Σγ = 0 manages only 92.6%, because
-all-zeros is singular and forcing regularity costs the exact symmetry.
-
-That is the second independent source this project has agreed with from the other
-direction, after wieringa-roof's fold angles.
-
-**One accounting error worth recording.** The first census gave vertices summing
-to 576° and 792°, which is impossible in the plane. The corner angle at vertex 0
-is the angle *between* v_j and v_k — 72° for |Δ|=1 but **144°** for |Δ|=2 — and I
-had written the thin rhomb's angles the other way round, so its 36° and 144°
-corners were swapped. The impossible totals are what caught it.
-
-### Shape
-
-```ts
-// src/geometry/gamma.ts
-createGammaSet({
-    denominator?: number,     // 10000; γ is exact rationals, see item 1
-    sum?: number,             // target Σγ, default 0
-    locked?: number,          // which index is computed, default 4
-    symmetry?: boolean,       // vertical axis, default true
-    guard?: boolean,          // hold off the singular set, default true
-}) → GammaSet
-```
-
-with
-
-- `model` — a live `Pentagrid` (directions + γ floats) to hand the geometry
-- `values()`, `setValue(j, v)`, `setSum(s)`, `setLocked(j)`
-- `reset()` — all as equal as possible: `s/5` each, the remainder spread over the
-  first few so the exact sum is hit. At s = 0 that is all zeros, which is singular,
-  so the guard then nudges — the current default of `[1,2,3,4,−10]/10⁴`.
-- `singular()` — the exact criterion, unchanged
-- `family(j)` — `{ enabled, line }`: hide a family, or show **one** of its lines
-  rather than all of them
-- `onChange(cb)`
-
-The single-line case needs `collectRhombs` to take a per-family line filter. It
-already carries the provenance to do it (`r.nj`, `r.nk`), so this is a predicate,
-not a redesign — and it is the same hook E1 wanted for "strips in one direction".
-
-### Order
-
-1. ~~Delete the duplicate checkbox.~~ **DONE** — one switch, `force regular`.
-2. ~~Extract `geometry/gamma.ts`.~~ **DONE 2026-09-09.** `createGammaSet` owns the
-   directions, the offsets, the sum constraint, the lock and the guard; the whole
-   of `pentagrid.ts` is now a view over it, and `ui/dials.ts` a view over that.
-   Behavior-neutral: the default still lands on `[1,2,3,4,−10]/10⁴`, which is a
-   test. The sum is a field from the start and already works — only the UI for it
-   is missing.
-
-   One subscription replaced the scattered redraws: `gammaSet.onChange` clears the
-   rhomb cache, re-syncs the bank and draws, so no call site has to remember.
-
-   A property fell out of the tests, and it is Lutfalla's Theorem 2.1 seen from
-   the other side: **an even split only needs the guard when it lands on the
-   integers.** Sums of ½, 1, 5/2 and −5/4 divide into five non-integer offsets and
-   are regular untouched; 0, 5 and −5 do not, and get nudged.
-3. ~~Generalise the sum in the UI.~~ **DONE 2026-09-09.** A Σγ slider in the
-   settings, 0 to 5/2, labeled with what the number means: *all five lines meet
-   at a point*, *largest pentagon*, *Penrose* for an integer sum, *generalised
-   Penrose* otherwise.
-
-   **It spreads evenly**, and that was the design decision. `setSum` alone lets
-   the locked index absorb the whole change, leaving four tiny offsets and one
-   enormous one — valid, but not the symmetric family the sum is interesting for.
-   `setSum(s, true)` redistributes, so the control moves between the canonical
-   configurations rather than producing lopsided ones.
-
-   **Two things measured while wiring it, both corrections.** At Σγ = 0 with the
-   guard on you do *not* get concurrent lines — the even split is all zeros, which
-   is singular, so the guard opens a 10⁻⁴ pentagon. The label now says "just off
-   concurrent (force regular)" rather than claiming the picture the number
-   implies. And **the roof's level count follows the sum**: 1…4 at Σγ = 0, but
-   1…5, 2…5, 2…6 and 3…7 elsewhere, so four or five levels depending. `roof.html`
-   and `geometry/roof.ts` both stated four as if it were a property of the
-   construction; both now say it is a property of the offsets. The golden rhombus
-   is untouched — a face is spanned by two E_j, which know nothing about γ — so
-   the relief changes and the shape never does. That is a test.
-
-   **On grow.html and roof.html too — and as the cluster, not as markup.** The
-   first attempt hand-wired a Σγ slider into each page's bar, which would have
-   been three copies of the same control and straight past the rule this plan
-   already set: the γ bank in `ui/dials.ts` is the cluster, and a page mounts it
-   rather than building sliders.
-
-   So the total is part of `createGammaBank` — supply `onSum` and it grows one.
-   The bank stays a pure view: it reports the move and renders what it is told,
-   and never decides what a total means or whether changing it should redistribute.
-   `mountGammaControls(set, container, {colors})` in `view/controls.ts` is the
-   seam that wires bank to set, and is the only place that knows about both.
-   `pentagrid.ts` now uses it as well, which removed its own bank wiring and the
-   separate sum control from the settings panel.
-
-   The wording lives in `describeSum` in `geometry/gamma.ts` — pure, so it is
-   tested directly rather than through a page. On the roof the sum also moves the
-   index range, which is what changes how many levels the surface stands on.
-
-   Presets as buttons were dropped: the slider snaps to both canonical points and
-   names them, so a button would only be a second way to reach a value already one
-   drag away.
-4. ~~Per-family enable, then single-line.~~ **DONE 2026-09-09.** Both live in the
-   γ set, which is now the single home for "which lines are in play": the grid
-   layer's `visible` predicate reads it, and the panel checkbox drives it. Family
-   visibility was previously the *layer's* `userVisible`, doing double duty as
-   both "don't draw" and "don't generate tiles" — the same two-homes-for-one-fact
-   shape that produced the duplicate regularity checkbox.
-
-   `collectRhombs` gained a `lines` option, and a row of per-family pickers sits
-   under the family toggles: blank for all, a number for one.
-
-   **A correction, found by a failing test.** I had written — in the option's
-   doc, in the tooltip and in the test — that restricting a family to one line
-   leaves that line's ribbon. It does not. It restricts only the pairs *involving*
-   that family; what the other four make between themselves is untouched. With
-   family 1 pinned to one line the result is 614 tiles, of which 36 are the
-   ribbon. The ribbon is the *part* of the result involving the restricted
-   family, and all three places now say so.
-
-   **Ribbon isolation — added 2026-09-09.** No combination of enable and line
-   reaches it, because enabling two families necessarily admits their pair, so it
-   needed its own idea: `collectRhombs` takes `only`, and the γ set carries
-   `setIsolated`. Isolate a family and you keep just its tiles; add a single line
-   on the same family and what is left is exactly that line's ribbon. A small
-   `only` selector sits at the end of the single-line row. This is what E1 would
-   have used.
-
-   **A wiring failure worth recording.** Three of the four view edits for the
-   family controls were never written: the patch batch asserted its way out
-   partway through, and everything after was skipped. Nothing caught it, because
-   every test at the time called `collectRhombs` directly — the geometry was
-   right and the view was not connected to it, so the single-line inputs did
-   nothing at all. There are now four tests that go through the *view*
-   (`createPentagrid`, then count what the tiles layer fills), and the handle
-   exposes the γ set so that is possible. The lesson for patching: check the file
-   afterwards, not the script's own report.
-5. Then decide what `roof.html` says about levels.
-
-## The AR-pattern from the indices, with the thick/thin twist (2026-09-17)
-
-AR is de Bruijn's *arrowed rhombus*. His Fig. 1 (1981, p. 41) is the ground
-truth, read at 400 dpi from `jake/597566.pdf`, and it settles a question three
-searches could not: the direction of the single arrows is **not** a function of
-the endpoint indices — it depends on which tile the edge is on.
-
-**Fig. 1.** Green (double) arrows meet at one corner — a 72° corner of the thick
-rhomb, a 144° corner of the thin — and point INTO it. Red (single) arrows sit on
-the two edges at the opposite corner, and here the tiles differ:
-
-    thick   singles point OUT of that corner
-    thin    singles point INTO it
-
-**In index terms.** The green corner is the extreme, 1 or 4, so the doubles are
-the 1–2 and 3–4 edges pointing *into the 1* and *into the 4* — the rhomb-group
-centers, which is what Jake said: "the center of the rhomb groups determine the
-AR pattern." The red corner is the other end of that diagonal, index 3 on a
-(1,2,3,2) tile and 2 on a (2,3,4,3) tile; the singles leave it on a thick and
-enter it on a thin.
-
-**Why the twist is forced.** 291 of 387 shared 2–3 edges in a patch are shared by
-a thick of one m and a thin of the other, so any rule with one sense for both
-shapes conflicts on three quarters of them. Every index-only rule tried —
-toward higher, toward lower, doubles in/out with singles fixed either way, and
-eight line- and coordinate-parity variants — produced **four** marked
-prototiles. Fig. 1's rule produces **two**, thick in/out and thin in/in, with
-zero disagreements on 773 shared edges across three gammas. The test pins both.
-
-**What misled the reading of Fig. 2 and the Treisberg slide.** Every clean tile I
-read with "singles into the 3" — tile1 in Fig. 2, the blue tile in the slide —
-has a 144° angle at its 1. They are thin. The rule was right for them and I had
-taken them for thick. The Treisberg slide colors by the same scheme, green on
-1–2 and 3–4, red on 2–3; its arrowhead counts are decorative except where they
-are not, and are not to be trusted at that resolution.
-
-The `arrows` toggle on the Tile edges row draws this. Off a Penrose patch the
-index spans five values and nothing is drawn.
-
-## For the record: Schoen's names, and λ (2026-09-16)
-
-Two things Jake wants written down before they are needed. Neither is a task.
-
-### The names, against Schoen
-
-Ours is the Pe5/St5 convention and it stays. Alan Schoen
-(schoengeometry.com/c-infintil.html) names the same three tilings the other way
-round, so when his pages are the reference:
-
-| here | Schoen |
-|---|---|
-| **sun** (Pe5 at the origin, c = 1/5) | STAR |
-| **star** (origin in an St5 gap, c = 2/5) | SUN |
-| **deca** (the queen, Pe3 + 2 Pe1, mirror-symmetric) | CARTWHEEL |
-
-The last is the useful one: it says the deca is Conway's cartwheel, which is
-known to be the mirror-symmetric Penrose tiling — consistent with it being what
-the 5-fold resolves into under a mirror-symmetric nudge, and with Jake's surmise
-about its uniqueness.
-
-### λ, the gridline spacing
-
-Every page runs with the lines one unit apart, and that 1 is not named anywhere.
-It should be **λ**, from the nomenclature table above, and it is the one knob
-inflation needs:
-
-    line n of family j:   x · v_j = λ (n − γ_j)
-    K_j(x)              = ceil( x · v_j / λ + γ_j )
-    registration gain   = n / (2λ)         (the dual's edge stays 1)
-
-Inflation with de Bruijn is then λ → φλ and nothing else — or φ² for a P1
-generation, per the note on inflation. When the time comes the threading is
-mechanical and was dry-run today: fourteen sites in `geometry/`, every one of
-the form `x·v + γ` or `n − γ`, plus the gain in `view/growth.ts` and
-`view/pentagrid.ts`; `computeRhomb`, `solveIntersection`, `computeKTuple`,
-`lineRange`, `segmentAt`, `nearestLine`, `regionPoly` and the two scans in
-`regularity.ts`. `lambda` would sit on `Pentagrid`, optional, read through a
-`spacing(pg)` helper so nothing existing changes. Reverted rather than kept:
-Jake, *"Nothing should be done. Just want to make sure it's recorded when we
-need it."*
-
-## What the ghost lines are, exactly (2026-09-15)
-
-Jake: *"The ghost lines of the 2K-gons are not exactly a dualization of something
-on the Pentagrid. Some of the vertex dots within the 2K-gon apparently are."*
-Right, and here is the precise version, measured at `Gamma = 0`:
-
-| | tiles | fan corners | real sectors | ghost | edges | real (outline) | ghost |
-|---|---|---|---|---|---|---|---|
-| thin hexagon | 3 | 7 | 6 | 1 | 9 | 6 | 3 |
-| thick hexagon | 3 | 7 | 5 | 2 | 9 | 4 | 5 |
-| decagon | 10 | 16 | 5 | 11 | 25 | **0** | **25** |
-
-**The method — there isn't a special one.** The ghost lines are the four edges of
-each rhomb `computeRhomb` emits for each pair of the k concurrent lines. It takes
-the crossing point and gets the base K-tuple by `ceil` there. At a concurrency
-every participating family sits *exactly* on its line, so `ceil` returns the low
-index for all of them at once: every rhomb in the stack has the **same** base
-tuple `K0`, and they all **fan** from `f(K0)`. Corners are `f(K0)`, `f(K0+e_j)`,
-`f(K0+e_k)`, `f(K0+e_j+e_k)`.
-
-**Which dots are real.** A corner is the dual of an actual region iff its tuple
-is a *sector* — one of the 2k regions around the point, i.e. an outline corner.
-The other tuples in the fan name regions of zero area. `f(K0)`, the all-low
-tuple, is a sector only when the k normals fit in a half-plane: true for three
-lines, false for four or five. So the decagon's fan point is its center,
-`f(empty) = f(all) = 0`, dual to nothing; its five `v_i` corners are ghosts too;
-the only real dots the fan touches are the five adjacent-pair sums.
-
-**Which lines are real.** An edge joins two tuples differing by one `e_j`. It is
-a genuine Penrose edge iff *both* ends are sectors — and then it is an outline
-side. Any edge touching a ghost vertex is a ghost edge: its source segment has
-zero length and one end-region has zero area. For the decagon **all 25 are
-ghosts**; its outline is drawn by `drawResolutions`, not by the fan.
-
-**The fan is not "the superposition of the tilings."** That phrase had been used
-loosely. For the thin hexagon the fan happens to be one genuine tiling — three
-rhombs around an interior vertex, all six outline sides present. For the thick
-hexagon it is not a tiling at all: it fans from an outline corner, overlaps near
-it, and misses the opposite corner. For the decagon it overlaps three-fold at
-the center (the ten corner angles sum to three turns).
-
-**What the ghost lines are good for.** They are a record of the fan, and every
-ghost edge parallel to `v_fam` is where that family's zone would cross if the fan
-were pulled apart — which is exactly why routing the grow band through them
-(`stackChain` in `view/growth.ts`) seals against the neighboring tiles with zero
-failures. The ghost vertices are the cube corners from the earlier note: the
-regions that *open up* under perturbation.
-
-## The deca is the resolution of the 5-fold (2026-09-14)
-
-Jake: *"No the deca is not the 2K-gon decagon, in wieringa it is the queen
-(misnamed) patch. It has 2 fold symmetry."* The first Caps row had `deca` as
-`Gamma = 0`, the singular point, which is not a tiling at all. Corrected.
-
-**What it is.** One `Pe3` flanked by two `Pe1`: 3 thick + 1 thin, plus twice
-(1 thick + 2 thin), so **5 thick + 5 thin, ten rhombs** — which is exactly what
-the 5-fold singularity holds, C(5,2) = 10 with 5 of each. That is the clue.
-
-**Where it is.** Nudge `Gamma = 0` in any mirror-symmetric direction with the
-total held at zero — `gamma1 = gamma4`, `gamma2 = gamma3` — and the decagon at the
-origin resolves into the queen, every time, with the `Pe3` on the mirror axis and
-the two `Pe1` straddling it. Measured for five different mirror directions at
-e = 0.01, and along the line `(0, e, -e, -e, e)` it persists out to **e = 0.3**;
-the line hits a singular couple at e = 1/2 (`gamma0` integral, `gamma1 + gamma4 =
-1`). The preset is e = 0.1, comfortably inside — `+1/10` on families 1 and 4, `-1/10`
-on 2 and 3, `gamma0 = 0` on the axis. On the Caps row it is **deca**; *queen* is
-the wieringa-roof name for the same patch. "Decagon" stays for the k = 5 2k-gon
-on the Hunt row, which is a different thing.
-
-**The involution.** Negating the phases flips the queen end for end: `(0,e,-e,-e,e)`
-puts the `Pe3` below the origin, `(0,-e,e,e,-e)` above. That is the "magic
-mirroring of the sides" Jake remembers from inflation, seen here as `Gamma -> -Gamma`.
-
-**A generic nudge gives the queen too**, just turned. `(e, 2e, 3e, 4e, -10e)` gave
-a `Pe3` and two `Pe1` at the same three radii and the same angular gaps —
-144/108/108 — rotated. So the decagon's *de Bruijn* resolutions look to be queens
-in one of ten orientations, not the 62 rhombic tilings the zonogon admits. Worth
-a proper count some day; not done.
-
-**On uniqueness.** Jake surmises the queen is the only Penrose tiling with exactly
-2-fold symmetry. The mirror-symmetric subspace at `Sum = 0` is two-dimensional;
-one direction is translation along the axis, which changes nothing, leaving a
-**one-parameter family** in `E-perp` of genuinely different mirror-symmetric
-tilings, of which the queen-at-origin segment is `0 < e <= 0.3`. Whether that
-whole family is "the queen" moved along its axis, or several tilings, is the open
-question — `perpOfGamma` in `acceptance.ts` is the tool to settle it.
-
-The `sunstar.html` button for `c = 0` is relabeled **5-fold**; it never was the
-deca.
-
-## The Penrose singularity catalog — it has three entries (2026-09-14)
-
-Jake: *"I'm looking for penrose singularities. Gamma must equal 0."* Under that
-constraint the hunt closes completely. `geometry/hunt.ts` decides it by arithmetic
-rather than by looking, so the answer holds for the whole plane and not a window.
-
-### No octagon is Penrose
-
-Not rare — impossible. Since `Sum(v_j) = 0`, at a point where families a,b,c,d meet:
-
-```
-x·v_e + gamma_e  =  −Sum(n_j) + Sum(gamma)
-```
-
-so the fifth family passes through **that same point** exactly when `Sum(gamma)` is
-an integer. Penrose *is* `Sum(gamma) in Z`, so every 4-fold is swallowed by a
-5-fold. This is why the map never offered one. Step 7 previously said "the octagon
-is real but rare"; it is real and *outside the condition*, which is a different
-claim. Release the total and four integral phases give one immediately — that is
-the proof, and the classifier still handles it, it is just not a destination.
-
-### The hexagons come in couples
-
-The ten triples pair by **shared lone family and complementary pair**:
-
-    012 <-> 134    013 <-> 234    014 <-> 023    024 <-> 123    034 <-> 124
-
-A triple is `{L,P,Q}` with `gamma_L` integral and `gamma_P + gamma_Q` integral. Its
-partner is `{L} + complement`, same lone, complementary pair — and `Sum(gamma)` in
-Z forces that pair sum too. So the two stand or fall together. **Every couple is
-one K122 and one K113**, so at `Sum(gamma) = 0` the thick and thin hexagons only
-ever appear together, never one alone. (That invalidated two presets from the
-first draft of this work, "Thick hexagon" and "Thin hexagon" alone — both were
-non-Penrose without my noticing, and the test caught it.)
-
-### And nothing in the middle
-
-Two couples mean two integral phases; their pair conditions drag in two more, and
-an integral total supplies the fifth. So the hexagon count is **0, 2 or 10** —
-never 4, 6 or 8. The whole catalog, searched exhaustively over every rational
-phase vector at denominators 12, 15, 20, 24 and 25:
-
-| state | shows |
-|---|---|
-| regular | nothing concurrent anywhere |
-| one couple | one K122 + one K113, and nothing else |
-| `Gamma = 0` | five of each, plus the unique decagon |
-
-Three buttons on the **Hunt** row of step 7, all summing to zero so the total stays
-locked. Each is checked against the rule AND against the scan, so the label cannot
-lie about what the map shows.
-
-### Two things the tests caught
-
-- **Preset denominators must divide the gamma set's.** It carries rationals over
-  `2000n` — 10000 at n = 5 — so presets over 60 were silently rounded on the way
-  in and `7/60` arrived as `0.1167`. The vector on screen was then not the vector
-  the rule had been checked against. Presets are over 100, and the round trip is
-  pinned.
-- **The rationality assumption is load-bearing.** The triple condition is one
-  equation `u + phi*v = 0`; it splits into `u = 0` and `v = 0` only because u and v
-  are rational, which holds only for rational phases. The dials and wheel produce
-  hundredths and thousandths so every reachable phase is rational — but this is
-  stated in `hunt.ts` rather than assumed.
-
-### Still open
-
-Growing and roofing the 2k-gons (grow.html), and the `Q(sqrt 5)` two-component
-question, both untouched.
-
-## The superposition, and how it went missing (2026-09-14)
-
-### The regression
-
-The lines inside every 2k-gon are the **C(k,2) superposed rhombs**, drawn where the
-construction puts them. Nothing synthesizes them; they are ordinary rhombs that
-happen to share a crossing, and they join vertex dots that were being drawn all
-along. `f7a4a7e` had them. `469dbcb` took them away, and its own commit message
-states the rule it broke:
-
-> those now take no fill and no arc, while **edges and vertices are untouched**
-
-The filter went onto three layers when it belonged on two. Tiles filtered
-correctly, arcs filtered correctly, vertices correctly did not — and edges wrongly
-did, which hollowed out every 2k-gon. One line. The rule was already written down
-in this file, under *"Vertices, then edges — these are wanted"*, which is worth
-noticing: it was recorded, agreed, and then violated by a filter added for a
-different purpose.
-
-**The rule, stated once more so it is testable:** at a concurrency a fill asserts
-which of the many rhombic tilings of the 2k-gon is real, and an arc asserts a
-shared edge to join across when inside a stack there is none. Edges and vertices
-assert neither. `containers.test.mjs` now pins it by comparing the edge count
-against the fill count at Gamma = 0, and the arcs/edges *ratio* against a regular
-configuration — the raw arc count says nothing, since the decor layer strokes two
-arcs per rhomb where the edge layer strokes one.
-
-### Two measurements
-
-**The five octagons are the 4-faces of the 5-cube.** Where k lines meet, each
-`K_j` is free either way, so the surrounding regions are the 2^k corners of a
-k-cube and `f` projects it into the plane: the shadow is the 2k-gon, the 2-faces
-are the C(k,2) rhombs, the monotone surfaces are the rhombic tilings. Drop one
-generator and the rest is a 4-cube, which projects to an octagon — five of them,
-unit sides, centers at radius 1/2 and **72 degrees apart** (54, 126, 198, 270,
-342). This confirms "the decagon is five octagons turned" above, and explains why:
-they are sub-cubes, not an accident of the drawing.
-
-The decagon's cube has **31 corners, not 32** — `Sum v_j = 0` collapses `f(empty)`
-onto `f(all)` — 80 edges, and 21 corners strictly inside the outline. That count
-is why drawing the cube itself is unreadable: tried, and Jake's verdict was "the
-decagon is too busy". The superposed rhombs are the right object; the cube is the
-explanation for their structure, not a thing to draw.
-
-**Correction — the thin hexagon has two tilings, not one.** The note above that
-K122 and K113 are "not superposable" is right and stands: they are not congruent,
-144/108/108 against 144/144/72. But the stronger claim, that K113 "has only one
-vertex mapped to its center and thus has only one tiling combination by rhombs",
-does not survive measurement. Both hexagons have exactly **two** interior cube
-corners, and perturbing Gamma 400 ways reaches both in each case — thick 64/66,
-thin 74/90. Every 3-cube has two monotone surfaces and neither hexagon is an
-exception. The one interior point that is genuinely unreachable is the **decagon's
-center**, realised 0 times in 400, which is the `f(empty) = f(all)` collapse.
-
-### Also landed
-
-- **`hoverEdge` is wired.** It had sat in the feature list, the panel and the
-  correspondence table with nothing reading it. A gridline segment separates two
-  regions, so it is dual to the **edge joining the vertices those regions become** —
-  the same map as region → vertex and crossing → tile, one dimension down.
-  `segmentAt` finds the bracketing crossings and the regions either side;
-  `nearestLine` picks the line. Hit-test order is crossing, then segment, then
-  region: a point, a line, an area, or the line swallows every hover near a
-  gridline. Verified against a collected patch — for every dual edge comfortably
-  inside it, 1175 of 1175 were genuine tile edges.
-- **The scan ran only when the meter or loupe wanted it**, but the tile and edge
-  layers draw the 2k-gons from that same scan. On any page without `controls` the
-  resolutions were never drawn at all. `scanSmallRegions` now also runs when the
-  tiling needs it, and the factory test that asserted the old behavior was
-  measuring a viewport with tiles on — it now measures a grid-only one, which is
-  the saving it was always about.
-
-## Naming the resolutions, and what a Penrose setting should be (Jake, 2026-09-13)
-
-### The angle code — Jake's scheme, and it is complete
-
-A 2k-gon is named by the **supplements of its angle sequence**, in units of
-`180/n`: a digit `d` is a vertex whose interior angle is `180 - d*(180/n)`, which
-is the gap between two consecutive generator directions. Sorted, those digits are
-
-> **a partition of n into k parts, always** — the gaps span a half turn, so they
-> must add to n.
-
-Which makes the available shapes exactly the **partitions of n into two or more
-parts**. Verified both ways: n = 5 gives six codes and six partitions, n = 7 gives
-fourteen and fourteen, identical sets.
-
-    14     thin rhomb          113    thin hexagon
-    23     thick rhomb         1112   octagon
-    122    thick hexagon       11111  decagon
-
-The code is the real name — it needs no lookup table, it says the shape's angles
-outright, and **nothing about it changes when n does**, which is the whole point
-of the `zeta_n` nomenclature. Friendly names ride along where one has been earned.
-`describeResolution` now reads "K122 thick hexagon · 2 thick + 1 thin".
-
-**Jake had not noticed there are two hexagons**, and they are not congruent —
-"not superposable". K122 is 144/108/108 and holds 2 thick + 1 thin; K113 is
-144/144/72 and holds 1 thick + 2 thin. Worth saying that the thick/thin content
-follows from the code, so the code alone distinguishes them.
-
-**And the decagon is five octagons turned.** Dropping any one of the five
-generators from K11111 leaves K1112, and the five choices are rotations of each
-other — a superposition in the same sense the rhombs are.
-
-### Singularities stay on, and want hunting
-
-Jake: *"Singularities happen, this one just happens to be in your face because our
-initialization happens to be quote illegal unquote."* So the layer stays on by
-default and the rest follows from assuming they occur.
-
-The next thing is **finding** them: reticulum presets for singular phase vectors,
-collected somewhere rather than cluttering every page — page 7, or a page of its
-own. The rules for what to hunt are already known and measured:
-
-    3-fold   gamma_L in Z  AND  gamma_P + gamma_Q in Z   — no other integral phase
-    4-fold   four integral phases                        — rare, and real
-    5-fold   all five                                    — unique, Gamma = 0
-
-### What a Penrose setting is, and what it should do on a 2k-gon
-
-Not built; recorded as the direction. The layers behave differently over a
-singularity and should say so deliberately:
-
-- **Vertices, then edges** — these are wanted. They give a singularity structure
-  and make it legible rather than decorating it.
-- **Tiles, especially opaque ones** — NOT over a 2k-gon. An opaque fill asserts a
-  layout that the superposition does not have, which is the same objection that
-  stopped the rhomb tiling being drawn.
-- **Arcs and the other decorations** — curtail them on a 2k-gon unless a sensible
-  reading is found. An arc joins across a shared edge by construction, and inside
-  a superposition there is no shared edge to join across.
-
-And a longer list that belongs in the Penrose settings generally, wherever it
-lands: the two-color composites of the bands, the five-color tiling at full
-width, isoglosses, index shading, transparency.
-
-### Parked
-
-The `Q(sqrt 5)` two-component question — whether phases carried as `a + b*sqrt 5`
-reach configurations a plain rational denominator cannot — is deferred. Jake:
-"that's another app".
-
-## Nomenclature, and the Penrose condition (Jake, 2026-09-12)
-
-### Nomenclature
-
-| symbol | meaning |
-|---|---|
-| `zeta_n` | the fundamental n-fold direction / rotation |
-| `v_j` | normal vector of family j |
-| `gamma_j` | **phase** of family j |
-| `Gamma = (gamma_0 ... gamma_{n-1})` | the **phase vector** |
-| `lambda` | wavelength / grid spacing |
-
-The point of writing it this way is the move from five to seven: replace `zeta_5`
-with `zeta_7` and *nothing in the notation changes* — only the cyclotomic field
-underneath does. Worth adopting in code and comments; `ui/sumstrip.ts` already
-says phase rather than value.
-
-**`lambda` is currently 1 and need not be.** `phi^m` are the alternates, and
-choosing one lets two maps overlay. Parked deliberately: **study inflation
-first**, since the spacing and the inflation step are the same question asked
-twice.
-
-**Phase angle rather than thousandths** is under consideration for the read-outs.
-They run 000..999 now, which is already a phase in units of a milliturn; degrees
-would be the other natural unit.
-
-### The correction I keep needing (Jake)
-
-> *"Agents are always distinguishing between sum 0, 1, 2, 3, 4, but they are
-> identical mod 1. Answer: the sum is, but the gammas are 0, 1/5, 2/5, 3/5, 4/5."*
-
-Guilty, repeatedly, including in the Sun/Star section above. **Sigma-gamma is the
-same for all of them** — every one is 0 mod 1, every one is Penrose, every one is
-the same LI class. What actually differs is **`Gamma`**, the phase vector: the
-uniform offset `c = k/5`. So the honest statement is
-
-    Sun   c = 1/5, 4/5          Star  c = 2/5, 3/5          deca  c = 0
-
-and not "Sigma-gamma = 1 and 4 are Suns". The sum does not distinguish them and
-cannot; saying it does is what made the index argument look like a coincidence
-rather than the reason. The mirror `c <-> 1-c` pairs 1/5 with 4/5 and 2/5 with
-3/5 and fixes 0 — Jake's "symmetric sums 0, 1=4, 2=3", in the right coordinates.
-
-### Only one deliberate singularity, and that is provable
-
-Jake's intuition: with exact arithmetic there should be essentially **one**
-singularity available on purpose. It falls straight out of the exact criterion.
-
-A triple is singular iff `gamma_L` is an integer AND `gamma_P + gamma_Q` is an
-integer. On the **uniform** family every offset is `c`, so the two conditions
-become `c` in Z and `2c` in Z — and the first implies the second. Hence:
-
-> Within the symmetric family, `Gamma` is singular **iff c = 0 (mod 1)**, and then
-> all ten triples go at once.
-
-One configuration, the five-fold one, and nothing else. Everything else singular
-requires leaving the symmetric family. That is why the reticulum's symmetric mode
-can be swept without ever tripping over a singularity except at the origin.
-
-### Reserve the space for the resolution — verified
-
-k concurrent lines dualise to a 2k-gon, which decomposes into C(k,2) rhombs. For
-n = 5, enumerated over every subset:
-
-    3 lines -> hexagon,   3 rhombs    2 thick + 1 thin   x5   {012}{014}{034}{123}{234}
-                                      1 thick + 2 thin   x5   {013}{023}{024}{124}{134}
-    4 lines -> octagon,   6 rhombs    3 thick + 3 thin   x5
-    5 lines -> decagon,  10 rhombs    5 thick + 5 thin   x1   {01234}
-
-Jake's counts confirmed: the hexagon really does have exactly **two** combos, and
-the octagon is "a boat and two thins" — a boat being 3 thick + 1 thin, so
-3 + 1 + 2 = the 3 thick + 3 thin measured. The decagon's 5 + 5 is the
-configuration already measured at `c = 0`.
-
-The ten hexagon subsets are the same ten triples as `TRIPLES` in
-`geometry/regularity.ts`, split five and five by combo — a second reading of the
-same table.
-
-**Lutfalla states the rule and draws it** (`multigrids.pdf`, gitignored; DOI
-10.4230/OASIcs.AUTOMATA.2021.9):
-
-> "In this dualization process each cell or mesh of the multigrid is sent to a
-> vertex of the dual tiling [...] and each intersection point of the multigrid is
-> sent to a tile of the dual tiling. **The dual of an intersection point where k
-> lines intersect is a 2k-gon with unit sides** as shown in Figure 3 for the case
-> of 5-fold multigrids."
-
-Figure 3 draws the cases left to right: two lines to a rhomb, then three lines to
-a **hexagon**, then four lines to an **octagon**. The decagon is not drawn but is
-the same rule at k = 5. His definition of singular is ours: "at least one
-intersection point where at least 3 lines intersect".
-
-**And his Proposition 3 is the determinant condition in `regularity.ts`.** For
-odd n, with `r_j` in `Z - gamma_j`, a grid is regular when
-
-    r_0 sin(2(p-q)pi/n) + r_p sin(2q pi/n) - r_q sin(2p pi/n) != 0
-
-for every triple. That is exactly the expansion this repo's `regularity.ts`
-header derives from the 3x3 determinant, relabeled to families 0, q, p — so the
-exact n = 5 criterion here is **Proposition 3 specialized to five and then split
-over Q(phi)**, which is the step Lutfalla does not take and says does not
-generalise. Good to know the derivation agrees with the published one rather than
-merely not contradicting it.
-
-**What to build.** Detect a concurrency, and rather than drawing nothing, reserve
-and draw the 2k-gon it dualises to: the space the rhombs would occupy if the
-lines were pulled apart. The **bump then counts superpositions** — how many
-rhombs are stacked in that space — and each count is one of the combos above, so
-the read-out can name it (hexagon, 2 thick + 1 thin) instead of saying "3 lines".
-
-Not built. `Concurrency` already carries `families`, which is exactly what is
-needed to pick the combo.
-
-## Reticulum — a replacement for the instrument cluster (planned 2026-09-10)
-
-A square, medium-size control for the panel: a five-axis decagonal reticulum
-where each gamma sits **on its own grid direction** instead of on an unrelated
-horizontal slider.
-
-**A plugin replacement, not a removal (Jake, 2026-09-10).** The dial bank stays
-and remains usable on other pages — the two are interchangeable, chosen per page.
-That is an architectural requirement, not just a migration courtesy, and it
-shapes everything below.
-
-### What exists, and what to reuse
-
-Inspected before designing, as asked. **Nothing about the model changes.**
-
-- `geometry/gamma.ts` — `GammaSet` is the whole state and already has every
-  operation the reticulum needs: `values()`, `exact()`, `denominator`,
-  `setValue(i, v)`, `setSum(s, spread)`, `getSum()`, `setLocked(i)`,
-  `getLocked()`, `reset()`, `isUniform()`, `nudged()`, `provenRegular()`,
-  `onChange(cb)`, `n`, and `model.directions`. Jake's sketched props map straight
-  onto it: `gammas` = `values()`, `targetSum` = `getSum()`, `freeIndex` =
-  `getLocked()`, `onGammaChange` = `setValue`, `onTargetSumChange` =
-  `setSum(s, true)`.
-- `ui/dials.ts` — the current bank. A **pure view**: it reports moves and renders
-  what it is told, never computes the locked value. The reticulum keeps that
-  contract exactly.
-- `view/controls.ts` — `mountGammaControls(set, container, opts)` is the seam
-  that wires bank to set and subscribes `set.onChange`.
-- Four mount sites: `view/pentagrid.ts:491` (method), `app/grow.ts`,
-  `app/roof.ts`, `app/grow7.ts`. All pass `{ colors }` and nothing else, so
-  swapping one page at a time is a one-line change per page.
-
-### The crux: make it cyclic, not five radial sliders
-
-Jake's warning is the design constraint that matters — five axes arranged
-prettily, each with a hard endpoint, would be the old bank in a circle. The five
-axes say *which family*; something must say *where that family's phase lies mod
-1*, cyclically.
-
-**Proposal: draw each family's actual line positions along its axis, and slide
-them.** Family j's lines sit at `x . v_j = n - gamma_j`, so along axis j they
-cross at parameter `t = n - gamma_j` for every integer n — a periodic tick train
-of spacing 1. The center is the origin and stays fixed; changing gamma_j slides
-that family's whole train along its axis.
-
-That makes mod 1 **structural rather than enforced**: after a full unit the
-picture is identical, and there is no end to hit because the train continues off
-the edge of the widget in both directions. Wrapping is not animated smoothly, it
-is *invisible*, which is stronger.
-
-It also makes the control honest — you are not dragging an abstraction, you are
-dragging that family's grid lines, which is exactly what gamma does.
-
-Reference structure without labels: between two consecutive ticks put minor
-divisions at fifths and a slightly stronger one at the half. That renders 0, 1/5,
-2/5, 1/2, 3/5, 4/5 recognizable by eye. Exact values on hover/selection only.
-
-Two things fall out for free:
-
-- **The free/dependent gamma shows the constraint working.** Its train visibly
-  slides when you move a different axis. Dim it and it reads as "this one is not
-  yours to drive" without a label.
-- **n-generality is free.** The axes come from `set.model.directions`, which is
-  already n-general, and the tick train does not care about n. Five stays the
-  default; a heptagrid needs no new code.
-
-### Interaction
-
-Instrument, not form. Wheel is primary.
-
-- **Wheel** over the reticulum adjusts the selected axis, or the nearest one if
-  none is selected. Hundredths a notch, thousandths with shift — the same steps
-  the dial bank now uses, so the feel carries over.
-- **Drag along an axis** slides that family's train directly.
-- **Hover or click** an axis to select it; the selected axis is emphasized.
-- **Touch**: tap to select, drag to change. Hit regions are angular wedges around
-  each axis, far larger than the drawn marks — no small handles anywhere.
-- Conventional sliders stay available as fallback and for accessibility.
-
-### Presets, kept separate from the geometry
-
-Buttons outside the reticulum, not marks on it: equal gamma at 0, 1/5, 2/5, 1/2,
-and the Penrose sum constraint. `setSum(5c, true)` already produces the equal
-split, so these are one call each. `sunstar.html` has the same five and can share
-the list.
-
-`Sigma-gamma` shown prominently enough to read while dragging, with
-`Sigma-gamma mod 1` alongside when they differ — that difference is exactly the
-LI-class parameter, so it earns its place.
-
-### Architecture — two controls, one interface
-
-Because both survive, they must be **interchangeable**, and the existing type is
-already the right shape:
-
-    GammaBank      { element, sync(state) }
-    GammaBankState { values, locked, sum, sumNote }
-
-`createReticulum(config)` returns **the same handle type**, so a page swaps one
-for the other without knowing anything else. Worth renaming the type to something
-implementation-neutral — `GammaControl` — once there are two of them; `GammaBank`
-reads as the dial one specifically.
-
-The seam stays single rather than forking. `mountGammaControls(set, container,
-opts)` gains a `control?: "dials" | "reticulum"` option defaulting to `"dials"`,
-so the four existing mount sites keep working untouched and a page opts in with
-one word. One place still knows about both the view and `GammaSet`.
-
-Construction options may differ even though the handle does not: the reticulum
-needs the **axis directions**, which the bank has no use for. `mountReticulum`
-has the set, so it passes `set.model.directions` — and since the model's arrays
-are mutated in place and never replaced, the reticulum can hold that reference
-and read it every draw, so `setSymmetry` turning the star just works.
-
-`src/ui/reticulum.ts`, following the container rule already in this plan and in
-MODULES.md. Pure view, DOM-only, no pentagrid mathematics inside it.
-
-**SVG**, as Jake suggests — this is 2-D vector geometry that needs crisp scaling
-and hit-testing, and it lives in the controls area rather than the canvas layer
-stack, so it does not fight the existing architecture.
-
-Visual: thin construction lines, five stronger principal axes, small gamma
-indicators, selected axis emphasized. No gauges, chrome, gradients or shadows.
-Readable at the smallest useful size. Start 220-260 px square and make it
-responsive.
-
-### Built 2026-09-11, and what changed in the doing
-
-`src/ui/reticulum.ts`, `mountReticulum` in `view/controls.ts`, both controls live
-on `method.html` against one gamma set.
-
-Two revisions from Jake once it was running:
-
-- **One line per family, not a train of hatch marks.** The reticulum draws the
-  single line of family j nearest the origin, as a chord perpendicular to its
-  axis at distance `frac(gamma_j) * SPACING`. Mod 1 survives the change — a whole
-  turn reproduces the chord exactly, and a test pins that at gamma = 0, 1, -2 and
-  7.25 — but the wrap is now a visible return rather than an invisible slide. A
-  clock hand passing twelve, which is the metaphor the labels ask for anyway.
-- **Labels round the rim, on their own axes**, colored, with the dependent one
-  grayed. For an untwisted star they land at 0, 72, 144, 216, 288 degrees;
-  `setSymmetry` turns them with their axes, since they are placed from
-  `directions` rather than from fixed angles.
-
-**Sigma joins the lock group — a model change.** Clicking a colored label makes
-that offset the dependent one. Clicking **Sigma at the hub** makes the *total*
-the dependent member: nothing holds it, and all n offsets are free at once.
-Exactly one of the n+1 is gray, always.
-
-That needed `GammaSet` to accept `setLocked(-1)`: `relock()` now recomputes
-`sumQ` from the offsets instead of writing a dependent one, and the guard skips
-its `q[locked]` check. `setSum` on an unconstrained set spreads evenly, since
-there is no index left to absorb a change. **The dial bank gets the same
-behavior** — its Sigma readout is clickable and grays the same way — because the
-change is in the model, not in either view.
-
-**Shared now, separate later (Jake).** Both controls currently drive one
-`GammaSet`, which is what makes the side-by-side comparison meaningful. The
-reticulum will get its own copy eventually, so nothing should assume there is
-exactly one set per page.
-
-### Staging, and one known risk
-
-Nothing is removed at any point. Mount both on one page first — probably
-`method.html`, since that is where the bank is worst — so they can be compared
-side by side, then let each page choose. Plausible split: the reticulum where
-there is room and the five families matter (method, sunstar), the bank where
-vertical space is tight or the control is incidental (grow, roof, grow7).
-
-**Risk worth knowing before starting:** `tools/domstub.mjs` has `createElement`
-but **no `createElementNS`**, which is what SVG needs. The Proxy will return
-something callable rather than throwing, so `pagecheck` may pass while the
-control is structurally untested. Either teach the stub `createElementNS` with
-the same `children`/`on` plumbing, or accept that the reticulum's tests exercise
-it directly rather than through a page. Decide that first, because the existing
-harness catching blank pages is worth keeping.
-
-## Site structure
-
-Three top-level pages, following the shape wieringa-roof uses.
-
-| page | content | state |
-|---|---|---|
-| `index.html` | front door — what a pentagrid is, why it matters, links out | done |
-| `method.html` | the mathematics — de Bruijn's dual construction in six steps | done |
-| `explorations.html` | index of the explorations, each linking to its own page | deferred |
-
-`index.html` is a static page — no script, and `src/index.ts` is gone with it.
-It states the construction, links to `method.html` as the spine, and surfaces the
-three things that are not obvious from looking at the method page: that
-regularity is decided rather than tested, that sub-pixel regions are the normal
-case and the loupe is the answer, and that the tiling is 5/2 the grid.
-
-`explorations.html` is **deferred until there is an exploration page to index**.
-An index of zero pages is worse than a section, so for now the explorations are a
-"planned" block on `index.html`; that block moves to its own page as soon as
-either E1 or E2 has one.
-
-`method.html` stays as it is. It is the explanatory core and everything else
-assumes it. The explorations link back to it rather than re-deriving.
-
-Each exploration gets its **own page** — `wiggle.html`, `discrete.html`, and so
-on. They are projects unto themselves, not extra steps bolted onto the method
-walkthrough. Sharing happens at the source level (`src/`), not by overloading one
-page with modes.
-
----
-
-## Explorations
-
-### E1 — Wiggle room: what was measured, and what it is really for
-
-Discussed at length 2026-09-05 and **not built**. The measurements below are the
-result and are worth more than the page would have been; they are closed-form
-answers to "wiggle room", which is what E1 was asking for.
-
-Reading **(a)**, ribbon geometry, is what was pursued. Reading **(b)** — the
-region of γ-space that produces a given finite patch, shrinking as the patch
-grows — is the one still worth building, and the obstacle this plan recorded
-against it turned out not to exist. See *Completing E1* below.
-
-#### The ribbon, and its channel
+The recognizer was then written (§5.11) and answered Sun/Star by the index
+instead; the tower itself is not built. What it would still add: two dimensions
+of γ never shrink — sliding along E∥ translates the grid and leaves the tiling
+alone — so the tower pins γ only up to that slide, and seeding from `St5` or the
+queen would need the P1 shapes placed, not just recognized (§5.10).
+
+### 5.17 E1 — Wiggle room: the ribbon, the growth, and the acceptance region (2026-09-05/06)
+
+Reading **(a)**, ribbon geometry, gave the closed forms below and then
+`grow.html`. Reading **(b)** — the region of γ-space that produces a given finite
+patch — became `wiggle.html`.
+
+**The ribbon, and its channel.**
 
 Fix a family `j` and a line index `nj`. That grid line's crossings are **exactly
 collinear** (max deviation 1.2e-15) and each is one rhomb; all of them share edge
@@ -2378,7 +1375,7 @@ sits in.**
 *either* index. Filtering `r.j === j` gets 41 tiles where matching both positions
 gets **83** — half the ribbon is invisible if you get this wrong.
 
-#### The better exploration: tiles growing out of their crossings
+**The better exploration: tiles growing out of their crossings** (`grow.html`).
 
 Jake's redirection, and the right one: the ribbon picture is *an* answer, not
 *the* answer. Instead of straightening a path, start from the step-2 intersection
@@ -2406,7 +1403,7 @@ This makes one parameter run **step-2 dots → the tiling → the ribbon picture
 The composite dot at `t = 0` is literally the center composite of a tile with
 zero size.
 
-#### There is no struggle, and that is the finding
+**There is no struggle, and that is the finding.**
 
 With one clock for every tile, the endpoint of an arm is
 
@@ -2446,9 +1443,9 @@ the tightest 200 average **0.013** — the near-concurrent triples, essentially
 coincident — and those tiles travel 0.721 against 0.491 for the loosest. The most
 dramatic motion happens exactly where the meter and the loupe were built to look.
 
-#### Completing E1: reading (b) — BUILT 2026-09-06, `wiggle.html`
+**Reading (b) — `wiggle.html`.**
 
-**The recorded obstacle was false.** This plan said (b) "needs a way to draw a
+**The recorded obstacle was false.** The plan had said (b) "needs a way to draw a
 region of 4-dimensional γ-space". It needs a way to draw a region of a *plane*.
 
 Under the cyclic symmetry ℝ⁵ splits as E∥ (cos/sin 2πj/5) ⊕ E⊥ (cos/sin 4πj/5) ⊕
@@ -2528,14 +1525,7 @@ page — and with registration permanent, "drag this and watch the grid slide un
 a stationary tiling" is a demonstration in itself. A change to the bank's
 callbacks, not new machinery.
 
-#### If it is ever built
-
-The growth animation, if it is ever wanted: `grow.html`, one viewport,
-`createPentagrid` plus a `layers` callback. A `t` slider and a schedule selector, from the zero-struggle zip to the roughest.
-Wanting only some tiles expressed — "strips in one direction" — is a one-line
-predicate on the rhomb set, since provenance is on every rhomb.
-
-### E3 — The Wieringa roof — BUILT 2026-09-06, `roof.html`
+### 5.18 E3 — The Wieringa roof (2026-09-06, `roof.html`)
 
 Jake's ask after seeing `grow.html`: the same growth, but standing up.
 
@@ -2571,93 +1561,217 @@ which reproduces `wieringa-roof/PLAN.md:46` exactly, from the other direction.
 The lift lives in `src/geometry/roof.ts` — DOM-free like the rest of `geometry/`,
 so the page is not where the mathematics is kept. Four tests cover it.
 
-**Still to come:** the oblate and acute golden hexahedra. The roof is the lid on
-them (see wieringa-roof's triacontahedra note), and the rhombs are the step Jake
-wanted first.
+Since then: the level count follows Σγ (four levels only at an integer total,
+§5.13), the height ramp on the flat pages shades by the same index, and the roof
+carries the P1 overlay. The oblate and acute golden hexahedra — the roof is the
+lid on them — are not built (§6).
 
-### E2 — The pentagrid on the discrete directions
+### 5.19 The dual map has gain 5/2 (2026-09-05)
 
-Fully specified in [RESEARCH.md](RESEARCH.md): replace the 72° directions with
-the limiting directions of penrose-mosaic's integer construction —
-`arctan((3−φ)/2) = 34.6438°` and `arctan((5+3√5)/4) = 71.1377°` — and dualize
-that instead.
+The tiling is drawn 2½ times the size of the pentagrid that generates it. Not an
+error; a consequence of drawing unit rhombs. But it means the two pictures do not
+register.
 
-Three code-shape notes RESEARCH.md does not make:
+Writing `K_j(x) = x·v_j + γ_j + ε_j` with `ε_j ∈ [0,1)`,
 
-- `directions[]` is built once at the top of `method.ts` from `2πj/5`. It has to
-  become a basis *choice* before this is reachable. That is the whole coupling —
-  everything downstream already reads from the array.
-- **The thick/thin classification breaks.** `min(k−j, 5−(k−j)) === 1`
-  (`src/meth1od.ts:666`) hardcodes the 5-fold assumption. With three distinct edge
-  lengths (4, √13, √17) there are up to ten parallelogram types rather than two
-  golden rhombs, so the classification and the two-color legend both have to
-  generalize. Whether it stays two shapes *is the experiment's first result*.
-- **Sum-zero loses its meaning.** The γ constraint is specific to the 5-fold
-  case. On arbitrary directions this is a generalized de Bruijn multigrid and the
-  constraint has to be restated or dropped — which is the same conversation as
-  open item 1.
+```
+f(x) = Σ K_j v_j = Σ (x·v_j) v_j + Σ γ_j v_j + Σ ε_j v_j
+     = (5/2)·x   + const         + bounded wobble
+```
 
-The payoff, per RESEARCH.md: the old prediction that the discrete construction
-converges back to standard Penrose has closed forms saying otherwise. This makes
-it falsifiable rather than speculative.
+because `Σ_j v_j v_jᵀ = (5/2)·I`. That value is forced and cannot involve φ: the
+operator is isotropic by the five-fold symmetry, so it is a scalar times the
+identity, and the scalar is `tr/2 = (Σ|v_j|²)/2 = 5/2`. The computation never
+looks at the angles — five unit vectors, two dimensions.
 
-### Later slots
+**What it really is: 5 dimensions to 2.** The construction is the projection of
+ℤ⁵ onto a 2-plane. For the orthogonal projection `P: ℝ⁵ → E∥`, each basis vector
+satisfies `|Pe_j|² = 2/5` exactly — 2/5 of its squared length lands in the
+physical plane, 3/5 in the perpendicular space, and `Σ|Pe_j|² = tr(P) = dim E∥ =
+2`. Pythagoras in ℝ⁵. With those correctly normalized images (`|u_j| = √(2/5)`)
+the frame operator is exactly the identity and **the dual map has gain 1**. The
+5/2 appears only because the page renormalizes to unit rhombs, inflating each
+vector by `√(5/2)`. So `5/2 = 1/(2/5)`, and in general n dimensions to d gives
+gain n/d.
 
-Not scoped, recorded so they aren't lost:
+Which also means registration is not a fudge — it is the natural normalization.
 
-- **Phason flips.** Step 6's text already promises them. Crossing a singular γ
-  rearranges tiles locally — animating one crossing in slow motion is a natural
-  page, and it is the payoff for getting item 1 right.
-- **Exact arithmetic — largely delivered, see item 1.** The regularity question
-  turned out to need only ℚ(√5), not the full cyclotomic field, and reduces to ten
-  integer comparisons on γ held as exact rationals. What remains open is the same
-  treatment for the *K-tuples*: `Math.ceil(dot + γ − 1e-9)` is still a float with a
-  fudge, and at extreme loupe magnification that epsilon is the real floor.
-  Original note, still true of the general case: exact arithmetic would not
-  *prevent* singularities — singularity is a property of γ, not of precision; at
-  γ = 0 five lines genuinely meet at the origin and no arithmetic changes that.
-  What it buys is **decidability**.
-  `CONCURRENT_TOL = 1e-9` is currently a guess: a triple 1e-10 apart is called
-  concurrent, one 1e-8 apart is not, and neither verdict is certain. The pentagrid
-  lives in the fifth cyclotomic field, degree 4 over ℚ, so points, γ and every
-  intersection are exactly representable as four BigInt rationals, and
-  concurrency becomes a decision rather than a threshold. Jake's instinct about
-  primes is half right: with γ over a common denominator q, concurrency becomes an
-  integer condition, and choosing q to avoid the low-height relations gives a γ
-  that is *provably* regular over a stated window — something no amount of nudging
-  or measuring can deliver.
-  Not worth it in the scan, which is the hot loop and needs floats for the
-  display anyway. Worth it as a one-shot **certifier**: "this γ has no concurrency
-  in this window", run once, exactly. That is the one thing the meter cannot do.
-- **The lift.** P3 → Wieringa roof. Belongs in `wieringa-roof`, not here, but it
-  is where a continuous parameter earns the most, and the fold angles are already
-  verified there.
+**Where φ actually lives.** Walking one unit along v₀ you cross `2φ = 3.236068`
+rhomb edges but net-displace only `5/2`, because the edges are not collinear
+(ratio `4φ/5`). φ owns the combinatorics and the shapes; n/d owns the isotropic
+gain. A φ-flavored gain would have meant the frame operator was not isotropic,
+contradicting the five-fold symmetry the whole construction rests on.
+
+Verified three ways: `n/2` holds for n = 3,5,7,9,11 to nine decimals, so it is a
+frame fact and not a Penrose one; direct measurement over 38,550 rhombs built the
+way the page builds them gives 2.50156 → 2.50044 → 2.50014 as the patch grows;
+and the density ratio (7.6942 regions per unit area against 1.2311 rhombs) is
+6.250000 = (5/2)².
+
+**Consequences:**
+
+- A transition from crossing to tile must be `lerp((5/2)·x₀, f, t)`, not
+  `lerp(x₀, f, t)` — the latter is a 2.5× zoom-out with the content buried in it. Then the motion is *only* the wobble — each rhomb moves
+  at most ~1.6 units and settles — which shows the actual theorem: **the dual map
+  is a similarity plus a bounded perturbation.**
+- A ribbon-straightening picture (§5.17) has the same defect. Comparing a wiggly dual path
+  against its straight generator only means something at matched scale, or the
+  2.5× swamps the wiggle being looked at.
+
+**On the page:** registration is permanent — the pentagrid is drawn under
+`x ↦ (n/2)x`, so lines sit 2.5 apart and each rhomb lands on the crossing that
+made it. Scaling the grid up rather than the tiling down keeps the rhombs at the
+size they deserve. You cannot have both registration and edge = line spacing;
+the gain is the reason.
+
+### 5.20 Regularity: decided, not tested (2026-09-04)
+
+Two different claims, one of which an earlier draft got wrong. Region *size*
+cannot be bounded below — that stands. But exact *concurrency* is a measure-zero
+condition, and it is **decidable in closed form** for rational γ.
+
+**The criterion.** Three lines `(j,n): x·vⱼ = n − γⱼ =: cⱼ` are concurrent iff the
+3×3 determinant vanishes, which expands to
+
+```
+c_a·sin(θ_c−θ_b) + c_b·sin(θ_a−θ_c) + c_c·sin(θ_b−θ_a) = 0
+```
+
+For the pentagrid the θ are multiples of 72°, so dividing by sin 144° leaves every
+coefficient in {±1, ±φ} — and for all ten triples the split has the same shape:
+one `c_j` alone on one side, the other two together on the other. Each condition
+therefore reads `u + φ·v = 0` with `u, v` rational, and since φ is irrational
+**both** must vanish. The lone term gives `c_L = 0`, i.e. `γ_L ∈ ℤ`; the pair
+gives `c_P + c_Q = 0`, i.e. `γ_P + γ_Q ∈ ℤ`. So
+
+```
+triple (a,b,c) is singular  ⟺  γ_L ∈ ℤ  and  γ_P + γ_Q ∈ ℤ
+```
+
+| triple | lone | pair | triple | lone | pair |
+|---|---|---|---|---|---|
+| 012 | γ₁ | γ₀+γ₂ | 034 | γ₄ | γ₀+γ₃ |
+| 013 | γ₃ | γ₀+γ₁ | 123 | γ₂ | γ₁+γ₃ |
+| 014 | γ₀ | γ₁+γ₄ | 124 | γ₄ | γ₁+γ₂ |
+| 023 | γ₀ | γ₂+γ₃ | 134 | γ₁ | γ₃+γ₄ |
+| 024 | γ₂ | γ₀+γ₄ | 234 | γ₃ | γ₂+γ₄ |
+
+**Corollary: if no γⱼ is an integer, the pentagrid is regular everywhere** — for
+rational γ, which is all the instrument can produce. Ten integer comparisons, no
+tolerance, no window. This *decides* legality rather than
+testing it — which is the thing the float scan can never do, however small its
+epsilon.
+
+Verified 205/205 against brute-force search, and the guarded default
+(γ = [1,2,3,4,−10]/10⁴) has zero concurrencies out to radius 40 where γ = 0 has
+380 out to radius 25.
+
+**Why the old 5e-9 nudge failed, exactly.** Magnitude was never the issue. It left
+γ₀, γ₂, γ₃ at exactly 0, and being *symmetric* it preserved γ₁ + γ₄ = 0 — so
+triples 014 and 023 stayed singular for any step size whatsoever. Correctness here
+is about rationality class, not smallness. The guard now shifts by 1/10⁴ with a
+different offset per family, which is both invisible and provably sufficient.
+
+**About size rather than legality:**
+
+- **The old test was a proxy, and a narrow one.** Singularity is a condition on
+  integer combinations of the γ's, not on pairwise equality; the table above is
+  what it actually looks like.
+- **A minimum region *size* still cannot be enforced.** Regularity buys *positive*
+  area, never area *bounded below*. As the line indices range over ℤ the
+  near-concurrency defects equidistribute (Weyl — the direction ratios are
+  irrational), so for **every** γ the infimum of region size over the plane is
+  zero. This is why the meter and the loupe are still needed even when γ is
+  provably regular.
+- **The small triangle is the content.** Three nearly-concurrent lines bound a
+  genuine region with a genuine dual vertex; as γ crosses the singular value it
+  collapses through zero and the tiling rearranges. That is the phason flip
+  the method page promises. Nudging γ to keep triangles fat makes the most
+  interesting phenomenon on the page unreachable.
+
+**The meter.** Measured over the visible window, in pixels, live; it reports the
+*count* of regions under the hoverable threshold, since the minimum is tiny
+essentially always (generic γ at default zoom: 308 regions under 5 px, smallest
+0.042 px). The candidate filter is exact: `h = |d − round(d)|` with
+`d = P·v_c + γ_c` is the perpendicular distance from a crossing to the nearest
+line of a third family.
+
+**Concurrencies are a separate finding and reported separately.** A small
+triangle has an interior and the loupe can open it up. Three or more lines
+actually meeting have no interior at all, and no magnification will ever help —
+that is where the dual stops being a rhombus tiling, though the construction is
+not undefined there. Lutfalla: *the dual of an intersection point where k lines
+meet is a 2k-gon with unit sides.* Three lines through a point give a hexagon,
+not three rhombs. The scan's triangle test misses them by construction (the
+triangle degenerates and falls out of the perimeter guard), so they have their
+own branch: inradius below a tolerance in **math units**, then dedupe by position
+and count how many families pass through the point.
+
+**Γ = 0 is fully singular** — all ten triples, 97 concurrency points in the
+default window, the origin among them with all five lines. The guard (*force
+regular*) moves off it by 1/10⁴ and says so; unchecking sits on it deliberately.
+The default is now the sun, c = 1/5, which is regular untouched.
+
+### 5.21 The loupe (2026-09-04)
+
+Regions are hoverable at *any* size already — `computeKTuple` at the cursor is
+exact, so a 0.1 px triangle returns the right K-tuple. **The only thing that
+fails is aiming.** So the loupe is magnification and no new picking code.
+
+**Inset panel, not a fisheye.** A radial magnifier is not conformal: straight
+lines curve and 72° stops being 72°, on a page whose subject is straight lines at
+exact angles. And with `g(0)=0`, `g(R)=R` the mean of `g′` is 1, so `g′(0) > 1`
+forces a compression annulus inside the rim — a ring where things are *harder* to
+hit than at 1×. Compression ring or discontinuity; there is no third option. The
+inset costs none of that.
+
+As built: pinned to a corner, never floating; opens when the smallest region near
+the cursor falls below ~5 px; magnification `40 / size_px`, latched on open;
+freezes when the cursor enters it and releases on leaving; never closes on
+distance (the first cut did, and vanished on the way to the panel); says what it
+shows (`12k×  5 lines concurrent`); a footprint rectangle in the main view. Off
+by default — it is a tool for near-singular configurations and gets in the way
+of looking at the picture.
 
 ---
 
-## On animation
+## 6. Not built
 
-**No animation library.** Theatre.js is a tool in search of an application and
-this is not it.
+Thought about, recorded, not started. None is scheduled.
 
-If and when a continuous parameter is wanted, the page already has the data model
-for it. `const gridAlphas = [0.6, 0.6, 0.4, 0.15, 0.15, 0]` indexed by
-`currentStep` is a six-key track sampled only at its keys; Prev/Next is a
-scrubber with the in-between frames removed. Making that parameter a float and
-writing `render(t)` is the entire mechanism, in roughly the number of lines it
-takes to describe.
-
-The transition worth having is not a mesh morph. Each rhomb is generated by an
-intersection and lands where the dual map sends it:
-
-```
-vertex_i(t) = lerp((5/2)·x₀, f + offset_i, t)
-```
-
-The 5/2 is not optional — see item 3. Without it the animation is a 2.5× zoom
-with the content hidden inside it; with it, each rhomb moves only by the bounded
-wobble and settles onto its place. The animation is the theorem, not decoration —
-and it is also exactly the E1 mechanism, one dimension up.
-
-Some explorations may borrow the *vocabulary* — a scene, a parameter, a state
-derived from `t` — without borrowing any machinery.
+- **E2 — the pentagrid on the discrete directions.** Fully specified in
+  [RESEARCH.md](RESEARCH.md): replace the 72° directions with the limiting
+  directions of penrose-mosaic's integer construction, `arctan((3−φ)/2) =
+  34.6438°` and `arctan((5+3√5)/4) = 71.1377°`, and dualize that. `n` and
+  `directions` are already parameters, so the coupling is gone; what breaks is
+  the thick/thin classification (three edge lengths, up to ten parallelogram
+  types — whether it stays two shapes *is the first result*) and the meaning of
+  Σγ. The payoff: the old prediction that the discrete construction converges
+  back to standard Penrose has closed forms saying otherwise, so it is
+  falsifiable.
+- **Phason flips in slow motion.** Crossing a singular γ rearranges tiles
+  locally; the hunt presets put you on one and `wiggle.html` shows the boundary.
+  A page that animates one crossing is the payoff for the exact criterion.
+- **An exact certifier.** The scan is floats and `Math.ceil(dot + γ − 1e-9)` is a
+  float with a fudge; at extreme loupe magnification that epsilon is the floor.
+  The pentagrid lives in ℚ(ζ₅), degree 4, so every crossing is four BigInt
+  rationals and concurrency is a decision. Not for the hot loop — as a one-shot
+  "this γ has no concurrency in this window", which the meter cannot say.
+- **The ℚ(√5) two-component phase.** Whether phases carried as `a + b√5` reach
+  configurations a rational denominator cannot. Jake: "that's another app".
+- **The golden hexahedra.** Oblate and acute; the roof is the lid on them
+  (wieringa-roof's triacontahedra note).
+- **The LI-class strip.** A row of patches across Σγ ∈ [0,1), so the flowers
+  appear and disappear as you sweep — Levochik's figure, redrawn from our own
+  geometry (the SVG is CC BY-SA). A layout job.
+- **E∥ / E⊥ split of the instrument.** Two of the five phases only slide the
+  grid under a stationary tiling (§5.17). Showing which is which on the
+  reticulum is a change to callbacks, not machinery.
+- **The deflation tower.** Drive the acceptance region from generations of a
+  seed rather than a hand-picked patch (§5.16); convergence is 1/φ per
+  generation, ~18 generations to the denominator we carry.
+- **P1 round trip.** rhombs → P1 recovers only the Pe family; placing the St
+  tiles is the missing half (§5.10). With both directions the Robinson half-step
+  becomes visible in the six P1 shapes.
+- **devicePixelRatio.** The backing store is CSS pixels, so the canvas is soft on
+  a retina display. A couple of lines, but it changes how everything renders.
