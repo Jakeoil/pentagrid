@@ -8,8 +8,8 @@ import {
 import type { GridSegment } from "../geometry/pentagrid.js";
 import { scanRegions } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
-import { findClusters, CLUSTER_FILL } from "../geometry/clusters.js";
-import type { ClusterKind } from "../geometry/clusters.js";
+import { findClusters, CLUSTER_FILL, p1Pentagons as geoP1, P1_FILL, P1_STAR } from "../geometry/clusters.js";
+import type { ClusterKind, P1Pentagon } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
@@ -600,46 +600,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return groupCache.get(rhomb) ?? null;
     }
 
-    /**
-     * penrose-mosaic's P1 palette: its `defaultColor` per type. The pentagons
-     * are Pe5 blue, Pe3 yellow, Pe1 orange; the stars, boats and diamonds are
-     * all blue, and so is everything a pentagon does not cover.
-     */
-    const P1_FILL: Record<ClusterKind, string> = { Pe5: "#0000ff", Pe3: "#ffff00", Pe1: "#e46c0a" };
-    const P1_STAR = "#0000ff";
-
-    /**
-     * The P1 tiling, read off the rhomb groups.
-     *
-     * Measured against penrose-mosaic's own drawing (Sun on Sun, gen 3, pentas
-     * with small rhombs): every pentagon is centered on a rhomb-group center,
-     * has circumradius exactly the rhomb edge, and is turned 36° from the
-     * group's spokes — its vertices point OPPOSITE to the rhomb edges leaving
-     * the center. At a minimum-index center the rhombs leave along +v_j, so the
-     * pentagon's vertices are at c - v_j; at a maximum, c + v_j. Every yellow
-     * pentagon there had four rhombs at its center and every orange three, so
-     * the kind the recognizer gives is the pentagon's type. Stars, boats and
-     * diamonds are what is left between the pentagons.
-     */
-    interface P1Pentagon { x: number; y: number; kind: ClusterKind; verts: Vec2[]; }
+    /** The P1 pentagons on the current rhombs — see geometry/clusters.ts. */
     let p1Cache: P1Pentagon[] | null = null;
     function p1Pentagons(): P1Pentagon[] {
-        if (p1Cache) return p1Cache;
-        const res = findClusters(currentRhombs());
-        const out: P1Pentagon[] = [];
-        if (res.defined) {
-            const { lo } = indexRange();
-            for (const c of res.clusters) {
-                if (!c.kind) continue;
-                const sign = c.index === lo ? -1 : 1;
-                const verts: Vec2[] = directions.map(([vx, vy]) => [c.x + sign * vx, c.y + sign * vy]);
-                // in angular order, so the polygon is simple
-                verts.sort((a, b) => Math.atan2(a[1] - c.y, a[0] - c.x) - Math.atan2(b[1] - c.y, b[0] - c.x));
-                out.push({ x: c.x, y: c.y, kind: c.kind, verts });
-            }
-        }
-        p1Cache = out;
-        return out;
+        if (!p1Cache) p1Cache = geoP1(currentRhombs(), directions);
+        return p1Cache;
     }
 
     /** wieringa-roof's `t`: -1 at the patch's lowest vertex, +1 at its highest. */

@@ -17,7 +17,10 @@ if (host) {
         { id: "roof-fold", key: "fold", format: (v) => `${Math.round(v * 100)}%` },
         { id: "roof-band", key: "band", format: (v) => `${Math.round(v * 100)}%` },
     ]);
-    bindToggles(view, [{ id: "roof-edges", key: "boldEdges" }]);
+    bindToggles(view, [
+        { id: "roof-edges", key: "boldEdges" },
+        { id: "roof-p1", key: "p1" },
+    ]);
 
     // Σγ shifts the de Bruijn index range, so here it also changes how many
     // levels the surface stands on — see the note under the viewport.

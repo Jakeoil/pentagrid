@@ -15,6 +15,8 @@ import type { PentagridHandle } from "./pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
+import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
+import { clipToConvex } from "../geometry/region.js";
 import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
 // Five for the pentagrid, then two more for a heptagrid; the first five are
@@ -71,6 +73,13 @@ export interface GrowthState {
     /** Draw tile edges as real lines rather than the default hairline ghost. */
     boldEdges: boolean;
     /**
+     * Paint the P1 tiling on the tiles: blue, with each pentagon clipped to the
+     * tiles it reaches. The pieces are carried in the tile's own (a, b)
+     * coordinates, so they fold with it on the roof and grow with it on the
+     * flat — a pentagon that spans three tiles creases along their edges.
+     */
+    p1: boolean;
+    /**
      * Outline the 2k-gon each stack of tiles is growing into.
      *
      * A concurrency's C(k,2) rhombs all start on the same crossing, so at grow = 0
@@ -91,7 +100,7 @@ export interface GrowthHandle {
 
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
-    showResolutions: false,
+    showResolutions: false, p1: false,
     boldEdges: false,
 };
 
@@ -538,6 +547,17 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     };
                     const BODY = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
+                    // The P1 pentagons, once per draw. A piece is mapped into the
+                    // tile's (a, b) frame by solving p = v0 + a*vj + b*vk, and
+                    // `world` then puts it where the tile is, lifted or not.
+                    const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
+                    const toLocal = (r: Rhomb, p: Vec2): [number, number] => {
+                        const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+                        const det = vj[0] * vk[1] - vj[1] * vk[0];
+                        const x = p[0] - v0[0], y = p[1] - v0[1];
+                        return [(x * vk[1] - y * vk[0]) / det, (vj[0] * y - vj[1] * x) / det];
+                    };
+
                     for (const { r } of order) {
                         let k = 1;
                         if (shaded) {
@@ -553,8 +573,20 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         }
                         if (grow > 0.02) {
                             trace(r, BODY);
-                            ctx.fillStyle = tint([255, 255, 255], k);
+                            ctx.fillStyle = tint(state.p1 ? rgbOf(P1_STAR) : [255, 255, 255], k);
                             ctx.fill();
+                            if (state.p1) {
+                                const mx = (r.vertices[0][0] + r.vertices[2][0]) / 2;
+                                const my = (r.vertices[0][1] + r.vertices[2][1]) / 2;
+                                for (const pent of pents) {
+                                    if (Math.hypot(pent.x - mx, pent.y - my) > 2) continue;
+                                    const piece = clipToConvex(pent.verts, r.vertices);
+                                    if (piece.length < 3) continue;
+                                    trace(r, piece.map((p) => toLocal(r, p)));
+                                    ctx.fillStyle = tint(rgbOf(P1_FILL[pent.kind]), k);
+                                    ctx.fill();
+                                }
+                            }
                         }
                         if (band > 0.001 && grow > 0.02) {
                             trace(r, [[lo, 0], [hi, 0], [hi, 1], [lo, 1]]);

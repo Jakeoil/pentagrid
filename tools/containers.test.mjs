@@ -60,6 +60,35 @@ test("the 2k-gon layer draws the spaces the stacks grow into", () => {
               `${strokes} outlines survived a regular gamma, from ${singular}`);
 });
 
+test("P1 on the roof: pentagon pieces ride the tiles, lifted or flat", () => {
+    // The pieces are carried in each tile's own (a, b) frame, so they fold with
+    // the roof. Blue first, then the pentagon colors, on every tile they reach.
+    for (const lift of [false, true]) {
+        const v = createGrowthView({ container: host(), lift });
+        v.pentagrid.gamma.setLocked(-1);
+        v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);   // the sun
+        v.set({ grow: 1, p1: true });
+        const layer = v.pentagrid.stack.get("growth");
+        const styles = [];
+        layer.ctx.fill = function () { styles.push(String(this.fillStyle)); };
+        v.redraw();
+        // tinted rgb(...) strings; blue is rgb(0,0,b), yellow rgb(r,g,0) with r=g, orange has r>g>b
+        const blue = styles.filter((c) => /^rgb\(0,0,\d+\)$/.test(c)).length;
+        const yellow = styles.filter((c) => /^rgb\((\d+),\1,0\)$/.test(c) && c !== "rgb(0,0,0)").length;
+        const orange = styles.filter((c) => { const m = /^rgb\((\d+),(\d+),(\d+)\)$/.exec(c);
+            return m && +m[1] > +m[2] && +m[2] > +m[3]; }).length;
+        assert.ok(blue > 100, `${lift ? "lifted" : "flat"}: tiles are painted blue first (${blue})`);
+        assert.ok(yellow > 50 && orange > 50,
+                  `${lift ? "lifted" : "flat"}: pentagon pieces ${yellow} yellow, ${orange} orange`);
+
+        // And off is off.
+        v.set({ p1: false });
+        styles.length = 0;
+        v.redraw();
+        assert.equal(styles.filter((c) => /^rgb\(0,0,\d+\)$/.test(c)).length, 0, "p1 off should paint no blue");
+    }
+});
+
 test("flat and lifted are the same container, differing by config", () => {
     const flat = createGrowthView({ container: host(), lift: false });
     const roof = createGrowthView({ container: host(), lift: true });

@@ -31,7 +31,7 @@
 // at its center. The patch name and the rhomb-group name are different
 // vocabularies. See PLAN.md.
 
-import type { Rhomb } from "./types.js";
+import type { Rhomb, Vec2 } from "./types.js";
 import { vertexIndex } from "./roof.js";
 
 /** Which P1 pentagon a rhomb group centers on. */
@@ -148,5 +148,55 @@ export function completeClusters(result: ClusterResult): Cluster[] {
 export function clusterCounts(result: ClusterResult): Record<ClusterKind, number> {
     const out: Record<ClusterKind, number> = { Pe5: 0, Pe3: 0, Pe1: 0 };
     for (const c of result.clusters) if (c.kind) out[c.kind]++;
+    return out;
+}
+
+/** penrose-mosaic's P1 palette: its `defaultColor` per type. Everything a
+ *  pentagon does not cover — star, boat, diamond — is P1_STAR. */
+export const P1_FILL: Record<ClusterKind, string> = {
+    Pe5: "#0000ff", Pe3: "#ffff00", Pe1: "#e46c0a",
+};
+export const P1_STAR = "#0000ff";
+
+export interface P1Pentagon {
+    x: number; y: number;
+    kind: ClusterKind;
+    /** Five corners, in angular order. */
+    verts: Vec2[];
+}
+
+/**
+ * The P1 tiling, read off the rhomb groups.
+ *
+ * Measured against penrose-mosaic's own drawing (Sun on Sun, gen 3, pentas with
+ * small rhombs): every pentagon is centered on a rhomb-group center, has
+ * circumradius exactly the rhomb edge, and is turned 36° from the group's
+ * spokes — its vertices point OPPOSITE to the rhomb edges leaving the center.
+ * At a minimum-index center the rhombs leave along +v_j, so the vertices are at
+ * c - v_j; at a maximum, c + v_j. Every yellow pentagon there had four rhombs at
+ * its center and every orange three, so the kind the recognizer gives is the
+ * pentagon's type. The stars, boats and diamonds are what is left between.
+ *
+ * On our own tiling this gives zero overlaps and pairs at exactly distance phi
+ * — two inradii, sharing an edge — so it is a genuine P1 pentagon tiling. Empty
+ * when the groups are undefined, i.e. off a Penrose patch.
+ */
+export function p1Pentagons(rhombs: readonly Rhomb[], directions: readonly Vec2[]): P1Pentagon[] {
+    const res = findClusters(rhombs);
+    if (!res.defined) return [];
+    let lo = Infinity;
+    for (const r of rhombs) for (const K of r.kTuples) {
+        let m = 0;
+        for (const k of K) m += k;
+        if (m < lo) lo = m;
+    }
+    const out: P1Pentagon[] = [];
+    for (const c of res.clusters) {
+        if (!c.kind) continue;
+        const sign = c.index === lo ? -1 : 1;
+        const verts: Vec2[] = directions.map(([vx, vy]) => [c.x + sign * vx, c.y + sign * vy]);
+        verts.sort((a, b) => Math.atan2(a[1] - c.y, a[0] - c.x) - Math.atan2(b[1] - c.y, b[0] - c.x));
+        out.push({ x: c.x, y: c.y, kind: c.kind, verts });
+    }
     return out;
 }
