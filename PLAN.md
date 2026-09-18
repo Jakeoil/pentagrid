@@ -78,14 +78,14 @@ overloading one page. There is no explorations index; the nav is it.
 
 Nothing here blocks anything. Ordered by how likely they are to be wanted.
 
-1. **Scan cache.** `scanRegions` reruns on every draw. Key it on (γ, rect,
-   scale) the way the rhomb cache is; the split page's four-minute pagecheck is
-   the symptom, and any page with two views pays twice per pan frame.
-2. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
+1. **Split: one stack, two containers.** Planned 2026-09-17, §5.0. Replaces
+   the two-instance split page and, with it, the cross-canvas hover item and
+   most of the scan cost on that page.
+2. **Scan cache.** `scanRegions` reruns on every draw. Key it on (γ, rect,
+   scale) the way the rhomb cache is. Split's four-minute pagecheck is the
+   symptom; item 1 halves it, this removes the rest.
+3. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
    from `directions` so only the rim needs to follow n.
-3. **Cross-canvas hover on split.** Hover on the grid should light the tile on
-   the other canvas and vice versa — the same map the hover trio already uses,
-   relayed like the view is.
 4. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
    turned; count whether the de Bruijn resolutions of the decagon are exactly
    the ten orientations, against the 62 rhombic tilings the zonogon admits, and
@@ -223,7 +223,69 @@ The plans themselves are gone from this file; what they left behind:
 
 ## 5. The record
 
-Newest first. Each entry is dated to the session that found it.
+Newest first. Each entry is dated to the session that found it. §5.0 is the one
+plan in the file that is still a plan.
+
+### 5.0 Split: one layer stack across two canvases (planned 2026-09-17)
+
+Jake: *have one canvas use the pentagrid layer group (G) and the other the
+Penrose layer group (P). Same reticulum, controls split according to
+usefulness.*
+
+**What split is now.** Two complete `createPentagrid` instances: two
+`GammaSet`s (the right one a slave, `grid.gamma.onChange` pushing values
+across), two models, two rhomb caches, two regularity scans, two K-region
+bitmaps, two panels, and a view relay in each direction. Everything is computed
+twice, the halves know each other only through the relays, and hover cannot
+cross from one canvas to the other without a third relay.
+
+**The plan.** One `createPentagrid`, one model, one `GammaSet`, one
+`LayerStack` — whose canvases live in two containers. Layers with
+`group: "Pentagrid"` go in the left container, `group: "Penrose"` in the right.
+One view state, so no relay; one rhomb cache and one scan; and the hover trio
+crosses canvases for free, because hovering a region on the left is the same
+handler drawing the same highlight, onto the right container's highlight
+canvas.
+
+**Why it is efficient.** Compute halves — one scan, one collect, one K-region
+fill (the four-minute pagecheck is mostly this). The γ sync and both view
+relays disappear, and with them the "right side never drives" special case.
+Cross-canvas hover stops being a feature. And the panel already sorts its rows
+into G and P; `exposeRows` and the row map exist, they only need a host per
+group.
+
+**What changes**, mostly in `layers.ts`, which is page-agnostic and tested:
+
+1. `LayerStack` takes a home per group —
+   `new LayerStack({ default: left, groups: { Penrose: right } }, w, h)`.
+   `add(spec)` appends to its group's container; `resize` covers both; z-order
+   is per container, which is fine because the groups are already z-contiguous
+   (P 30–34, G 5–29).
+2. The raw canvases — highlight 55, footprint 60, event 100 — become one per
+   container. The pointer handlers bind to both event canvases with the same
+   `screenToMath`, since both containers are the same size and view. Highlight
+   draws pick the canvas by what they draw: region → left; vertex, edge, tile →
+   right.
+3. Axes (z 70, its own group) are drawn on **both** — the shared frame on one
+   side only reads as an error. A layer can name more than one home.
+4. Config: `containerP?` (or `containers: { G, P }`). Absent, nothing changes —
+   index, method, grow, roof are untouched. `panel` gains a second host the same
+   way; rows route by their group.
+5. `split.ts` becomes one create and one reticulum mount.
+
+**Controls, split by usefulness.** Left (G): K-labels, gridline width, family
+enable / single line, compute beyond the edge, the meter and loupe, readout
+placement, force regular, symmetry. Right (P): tile style, shade, edges,
+ribbons, the hover trio. The correspondence table goes between the canvases or
+is dropped on this page — the hover *is* the correspondence there.
+
+**Decided up front.** The two containers must be the same pixel size. One view
+on two sizes means two visible rects and breaks the single `computeRect`; the
+page's CSS already makes them equal, and the stack asserts it.
+
+**Cost.** One session. The `LayerStack` change is the real work and the tests
+catch it; the per-container raw canvases are the fiddly part; the panel is
+plumbing.
 
 ### 5.1 The AR-pattern from the indices, with the thick/thin twist (2026-09-17)
 
