@@ -444,3 +444,4 @@ nav.site a:hover { text-decoration: underline; }
     background: #fafafa;
 }
 .ret-presets[hidden] { display: none; }
+.ret-settings { font-size: 11.5px; color: #444; }

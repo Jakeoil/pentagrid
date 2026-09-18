@@ -30,7 +30,8 @@ its dual on the other, one γ), `wiggle.html`, and the index's linked pair.
 The **reticulum** is the γ instrument: a decagon with one axis per family, the
 offset shown as a signed representative in [−½, ½] and driven by the mouse wheel
 (hundredths; thousandths with a modifier). It floats, remembers where you put it,
-and carries the **presets** — the three caps (sun, star, deca) and the singular
+carries a **settings** popup (vertical-axis symmetry: the star turned so v₀
+points up — a rotation of the frame, nothing else), and carries the **presets** — the three caps (sun, star, deca) and the singular
 catalog (decagon, couple, octagon, 1 thick, 2 thick, 1 thin, 2 thin); choosing
 one puts its name on the title bar. The slider bank is still there, folded, for
 comparison.

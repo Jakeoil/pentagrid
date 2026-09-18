@@ -289,7 +289,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // regularity guard. See geometry/gamma.ts — this file is a view over it.
     // Singular configurations are allowed, detected and shown — not silently
     // corrected. Moving someone's offsets to keep a theorem tidy hides exactly
-    // the cases worth looking at. `force regular` is still there, opt-in.
+    // the cases worth looking at. The guard has no switch on the page; a host
+    // that wants it calls gamma.setGuard(true).
     const gammaSet = createGammaSet({ n: config.n ?? NUM_GRIDS, guard: false });
     const directions = gammaSet.model.directions;
     const gamma = gammaSet.model.gamma;
@@ -2497,15 +2498,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         det.appendChild(sum);
 
         const sRow = row(det, "");
-        // One control, stated positively. It was briefly two — this one and a
-        // "keep γ regular" beside the meter — bound to the same flag with
-        // opposite senses and no syncing, so either would show the opposite of
-        // the truth once the other was touched.
-        const guardBox = checkbox(sRow, "force regular", gammaSet.getGuard(), (v) => {
-            gammaSet.setGuard(v);
-        });
-        guardBox.title = "No three lines ever meet at a point. Decided exactly on "
-            + "γ as rationals — ten integer comparisons, no tolerance.";
+        // "force regular" used to be here. Off on every page since the presets
+        // made singularities destinations rather than hazards, and the sun
+        // default keeps the page off Γ = 0 by itself; the guard stays in the
+        // γ set as an API (sunstar, the tests) with no switch. Jake, 2026-09-18.
         // How far past the canvas edge the grid is computed, so a tile at the
         // edge still has its source region. Shown nowhere; the canvas clips it.
         const padWrap = document.createElement("label");
@@ -2532,10 +2528,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         follow.title = "Off: the hover statistics sit in the canvas corner, out of the "
             + "way of what you are pointing at. On: they ride the pointer.";
 
-        checkbox(sRow, "vertical-axis symmetry", gammaSet.getSymmetry(), (v) => {
-            gammaSet.setSymmetry(v);
-        });
-
+        // Vertical-axis symmetry moved to the reticulum's settings popup: it is
+        // a fact about the frame, and the reticulum is where the frame is seen.
 
         layerPanelDiv.appendChild(det);
     }

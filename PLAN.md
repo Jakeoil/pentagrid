@@ -196,8 +196,10 @@ The plans themselves are gone from this file; what they left behind:
 - **The method page reorganized (2026-09-05).** Features stopped being
   step-gated: independent booleans, the pages presets over them. Penrose split
   into tiles / edges / vertices / decor layers, orderable behind the grid;
-  registration permanent; settings collapsed (force regular, vertical-axis
-  symmetry, compute beyond the edge, readout placement).
+  registration permanent; settings collapsed (compute beyond the edge, readout
+  placement; force regular and vertical-axis symmetry were there until
+  2026-09-18 — the first removed as unused once the presets made singularities
+  destinations, the second moved to the reticulum).
 - **The γ cluster (2026-09-09).** One `GammaSet` owning directions, phases, the
   total, the lock and the guard; the sum generalized and spread evenly on
   change; per-family enable, single line, isolate; the duplicate regularity
@@ -206,8 +208,9 @@ The plans themselves are gone from this file; what they left behind:
   called the geometry directly — there are now tests that go through the view.
 - **The reticulum (2026-09-11).** Built as a second `GammaControl` over the same
   set, SVG, one chord per family at `frac(γ_j)·SPACING`, labels on the rim,
-  wheel-driven. Then floated, resized, given the presets popup, and put on every
-  page; the slider bank kept, folded. §5.10 has what changed in the doing.
+  wheel-driven. Then floated, resized, given the presets popup and a settings
+  popup (vertical-axis symmetry lives there: a fact about the frame, seen on
+  the reticulum), and put on every page; the slider bank kept, folded. §5.10 has what changed in the doing.
 - **Singularities (2026-09-12 → 09-15).** Angle-code names, the 2k-gon drawn and
   described, the Penrose catalog decided by arithmetic and offered as presets,
   the superposed rhombs' edges restored, the pseudo-edge toggle, grow routing
@@ -271,7 +274,7 @@ group.
 
 **Controls, split by usefulness.** Left (G): K-labels, gridline width, family
 enable / single line, compute beyond the edge, the meter and loupe, readout
-placement, force regular, symmetry. Right (P): tile style, shade, edges,
+placement. Right (P): tile style, shade, edges,
 ribbons, the hover trio. The correspondence table goes between the canvases or
 is dropped on this page — the hover *is* the correspondence there.
 

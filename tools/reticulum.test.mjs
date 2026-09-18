@@ -358,3 +358,68 @@ test("a push at the dependent axis is refused, visibly", () => {
     assert.equal(r.element.getAttribute("data-warn"), "1", "no refusal shown");
     assert.equal(on4.dp, true, "and the page still must not scroll");
 });
+
+// ── the mount: presets and settings popups ────────────────────────
+
+import { mountReticulum } from "../dist/view/controls.js";
+import { createGammaSet } from "../dist/geometry/gamma.js";
+import { makeStub } from "./domstub.mjs";
+
+function host() {
+    const el = makeStub({ children: [] });
+    el.appendChild = (c) => { el.children.push(c); return c; };
+    return el;
+}
+const walk = (n, f) => { if (!n || !n.children) return; for (const c of n.children) { f(c); walk(c, f); } };
+
+test("the settings popup holds vertical-axis symmetry, and only one popup is open at a time", () => {
+    const set = createGammaSet({ guard: true });
+    const container = host();
+    mountReticulum(set, container, { colors: ["#000", "#000", "#000", "#000", "#000"] });
+
+    const buttons = [], popups = [];
+    walk(container, (c) => {
+        if (c.className === "ret-bump") buttons.push(c);
+        if (String(c.className).includes("ret-presets")) popups.push(c);
+    });
+    const presetsBtn = buttons.find((b) => b.textContent === "presets");
+    const settingsBtn = buttons.find((b) => b.textContent === "settings");
+    assert.ok(presetsBtn && settingsBtn, "both buttons exist");
+    const presets = popups.find((p) => p.className === "ret-presets");
+    const settings = popups.find((p) => String(p.className).includes("ret-settings"));
+    assert.ok(presets && settings, "both popups exist");
+    assert.equal(settings.hidden, true, "settings starts closed");
+
+    // the checkbox is the gamma set's symmetry, both ways
+    let cb = null;
+    walk(settings, (c) => { if (c.type === "checkbox") cb = c; });
+    assert.ok(cb, "no symmetry checkbox in settings");
+    assert.equal(cb.checked, true, "symmetry is on by default");
+    cb.checked = false;
+    cb.on.change.forEach((f) => f({}));
+    assert.equal(set.getSymmetry(), false, "unchecking turns the frame back");
+    set.setSymmetry(true);
+    assert.equal(cb.checked, true, "and the box follows the set");
+
+    // one popup at a time
+    settingsBtn.on.click.forEach((f) => f({}));
+    assert.equal(settings.hidden, false);
+    presetsBtn.on.click.forEach((f) => f({}));
+    assert.equal(presets.hidden, false);
+    assert.equal(settings.hidden, true, "opening presets closes settings");
+    settingsBtn.on.click.forEach((f) => f({}));
+    assert.equal(presets.hidden, true, "and the other way round");
+
+    // choosing a preset leaves the popup up; only its own button dismisses it
+    settingsBtn.on.click.forEach((f) => f({}));
+    presetsBtn.on.click.forEach((f) => f({}));
+    assert.equal(presets.hidden, false);
+    let star = null;
+    walk(presets, (c) => { if (c.textContent === "star") star = c; });
+    assert.ok(star, "no star preset");
+    star.on.click.forEach((f) => f({}));
+    assert.equal(presets.hidden, false, "a preset click must not close the popup");
+    assert.ok(set.values().every((v) => Math.abs(v - 0.4) < 1e-9), "and it applied");
+    presetsBtn.on.click.forEach((f) => f({}));
+    assert.equal(presets.hidden, true, "the button dismisses it");
+});

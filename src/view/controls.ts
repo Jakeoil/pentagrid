@@ -250,16 +250,55 @@ export function mountReticulum(
             symInput.checked = false;
             set.setLocked(-1);
             set.setValues(p.gamma.map((q) => q / p.den));
-            popup.hidden = true;
+            // The popup stays up, like settings: dismissed by its own button,
+            // so a run through the catalog is one click per entry. Jake.
             opts.onPreset?.(p.name);
             render();
         });
         popup.appendChild(b);
     }
-    presetBtn.addEventListener("click", () => { popup.hidden = !popup.hidden; });
+    presetBtn.addEventListener("click", () => {
+        popup.hidden = !popup.hidden;
+        if (!popup.hidden) settings.hidden = true;
+    });
     tools.appendChild(presetBtn);
+
+    // Settings, behind a button of the same kind: things about the instrument
+    // itself rather than a phase vector. One so far.
+    const settingsBtn = document.createElement("button");
+    settingsBtn.className = "ret-bump";
+    settingsBtn.textContent = "settings";
+    settingsBtn.title = "How the reticulum and the grid are laid out";
+    const settings = document.createElement("div");
+    settings.className = "ret-presets ret-settings";
+    settings.hidden = true;
+    {
+        // Vertical-axis symmetry: the star turned a quarter turn so v0 points
+        // up and the picture is mirror-symmetric about the vertical. A
+        // rotation of the frame and nothing else — see makeDirections.
+        const lbl = document.createElement("label");
+        lbl.className = "ret-check";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = set.getSymmetry();
+        cb.title = "Turn the star a quarter turn so v\u2080 points up and the picture "
+            + "is mirror-symmetric about the vertical axis. A rotation of the whole "
+            + "frame: nothing about the tiling changes but its orientation.";
+        cb.addEventListener("change", () => set.setSymmetry(cb.checked));
+        lbl.appendChild(cb);
+        lbl.appendChild(document.createTextNode(" vertical-axis symmetry"));
+        settings.appendChild(lbl);
+        set.onChange(() => { cb.checked = set.getSymmetry(); });
+    }
+    settingsBtn.addEventListener("click", () => {
+        settings.hidden = !settings.hidden;
+        if (!settings.hidden) popup.hidden = true;
+    });
+    tools.appendChild(settingsBtn);
+
     wrap.appendChild(tools);
     wrap.appendChild(popup);
+    wrap.appendChild(settings);
     container.appendChild(wrap);
 
     const render = () => {
