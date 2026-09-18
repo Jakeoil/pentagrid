@@ -186,8 +186,10 @@ three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 (thick/thin), `pair` (the two families, blended), `bands` (families2 — the two
 families as crossed bands, `band` wide), `groups` (the rhomb groups in sun-star's
 colors), `p1` (the pentagon tiling on the groups — the small rhombs), `curves`
-(Penrose's matching curves as filled regions) or `pentagons` (P1 at the scale
-where every thick rhomb holds one whole — the big rhombs); plus `isogloss`, `shading` with its `ramp` (the
+(Penrose's matching curves as filled regions) `pentagons` (P1 at the scale
+where every thick rhomb holds one whole — the big rhombs) or `nextgen` (the
+deflation: thick gold, thin gray, at 1/φ — the next generation once the edges
+are off); plus `isogloss`, `shading` with its `ramp` (the
 Wieringa height ramp, over any color), `boldEdges`, and `opacity`.
 
 Size comes from `data-width` / `data-height` on the container, or from the

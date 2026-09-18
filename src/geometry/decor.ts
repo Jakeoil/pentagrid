@@ -187,3 +187,83 @@ export function rhombPentagons(r: Rhomb, lo: number): RhombPentagons {
             yy + across * Math.sin(d + sg * Math.PI / 5), d + Math.PI)),
     };
 }
+
+// ── Next generation: the deflation, one step ─────────────────────────
+
+export interface RhombDeflation {
+    /** Half-rhombs of the next generation's THICK tiles, as triangles. */
+    gold: Vec2[][];
+    /**
+     * Half-rhombs of the next generation's THIN tiles, as triangles: two on
+     * either prototile. On a thin they share the side B–T, which is a thin'
+     * EDGE — each belongs to a different thin', completed across a different
+     * neighbor — so the pair is a kite, not a rhomb, and stays two pieces.
+     */
+    gray: Vec2[][];
+    /**
+     * Every edge of the next generation on this tile, each of length 1/φ: the
+     * figure's thin arrows inside (five on a thick, three on a thin) plus the
+     * ones hiding under the tile's own edges — the green heads peeking out at
+     * the thick's red corner and the thin's acute corners: the 1/φ of each of
+     * those edges nearest that corner. The rest of a tile's edge is a thin'
+     * short diagonal, and its double edges are thick' long diagonals — not
+     * next-gen edges at all. Seven on a thick, five on a thin, and together
+     * over a patch they are exactly the deflated tiling's edge set.
+     */
+    edges: [Vec2, Vec2][];
+}
+
+/**
+ * De Bruijn's deflation, drawn on the tile it came from: each rhomb cut into
+ * the next generation's rhombs at scale 1/φ, thick (gold) and thin (gray), the
+ * halves on a tile's edge meeting their other halves in the neighbor. Without
+ * the edges layer the picture IS the next generation. Read off Jake's
+ * jake/Inflation_1.png and derived from the Robinson triangles:
+ *
+ *   obtuse (half thick, apex 108°, base P–Q = φ)
+ *       → obtuse'(M; O, Q) + obtuse'(N; P, M) + acute'(M; N, O)
+ *         with M on the base at |PM| = 1 and N on the leg P–O at |PN| = 1/φ
+ *   acute (half thin, apex 36°, base O–M = 1/φ)
+ *       → obtuse'(N; P, M) + acute'(M; N, O),  N on P–O at |PN| = 1/φ
+ *
+ * so a thick makes 2 thick' + 1 thin' and a thin makes 1 + 1, which is the
+ * substitution matrix. The arrows say which corner is which. Thick: A the red
+ * corner (singles out of it), C the extreme (doubles into it), X on the long
+ * diagonal at |AX| = 1; the two edges out of A split at 1/φ; the gray halves sit
+ * against the obtuse corners. Thin: T the red corner (singles into it), B the
+ * extreme; the two edges into T split at 1/φ from the acute corners; the gray
+ * halves lean on T either side of the short diagonal T–B. Of a tile's own
+ * edges only the 1/φ nearest the red corner (thick) or the acute corners (thin)
+ * survives as a next-gen edge; the double edges become thick' diagonals. Assembly across every shared edge is
+ * what the test checks; it holds because the split point of an edge is 1/φ
+ * from the tail of its single arrow on either tile.
+ *
+ * Off a Penrose patch the index spans five values and nothing is emitted.
+ */
+export function rhombDeflation(r: Rhomb, lo: number): RhombDeflation {
+    const none: RhombDeflation = { gold: [], gray: [], edges: [] };
+    const idx = (K: readonly number[]) => K.reduce((a, b) => a + b, 0) - lo + 1;
+    const ids = r.kTuples.map(idx);
+    const ext = ids.findIndex((v) => v === 1 || v === 4);
+    if (ext < 0 || ids.some((v) => v < 1 || v > 4)) return none;
+    const V = r.vertices;
+    const lerp = (a: Vec2, b: Vec2, t: number): Vec2 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    const t = 1 / PHI;
+    const E = V[ext], R = V[(ext + 2) % 4], S1 = V[(ext + 1) % 4], S2 = V[(ext + 3) % 4];
+    if (r.thick) {
+        const A = R, C = E, D = S1, B = S2;
+        const X = lerp(A, C, t), L = lerp(A, D, t), Bp = lerp(A, B, t);
+        return {
+            gold: [[D, X, C], [A, L, X], [A, X, Bp], [X, B, C]],
+            gray: [[D, L, X], [X, Bp, B]],
+            edges: [[X, D], [C, X], [X, L], [X, Bp], [X, B], [A, L], [A, Bp]],
+        };
+    }
+    const T = R, B = E, L = S1, Rt = S2;
+    const P1 = lerp(L, T, t), P2 = lerp(Rt, T, t);
+    return {
+        gold: [[L, P1, B], [Rt, P2, B]],
+        gray: [[P1, T, B], [P2, T, B]],
+        edges: [[B, T], [B, P1], [B, P2], [L, P1], [Rt, P2]],
+    };
+}

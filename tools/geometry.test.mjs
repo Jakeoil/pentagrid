@@ -17,7 +17,7 @@ import {
     solveIntersection, segmentAt, nearestLine,
 } from "../dist/geometry/pentagrid.js";
 import { TRIPLES, noIntegerGamma, scanRegions, singularTriples } from "../dist/geometry/regularity.js";
-import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons } from "../dist/geometry/decor.js";
+import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation } from "../dist/geometry/decor.js";
 import { regionPoly } from "../dist/geometry/region.js";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 
@@ -912,5 +912,80 @@ test("the pentagons assemble: every orange pentagon is emitted by both tiles it 
         }
         assert.ok(judged > 200, `only ${judged} pentagons judged`);
         assert.equal(missing, 0, `gamma ${gamma}: ${missing} orange pentagons not emitted by a tile they overlap`);
+    }
+});
+
+// The next-gen style is the deflation drawn per tile: gold half-thick' and gray
+// thin' pieces at scale 1/phi. It is a picture of the next generation only if
+// the pieces assemble across tile edges — every next-gen edge (length 1/phi)
+// shared by exactly two pieces or on the boundary, every half-rhomb base shared
+// by two halves of the SAME color. The obvious other corner rule fails this.
+test("the deflation assembles: next-gen edges pair up and half-rhombs meet their other halves", () => {
+    const key = (p) => `${(Math.round(p[0] * 1e6) || 0) / 1e6},${(Math.round(p[1] * 1e6) || 0) / 1e6}`;
+    const ekey = (a, b) => [key(a), key(b)].sort().join("|");
+    const len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    for (const gamma of [[0.2, 0.2, 0.2, 0.2, 0.2], [0.07, 0.11, 0.13, 0.17, -0.48], [0.4, 0.4, 0.4, 0.4, 0.4]]) {
+        const pg = { n: 5, directions: makeDirections(true), gamma };
+        const R = collectRhombs(pg, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 }, { gain: 2.5 });
+        let lo = Infinity;
+        for (const r of R) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+        const sides = new Map();           // edge -> [{color, len}]
+        let gold = 0, gray = 0, area = 0;
+        const polyArea = (P) => { let a = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a) / 2; };
+        for (const r of R) {
+            const d = rhombDeflation(r, lo);
+            // thick: 4 gold halves + 2 gray halves; thin: 2 + 2
+            assert.equal(d.gold.length, r.thick ? 4 : 2);
+            assert.equal(d.gray.length, 2);
+            // and the next-gen edges: seven and five, each 1/phi long, each a
+            // side of some piece
+            assert.equal(d.edges.length, r.thick ? 7 : 5);
+            const pieceSides = new Set();
+            for (const P of [...d.gold, ...d.gray]) for (let i = 0; i < P.length; i++) pieceSides.add(ekey(P[i], P[(i + 1) % P.length]));
+            for (const [a, b] of d.edges) {
+                assert.ok(Math.abs(len(a, b) - 1 / PHI) < 1e-9, "an interior edge is not 1/phi");
+                assert.ok(pieceSides.has(ekey(a, b)), "an interior edge is not a piece side");
+            }
+            const pieces = [...d.gold.map((P) => ["gold", P]), ...d.gray.map((P) => ["gray", P])];
+            let covered = 0;
+            for (const [color, P] of pieces) {
+                covered += polyArea(P);
+                for (let i = 0; i < P.length; i++) {
+                    const a = P[i], b = P[(i + 1) % P.length];
+                    const k = ekey(a, b);
+                    (sides.get(k) ?? sides.set(k, []).get(k)).push({ color, len: len(a, b) });
+                }
+            }
+            // the pieces tile the rhomb exactly
+            assert.ok(Math.abs(covered - polyArea(r.vertices)) < 1e-9, "pieces do not cover the tile");
+            gold += d.gold.length / 2; gray += d.gray.length / 2; area += polyArea(r.vertices);
+        }
+        // the substitution matrix: thick -> 2 thick' + 1 thin', thin -> 1 + 1
+        const thick = R.filter((r) => r.thick).length, thin = R.length - thick;
+        assert.equal(gold, 2 * thick + thin);
+        assert.equal(gray, thick + thin);
+
+        // the tiles' edge lists, together, are exactly the deflated tiling's
+        // edge set: every 1/phi piece side is listed by some tile, nothing else is
+        const listed = new Set();
+        for (const r of R) for (const [a, b] of rhombDeflation(r, lo).edges) listed.add(ekey(a, b));
+        let edges = 0, bases = 0, bad = 0;
+        for (const [k, list] of sides) {
+            const ends = k.split("|").map((e) => e.split(",").map(Number));
+            if (ends.some(([x, y]) => Math.hypot(x, y) > 7.5)) continue;   // well inside the patch
+            const L = list[0].len;
+            if (Math.abs(L - 1 / PHI) < 1e-6) {                    // a next-gen tile edge
+                edges++;
+                if (list.length !== 2) bad++;
+                if (!listed.has(k)) bad++;
+            } else {
+                if (listed.has(k)) bad++;                                               // a half-rhomb base: 1 (thick') or 1/phi^2 (thin')
+                bases++;
+                assert.ok(Math.abs(L - 1) < 1e-6 || Math.abs(L - 1 / PHI / PHI) < 1e-6, `stray side of length ${L}`);
+                if (list.length !== 2 || list[0].color !== list[1].color) bad++;
+            }
+        }
+        assert.ok(edges > 500 && bases > 200, `only ${edges} edges, ${bases} bases judged`);
+        assert.equal(bad, 0, `gamma ${gamma}: ${bad} sides do not assemble`);
     }
 });

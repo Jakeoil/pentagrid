@@ -15,7 +15,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs, rhombArrows, rhombPentagons } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
 import { createLoupe } from "../ui/loupe.js";
@@ -62,7 +62,8 @@ export interface TileStyle {
      * in sun-star's palette; bare when it belongs to none, or when the patch is
      * not Penrose and groups are undefined), the P1 tiling it carries, the
      * matching curves as filled regions (Wikipedia's rhombus-with-arcs), the P1
-     * pentagons at the scale where every thick rhomb holds one whole — or
+     * pentagons at the scale where every thick rhomb holds one whole, the next
+     * generation (the deflation: thick gold, thin gray, at scale 1/φ) — or
      * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
      * them. Each band runs across the tile in its family's color, `band` wide as
      * a fraction of the edge, and the square where they cross is the composite.
@@ -70,7 +71,7 @@ export interface TileStyle {
      * below that the tile reads as two gridlines passing through. A 2k-gon takes
      * no color under it.
      */
-    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves" | "pentagons";
+    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves" | "pentagons" | "nextgen";
     /** Band width for `bands`, 0..1 of the edge. */
     band: number;
     /** Contour lines across each tile. */
@@ -1583,6 +1584,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (tileStyle.color === "p1") return NO_GROUP;      // and carries no P1
         if (tileStyle.color === "curves") return CURVE_FACE; // a bare face
         if (tileStyle.color === "pentagons") return NO_GROUP; // no indices to place by
+        if (tileStyle.color === "nextgen") return NO_GROUP;
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -1802,6 +1804,47 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (parts.yellow) poly(parts.yellow, P1_FILL.Pe3);
     }
 
+    /**
+     * The next generation: the tile filled gold (thick') and its thin' pieces
+     * laid over in gray. Geometry in rhombDeflation. With the edges off, what
+     * shows is the deflated tiling — the halves on every edge meet their other
+     * halves in the neighbor.
+     */
+    const NEXTGEN_THICK = "#f7d058", NEXTGEN_THIN = "#b6b6b6";
+    function drawNextGen(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    ) {
+        tc.fillStyle = ramped(tc, rhomb, sv, NEXTGEN_THICK);
+        tc.fill();
+        const { lo, hi } = indexRange();
+        if (hi - lo !== 3) return;                       // no indices to place it by
+        const d = rhombDeflation(rhomb, lo);
+        for (const poly of d.gray) {
+            tc.beginPath();
+            poly.forEach(([x, y], i) => {
+                const [px, py] = mathToScreen(x, y, cx, cy);
+                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+            });
+            tc.closePath();
+            tc.fillStyle = ramped(tc, rhomb, sv, NEXTGEN_THIN);
+            tc.fill();
+        }
+        // The next generation's edges, as thin lines — the figure's arrows,
+        // including the ones under the tile's own edges. The long diagonal is a
+        // thick' diagonal and is not drawn. With the edges layer off this is
+        // the deflated tiling, edges and all.
+        tc.strokeStyle = "#777";
+        tc.lineWidth = 1;
+        tc.beginPath();
+        for (const [a, b] of d.edges) {
+            const [ax, ay] = mathToScreen(a[0], a[1], cx, cy);
+            const [bx, by] = mathToScreen(b[0], b[1], cx, cy);
+            tc.moveTo(ax, ay);
+            tc.lineTo(bx, by);
+        }
+        tc.stroke();
+    }
+
     /** A tile's fill for a base color: the color, or the ramp over it. */
     function ramped(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
@@ -1864,6 +1907,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     drawCurves(tc, rhomb, sv, cx, cy);
                 } else if (tileStyle.color === "pentagons") {
                     drawPentagons(tc, rhomb, sv, cx, cy);
+                } else if (tileStyle.color === "nextgen") {
+                    drawNextGen(tc, rhomb, sv, cx, cy);
                 } else {
                     tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
                     tc.fill();
@@ -2419,11 +2464,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "a pentagon on every group, blue between (the small rhombs) · the "
                 + "matching curves as filled regions, dark at the arrow corner · "
                 + "pentagons: P1 at the scale where every thick rhomb holds a whole "
-                + "one (the big rhombs). A 2k-gon follows the same choice.";
+                + "one (the big rhombs) · next-gen: the deflation, thick gold and thin "
+                + "gray at 1/φ — switch the edges off and it is the next generation. "
+                + "A 2k-gon follows the same choice.";
             for (const [value, text] of [
                 ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
                 ["groups", "rhomb groups"], ["p1", "P1"], ["curves", "curves"],
-                ["pentagons", "pentagons"],
+                ["pentagons", "pentagons"], ["nextgen", "next-gen"],
             ] as const) {
                 const opt = document.createElement("option");
                 opt.value = value;

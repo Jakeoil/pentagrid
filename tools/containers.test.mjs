@@ -1277,7 +1277,7 @@ test("a singularity is drawn as a P-region, by the tile and edge layers", () => 
     assert.ok(filled > 0, "nothing was filled at all");
 
     // and the style choice reaches them
-    for (const color of ["type", "pair", "bands", "groups", "p1", "curves", "pentagons"]) {
+    for (const color of ["type", "pair", "bands", "groups", "p1", "curves", "pentagons", "nextgen"]) {
         h.setTileStyle({ color });
         assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, color);
     }
