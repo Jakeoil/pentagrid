@@ -1311,3 +1311,60 @@ test("tile is the fill and edge is the outline — never both from one layer", (
     assert.ok(edges.strokes > 0, "the edge layer drew nothing");
     assert.equal(edges.fills, 0, "the edge layer must not fill");
 });
+
+// ── split: one stack across two containers ────────────────────────
+
+test("split: the Penrose group draws in the second container, the axes in both, one model", () => {
+    const left = sizedHost(600, 600), right = sizedHost(600, 600);
+    const gPanel = sizedHost(600, 100), pPanel = sizedHost(600, 100);
+    const before = globalThis.document.body.children.length;
+    const h = createPentagrid({
+        container: left, containerP: right, panel: gPanel, panelP: pPanel,
+        features: { gridLines: true, kRegions: true, intersectionDots: true,
+                    penroseTiles: true, penroseEdges: true, penroseVertices: true,
+                    hoverVertex: true, hoverEdge: true, hoverTile: true },
+    });
+    const tip = globalThis.document.body.children[before];
+    h.redraw();
+
+    // canvases: by group
+    for (const l of h.stack.all()) {
+        const home = l.group === "Penrose" ? right : left;
+        assert.ok(home.children.includes(l.canvas), `${l.id} (${l.group}) is in the wrong container`);
+        if (l.group === "Axes") {
+            assert.equal(l.mirrors.length, 1, "axes are mirrored");
+            assert.ok(right.children.includes(l.mirrors[0].canvas));
+        } else {
+            assert.equal(l.mirrors.length, 0, `${l.id} should not be mirrored`);
+        }
+    }
+    assert.equal(h.stack.containers.length, 2);
+
+    // the panel: G rows left, P rows right
+    const gRows = [...panelRows(gPanel).keys()], pRows = [...panelRows(pPanel).keys()];
+    for (const r of ["Pentagrid", "Hover", "Grid style"]) assert.ok(gRows.includes(r), `${r} should be on the G side`);
+    for (const r of ["Penrose", "Tile style", "Tile edges"]) assert.ok(pRows.includes(r), `${r} should be on the P side`);
+    for (const r of pRows) assert.ok(!gRows.includes(r), `${r} is on both sides`);
+
+    // input surfaces on both sides, and a hover on the LEFT paints on the RIGHT:
+    // the region under the pointer on the grid, and its vertex on the tiling
+    const events = (host) => host.children.filter((c) => c.style && c.style.pointerEvents === "auto");
+    assert.equal(events(left).length, 1);
+    assert.equal(events(right).length, 1);
+    const hl = (host) => h.stack.rawLayers.find((r) => r.z === 55 && r.host === host).layer.ctx;
+    const painted = { left: 0, right: 0 };
+    hl(left).fill = () => { painted.left++; };
+    hl(right).fill = () => { painted.right++; };
+    const move = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
+    let vertexHits = 0;
+    for (let x = 100; x < 500; x += 11) {
+        for (let y = 100; y < 500; y += 11) {
+            tip.innerHTML = "";
+            for (const f of move) f({ clientX: x, clientY: y, offsetX: x, offsetY: y, preventDefault() {} });
+            if (String(tip.innerHTML || "").includes("K[")) vertexHits++;
+        }
+    }
+    assert.ok(vertexHits > 100, `the hover answered only ${vertexHits} times`);
+    assert.ok(painted.left > 0, "the grid half of the hover was never painted on the left");
+    assert.ok(painted.right > 0, "the Penrose half of the hover was never painted on the right");
+});

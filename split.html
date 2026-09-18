@@ -42,11 +42,12 @@
     <h1>Split</h1>
     <h2>The grid on the left, its dual on the right &mdash; one &gamma;, one view</h2>
 
-    <p>The same pentagrid, drawn twice. On the left, what de Bruijn starts from:
-    lines, the regions between them, the crossings. On the right, what the dual
-    map makes of it: vertices, edges, tiles. Pan or zoom either and the other
-    follows; the offsets are shared, so the reticulum and its presets drive both.
-    Each side keeps its own switches.</p>
+    <p>The same pentagrid, drawn once, on two canvases. On the left, what de
+    Bruijn starts from: lines, the regions between them, the crossings. On the
+    right, what the dual map makes of it: vertices, edges, tiles. One model, one
+    view, one &gamma;: pan or zoom either side and the other is the same picture;
+    the reticulum and its presets drive both. The G controls sit over the grid,
+    the P controls over the tiling.</p>
 
     <div class="bar" id="split-bar"><span class="cap">&gamma;</span></div>
 
@@ -62,9 +63,10 @@
             <div class="viewport" id="split-tiles"></div>
         </figure>
     </div>
-    <p class="hint">Drag to pan, scroll to zoom &mdash; the two views are locked
-    together. The hover helpers work on each side; a helper that points at the
-    other side draws its target where it would be, in register.</p>
+    <p class="hint">Drag to pan, scroll to zoom, on either side. Hover a region,
+    a gridline or a crossing on the left and its vertex, edge or tile lights on
+    the right &mdash; and the other way round, since the canvases are in
+    register.</p>
 
     <script type="module" src="./dist/app/split.js"></script>
 </div>

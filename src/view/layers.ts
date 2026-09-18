@@ -34,6 +34,8 @@ export interface Layer extends LayerSpec {
     ctx: CanvasRenderingContext2D;
     /** The panel's switch. Separate from `visible`, which the page drives. */
     userVisible: boolean;
+    /** Copies in the other containers, for a mirrored group. Usually empty. */
+    mirrors: RawLayer[];
 }
 
 export interface RawLayer {
@@ -41,8 +43,27 @@ export interface RawLayer {
     ctx: CanvasRenderingContext2D;
 }
 
+/**
+ * Where the canvases go. One container is the usual case; a stack can also be
+ * spread over several, a group per container, so one model draws its grid on
+ * one canvas and its dual on another with nothing computed twice. The
+ * containers must be the same size — there is one view.
+ */
+export interface StackHomes {
+    /** Where a layer goes unless its group says otherwise. */
+    container: HTMLElement;
+    /** A group's layers live in this container instead. */
+    groups?: Record<string, HTMLElement>;
+    /** Groups drawn in EVERY container — the axes, the shared frame. */
+    mirrored?: readonly string[];
+}
+
 export class LayerStack {
+    /** The default container. */
     readonly container: HTMLElement;
+    /** Every container, the default first, each once. */
+    readonly containers: HTMLElement[];
+    private readonly homes: StackHomes;
     /** Current size. Mutable: the host may resize the stack under us. */
     w: number;
     h: number;
@@ -50,19 +71,36 @@ export class LayerStack {
     private readonly order: Layer[] = [];
     /** Canvases the stack sizes but never draws, so resize can reach them too. */
     private readonly raw: HTMLCanvasElement[] = [];
+    /** The raw layers by z and container, so a test can reach their contexts. */
+    readonly rawLayers: { z: number; host: HTMLElement; layer: RawLayer }[] = [];
 
-    constructor(container: HTMLElement, w: number, h: number) {
-        this.container = container;
+    constructor(homes: HTMLElement | StackHomes, w: number, h: number) {
+        // An element has appendChild; a homes record does not. (No instanceof:
+        // the test DOM stub has no Node.)
+        this.homes = typeof (homes as HTMLElement).appendChild === "function"
+            ? { container: homes as HTMLElement } : homes as StackHomes;
+        this.container = this.homes.container;
+        this.containers = [this.container];
+        for (const el of Object.values(this.homes.groups ?? {})) {
+            if (!this.containers.includes(el)) this.containers.push(el);
+        }
         this.w = w;
         this.h = h;
         // Absolutely positioned children need a positioned ancestor, and the
         // container is not ours to restyle beyond that one requirement.
-        const pos = typeof getComputedStyle === "function"
-            ? getComputedStyle(container).position : "";
-        if (!pos || pos === "static") container.style.position = "relative";
+        for (const c of this.containers) {
+            const pos = typeof getComputedStyle === "function"
+                ? getComputedStyle(c).position : "";
+            if (!pos || pos === "static") c.style.position = "relative";
+        }
     }
 
-    private makeCanvas(z: number, pointerEvents: string): HTMLCanvasElement {
+    /** The container a group's layers live in. */
+    homeOf(group: string | undefined): HTMLElement {
+        return (group && this.homes.groups?.[group]) || this.container;
+    }
+
+    private makeCanvas(z: number, pointerEvents: string, host = this.container): HTMLCanvasElement {
         const c = document.createElement("canvas");
         c.width = this.w;
         c.height = this.h;
@@ -76,18 +114,28 @@ export class LayerStack {
         c.style.left = "0";
         c.style.zIndex = String(z);
         c.style.pointerEvents = pointerEvents;
-        this.container.appendChild(c);
+        host.appendChild(c);
         return c;
     }
 
     /** Register a drawn layer. */
     add(spec: LayerSpec): Layer {
-        const canvas = this.makeCanvas(spec.z, "none");
+        const home = this.homeOf(spec.group);
+        const canvas = this.makeCanvas(spec.z, "none", home);
+        const mirrors: RawLayer[] = [];
+        if (spec.group && this.homes.mirrored?.includes(spec.group)) {
+            for (const c of this.containers) {
+                if (c === home) continue;
+                const mc = this.makeCanvas(spec.z, "none", c);
+                mirrors.push({ canvas: mc, ctx: mc.getContext("2d")! });
+            }
+        }
         const layer: Layer = {
             ...spec,
             canvas,
             ctx: canvas.getContext("2d")!,
             userVisible: true,
+            mirrors,
         };
         this.byId.set(spec.id, layer);
         this.order.push(layer);
@@ -98,10 +146,12 @@ export class LayerStack {
      * A canvas the stack sizes and positions but does not draw — overlays painted
      * imperatively (a highlight, a hover marker) and the input-capture surface.
      */
-    addRaw(z: number, pointerEvents = "none"): RawLayer {
-        const canvas = this.makeCanvas(z, pointerEvents);
+    addRaw(z: number, pointerEvents = "none", host = this.container): RawLayer {
+        const canvas = this.makeCanvas(z, pointerEvents, host);
         this.raw.push(canvas);
-        return { canvas, ctx: canvas.getContext("2d")! };
+        const layer = { canvas, ctx: canvas.getContext("2d")! };
+        this.rawLayers.push({ z, host, layer });
+        return layer;
     }
 
     /**
@@ -114,7 +164,10 @@ export class LayerStack {
         if (w === this.w && h === this.h) return;
         this.w = w;
         this.h = h;
-        for (const l of this.order) { l.canvas.width = w; l.canvas.height = h; }
+        for (const l of this.order) {
+            l.canvas.width = w; l.canvas.height = h;
+            for (const m of l.mirrors) { m.canvas.width = w; m.canvas.height = h; }
+        }
         for (const c of this.raw) { c.width = w; c.height = h; }
     }
 
@@ -145,6 +198,7 @@ export class LayerStack {
             if (l.group !== group) continue;
             l.z = base + i;
             l.canvas.style.zIndex = String(l.z);
+            for (const m of l.mirrors) m.canvas.style.zIndex = String(l.z);
             i++;
         }
     }
@@ -159,14 +213,18 @@ export class LayerStack {
         const cy = this.h / 2;
         for (const l of this.order) {
             const wanted = (l.visible ? l.visible() : true) && l.userVisible;
+            const targets: RawLayer[] = [l, ...l.mirrors];
             if (!wanted) {
-                l.canvas.style.display = "none";
+                for (const t of targets) t.canvas.style.display = "none";
                 continue;
             }
-            l.canvas.style.display = "block";
-            l.canvas.style.opacity = String(l.opacity ? l.opacity() : 1);
-            l.ctx.clearRect(0, 0, this.w, this.h);
-            l.draw({ ctx: l.ctx, w: this.w, h: this.h, cx, cy });
+            const opacity = String(l.opacity ? l.opacity() : 1);
+            for (const t of targets) {
+                t.canvas.style.display = "block";
+                t.canvas.style.opacity = opacity;
+                t.ctx.clearRect(0, 0, this.w, this.h);
+                l.draw({ ctx: t.ctx, w: this.w, h: this.h, cx, cy });
+            }
         }
     }
 }

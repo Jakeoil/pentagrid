@@ -146,8 +146,17 @@ export interface ViewState {
 export interface PentagridConfig {
     /** Where the canvases go. Also the source of implicit sizing. */
     container: HTMLElement;
+    /**
+     * A second container for the Penrose group, so one model draws its grid in
+     * `container` and its dual here — split.html. One view, one gamma, one
+     * rhomb cache; the axes are drawn in both; hover crosses over because it is
+     * the same handler. The two must be the same size: the stack has one view.
+     */
+    containerP?: HTMLElement;
     controls?: HTMLElement;
     panel?: HTMLElement;
+    /** With `containerP`: the Penrose rows of the panel go here instead. */
+    panelP?: HTMLElement;
     /** Registered before the first draw, so an exploration gets its own layers
      *  without this file knowing anything about them. */
     layers?: (ctx: PentagridParts) => void;
@@ -469,11 +478,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // implicitly sized container overrides its own CSS — which is exactly what
     // kept the viewports from ever reflowing.
     if (canvas.explicit) {
-        container.style.width = `${canvas.w}px`;
+        for (const c of [container, config.containerP]) {
+            if (!c) continue;
+            c.style.width = `${canvas.w}px`;
+            c.style.height = `${canvas.h}px`;
+        }
         // The panel is a set of wrapping rows; let them wrap at the canvas edge
         // rather than run out past it.
         layerPanelDiv.style.maxWidth = `${canvas.w}px`;
-        container.style.height = `${canvas.h}px`;
+        if (config.panelP) config.panelP.style.maxWidth = `${canvas.w}px`;
     }
 
     // Tooltip for K-tuple display
@@ -509,7 +522,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // ── Layers ────────────────────────────────────────────────────────
 
-    const stack = new LayerStack(container, canvas.w, canvas.h);
+    // Split: the Penrose group in its own container, the axes in both.
+    const stack = new LayerStack(config.containerP
+        ? { container, groups: { Penrose: config.containerP }, mirrored: ["Axes"] }
+        : container, canvas.w, canvas.h);
 
     // ── Features ──────────────────────────────────────────────────────
     //
@@ -757,15 +773,32 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         stack.setGroupZ("Penrose", penroseInFront ? PENROSE_Z_FRONT : PENROSE_Z_BACK);
     }
 
-    // Overlays the stack sizes but does not draw, and the input surface.
-    const highlight = stack.addRaw(55);
-    const highlightCtx = highlight.ctx;
+    // Overlays the stack sizes but does not draw, and the input surface — one
+    // set per container. A hover draws its grid half on hlG and its Penrose
+    // half on hlP; with one container those are the same canvas.
+    const highlights = stack.containers.map((c) => stack.addRaw(55, "none", c));
+    const hlG = highlights[0].ctx;
+    const hlP = (config.containerP ? highlights[stack.containers.indexOf(config.containerP)] : highlights[0]).ctx;
+    const hlSame = hlG === hlP;
     const footprint = stack.addRaw(60);
     const footprintCtx = footprint.ctx;
 
-    const eventLayer = stack.addRaw(100, "auto");
-    const eventCanvas = eventLayer.canvas;
-    eventCanvas.style.cursor = "grab";
+    const eventCanvases = stack.containers.map((c) => stack.addRaw(100, "auto", c).canvas);
+    /**
+     * Bind an input handler on every container's input surface. The surface it
+     * fired on comes as the second argument — not e.currentTarget, which a
+     * synthetic event from the tests does not carry.
+     */
+    function onEvent<K extends keyof HTMLElementEventMap>(
+        type: K, handler: (e: HTMLElementEventMap[K], surface: HTMLCanvasElement) => void,
+        opts?: AddEventListenerOptions,
+    ) {
+        for (const c of eventCanvases) c.addEventListener(type, (e) => handler(e, c), opts);
+    }
+    function setCursor(cursor: string) {
+        for (const c of eventCanvases) c.style.cursor = cursor;
+    }
+    setCursor("grab");
 
     // ── The γ bank ────────────────────────────────────────────────────
     //
@@ -1073,7 +1106,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     // Mouse
-    eventCanvas.addEventListener("wheel", (e) => {
+    onEvent("wheel", (e) => {
         e.preventDefault();
         const factor = Math.pow(2, -e.deltaY / 300);
         zoomAtScreen(e.offsetX, e.offsetY, factor);
@@ -1085,24 +1118,24 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let orbitLastX = 0;
     let orbitLastY = 0;
 
-    eventCanvas.addEventListener("mousedown", (e) => {
+    onEvent("mousedown", (e) => {
         if (e.button === 0) {
             isPanning = true;
             panLastX = e.offsetX;
             panLastY = e.offsetY;
-            eventCanvas.style.cursor = "grabbing";
+            setCursor("grabbing");
         } else if (e.button === 2 && config.onOrbit) {
             isOrbiting = true;
             orbitLastX = e.offsetX;
             orbitLastY = e.offsetY;
-            eventCanvas.style.cursor = "move";
+            setCursor("move");
             e.preventDefault();
         }
     });
 
     if (config.onOrbit) {
-        eventCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
-        eventCanvas.addEventListener("mousemove", (e) => {
+        onEvent("contextmenu", (e) => e.preventDefault());
+        onEvent("mousemove", (e) => {
             if (!isOrbiting) return;
             config.onOrbit!(e.offsetX - orbitLastX, e.offsetY - orbitLastY);
             orbitLastX = e.offsetX;
@@ -1111,13 +1144,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const stopOrbit = () => {
             if (!isOrbiting) return;
             isOrbiting = false;
-            eventCanvas.style.cursor = "grab";
+            setCursor("grab");
         };
-        eventCanvas.addEventListener("mouseup", stopOrbit);
-        eventCanvas.addEventListener("mouseleave", stopOrbit);
+        onEvent("mouseup", stopOrbit);
+        onEvent("mouseleave", stopOrbit);
     }
 
-    eventCanvas.addEventListener("mousemove", (e) => {
+    onEvent("mousemove", (e) => {
         if (!isPanning) return;
         viewX -= (e.offsetX - panLastX) / scale;
         viewY += (e.offsetY - panLastY) / scale;
@@ -1127,18 +1160,18 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         draw();
     });
 
-    eventCanvas.addEventListener("mouseup", endPan);
-    eventCanvas.addEventListener("mouseleave", endPan);
+    onEvent("mouseup", endPan);
+    onEvent("mouseleave", endPan);
 
     function endPan() {
         if (isPanning) {
             isPanning = false;
-            eventCanvas.style.cursor = "grab";
+            setCursor("grab");
         }
     }
 
     // Double-click to reset view
-    eventCanvas.addEventListener("dblclick", () => {
+    onEvent("dblclick", () => {
         scale = 60;
         notifyView();
         viewX = 0;
@@ -1153,7 +1186,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return Math.sqrt(dx * dx + dy * dy);
     }
 
-    eventCanvas.addEventListener("touchstart", (e) => {
+    onEvent("touchstart", (e) => {
         e.preventDefault();
         if (e.touches.length === 1) {
             isPanning = true;
@@ -1165,7 +1198,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
     }, { passive: false });
 
-    eventCanvas.addEventListener("touchmove", (e) => {
+    onEvent("touchmove", (e, surface) => {
         e.preventDefault();
         if (e.touches.length === 1 && isPanning) {
             const dx = e.touches[0].clientX - panLastX;
@@ -1179,7 +1212,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         } else if (e.touches.length === 2) {
             const dist = touchDist(e.touches[0], e.touches[1]);
             if (lastPinchDist > 0) {
-                const rect = eventCanvas.getBoundingClientRect();
+                const rect = surface.getBoundingClientRect();
                 const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
                 const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
                 zoomAtScreen(midX, midY, dist / lastPinchDist);
@@ -1188,7 +1221,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
     }, { passive: false });
 
-    eventCanvas.addEventListener("touchend", (e) => {
+    onEvent("touchend", (e) => {
         if (e.touches.length === 0) {
             isPanning = false;
             lastPinchDist = 0;
@@ -2106,6 +2139,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const featureBoxes: { key: keyof Features; cb: HTMLInputElement }[] = [];
 
+    /**
+     * Which panel a row belongs in. One panel is the usual case; with `panelP`
+     * the Penrose rows — the P side of the G/P split — go there instead.
+     */
+    const P_ROWS = new Set(["Penrose", "Tile style", "Tile shade", "Tile edges", "ribbons"]);
+    function panelFor(title: string): HTMLElement {
+        return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
+    }
+
     function row(parent: HTMLElement, title: string): HTMLElement {
         const wrap = document.createElement("div");
         wrap.className = "panel-row";
@@ -2221,7 +2263,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // none — and cycles them: all -> none, some -> all, none -> all. The
         // values are kept while the tiles are off, and none is not allowed when
         // they come back on: that is the one case where the row rewrites itself.
-        const tilesRow = row(layerPanelDiv, "ribbons");
+        const tilesRow = row(panelFor("ribbons"), "ribbons");
 
         const perFamily: { mode: HTMLSelectElement; n: HTMLInputElement }[] = [];
         const status = document.createElement("button");
@@ -2337,7 +2379,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             label: string,
             pick: (c: typeof CORRESPONDENCE[number]) => readonly [keyof Features, string],
         ) => {
-            const r = row(layerPanelDiv, label);
+            const r = row(panelFor(label), label);
             for (const c of CORRESPONDENCE) {
                 const cell = document.createElement("span");
                 cell.className = "corr-cell";     // fixed width, so columns line up
@@ -2367,7 +2409,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // ── Tile style ────────────────────────────────────────────────
         {
-            const sRow = row(layerPanelDiv, "Tile style");
+            const sRow = row(panelFor("Tile style"), "Tile style");
             const sel = document.createElement("select");
             sel.className = "line-pick";
             sel.style.width = "84px";
@@ -2405,7 +2447,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sRow.appendChild(bandWrap);   // re-append: it must follow the select
 
             // Second row: how the fill is shaded.
-            const shadeRow = row(layerPanelDiv, "Tile shade");
+            const shadeRow = row(panelFor("Tile shade"), "Tile shade");
             const iso = checkbox(shadeRow, "isogloss", tileStyle.isogloss, (v) => {
                 tileStyle.isogloss = v;
                 draw();
@@ -2432,7 +2474,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 (v) => { tileStyle.opacity = v; draw(); });
 
             // Third row: the edge dressings — P, not G.
-            const edgeRow = row(layerPanelDiv, "Tile edges");
+            const edgeRow = row(panelFor("Tile edges"), "Tile edges");
             const bold = checkbox(edgeRow, "bold edges", tileStyle.boldEdges, (v) => {
                 tileStyle.boldEdges = v;
                 draw();
@@ -2445,7 +2487,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // The gridline-tiles row was built first, for its hook; it belongs on
         // the P side, under Tile style. Re-appending moves it.
-        layerPanelDiv.appendChild(tilesRow);
+        panelFor("ribbons").appendChild(tilesRow);
 
         // Collapsed settings — set once, then forgotten
         const det = document.createElement("details");
@@ -2626,33 +2668,35 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** Fill the tile a crossing produced, and join the two with an arrow. */
     function highlightTile(r: Rhomb, cx: number, cy: number) {
         const pts = r.vertices.map(([x, y]) => mathToScreen(x, y, cx, cy));
-        highlightCtx.beginPath();
-        highlightCtx.moveTo(pts[0][0], pts[0][1]);
-        for (let i = 1; i < pts.length; i++) highlightCtx.lineTo(pts[i][0], pts[i][1]);
-        highlightCtx.closePath();
-        highlightCtx.fillStyle = r.thick ? "rgba(232,193,112,0.75)" : "rgba(126,184,218,0.75)";
-        highlightCtx.fill();
-        highlightCtx.strokeStyle = "rgba(255,180,0,0.95)";
-        highlightCtx.lineWidth = 2;
-        highlightCtx.stroke();
+        hlP.beginPath();
+        hlP.moveTo(pts[0][0], pts[0][1]);
+        for (let i = 1; i < pts.length; i++) hlP.lineTo(pts[i][0], pts[i][1]);
+        hlP.closePath();
+        hlP.fillStyle = r.thick ? "rgba(232,193,112,0.75)" : "rgba(126,184,218,0.75)";
+        hlP.fill();
+        hlP.strokeStyle = "rgba(255,180,0,0.95)";
+        hlP.lineWidth = 2;
+        hlP.stroke();
 
-        // The crossing itself, and a line to the tile it became
+        // The crossing itself, and — on one canvas — a line to the tile it became
         const [ix, iy] = gridToScreen(r.x0, r.y0, cx, cy);
         let mx = 0, my = 0;
         for (const [px, py] of pts) { mx += px; my += py; }
         mx /= pts.length; my /= pts.length;
 
-        highlightCtx.strokeStyle = "rgba(255,180,0,0.9)";
-        highlightCtx.lineWidth = 1.5;
-        highlightCtx.beginPath();
-        highlightCtx.moveTo(ix, iy);
-        highlightCtx.lineTo(mx, my);
-        highlightCtx.stroke();
+        if (hlSame) {
+            hlG.strokeStyle = "rgba(255,180,0,0.9)";
+            hlG.lineWidth = 1.5;
+            hlG.beginPath();
+            hlG.moveTo(ix, iy);
+            hlG.lineTo(mx, my);
+            hlG.stroke();
+        }
 
-        highlightCtx.fillStyle = "#e63946";
-        highlightCtx.beginPath();
-        highlightCtx.arc(ix, iy, 4, 0, 2 * Math.PI);
-        highlightCtx.fill();
+        hlG.fillStyle = "#e63946";
+        hlG.beginPath();
+        hlG.arc(ix, iy, 4, 0, 2 * Math.PI);
+        hlG.fill();
     }
 
     /**
@@ -2668,20 +2712,21 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const [bx, by] = gridToScreen(seg.b[0], seg.b[1], cx, cy);
 
         // The segment itself, laid over its gridline.
-        highlightCtx.strokeStyle = color;
-        highlightCtx.lineWidth = 4;
-        highlightCtx.lineCap = "round";
-        highlightCtx.beginPath();
-        highlightCtx.moveTo(ax, ay);
-        highlightCtx.lineTo(bx, by);
-        highlightCtx.stroke();
+        hlG.strokeStyle = color;
+        hlG.lineWidth = 4;
+        hlG.lineCap = "round";
+        hlG.beginPath();
+        hlG.moveTo(ax, ay);
+        hlG.lineTo(bx, by);
+        hlG.stroke();
+        hlG.lineCap = "butt";
 
         // Its ends are crossings, so they are the tiles next door.
-        highlightCtx.fillStyle = "#e63946";
+        hlG.fillStyle = "#e63946";
         for (const [ex, ey] of [[ax, ay], [bx, by]]) {
-            highlightCtx.beginPath();
-            highlightCtx.arc(ex, ey, 3, 0, 2 * Math.PI);
-            highlightCtx.fill();
+            hlG.beginPath();
+            hlG.arc(ex, ey, 3, 0, 2 * Math.PI);
+            hlG.fill();
         }
 
         // The edge: f(K1) -> f(K2), which is f(K1) + v_j.
@@ -2689,38 +2734,41 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const [ex2, ey2] = dualVertex(model, seg.K2);
         const [px1, py1] = mathToScreen(ex1, ey1, cx, cy);
         const [px2, py2] = mathToScreen(ex2, ey2, cx, cy);
-        highlightCtx.strokeStyle = "rgba(255,180,0,0.95)";
-        highlightCtx.lineWidth = 4;
-        highlightCtx.beginPath();
-        highlightCtx.moveTo(px1, py1);
-        highlightCtx.lineTo(px2, py2);
-        highlightCtx.stroke();
+        hlP.strokeStyle = "rgba(255,180,0,0.95)";
+        hlP.lineWidth = 4;
+        hlP.lineCap = "round";
+        hlP.beginPath();
+        hlP.moveTo(px1, py1);
+        hlP.lineTo(px2, py2);
+        hlP.stroke();
+        hlP.lineCap = "butt";
 
         // Its ends are the vertices the two regions became.
-        highlightCtx.fillStyle = "#fc0";
+        hlP.fillStyle = "#fc0";
         for (const [vx2, vy2] of [[px1, py1], [px2, py2]]) {
-            highlightCtx.beginPath();
-            highlightCtx.arc(vx2, vy2, 4, 0, 2 * Math.PI);
-            highlightCtx.fill();
+            hlP.beginPath();
+            hlP.arc(vx2, vy2, 4, 0, 2 * Math.PI);
+            hlP.fill();
         }
 
-        // And the tie between them, so the correspondence is visible as one.
+        // And the tie between them, so the correspondence is visible as one —
+        // when they share a canvas. Split, the two halves ARE the tie.
+        if (!hlSame) return;
         const mid = (p: number, q: number) => (p + q) / 2;
-        highlightCtx.strokeStyle = "rgba(255,200,0,0.5)";
-        highlightCtx.lineWidth = 1.5;
-        highlightCtx.setLineDash([4, 4]);
-        highlightCtx.beginPath();
-        highlightCtx.moveTo(mid(ax, bx), mid(ay, by));
-        highlightCtx.lineTo(mid(px1, px2), mid(py1, py2));
-        highlightCtx.stroke();
-        highlightCtx.setLineDash([]);
-        highlightCtx.lineCap = "butt";
+        hlG.strokeStyle = "rgba(255,200,0,0.5)";
+        hlG.lineWidth = 1.5;
+        hlG.setLineDash([4, 4]);
+        hlG.beginPath();
+        hlG.moveTo(mid(ax, bx), mid(ay, by));
+        hlG.lineTo(mid(px1, px2), mid(py1, py2));
+        hlG.stroke();
+        hlG.setLineDash([]);
     }
 
     // ── Tooltip / hover highlight ──────────────────────────────────────
 
     function clearHighlight() {
-        highlightCtx.clearRect(0, 0, canvas.w, canvas.h);
+        for (const h of highlights) h.ctx.clearRect(0, 0, canvas.w, canvas.h);
     }
 
     function formatKTooltip(K: readonly number[]): string {
@@ -2757,21 +2805,21 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         centY /= screenPts.length;
 
         // Draw the region
-        highlightCtx.fillStyle = "rgba(255, 255, 100, 0.35)";
-        highlightCtx.strokeStyle = "rgba(255, 200, 0, 0.8)";
-        highlightCtx.lineWidth = 2;
-        highlightCtx.beginPath();
-        highlightCtx.moveTo(screenPts[0][0], screenPts[0][1]);
+        hlG.fillStyle = "rgba(255, 255, 100, 0.35)";
+        hlG.strokeStyle = "rgba(255, 200, 0, 0.8)";
+        hlG.lineWidth = 2;
+        hlG.beginPath();
+        hlG.moveTo(screenPts[0][0], screenPts[0][1]);
         for (let i = 1; i < screenPts.length; i++) {
-            highlightCtx.lineTo(screenPts[i][0], screenPts[i][1]);
+            hlG.lineTo(screenPts[i][0], screenPts[i][1]);
         }
-        highlightCtx.closePath();
-        highlightCtx.fill();
-        highlightCtx.stroke();
+        hlG.closePath();
+        hlG.fill();
+        hlG.stroke();
 
         // If the region is small, draw an arrow from the dot to its centroid
         const regionSize = Math.max(sxMax - sxMin, syMax - syMin);
-        if (regionSize < 20) {
+        if (regionSize < 20 && hlSame) {
             const dx = centX - dotSx;
             const dy = centY - dotSy;
             const dist = Math.sqrt(dx * dx + dy * dy);
@@ -2784,36 +2832,36 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 const endX = centX - ux * 4;
                 const endY = centY - uy * 4;
 
-                highlightCtx.strokeStyle = "rgba(255, 200, 0, 0.8)";
-                highlightCtx.lineWidth = 1.5;
-                highlightCtx.beginPath();
-                highlightCtx.moveTo(startX, startY);
-                highlightCtx.lineTo(endX, endY);
-                highlightCtx.stroke();
+                hlG.strokeStyle = "rgba(255, 200, 0, 0.8)";
+                hlG.lineWidth = 1.5;
+                hlG.beginPath();
+                hlG.moveTo(startX, startY);
+                hlG.lineTo(endX, endY);
+                hlG.stroke();
 
                 // Arrowhead
                 const headLen = 7;
                 const angle = Math.atan2(uy, ux);
-                highlightCtx.beginPath();
-                highlightCtx.moveTo(endX, endY);
-                highlightCtx.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
-                highlightCtx.moveTo(endX, endY);
-                highlightCtx.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
-                highlightCtx.stroke();
+                hlG.beginPath();
+                hlG.moveTo(endX, endY);
+                hlG.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
+                hlG.moveTo(endX, endY);
+                hlG.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
+                hlG.stroke();
             }
         }
     }
 
     /** Clip polygon to the half-plane a*x + b*y + c ≥ 0 (or > 0 if strict, but we use ≥ for robustness) */
 
-    eventCanvas.addEventListener("mousemove", (e) => {
+    onEvent("mousemove", (e, surface) => {
         if (isPanning) {
             tooltip.style.display = "none";
             clearHighlight();
             return;
         }
 
-        const rect = eventCanvas.getBoundingClientRect();
+        const rect = surface.getBoundingClientRect();
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
         if (sx < canvas.margin || sx > canvas.w - canvas.margin ||
@@ -2920,10 +2968,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 placeTooltip(e);
 
                 // Highlight the hovered dot
-                highlightCtx.fillStyle = "#fc0";
-                highlightCtx.beginPath();
-                highlightCtx.arc(best.sx, best.sy, 5, 0, 2 * Math.PI);
-                highlightCtx.fill();
+                hlP.fillStyle = "#fc0";
+                hlP.beginPath();
+                hlP.arc(best.sx, best.sy, 5, 0, 2 * Math.PI);
+                hlP.fill();
 
                 // Highlight the source region in the pentagrid
                 withView(gridView(), () => highlightRegion(best!.K, cx, cy, best!.sx, best!.sy));
@@ -2959,16 +3007,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const [dsx, dsy] = mathToScreen(fx, fy, cx, cy);
 
             // Draw the dual point
-            highlightCtx.fillStyle = darkColor;
-            highlightCtx.beginPath();
-            highlightCtx.arc(dsx, dsy, 3, 0, 2 * Math.PI);
-            highlightCtx.fill();
+            hlP.fillStyle = darkColor;
+            hlP.beginPath();
+            hlP.arc(dsx, dsy, 3, 0, 2 * Math.PI);
+            hlP.fill();
 
-            // Arrow from cursor to dual vertex
+            // Arrow from cursor to dual vertex, when they share a canvas
             const adx = dsx - sx;
             const ady = dsy - sy;
             const dist = Math.sqrt(adx * adx + ady * ady);
-            if (dist > 15) {
+            if (dist > 15 && hlSame) {
                 const ux = adx / dist;
                 const uy = ady / dist;
                 const startX = sx + ux * 6;
@@ -2976,21 +3024,21 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 const endX = dsx - ux * 6;
                 const endY = dsy - uy * 6;
 
-                highlightCtx.strokeStyle = darkColor;
-                highlightCtx.lineWidth = 1.5;
-                highlightCtx.beginPath();
-                highlightCtx.moveTo(startX, startY);
-                highlightCtx.lineTo(endX, endY);
-                highlightCtx.stroke();
+                hlG.strokeStyle = darkColor;
+                hlG.lineWidth = 1.5;
+                hlG.beginPath();
+                hlG.moveTo(startX, startY);
+                hlG.lineTo(endX, endY);
+                hlG.stroke();
 
                 const headLen = 7;
                 const angle = Math.atan2(uy, ux);
-                highlightCtx.beginPath();
-                highlightCtx.moveTo(endX, endY);
-                highlightCtx.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
-                highlightCtx.moveTo(endX, endY);
-                highlightCtx.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
-                highlightCtx.stroke();
+                hlG.beginPath();
+                hlG.moveTo(endX, endY);
+                hlG.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
+                hlG.moveTo(endX, endY);
+                hlG.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
+                hlG.stroke();
             }
             return;
         }
@@ -2999,7 +3047,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         clearHighlight();
     });
 
-    eventCanvas.addEventListener("mouseleave", () => {
+    onEvent("mouseleave", () => {
         tooltip.style.display = "none";
         clearHighlight();
     });
@@ -3027,6 +3075,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             canvas.margin = canvas.fixedMargin ?? Math.round(Math.min(w, h) * 0.05);
             viewW = w; viewH = h; viewMargin = canvas.margin;
             layerPanelDiv.style.maxWidth = `${w}px`;
+            if (config.panelP) config.panelP.style.maxWidth = `${w}px`;
             stack.resize(w, h);
             rhombCache = null;                       // the visible rect moved
             draw();

@@ -239,7 +239,7 @@ neither is needed until somebody asks.
 | `ui/presets` | `addPresets` | a row of preset buttons for a `GammaSet` |
 | `ui/loupe` | `createLoupe` | a pinned magnifier over any canvas view |
 | `ui/dials` | `createGammaBank` | a bank of linked sliders, one computed from the rest |
-| `view/layers` | `new LayerStack` | the stacked canvases the others are built on |
+| `view/layers` | `new LayerStack` | the stacked canvases the others are built on; one container, or a container per group |
 | `app/narrative` | `createNarrative` | the pages that drive a handle: nav, explanation, build stamp |
 
 `view/controls` is the seam between a page and a module: `mountReticulum` and

@@ -164,3 +164,42 @@ test("an exploration can register its own layer after the fact", () => {
     stack.drawAll();
     assert.equal(ribbonsDrawn, 1, "the generated toggle does not actually gate it");
 });
+
+// ── one stack, several containers ─────────────────────────────────
+
+test("a group can live in its own container, and a mirrored group in every one", () => {
+    const left = makeContainer(), right = makeContainer();
+    const stack = new LayerStack(
+        { container: left, groups: { P: right }, mirrored: ["Frame"] }, 300, 200);
+    assert.deepEqual(stack.containers, [left, right]);
+
+    const g = stack.add(spec("g", { group: "G" }));
+    const p = stack.add(spec("p", { group: "P" }));
+    const f = stack.add(spec("f", { group: "Frame", z: 70 }));
+    const bare = stack.add(spec("bare"));
+
+    assert.ok(left.children.includes(g.canvas), "G goes to the default container");
+    assert.ok(right.children.includes(p.canvas), "P goes to its own");
+    assert.ok(left.children.includes(bare.canvas), "no group: the default");
+    assert.equal(f.mirrors.length, 1, "the frame has one mirror");
+    assert.ok(left.children.includes(f.canvas) && right.children.includes(f.mirrors[0].canvas),
+              "and it is drawn in both");
+    assert.equal(stack.homeOf("P"), right);
+    assert.equal(stack.homeOf(undefined), left);
+
+    // the mirror draws with the layer, into its own context
+    const seen = [];
+    f.draw = (c) => { seen.push(c.ctx); };
+    stack.drawAll();
+    assert.equal(seen.length, 2);
+    assert.ok(seen.includes(f.ctx) && seen.includes(f.mirrors[0].ctx));
+
+    // and resizes with it
+    stack.resize(400, 300);
+    assert.equal(f.mirrors[0].canvas.width, 400);
+    assert.equal(p.canvas.height, 300);
+
+    // a raw canvas can be placed in a named container
+    const raw = stack.addRaw(100, "auto", right);
+    assert.ok(right.children.includes(raw.canvas));
+});

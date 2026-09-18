@@ -145,8 +145,9 @@ tiles = createPentagrid({
 
 `setView` deliberately does **not** fire `onViewChange`. That is what makes the
 relay one hop rather than two instances bouncing updates off each other forever.
-`split.html` is the same pair with the panel and the reticulum attached, and
-`createNarrative` (`app/narrative.ts`) is how `method.html` puts pages in front
+`split.html` is not a pair at all: one `createPentagrid` with `containerP`, so
+the grid and its dual are one model on two canvases, and a hover on either
+side lights its counterpart on the other. `createNarrative` (`app/narrative.ts`) is how `method.html` puts pages in front
 of a single handle: each page's `enter` imposes a feature set and exposes the
 panel rows that matter to it, and `onFeatureOn` sends a switch flipped on the
 panel to the page that is about it.
@@ -156,7 +157,9 @@ panel to the page that is about it.
 | field | meaning |
 |---|---|
 | `container` | required; where the canvases go, and the source of implicit sizing |
+| `containerP` | a second container: the Penrose group draws there, the grid here, the axes in both — one model on two canvases (split) |
 | `controls`, `panel` | optional hosts for the meter and the layer panel; omit for a bare viewport |
+| `panelP` | with `containerP`: the Penrose rows of the panel go here |
 | `features` | starting feature set (see below). A page's `enter` usually imposes its own |
 | `tileStyle` | how the tiles are dressed (see below) |
 | `gamma` | starting offsets. Omitted means the sun, uniform 1/5 |

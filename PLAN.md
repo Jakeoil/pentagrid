@@ -78,27 +78,24 @@ overloading one page. There is no explorations index; the nav is it.
 
 Nothing here blocks anything. Ordered by how likely they are to be wanted.
 
-1. **Split: one stack, two containers.** Planned 2026-09-17, §5.0. Replaces
-   the two-instance split page and, with it, the cross-canvas hover item and
-   most of the scan cost on that page.
-2. **Scan cache.** `scanRegions` reruns on every draw. Key it on (γ, rect,
-   scale) the way the rhomb cache is. Split's four-minute pagecheck is the
-   symptom; item 1 halves it, this removes the rest.
-3. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
+1. **Scan cache.** `scanRegions` reruns on every draw. Key it on (γ, rect,
+   scale) the way the rhomb cache is; the split page paid it twice until §5.0
+   and still pays it once per draw.
+2. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
    from `directions` so only the rim needs to follow n.
-4. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
+3. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
    turned; count whether the de Bruijn resolutions of the decagon are exactly
    the ten orientations, against the 62 rhombic tilings the zonogon admits, and
    whether the mirror-symmetric one-parameter family is one tiling or several
    (`perpOfGamma` in `acceptance.ts` is the tool). See §5.5.
-5. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
+4. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
    made it. Every rhomb carries `(j, nj, k, nk)`, so the lines are known; what
    is missing is a page that starts from the tiling. Estimated as a layer plus
    a hit-test, not a redesign.
-6. **Two-tries preset.** Jake saw a preset needing a second click once; never
+5. **Two-tries preset.** Jake saw a preset needing a second click once; never
    reproduced. Presets now `setLocked(-1)` before writing, which removed the one
    mechanism found.
-7. **The timing test is flaky.** "Nothing consumes the scan" asserts on
+6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
 
 ## 4. Standing rules
@@ -223,10 +220,9 @@ The plans themselves are gone from this file; what they left behind:
 
 ## 5. The record
 
-Newest first. Each entry is dated to the session that found it. §5.0 is the one
-plan in the file that is still a plan.
+Newest first. Each entry is dated to the session that found it.
 
-### 5.0 Split: one layer stack across two canvases (planned 2026-09-17)
+### 5.0 Split: one layer stack across two canvases (planned 2026-09-17, built 09-18)
 
 Jake: *have one canvas use the pentagrid layer group (G) and the other the
 Penrose layer group (P). Same reticulum, controls split according to
@@ -286,6 +282,18 @@ page's CSS already makes them equal, and the stack asserts it.
 **Cost.** One session. The `LayerStack` change is the real work and the tests
 catch it; the per-container raw canvases are the fiddly part; the panel is
 plumbing.
+
+**Built 2026-09-18, as planned.** `LayerStack` takes `StackHomes` — a default
+container, a container per group, the groups to mirror — and `homeOf`,
+`containers`, per-layer `mirrors`; `addRaw` takes a host. `createPentagrid`
+takes `containerP` and `panelP`; the highlight canvas is per container and a
+hover draws its grid half on `hlG` and its Penrose half on `hlP` (the same
+context on one container), with the tie lines drawn only when they share a
+canvas; every input surface gets every handler, the surface passed explicitly
+because a synthetic event carries no `currentTarget`. `P_ROWS` routes Penrose,
+Tile style, Tile shade, Tile edges and ribbons to `panelP`. `split.ts` is one
+create and one reticulum mount. Split's pagecheck went from ~220 s to 27 s —
+the scan runs once per draw instead of twice, and there is no relay redraw.
 
 ### 5.1 The pentagons tile style — P1 at the big-rhomb scale (2026-09-18)
 
