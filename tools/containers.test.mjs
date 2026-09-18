@@ -89,6 +89,41 @@ test("P1 on the roof: pentagon pieces ride the tiles, lifted or flat", () => {
     }
 });
 
+test("next-gen on the roof: gold tiles, gray thin' pieces, and the next generation's edges", () => {
+    for (const lift of [false, true]) {
+        const v = createGrowthView({ container: host(), lift });
+        v.pentagrid.gamma.setLocked(-1);
+        v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);   // the sun
+        v.set({ grow: 1, nextgen: true });
+        const layer = v.pentagrid.stack.get("growth");
+        const styles = [];
+        let strokes = 0, segments = 0;
+        layer.ctx.fill = function () { styles.push(String(this.fillStyle)); };
+        layer.ctx.stroke = () => { strokes++; };
+        layer.ctx.moveTo = () => { segments++; };
+        v.redraw();
+        // tinted rgb(...): gold has r>g>b with g well above b; gray has r=g=b
+        const gold = styles.filter((c) => { const m = /^rgb\((\d+),(\d+),(\d+)\)$/.exec(c);
+            return m && +m[1] > +m[2] && +m[2] > +m[3] + 60; }).length;
+        const gray = styles.filter((c) => /^rgb\((\d+),\1,\1\)$/.test(c) && c !== "rgb(0,0,0)").length;
+        assert.ok(gold > 100, `${lift ? "lifted" : "flat"}: tiles painted gold (${gold})`);
+        assert.ok(gray > 100, `${lift ? "lifted" : "flat"}: gray thin' pieces (${gray})`);
+        // one stroke per tile for the next-gen edges beyond the tile outline,
+        // with seven or five segments each: on the sun about 5.5 per tile
+        const tiles = v.pentagrid.stack.get("growth") && gold;
+        assert.ok(segments > 5 * gray / 2, `${lift ? "lifted" : "flat"}: next-gen edges drawn (${segments} segments)`);
+        assert.ok(strokes > tiles, "a stroke per tile for the edges, on top of the outline");
+
+        // Off is off: the body fill per tile and nothing more (a lifted white
+        // tile shades to a gray of its own, so count fills rather than colors).
+        const withPieces = styles.length;
+        v.set({ nextgen: false });
+        styles.length = 0;
+        v.redraw();
+        assert.ok(styles.length < withPieces - 100, `next-gen off should paint no pieces (${styles.length} vs ${withPieces})`);
+    }
+});
+
 test("flat and lifted are the same container, differing by config", () => {
     const flat = createGrowthView({ container: host(), lift: false });
     const roof = createGrowthView({ container: host(), lift: true });
