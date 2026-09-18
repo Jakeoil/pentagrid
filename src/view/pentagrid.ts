@@ -15,7 +15,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs, rhombArrows } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows, rhombPentagons } from "../geometry/decor.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
 import { createLoupe } from "../ui/loupe.js";
@@ -61,7 +61,8 @@ export interface TileStyle {
      * thick/thin, the two families that made it, its rhomb group (Pe5, Pe3, Pe1
      * in sun-star's palette; bare when it belongs to none, or when the patch is
      * not Penrose and groups are undefined), the P1 tiling it carries, the
-     * matching curves as filled regions (Wikipedia's rhombus-with-arcs) — or
+     * matching curves as filled regions (Wikipedia's rhombus-with-arcs), the P1
+     * pentagons at the scale where every thick rhomb holds one whole — or
      * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
      * them. Each band runs across the tile in its family's color, `band` wide as
      * a fraction of the edge, and the square where they cross is the composite.
@@ -69,7 +70,7 @@ export interface TileStyle {
      * below that the tile reads as two gridlines passing through. A 2k-gon takes
      * no color under it.
      */
-    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves";
+    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves" | "pentagons";
     /** Band width for `bands`, 0..1 of the edge. */
     band: number;
     /** Contour lines across each tile. */
@@ -1547,6 +1548,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
         if (tileStyle.color === "p1") return NO_GROUP;      // and carries no P1
         if (tileStyle.color === "curves") return CURVE_FACE; // a bare face
+        if (tileStyle.color === "pentagons") return NO_GROUP; // no indices to place by
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -1735,6 +1737,37 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         else sector(Y, 0, 0.25, CURVE_BLUE);
     }
 
+    /**
+     * The P1 tiling at the big-rhomb scale: every thick rhomb holds a whole Pe3
+     * (yellow), the Pe1 (orange) straddle the edges, and everything else — the
+     * Pe5 and the star family alike — is blue, as penrose-mosaic's "pentas and
+     * stars" over "big rhombs" draws it. Geometry in rhombPentagons; here the
+     * tile is filled blue, clipped, and the pentagons laid over it so the pieces
+     * meet across the edges without any tile knowing its neighbor.
+     */
+    function drawPentagons(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    ) {
+        tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+        tc.fill();
+        const { lo, hi } = indexRange();
+        if (hi - lo !== 3) return;                       // no indices to place it by
+        const parts = rhombPentagons(rhomb, lo);
+        tc.clip();                                       // inside save/restore already
+        const poly = (pts: [number, number][], style: string) => {
+            tc.beginPath();
+            pts.forEach(([x, y], i) => {
+                const [px, py] = mathToScreen(x, y, cx, cy);
+                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+            });
+            tc.closePath();
+            tc.fillStyle = ramped(tc, rhomb, sv, style);
+            tc.fill();
+        };
+        for (const o of parts.orange) poly(o, P1_FILL.Pe1);
+        if (parts.yellow) poly(parts.yellow, P1_FILL.Pe3);
+    }
+
     /** A tile's fill for a base color: the color, or the ramp over it. */
     function ramped(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
@@ -1795,6 +1828,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     drawP1(tc, rhomb, sv, cx, cy);
                 } else if (tileStyle.color === "curves") {
                     drawCurves(tc, rhomb, sv, cx, cy);
+                } else if (tileStyle.color === "pentagons") {
+                    drawPentagons(tc, rhomb, sv, cx, cy);
                 } else {
                     tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
                     tc.fill();
@@ -2338,12 +2373,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.style.width = "84px";
             sel.title = "thick/thin · the families that made it · the two as crossed bands "
                 + "· its rhomb group, Pe5/Pe3/Pe1 in sun-star's colors · the P1 tiling: "
-                + "a pentagon on every group, blue between · the matching curves as "
-                + "filled regions, dark at the arrow corner. "
-                + "A 2k-gon follows the same choice.";
+                + "a pentagon on every group, blue between (the small rhombs) · the "
+                + "matching curves as filled regions, dark at the arrow corner · "
+                + "pentagons: P1 at the scale where every thick rhomb holds a whole "
+                + "one (the big rhombs). A 2k-gon follows the same choice.";
             for (const [value, text] of [
                 ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
                 ["groups", "rhomb groups"], ["p1", "P1"], ["curves", "curves"],
+                ["pentagons", "pentagons"],
             ] as const) {
                 const opt = document.createElement("option");
                 opt.value = value;

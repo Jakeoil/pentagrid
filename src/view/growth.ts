@@ -16,6 +16,7 @@ import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
+import { rhombPentagons } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
 import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
@@ -80,6 +81,13 @@ export interface GrowthState {
      */
     p1: boolean;
     /**
+     * Paint the P1 tiling at the big-rhomb scale instead — the `pentagons` tile
+     * style: a whole Pe3 in every thick, the Pe1 straddling edges, blue
+     * elsewhere. Per tile by construction (rhombPentagons), so the pieces are
+     * clipped to the tile and carried in its (a, b) frame like P1's.
+     */
+    penta: boolean;
+    /**
      * Outline the 2k-gon each stack of tiles is growing into.
      *
      * A concurrency's C(k,2) rhombs all start on the same crossing, so at grow = 0
@@ -100,7 +108,7 @@ export interface GrowthHandle {
 
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
-    showResolutions: false, p1: false,
+    showResolutions: false, p1: false, penta: false,
     boldEdges: false,
 };
 
@@ -551,6 +559,16 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // tile's (a, b) frame by solving p = v0 + a*vj + b*vk, and
                     // `world` then puts it where the tile is, lifted or not.
                     const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
+                    let idxLo = Infinity, idxHi = -Infinity;
+                    if (state.penta) {
+                        for (const r of rhombs) for (const K of r.kTuples) {
+                            let m = 0;
+                            for (const k of K) m += k;
+                            if (m < idxLo) idxLo = m;
+                            if (m > idxHi) idxHi = m;
+                        }
+                    }
+                    const pentaOn = state.penta && idxHi - idxLo === 3;   // Penrose only
                     const toLocal = (r: Rhomb, p: Vec2): [number, number] => {
                         const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
                         const det = vj[0] * vk[1] - vj[1] * vk[0];
@@ -573,8 +591,21 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         }
                         if (grow > 0.02) {
                             trace(r, BODY);
-                            ctx.fillStyle = tint(state.p1 ? rgbOf(P1_STAR) : [255, 255, 255], k);
+                            ctx.fillStyle = tint(state.p1 || pentaOn ? rgbOf(P1_STAR) : [255, 255, 255], k);
                             ctx.fill();
+                            if (pentaOn) {
+                                const parts = rhombPentagons(r, idxLo);
+                                const pieces: [number[][], string][] = parts.orange.map(
+                                    (o) => [o, P1_FILL.Pe1] as [number[][], string]);
+                                if (parts.yellow) pieces.push([parts.yellow, P1_FILL.Pe3]);
+                                for (const [poly, fill] of pieces) {
+                                    const piece = clipToConvex(poly as Vec2[], r.vertices);
+                                    if (piece.length < 3) continue;
+                                    trace(r, piece.map((p) => toLocal(r, p)));
+                                    ctx.fillStyle = tint(rgbOf(fill), k);
+                                    ctx.fill();
+                                }
+                            }
                             if (state.p1) {
                                 const mx = (r.vertices[0][0] + r.vertices[2][0]) / 2;
                                 const my = (r.vertices[0][1] + r.vertices[2][1]) / 2;

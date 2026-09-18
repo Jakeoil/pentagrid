@@ -17,7 +17,7 @@ import {
     solveIntersection, segmentAt, nearestLine,
 } from "../dist/geometry/pentagrid.js";
 import { TRIPLES, noIntegerGamma, scanRegions, singularTriples } from "../dist/geometry/regularity.js";
-import { ARC_T, rhombArcs, rhombArrows } from "../dist/geometry/decor.js";
+import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons } from "../dist/geometry/decor.js";
 import { regionPoly } from "../dist/geometry/region.js";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 
@@ -839,4 +839,78 @@ test("the filled curves join across every shared edge when dark sits at the arro
     assert.ok(yes.shared > 500);
     assert.equal(yes.ok, yes.shared, "dark at the arrow corner: every curve must join");
     assert.ok(no.ok < no.shared / 2, "dark at the red corner must NOT join — or the test proves nothing");
+});
+
+// The pentagons style is P1 at the big-rhomb scale: a whole Pe3 inside every
+// thick, the Pe1 straddling edges, blue elsewhere. It is a per-tile decoration,
+// so the only thing that can go wrong is the pieces not meeting: an orange
+// pentagon emitted by one tile must be emitted, identically, by every tile it
+// overlaps. Checked on three gammas, and against the three other corner rules.
+test("the pentagons assemble: every orange pentagon is emitted by both tiles it overlaps", () => {
+    const inside = (p, poly) => {
+        let s = 0;
+        for (let i = 0; i < poly.length; i++) {
+            const a = poly[i], b = poly[(i + 1) % poly.length];
+            const cr = (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0]);
+            if (Math.abs(cr) < 1e-9) continue;
+            const t = cr > 0 ? 1 : -1;
+            if (s === 0) s = t; else if (s !== t) return false;
+        }
+        return true;
+    };
+    const key = (P) => {
+        const cx = P.reduce((a, v) => a + v[0], 0) / 5, cy = P.reduce((a, v) => a + v[1], 0) / 5;
+        // orientation mod 72: the direction of the first corner, folded
+        const T = 2 * Math.PI / 5;
+        let a = Math.atan2(P[0][1] - cy, P[0][0] - cx); a = ((a % T) + T) % T; if (a > T - 1e-6) a = 0;
+        const q = (v) => (Math.round(v * 1e4) || 0) / 1e4;       // -0 is 0, or the origin splits
+        return `${q(cx)},${q(cy)},${q(a)}`;
+    };
+    for (const gamma of [[0.2, 0.2, 0.2, 0.2, 0.2], [0.07, 0.11, 0.13, 0.17, -0.48], [0.4, 0.4, 0.4, 0.4, 0.4]]) {
+        const pg = { n: 5, directions: makeDirections(true), gamma };
+        const R = collectRhombs(pg, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 }, { gain: 2.5 });
+        let lo = Infinity;
+        for (const r of R) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+        const emitted = new Map();       // key -> { poly, tiles }
+        let yellowIn = 0, thick = 0;
+        R.forEach((r, t) => {
+            const d = rhombPentagons(r, lo);
+            if (r.thick) {
+                thick++;
+                assert.ok(d.yellow, "a thick rhomb carries a whole pentagon");
+                if (d.yellow.every((p) => inside(p, r.vertices))) yellowIn++;
+                // and its rear corners sit exactly on the tile's edges at 1/phi^2
+                const ids = r.kTuples.map((K) => K.reduce((a, b) => a + b, 0) - lo + 1);
+                const c = ids.findIndex((v) => v === 1 || v === 4);
+                const C = r.vertices[c], A = r.vertices[(c + 1) % 4], B = r.vertices[(c + 3) % 4];
+                const onEdge = (p, X) => Math.hypot(p[0] - (C[0] + PENTA_R * (X[0] - C[0])), p[1] - (C[1] + PENTA_R * (X[1] - C[1]))) < 1e-9;
+                assert.ok(d.yellow.some((p) => onEdge(p, A)) && d.yellow.some((p) => onEdge(p, B)), "rear corners on the edges");
+            } else {
+                assert.equal(d.yellow, null);
+            }
+            assert.equal(d.orange.length, 2);
+            for (const o of d.orange) {
+                const k = key(o);
+                if (!emitted.has(k)) emitted.set(k, { poly: o, tiles: new Set() });
+                emitted.get(k).tiles.add(t);
+            }
+        });
+        assert.equal(yellowIn, thick, "every yellow pentagon lies inside its own thick rhomb");
+        let judged = 0, missing = 0;
+        for (const { poly, tiles } of emitted.values()) {
+            const cx = poly.reduce((a, v) => a + v[0], 0) / 5, cy = poly.reduce((a, v) => a + v[1], 0) / 5;
+            if (Math.hypot(cx, cy) > 8) continue;           // well inside the patch
+            judged++;
+            // every tile that holds an interior point of this pentagon must emit it
+            for (let i = 0; i < 60; i++) {
+                const a = i * 2 * Math.PI / 60, rr = PENTA_R * 0.7;
+                const p = [cx + rr * Math.cos(a), cy + rr * Math.sin(a)];
+                if (!inside(p, poly)) continue;
+                const t = R.findIndex((r) => inside(p, r.vertices));
+                if (t >= 0 && !tiles.has(t)) { missing++; break; }
+            }
+        }
+        assert.ok(judged > 200, `only ${judged} pentagons judged`);
+        assert.equal(missing, 0, `gamma ${gamma}: ${missing} orange pentagons not emitted by a tile they overlap`);
+    }
 });

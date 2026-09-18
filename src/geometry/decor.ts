@@ -10,7 +10,7 @@
 // opposite corner of radius 1-ARC_T. The radii sum to 1, which is what makes them
 // meet. 1/φ² and 1/φ are the golden choice.
 
-import type { Pentagrid, Rhomb } from "./types.js";
+import type { Pentagrid, Rhomb, Vec2 } from "./types.js";
 
 export const PHI = (1 + Math.sqrt(5)) / 2;
 export const ARC_T = 1 / (PHI * PHI);
@@ -103,4 +103,87 @@ export function rhombArrows(pg: Pentagrid, r: Rhomb, lo: number): EdgeArrow[] {
                    dx: dx / len, dy: dy / len, double: dbl });
     }
     return out;
+}
+
+// ── P1 at the big-rhomb scale ────────────────────────────────────────
+
+/** A pentagon's five corners, in tiling coordinates. */
+export type Pentagon = Vec2[];
+
+export interface RhombPentagons {
+    /** The whole Pe3 pentagon a thick rhomb carries; null on a thin. */
+    yellow: Pentagon | null;
+    /** The two Pe1 pentagons that cross into this tile, unclipped. */
+    orange: Pentagon[];
+}
+
+/** Circumradius of a P1 pentagon against a unit rhomb edge: 1/φ². */
+export const PENTA_R = 1 / (PHI * PHI);
+
+function regularPentagon(cx: number, cy: number, ang: number): Pentagon {
+    const out: Pentagon = [];
+    for (let k = 0; k < 5; k++) {
+        const t = ang + k * 2 * Math.PI / 5;
+        out.push([cx + PENTA_R * Math.cos(t), cy + PENTA_R * Math.sin(t)]);
+    }
+    return out;
+}
+
+/**
+ * The P1 tiling drawn on the rhombs it is MLD with at the SAME scale — Jake's
+ * "big rhombs" overlay in penrose-mosaic, where every thick rhomb contains a
+ * whole pentagon. Read off jake/pentas-bigrhombs.png (99.9% pixel agreement on
+ * the thick, 99% on the thin) and then checked to assemble: on three gammas
+ * every orange pentagon is emitted, identically, by both tiles it overlaps.
+ *
+ * In units of the rhomb edge, with R = 1/φ² the pentagon's circumradius:
+ *
+ *   thick, corner C the index extreme (where the double arrows meet), edges
+ *   e1, e2 from C, d their bisector:
+ *     yellow  a Pe3 centered at C + (e1 + e2)/φ², one corner along +d, so its
+ *             rear corners sit on the two edges at e1/φ² and e2/φ² exactly
+ *     orange  the two Pe1 across the yellow's front edges, centers
+ *             Yc + (2R cos 36°)·(d ± 36°), corners along −d
+ *     blue    the rest — the triangle C, e1/φ², e2/φ² is a fifth of the Pe5
+ *             or star at C, and the flanks are star family
+ *
+ *   thin, corner V the 144° corner at the OTHER end from the extreme:
+ *     orange  two Pe1 centered on its edges at V + e1/φ² and V + e2/φ², corners
+ *             along the short diagonal into the tile; they touch at a point
+ *     blue    the rest, the extreme corner included
+ *
+ * The thin's two 144° corners differ by two in index (the short diagonal is
+ * e1 + e2), which is what lets the tile tell them apart; nothing else does.
+ * The other three corner rules fail to assemble on 350–490 tile overlaps.
+ *
+ * Off a Penrose patch the index spans five values and nothing is emitted.
+ */
+export function rhombPentagons(r: Rhomb, lo: number): RhombPentagons {
+    const none: RhombPentagons = { yellow: null, orange: [] };
+    const idx = (K: readonly number[]) => K.reduce((a, b) => a + b, 0) - lo + 1;
+    const ids = r.kTuples.map(idx);
+    let ext = ids.findIndex((v) => v === 1 || v === 4);
+    if (ext < 0 || ids.some((v) => v < 1 || v > 4)) return none;
+    const V = r.vertices;
+    const c = r.thick ? ext : (ext + 2) % 4;
+    const C = V[c], A = V[(c + 1) % 4], B = V[(c + 3) % 4];
+    const e1: Vec2 = [A[0] - C[0], A[1] - C[1]];
+    const e2: Vec2 = [B[0] - C[0], B[1] - C[1]];
+    const d = Math.atan2(e1[1] + e2[1], e1[0] + e2[0]);
+    if (!r.thick) {
+        return {
+            yellow: null,
+            orange: [e1, e2].map((e) =>
+                regularPentagon(C[0] + PENTA_R * e[0], C[1] + PENTA_R * e[1], d)),
+        };
+    }
+    const yx = C[0] + (e1[0] + e2[0]) * PENTA_R;
+    const yy = C[1] + (e1[1] + e2[1]) * PENTA_R;
+    const across = 2 * PENTA_R * Math.cos(Math.PI / 5);
+    return {
+        yellow: regularPentagon(yx, yy, d),
+        orange: [1, -1].map((sg) => regularPentagon(
+            yx + across * Math.cos(d + sg * Math.PI / 5),
+            yy + across * Math.sin(d + sg * Math.PI / 5), d + Math.PI)),
+    };
 }

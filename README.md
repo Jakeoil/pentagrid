@@ -1,4 +1,4 @@
-# Pentagrid
+    # Pentagrid
 
 Interactive explorations of de Bruijn's pentagrid method for constructing Penrose
 tilings.
@@ -178,8 +178,9 @@ three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 **Tile style** is not a feature set but a dressing: `color` is one of `type`
 (thick/thin), `pair` (the two families, blended), `bands` (families2 — the two
 families as crossed bands, `band` wide), `groups` (the rhomb groups in sun-star's
-colors), `p1` (the pentagon tiling on the groups) or `curves` (Penrose's matching
-curves as filled regions); plus `isogloss`, `shading` with its `ramp` (the
+colors), `p1` (the pentagon tiling on the groups — the small rhombs), `curves`
+(Penrose's matching curves as filled regions) or `pentagons` (P1 at the scale
+where every thick rhomb holds one whole — the big rhombs); plus `isogloss`, `shading` with its `ramp` (the
 Wieringa height ramp, over any color), `boldEdges`, and `opacity`.
 
 Size comes from `data-width` / `data-height` on the container, or from the

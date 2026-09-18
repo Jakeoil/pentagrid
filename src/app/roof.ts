@@ -20,6 +20,7 @@ if (host) {
     bindToggles(view, [
         { id: "roof-edges", key: "boldEdges" },
         { id: "roof-p1", key: "p1" },
+        { id: "roof-penta", key: "penta" },
     ]);
 
     // Σγ shifts the de Bruijn index range, so here it also changes how many
