@@ -210,7 +210,9 @@ The plans themselves are gone from this file; what they left behind:
   set, SVG, one chord per family at `frac(γ_j)·SPACING`, labels on the rim,
   wheel-driven. Then floated, resized, given the presets popup and a settings
   popup (vertical-axis symmetry lives there: a fact about the frame, seen on
-  the reticulum), and put on every page; the slider bank kept, folded. §5.10 has what changed in the doing.
+  the reticulum), a mirror mode beside symmetric (γ_j = γ_{n−j} about γ₀'s
+  axis in whichever frame, γ₀ floating to hold Σγ = 1 — the deca's family,
+  §5.5), and put on every page; the slider bank kept, folded. §5.10 has what changed in the doing.
 - **Singularities (2026-09-12 → 09-15).** Angle-code names, the 2k-gon drawn and
   described, the Penrose catalog decided by arithmetic and offered as presets,
   the superposed rhombs' edges restored, the pseudo-edge toggle, grow routing

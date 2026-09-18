@@ -31,7 +31,10 @@ The **reticulum** is the γ instrument: a decagon with one axis per family, the
 offset shown as a signed representative in [−½, ½] and driven by the mouse wheel
 (hundredths; thousandths with a modifier). It floats, remembers where you put it,
 carries a **settings** popup (vertical-axis symmetry: the star turned so v₀
-points up — a rotation of the frame, nothing else), and carries the **presets** — the three caps (sun, star, deca) and the singular
+points up — a rotation of the frame, nothing else), two constrained modes —
+**symmetric** (every γ the same, the total released) and **mirror** (γ_j = γ_{n−j}
+about γ₀'s axis, γ₀ floating to hold Σγ = 1: the deca's family) — and the
+**presets** — the three caps (sun, star, deca) and the singular
 catalog (decagon, couple, octagon, 1 thick, 2 thick, 1 thin, 2 thin); choosing
 one puts its name on the title bar. The slider bank is still there, folded, for
 comparison.

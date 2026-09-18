@@ -423,3 +423,57 @@ test("the settings popup holds vertical-axis symmetry, and only one popup is ope
     presetsBtn.on.click.forEach((f) => f({}));
     assert.equal(presets.hidden, true, "the button dismisses it");
 });
+
+test("mirror: pairs move together, gamma0 floats, and the total is held at 1", () => {
+    const set = createGammaSet({ guard: false });
+    set.setValues([0.07, 0.11, 0.13, 0.17, -0.48]);      // no symmetry at all
+    const container = host();
+    mountReticulum(set, container, { colors: ["#000", "#000", "#000", "#000", "#000"] });
+    const boxes = [];
+    walk(container, (c) => { if (c.className === "ret-check") boxes.push(c); });
+    const label = (b) => b.children.map((c) => c.textContent ?? "").join("").trim();
+    const mirrorBox = boxes.find((b) => label(b).includes("mirror"));
+    const symBox = boxes.find((b) => label(b).includes("symmetric"));
+    assert.ok(mirrorBox && symBox, "both checkboxes exist");
+    const mirrorCb = mirrorBox.children.find((c) => c.type === "checkbox");
+    const symCb = symBox.children.find((c) => c.type === "checkbox");
+
+    mirrorCb.checked = true;
+    mirrorCb.on.change.forEach((f) => f({}));
+    const g = set.values();
+    const eq = (a, b) => Math.abs(a - b) < 1e-9;
+    assert.ok(eq(g[1], g[4]) && eq(g[2], g[3]), `not mirrored: ${g}`);
+    assert.ok(eq(g.reduce((a, b) => a + b, 0), 1), `sum is ${g.reduce((a, b) => a + b, 0)}, not 1`);
+    assert.equal(set.getLocked(), 0, "gamma0 is the float");
+    assert.ok(eq(g[1], -0.185) && eq(g[2], 0.15), `pairs folded to their means: ${g}`);
+    assert.ok(eq(g[0], 1.07), "gamma0 makes up the total");
+
+    // a wheel notch on axis 1 carries axis 4 with it, and gamma0 absorbs
+    let hit = null;
+    walk(container, (c) => { if (cls(c).startsWith("ret-hit")) hit = c; });
+    const [dx, dy] = set.model.directions[1];
+    const p = ev(400 + 300 * dx, 400 - 300 * dy, { deltaY: -1 });
+    hit.on.pointerdown[0](p); hit.on.pointerup[0](p);
+    hit.on.wheel[0](p);
+    const h = set.values();
+    assert.ok(eq(h[1], -0.175) && eq(h[4], -0.175), `pair did not move together: ${h}`);
+    assert.ok(eq(h[2], 0.15) && eq(h[3], 0.15), "the other pair is untouched");
+    assert.ok(eq(h[0], 1.05), "gamma0 floated to hold the total");
+
+    // the mirror is gamma0's axis wherever the frame puts it: with vertical-axis
+    // symmetry off the pairing is the same, about the horizontal
+    set.setSymmetry(false);
+    const [dx2, dy2] = set.model.directions[2];
+    const p2 = ev(400 + 300 * dx2, 400 - 300 * dy2, { deltaY: -1 });
+    hit.on.pointerdown[0](p2); hit.on.pointerup[0](p2);
+    hit.on.wheel[0](p2);
+    const k = set.values();
+    assert.ok(eq(k[2], 0.16) && eq(k[3], 0.16), `pair 2-3 did not move together: ${k}`);
+    assert.equal(set.getSymmetry(), false, "the mode does not touch the frame");
+
+    // symmetric and mirror are exclusive
+    symCb.checked = true; symCb.on.change.forEach((f) => f({}));
+    assert.equal(mirrorCb.checked, false);
+    mirrorCb.checked = true; mirrorCb.on.change.forEach((f) => f({}));
+    assert.equal(symCb.checked, false);
+});

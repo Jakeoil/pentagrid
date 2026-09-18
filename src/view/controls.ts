@@ -176,17 +176,39 @@ export function mountReticulum(
      * flag then lights at exactly those k/n where the condition is met.
      */
     let symmetric = false;
+    /**
+     * Mirror mode: two-fold symmetry about γ0's axis, so γ_j = γ_{n−j} and each
+     * move carries its partner. The axis is v0 wherever the frame puts it —
+     * vertical with vertical-axis symmetry on, horizontal with it off — so the
+     * mode follows the setting rather than forcing it (Jake: "symmetry along
+     * gamma"). γ0 lies on the axis and is its own mirror; it is the one that
+     * floats, holding the total at MIRROR_SUM. This is the mirror-symmetric
+     * family the deca lives in (PLAN.md §5.5): (γ0, e, −e, −e, e) and its
+     * neighbors.
+     */
+    let mirror = false;
+    const MIRROR_SUM = 1;     // Jake: "sum as 100"
+    const n = set.values().length;
+    const partner = (j: number) => (n - j) % n;
 
     const ret = createReticulum({
-        count: set.values().length,
+        count: n,
         directions: set.model.directions as readonly (readonly [number, number])[],
         colors: opts.colors,
         onChange: (j, v) => {
-            if (!symmetric) { set.setValue(j, v); return; }
-            set.setValues(new Array(set.values().length).fill(v));
+            if (symmetric) { set.setValues(new Array(n).fill(v)); return; }
+            if (mirror) {
+                if (j === 0) return;                      // the float; inert
+                const values = set.values();
+                values[j] = v; values[partner(j)] = v;
+                set.setValues(values);
+                return;
+            }
+            set.setValue(j, v);
         },
-        // -1 is Sigma itself: hold nothing, and every offset goes free.
-        onLock: (j) => { if (!symmetric) set.setLocked(j); },
+        // -1 is Sigma itself: hold nothing, and every offset goes free. In the
+        // constrained modes the lock is part of the mode and stays put.
+        onLock: (j) => { if (!symmetric && !mirror) set.setLocked(j); },
     });
 
     const wrap = document.createElement("div");
@@ -213,16 +235,44 @@ export function mountReticulum(
     symInput.addEventListener("change", () => {
         symmetric = symInput.checked;
         if (symmetric) {
+            mirror = false; mirrorInput.checked = false;
             // Nothing can hold the total while all n move together.
             set.setLocked(-1);
             const g = set.values()[Math.max(ret.selected(), 0)] ?? 0;
-            set.setValues(new Array(set.values().length).fill(g));
+            set.setValues(new Array(n).fill(g));
         }
         render();
     });
     symBox.appendChild(symInput);
     symBox.appendChild(document.createTextNode(" symmetric"));
     tools.appendChild(symBox);
+
+    const mirrorBox = document.createElement("label");
+    mirrorBox.className = "ret-check";
+    const mirrorInput = document.createElement("input");
+    mirrorInput.type = "checkbox";
+    mirrorInput.title = "Two-fold symmetry about γ\u2080's axis: γ\u2081 = γ\u2084, "
+        + "γ\u2082 = γ\u2083, each move carrying its mirror partner. γ\u2080 floats "
+        + "to hold Σγ = 1. The deca lives here.";
+    mirrorInput.addEventListener("change", () => {
+        mirror = mirrorInput.checked;
+        if (mirror) {
+            symmetric = false; symInput.checked = false;
+            set.setLocked(0);
+            set.setSum(MIRROR_SUM, false);
+            // Fold the current vector onto the mirror: each pair to its mean.
+            const values = set.values();
+            for (let j = 1; j < partner(j); j++) {
+                const m = (values[j] + values[partner(j)]) / 2;
+                values[j] = m; values[partner(j)] = m;
+            }
+            set.setValues(values);
+        }
+        render();
+    });
+    mirrorBox.appendChild(mirrorInput);
+    mirrorBox.appendChild(document.createTextNode(" mirror"));
+    tools.appendChild(mirrorBox);
 
     // The presets, behind a button: a popup of the caps and the singularity
     // catalog. Jake's list and order. A preset is the whole phase vector, so it
@@ -248,6 +298,8 @@ export function mountReticulum(
         b.addEventListener("click", () => {
             symmetric = false;
             symInput.checked = false;
+            mirror = false;
+            mirrorInput.checked = false;
             set.setLocked(-1);
             set.setValues(p.gamma.map((q) => q / p.den));
             // The popup stays up, like settings: dismissed by its own button,
