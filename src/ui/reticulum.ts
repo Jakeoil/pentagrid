@@ -37,6 +37,11 @@ export interface ReticulumState {
     values: readonly number[];
     /** The dependent index, or -1 when nothing holds the total. */
     locked: number;
+    /**
+     * Every axis dependent at once: the total is the driver and the offsets
+     * follow it. Symmetric mode with the gammas floating.
+     */
+    allDependent?: boolean;
     sum: number;
     sumNote?: string;
 }
@@ -228,6 +233,8 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
 
     let current: readonly number[] = new Array(count).fill(0);
     let lockedNow = count - 1;
+    let allDependent = false;
+    const isDependent = (j: number) => allDependent || j === lockedNow;
     let selected = -1;
     let hovered = -1;
     let dragging = -1;
@@ -267,7 +274,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     const target = (p: [number, number]) => (selected >= 0 ? selected : nearest(p));
 
     function drive(j: number, delta: number) {
-        if (j < 0 || j === lockedNow || delta === 0) return;
+        if (j < 0 || isDependent(j) || delta === 0) return;
         // Unwrapped: the state runs on, only the picture wraps.
         opts.onChange(j, current[j] + delta);
     }
@@ -279,7 +286,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         e.preventDefault();
         const j = target(at(e));
         if (wheelNotch(e, { step, fine }) === 0) return;
-        if (j === lockedNow) { refuse(); return; }
+        if (isDependent(j)) { refuse(); return; }
         drive(j, wheelNotch(e, { step, fine }));
     }, { passive: false });
 
@@ -289,7 +296,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         const j = nearest(p);
         selected = j;
         opts.onSelect?.(j);
-        if (j !== lockedNow) { dragging = j; dragFrom = p; } else { refuse(); }
+        if (!isDependent(j)) { dragging = j; dragFrom = p; } else { refuse(); }
         render();
     });
 
@@ -325,9 +332,9 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
             const { group, line, grid, label, value } = axes[j];
             const u = axisVec(j), w = lineVec(j);
             const isLive = j === live;
-            const isDependent = j === lockedNow;
+            const dep = isDependent(j);
             group.setAttribute("class", "ret-axis"
-                + (isLive ? " live" : "") + (isDependent ? " dependent" : ""));
+                + (isLive ? " live" : "") + (dep ? " dependent" : ""));
 
             // the diameter, side to side
             attrs(line, {
@@ -350,15 +357,15 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
 
             attrs(label, { x: u[0] * LABEL_R, y: u[1] * LABEL_R });
             label.setAttribute("class", "ret-label"
-                + (isDependent ? " dependent" : "") + (isLive ? " live" : ""));
-            label.setAttribute("fill", isDependent ? "#aaa" : colors[j % colors.length]);
+                + (dep ? " dependent" : "") + (isLive ? " live" : ""));
+            label.setAttribute("fill", dep ? "#aaa" : colors[j % colors.length]);
 
             const thousandths = Math.round((((current[j] ?? 0) % 1) + 1) % 1 * 1000) % 1000;
             value.textContent = String(thousandths).padStart(3, "0");
             attrs(value, { x: -u[0] * VALUE_R, y: -u[1] * VALUE_R });
             value.setAttribute("class", "ret-value"
-                + (isDependent ? " dependent" : "") + (isLive ? " live" : ""));
-            value.setAttribute("fill", isDependent ? "#bbb" : colors[j % colors.length]);
+                + (dep ? " dependent" : "") + (isLive ? " live" : ""));
+            value.setAttribute("fill", dep ? "#bbb" : colors[j % colors.length]);
         }
 
         // The active gamma's range: a corridor along its axis, side to side.
@@ -387,7 +394,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
             node.setAttribute("opacity", j >= 0 ? "1" : "0");
         };
         set(crossA, live);
-        set(crossD, lockedNow);
+        set(crossD, allDependent ? -1 : lockedNow);
 
         rim.setAttribute("points", poly(corners()));
     }
@@ -395,7 +402,8 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     function sync(s: ReticulumState) {
         current = s.values;
         lockedNow = s.locked;
-        if (selected === lockedNow) selected = -1;
+        allDependent = s.allDependent ?? false;
+        if (selected >= 0 && isDependent(selected)) selected = -1;
         render();
         const live = selected >= 0 ? selected : hovered;
         svg.setAttribute("aria-label", live >= 0

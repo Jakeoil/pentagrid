@@ -177,6 +177,13 @@ export function mountReticulum(
      */
     let symmetric = false;
     /**
+     * In symmetric mode one number is the whole state, so either the axes drive
+     * it and the total floats, or the total drives it and the axes float. A γ
+     * label floats all the gammas; Σ floats the sum. Jake's spec, and the same
+     * gesture as in the ordinary mode, where a label floats that one gamma.
+     */
+    let symDrive: "gammas" | "sum" = "gammas";
+    /**
      * Mirror mode: two-fold symmetry about γ0's axis, so γ_j = γ_{n−j} and each
      * move carries its partner. The axis is v0 wherever the frame puts it —
      * vertical with vertical-axis symmetry on, horizontal with it off — so the
@@ -206,9 +213,13 @@ export function mountReticulum(
             }
             set.setValue(j, v);
         },
-        // -1 is Sigma itself: hold nothing, and every offset goes free. In the
-        // constrained modes the lock is part of the mode and stays put.
-        onLock: (j) => { if (!symmetric && !mirror) set.setLocked(j); },
+        // -1 is Sigma itself: hold nothing, and every offset goes free. In
+        // symmetric mode a label hands the drive to the total instead; in
+        // mirror mode the lock is part of the mode and stays put.
+        onLock: (j) => {
+            if (symmetric) { symDrive = "sum"; render(); return; }
+            if (!mirror) set.setLocked(j);
+        },
     });
 
     const wrap = document.createElement("div");
@@ -221,7 +232,10 @@ export function mountReticulum(
     // the bottom, which made the wheel dead downwards at the default Σγ = 0.
     const strip = createSumStrip({
         onChange: (v) => set.setSum(v, true),
-        onRelease: () => set.setLocked(-1),
+        onRelease: () => {
+            if (symmetric) { symDrive = "gammas"; render(); return; }
+            set.setLocked(-1);
+        },
     });
     wrap.appendChild(strip.element);
 
@@ -234,6 +248,7 @@ export function mountReticulum(
     symInput.type = "checkbox";
     symInput.addEventListener("change", () => {
         symmetric = symInput.checked;
+        symDrive = "gammas";
         if (symmetric) {
             mirror = false; mirrorInput.checked = false;
             // Nothing can hold the total while all n move together.
@@ -357,8 +372,12 @@ export function mountReticulum(
         const values = set.values();
         const sum = values.reduce((a, b) => a + b, 0);
         const locked = set.getLocked();
-        ret.sync({ values, locked, sum });
-        strip.sync({ sum, released: locked < 0 });
+        // Symmetric with the sum driving: every axis floats and the strip is
+        // live even though the set holds nothing (an even split is what setSum
+        // does on a released set, which is exactly the symmetric family).
+        const sumDrives = symmetric && symDrive === "sum";
+        ret.sync({ values, locked, sum, allDependent: sumDrives });
+        strip.sync({ sum, released: locked < 0 && !sumDrives });
     };
     set.onChange(render);
     render();

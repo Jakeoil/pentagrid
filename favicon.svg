@@ -1,0 +1,10 @@
+<!-- The reticulum at the deca preset: gamma = (0, .1, -.1, -.1, .1). Generated from the same geometry as ui/reticulum.ts. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.2 -1.2 2.4 2.4" width="64" height="64">
+<polygon points="-0.8507,-0.6180 -0.3249,-1.0000 0.3249,-1.0000 0.8507,-0.6180 1.0515,0.0000 0.8507,0.6180 0.3249,1.0000 -0.3249,1.0000 -0.8507,0.6180 -1.0515,-0.0000" fill="#f6f6fa"/>
+<line x1="-1.0515" y1="-0.0000" x2="1.0515" y2="0.0000" stroke="#e63946" stroke-width="0.19" stroke-linecap="round"/>
+<line x1="-0.1146" y1="1.0000" x2="0.4950" y2="-0.8764" stroke="#457b9d" stroke-width="0.19" stroke-linecap="round"/>
+<line x1="0.6805" y1="0.7416" x2="-0.9156" y2="-0.4180" stroke="#2a9d8f" stroke-width="0.19" stroke-linecap="round"/>
+<line x1="0.9156" y1="-0.4180" x2="-0.6805" y2="0.7416" stroke="#d4a017" stroke-width="0.19" stroke-linecap="round"/>
+<line x1="-0.4950" y1="-0.8764" x2="0.1146" y2="1.0000" stroke="#9b5de5" stroke-width="0.19" stroke-linecap="round"/>
+<polygon points="-0.8507,-0.6180 -0.3249,-1.0000 0.3249,-1.0000 0.8507,-0.6180 1.0515,0.0000 0.8507,0.6180 0.3249,1.0000 -0.3249,1.0000 -0.8507,0.6180 -1.0515,-0.0000" fill="none" stroke="#2b2b30" stroke-width="0.15" stroke-linejoin="round"/>
+</svg>

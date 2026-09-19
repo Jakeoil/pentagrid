@@ -32,7 +32,8 @@ offset shown as a signed representative in [−½, ½] and driven by the mouse w
 (hundredths; thousandths with a modifier). It floats, remembers where you put it,
 carries a **settings** popup (vertical-axis symmetry: the star turned so v₀
 points up — a rotation of the frame, nothing else), two constrained modes —
-**symmetric** (every γ the same, the total released) and **mirror** (γ_j = γ_{n−j}
+**symmetric** (every γ the same; the axes drive and the total floats, or — click
+a γ label — the total drives and every γ floats; Σ hands it back) and **mirror** (γ_j = γ_{n−j}
 about γ₀'s axis, γ₀ floating to hold Σγ = 1: the deca's family) — and the
 **presets** — the three caps (sun, star, deca) and the singular
 catalog (decagon, couple, octagon, 1 thick, 2 thick, 1 thin, 2 thin); choosing

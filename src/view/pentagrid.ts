@@ -1285,11 +1285,19 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // ── Drawing ───────────────────────────────────────────────────────
 
-    /** The origin, ringed: sunstar's mark, since that is the point γ is about. */
+    /** The circled index's radius: big enough to read, never bigger than a tile corner. */
+    const markRadius = () => Math.max(6, Math.min(9, scale * 0.12));
+
+    /**
+     * The origin, ringed: sunstar's mark, since that is the point γ is about.
+     * Sized to sit just outside the circled index, when the vertex mark is one,
+     * so the two read as one badge rather than a ring cutting a digit.
+     */
     function drawCenter(tc: CanvasRenderingContext2D, cx: number, cy: number) {
         const [ox, oy] = mathToScreen(0, 0, cx, cy);
+        const inner = tileStyle.vertexMark === "dot" ? 3 : markRadius();
         tc.beginPath();
-        tc.arc(ox, oy, 5, 0, 2 * Math.PI);
+        tc.arc(ox, oy, inner + 3.5, 0, 2 * Math.PI);
         tc.lineWidth = 2;
         tc.strokeStyle = "#111";
         tc.stroke();
@@ -1485,8 +1493,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         dualVertices = [];
         const mark = tileStyle.vertexMark;
         const { lo } = indexRange();
-        // The circled index: big enough to read, never bigger than a tile corner.
-        const R = Math.max(6, Math.min(9, scale * 0.12));
+        const R = markRadius();
         if (mark !== "dot") {
             tc.font = `bold ${Math.round(R * 1.4)}px sans-serif`;
             tc.textAlign = "center";

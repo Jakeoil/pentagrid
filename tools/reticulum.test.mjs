@@ -477,3 +477,53 @@ test("mirror: pairs move together, gamma0 floats, and the total is held at 1", (
     mirrorCb.checked = true; mirrorCb.on.change.forEach((f) => f({}));
     assert.equal(symCb.checked, false);
 });
+
+test("symmetric: a gamma label floats all the gammas and the sum drives; sigma floats the sum", () => {
+    const set = createGammaSet({ guard: false });
+    set.setLocked(-1);
+    set.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const container = host();
+    mountReticulum(set, container, { colors: ["#000", "#000", "#000", "#000", "#000"] });
+    const boxes = [];
+    walk(container, (c) => { if (c.className === "ret-check") boxes.push(c); });
+    const label = (b) => b.children.map((c) => c.textContent ?? "").join("").trim();
+    const symCb = boxes.find((b) => label(b).includes("symmetric")).children.find((c) => c.type === "checkbox");
+    symCb.checked = true; symCb.on.change.forEach((f) => f({}));
+
+    let hit = null, sigma = null, stripHit = null; const labels = [], axes = [];
+    walk(container, (c) => {
+        const k = cls(c);
+        if (k.startsWith("ret-hit")) hit = c;
+        if (k.startsWith("ret-label")) labels.push(c);
+        if (k.startsWith("ret-axis")) axes.push(c);
+        if (k.startsWith("ss-sigma")) sigma = c;
+        if (k.startsWith("ss-hit")) stripHit = c;
+    });
+    assert.ok(hit && sigma && labels.length === 5 && axes.length === 5, "the parts are there");
+    const dependent = () => axes.filter((a) => cls(a).includes("dependent")).length;
+    const eq = (a, b) => Math.abs(a - b) < 1e-9;
+
+    // default: the axes drive, the sum floats
+    assert.equal(dependent(), 0, "symmetric starts with every axis live");
+    const [dx, dy] = set.model.directions[1];
+    const p = ev(400 + 300 * dx, 400 - 300 * dy, { deltaY: -1 });
+    hit.on.pointerdown[0](p); hit.on.pointerup[0](p); hit.on.wheel[0](p);
+    assert.ok(set.values().every((v) => eq(v, 0.21)), `axes drive all gammas: ${set.values()}`);
+
+    // a gamma label: every axis floats, the wheel on one is refused
+    labels[2].on.pointerdown[0](ev(0, 0));
+    assert.equal(dependent(), 5, "every axis is dependent");
+    hit.on.wheel[0](p);
+    assert.ok(set.values().every((v) => eq(v, 0.21)), "a floating axis does not move");
+    // and the strip drives the lot
+    if (stripHit) {
+        stripHit.on.wheel[0](ev(0, 0, { deltaY: -1 }));
+        const s = set.values().reduce((a, b) => a + b, 0);
+        assert.ok(!eq(s, 1.05), `the sum moved: ${s}`);
+        assert.ok(set.values().every((v) => eq(v, set.values()[0])), "and the gammas stayed equal");
+    }
+
+    // sigma: the sum floats again and the axes drive
+    sigma.on.pointerdown[0](ev(0, 0));
+    assert.equal(dependent(), 0, "sigma hands the drive back to the axes");
+});
