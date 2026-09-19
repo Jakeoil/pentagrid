@@ -1509,4 +1509,13 @@ test("the vertex mark: a dot, or the index in a circle once per vertex, either w
     assert.equal(texts.length, dots);
     assert.ok(fills.every((c) => c === "#fff") && fills.length === dots, "white discs");
     assert.ok(texts.every(([, c]) => c === "#111"), "black digits");
+
+    // off Penrose the fifth level takes the complementary style
+    h.gamma.setValues([0.1, 0.1, 0.1, 0.1, 0.1]);          // sum 1/2: five levels
+    texts.length = 0; fills.length = 0;
+    h.redraw();
+    const fives = texts.filter(([t]) => t === "5").length;
+    assert.ok(fives > 0, "a fifth level exists off Penrose");
+    assert.equal(texts.filter(([t, c]) => t === "5" && c === "#fff").length, fives, "fives are white on black");
+    assert.equal(texts.filter(([t, c]) => t !== "5" && c === "#111").length, texts.length - fives, "the rest stay black on white");
 });

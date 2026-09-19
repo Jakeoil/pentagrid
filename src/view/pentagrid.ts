@@ -1510,14 +1510,19 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     continue;
                 }
                 // ❶ or ①: the index once, on the vertex, in place of the dot.
+                // Off Penrose the index runs to 5, and that fifth level wears the
+                // complementary style — ① among the ❶ — so it stands out. Jake's
+                // idea. (Which level is the fifth is the normalization's choice:
+                // the top one.)
                 const m = vertexIndex(rhomb.kTuples[vi]) - lo + 1;
+                const filled = (mark === "filled") !== (m > 4);
                 tc.beginPath();
                 tc.arc(sx, sy, R, 0, 2 * Math.PI);
-                tc.fillStyle = mark === "filled" ? "#111" : "#fff";
+                tc.fillStyle = filled ? "#111" : "#fff";
                 tc.fill();
                 tc.strokeStyle = "#111";
                 tc.stroke();
-                tc.fillStyle = mark === "filled" ? "#fff" : "#111";
+                tc.fillStyle = filled ? "#fff" : "#111";
                 tc.fillText(String(m), sx, sy + 0.5);
             }
         }
@@ -2717,7 +2722,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             mark.className = "line-pick";
             mark.style.width = "62px";
             mark.title = "The vertex mark: a red dot, or its index in a circle — "
-                + "white on black, or black on white.";
+                + "white on black, or black on white. Off Penrose the fifth level "
+                + "wears the other style.";
             for (const [value, text] of [["dot", "dot"], ["filled", "\u2776 index"], ["open", "\u2460 index"]] as const) {
                 const o = document.createElement("option");
                 o.value = value;
