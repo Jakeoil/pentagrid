@@ -95,7 +95,13 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
 5. **Two-tries preset.** Jake saw a preset needing a second click once; never
    reproduced. Presets now `setLocked(-1)` before writing, which removed the one
    mechanism found.
-6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
+6. **Which level is the fifth?** Off Penrose the index takes five consecutive
+   values and the vertex mark draws the top one in the complementary style
+   (Jake's idea, 2026-09-19). The top is the normalization's choice — the
+   minimum anchored at 1 — and nothing intrinsic marks one level as the extra.
+   Whether there is a canonical one (by Σγ − ⌊Σγ⌋ against ½, or by the mirror
+   Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
+7. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
 
 ## 4. Standing rules
