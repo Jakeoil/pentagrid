@@ -96,7 +96,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseVertices: true, hoverVertex: true });
             pg.setGridAlpha(0.28);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "View"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons", "View"]);
         },
     },
     {
@@ -121,7 +121,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseEdges: true, hoverTile: true });
             pg.setGridAlpha(0.24);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "View"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons", "View"]);
         },
     },
     {
@@ -196,7 +196,7 @@ export const METHOD_PAGES: Page[] = [
                              penroseEdges: true, penroseVertices: true, pseudoEdges: true });
             pg.gamma.setSum(0, true);            // the page is about the singular point
             pg.setGridAlpha(0.5);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "ribbons", "View"]);
+            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons", "View"]);
         },
     },
 ];

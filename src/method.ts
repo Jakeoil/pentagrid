@@ -40,7 +40,9 @@ handle.onFeatureOn((key) => {
 // comparison. Jake: default the sliders off on every page.
 mountFloatingReticulum(handle.gamma, {
     colors: ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"],
-    buttons: byId("step-nav") ?? document.body,
+    // At the end of the View row, with the sliders' fold button; shows only
+    // while the reticulum is shut.
+    buttons: handle.panelRow("View") ?? byId("step-nav") ?? document.body,
     sliders: byId("controls"),
     foldSliders: true,
 });

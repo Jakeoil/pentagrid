@@ -179,7 +179,9 @@ panel to the page that is about it.
 **Features** are the on/off switches a page or the panel flips: `gridLines`,
 `axes`, `kRegions`, `kLabels`, `intersectionDots`, `penroseTiles`,
 `penroseEdges`, `penroseVertices`, `penroseDecor` (the arcs), `arrows` (the
-AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon), and the
+AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon),
+`vertexIndex` (each corner's index, 1..4 on Penrose, written on the tile face),
+`center` (a ring on the origin), and the
 three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 
 **Tile style** is not a feature set but a dressing: `color` is one of `type`
@@ -190,7 +192,10 @@ colors), `p1` (the pentagon tiling on the groups — the small rhombs), `curves`
 where every thick rhomb holds one whole — the big rhombs) or `nextgen` (the
 deflation: thick gold, thin gray, at 1/φ — the next generation once the edges
 are off); plus `isogloss`, `shading` with its `ramp` (the
-Wieringa height ramp, over any color), `boldEdges`, and `opacity`.
+Wieringa height ramp, over any color), `boldEdges`, `coloredArrows` (de Bruijn's
+solid arrows along the edges, dot to dot, green doubles and red singles, in place
+of the chevrons), `vertexMark` (the red dot, or the vertex's index in a circle —
+`filled` white on black, `open` black on white), and `opacity`.
 
 Size comes from `data-width` / `data-height` on the container, or from the
 container's laid-out size. **Those two behave differently on resize**: naming a
@@ -208,6 +213,7 @@ The handle:
 | `setGridAlpha(a)` | fade the grid, as the pages do when the tiling takes over |
 | `setTileStyle(s)` | change the dressing; merges |
 | `exposeRows(labels \| null)` | which panel rows a page shows |
+| `panelRow(label)` | a panel row's element, so a page can add a control to it — the reticulum's button goes on View |
 | `onFeatureOn(cb)` | a panel switch turned a feature on — a narrative can go to its page |
 | `getView()`, `setView(v)` | the pan and zoom, read and driven |
 | `setGamma(g)` | set the offsets outright |

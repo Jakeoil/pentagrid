@@ -23,14 +23,16 @@ if (gridHost && tileHost) {
         // Start regular — the "regular" preset — rather than on the singular default.
         gamma: [0.07, 0.11, 0.13, 0.17, -0.48],
         features: {
-            gridLines: true, kRegions: true, intersectionDots: true, axes: false,
+            gridLines: true, kRegions: true, intersectionDots: true, axes: false, center: true,
             penroseVertices: true, penroseEdges: true, penroseTiles: true,
             hoverVertex: true, hoverEdge: true, hoverTile: true,
         },
     });
 
-    const bar = byId("split-bar");
-    if (bar) {
-        mountFloatingReticulum(grid.gamma, { colors: FAMILY_COLORS, buttons: bar });
-    }
+    // The "show reticulum" button lives at the end of the View row and only
+    // while the reticulum is shut; a bar of its own was a waste of a line.
+    mountFloatingReticulum(grid.gamma, {
+        colors: FAMILY_COLORS,
+        buttons: grid.panelRow("View") ?? document.body,
+    });
 }

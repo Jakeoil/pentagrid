@@ -1139,7 +1139,7 @@ function panelRows(panel) {
             }
             // The collapsed settings have unlabeled rows; they belong to no row.
             if (c.className === "settings") current = null;
-            if (c.className === "layer-toggle" && current) {
+            if (String(c.className).split(" ").includes("layer-toggle") && current) {
                 const label = c.children
                     .filter((x) => typeof x.textContent === "string" && x.textContent)
                     .map((x) => x.textContent).join("").trim();
@@ -1402,4 +1402,111 @@ test("split: the Penrose group draws in the second container, the axes in both, 
     assert.ok(vertexHits > 100, `the hover answered only ${vertexHits} times`);
     assert.ok(painted.left > 0, "the grid half of the hover was never painted on the left");
     assert.ok(painted.right > 0, "the Penrose half of the hover was never painted on the right");
+});
+
+test("the Tile vertex row's index switch writes every corner's index on the tile face", () => {
+    const panel = sizedHost(800, 100);
+    const h = createPentagrid({
+        container: sizedHost(800, 800), panel,
+        features: { penroseTiles: true, penroseVertices: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);        // the sun: four levels
+    const layer = h.stack.get("penrose-vertices");
+    const texts = [];
+    layer.ctx.fillText = (t) => { texts.push(t); };
+    h.redraw();
+    assert.equal(layer.visible(), false, "nothing wants the vertex layer yet");
+    assert.equal(texts.length, 0);
+
+    h.setFeatures({ vertexIndex: true }, { merge: true });
+    h.redraw();
+    assert.equal(layer.visible(), true, "the index switch brings the layer up on its own");
+    assert.ok(texts.length > 400, `only ${texts.length} labels`);
+    const levels = new Set(texts);
+    assert.deepEqual([...levels].sort(), ["1", "2", "3", "4"],
+                     `a Penrose patch reads 1..4 whatever the total, got ${[...levels]}`);
+    // four per tile, one per corner
+    const tiles = h.stack.get("penrose-tiles");
+    let fills = 0;
+    tiles.ctx.fill = () => { fills++; };
+    texts.length = 0;
+    h.redraw();
+    assert.ok(texts.length >= 4 * fills * 0.9, `${texts.length} labels for ${fills} tile fills`);
+
+    // and the row exists, with the one switch on it
+    const rows = panelRows(panel);
+    assert.ok(rows.has("Tile vertex"), "no Tile vertex row");
+    assert.deepEqual(rows.get("Tile vertex").map((c) => c.label), ["index"]);
+});
+
+test("colored arrows: de Bruijn's full-edge arrows, doubles green, singles red; the switch brings the arrows up", () => {
+    const panel = sizedHost(800, 100);
+    const h = createPentagrid({
+        container: sizedHost(800, 800), panel,
+        features: { penroseTiles: true, arrows: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const layer = h.stack.get("penrose-decor");
+    const strokes = [];
+    layer.ctx.stroke = function () { strokes.push(String(this.strokeStyle)); };
+    h.redraw();
+    assert.ok(strokes.length > 100, "arrows drawn");
+    assert.ok(strokes.every((c) => c === "#222"), "all dark by default");
+
+    h.setTileStyle({ coloredArrows: true });
+    strokes.length = 0;
+    h.redraw();
+    const green = strokes.filter((c) => c === "#3aa655").length;
+    const red = strokes.filter((c) => c === "#e0423c").length;
+    assert.ok(green > 0 && red > 0, `green ${green}, red ${red}`);
+    assert.equal(green + red, strokes.length, "every arrow is one of the two colors");
+    // one stroke per arrow (the shaft; the heads are fills); two of each kind a tile
+    assert.ok(Math.abs(green - red) < strokes.length * 0.05, `two doubles and two singles a tile: ${green} green vs ${red} red`);
+
+    // the switch on the Tile edges row turns the arrows feature on if it was off
+    const panel2 = sizedHost(800, 100);
+    const h2 = createPentagrid({ container: sizedHost(800, 800), panel: panel2,
+                                 features: { penroseTiles: true, arrows: false } });
+    const row = panelRows(panel2).get("Tile edges");
+    const sw = row.find((c) => c.label === "colored arrows");
+    assert.ok(sw, "the switch exists");
+    assert.equal(h2.stack.get("penrose-decor").visible(), false);
+    sw.box.checked = true;
+    sw.box.on.change.forEach((f) => f({}));
+    assert.equal(h2.stack.get("penrose-decor").visible(), true, "colored arrows brought the arrows up");
+    assert.equal(row.find((c) => c.label === "arrows").box.checked, true, "and the arrows box follows");
+});
+
+test("the vertex mark: a dot, or the index in a circle once per vertex, either way round", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800), panel: sizedHost(800, 100),
+        features: { penroseTiles: true, penroseVertices: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const layer = h.stack.get("penrose-vertices");
+    const texts = [], fills = [];
+    layer.ctx.fillText = function (t) { texts.push([t, String(this.fillStyle)]); };
+    layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    h.redraw();
+    assert.equal(texts.length, 0, "the dot writes nothing");
+    const dots = fills.length;
+    assert.ok(dots > 100 && fills.every((c) => c === "#c0392b"), "red dots by default");
+
+    h.setTileStyle({ vertexMark: "filled" });
+    texts.length = 0; fills.length = 0;
+    h.redraw();
+    assert.equal(texts.length, dots, "one index per vertex, in place of each dot");
+    assert.deepEqual([...new Set(texts.map(([t]) => t))].sort(), ["1", "2", "3", "4"]);
+    assert.ok(fills.every((c) => c === "#111") && fills.length === dots, "black discs");
+    assert.ok(texts.every(([, c]) => c === "#fff"), "white digits");
+
+    h.setTileStyle({ vertexMark: "open" });
+    texts.length = 0; fills.length = 0;
+    h.redraw();
+    assert.equal(texts.length, dots);
+    assert.ok(fills.every((c) => c === "#fff") && fills.length === dots, "white discs");
+    assert.ok(texts.every(([, c]) => c === "#111"), "black digits");
 });

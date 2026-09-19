@@ -16,6 +16,7 @@ import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation } from "../geometry/decor.js";
+import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
 import { createLoupe } from "../ui/loupe.js";
@@ -77,6 +78,21 @@ export interface TileStyle {
     /** Contour lines across each tile. */
     isogloss: boolean;
     /**
+     * The AR-pattern drawn de Bruijn's way: a solid arrow along each edge from
+     * just short of one vertex to just short of the other, shaft and filled
+     * head as in jake/arrow.svg, one head each — green for the doubles and red
+     * for the singles, the color being the whole distinction. Off, the arrows are the plain
+     * chevron markings at the edge midpoints.
+     */
+    coloredArrows: boolean;
+    /**
+     * What marks a Penrose vertex: the red dot, or its index in a circle — ❶
+     * white on black, ① black on white — once per vertex, in place of the dot.
+     * The index on the tile face (the `vertexIndex` feature) is the other way
+     * to see it, four times per vertex.
+     */
+    vertexMark: "dot" | "filled" | "open";
+    /**
      * The height ramp, over whatever color is chosen — wieringa-roof's shading.
      * Lighter towards the top of the patch, darker towards the bottom, each tile
      * a gradient from its low corner to its high. See heightGradient.
@@ -127,6 +143,18 @@ export interface Features {
      * through it.
      */
     pseudoEdges: boolean;
+    /**
+     * De Bruijn's index of every tile corner, written on the tile face just
+     * inside that corner. Every dual vertex has one — it is f(K) for a K-tuple,
+     * and ΣK is the height the roof lifts it to. Shown normalized, ΣK − min + 1,
+     * so a Penrose patch reads 1..4 whatever the total (the raw sum is 2..5 on
+     * the sun, whose origin is K = (1,1,1,1,1)); the rhomb groups, the arrows,
+     * the curves, the P1 pentagons and the deflation are all placed by it. Off
+     * Penrose it runs 1..5.
+     */
+    vertexIndex: boolean;
+    /** A small circle on the origin, as sunstar draws it — the point γ is about. */
+    center: boolean;
     // The three hover helpers, one per grid/Penrose correspondence. Each works
     // both ways and each overrides an "off" on the thing it is helping with —
     // the point of a helper is to show you the object, not to respect a switch.
@@ -245,6 +273,8 @@ export interface PentagridHandle {
      * decides what is worth exposing on it.
      */
     exposeRows: (labels: readonly string[] | null) => void;
+    /** A panel row by its label, for a page that wants to add a control to it. */
+    panelRow: (label: string) => HTMLElement | undefined;
     /**
      * Fires when a panel switch turns a feature on. A narrative can use it to go
      * to the page where that feature is the subject, instead of leaving the
@@ -494,9 +524,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // Tooltip for K-tuple display
     const tooltip = document.createElement("div");
     // Opaque and light: the translucent black was unreadable over a dark canvas.
-    tooltip.style.cssText = "position:fixed;padding:5px 9px;background:#e4e4e8;color:#1a1a1e;"
-        + "font:12px monospace;border:1px solid #9a9aa2;border-radius:3px;"
+    // Solid and light, with dark text: the readout sits over the busiest part of
+    // the picture and has to be legible against any of it. Jake: the equation
+    // was not readable — the numbers were still styled for the old black box.
+    tooltip.style.cssText = "position:fixed;padding:7px 11px;background:#fbfbfd;color:#111;"
+        + "font:600 13.5px/1.45 ui-monospace,Menlo,Consolas,monospace;"
+        + "border:1.5px solid #555;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.25);"
         + "pointer-events:none;display:none;z-index:10;";
+    /** Readout accents: an enabled family's number, a disabled one's, a name. */
+    const TIP_ON = "#111", TIP_OFF = "#9a9aa2", TIP_NAME = "#b3550f";
 
     /**
      * Where the hover readout goes: pinned in the canvas corner, or riding the
@@ -546,6 +582,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         penroseDecor: false,
         arrows: false,
         pseudoEdges: false,
+        vertexIndex: false, center: false,
         hoverVertex: false, hoverEdge: false, hoverTile: false,
     };
 
@@ -556,7 +593,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
-        boldEdges: false,
+        boldEdges: false, coloredArrows: false, vertexMark: "dot",
         ...config.tileStyle,
     };
 
@@ -701,8 +738,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // In FRONT of the grid and the tiling: an axis behind the thing it
         // measures is decoration, not a reference.
         id: "axes", label: "Axes", z: 70, group: "Axes",
-        visible: () => features.axes,
-        draw: (c) => drawAxes(c.ctx, c.w, c.h, c.cx, c.cy),
+        visible: () => features.axes || features.center,
+        draw: (c) => {
+            if (features.axes) drawAxes(c.ctx, c.w, c.h, c.cx, c.cy);
+            if (features.center) drawCenter(c.ctx, c.cx, c.cy);
+        },
     });
 
     stack.add({
@@ -766,9 +806,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         id: "penrose-vertices", label: "Vertices", z: PENROSE_Z_FRONT + 3, group: "Penrose",
         // Also runs when only the hover wants vertices, because it populates the
         // pick list; `show` decides whether anything is actually painted.
-        visible: () => features.penroseVertices || features.hoverVertex,
-        draw: (c) => drawDualVertices(c.ctx, currentRhombs(), c.cx, c.cy,
-                                      features.penroseVertices),
+        visible: () => features.penroseVertices || features.hoverVertex || features.vertexIndex,
+        draw: (c) => {
+            drawDualVertices(c.ctx, currentRhombs(), c.cx, c.cy, features.penroseVertices);
+            if (features.vertexIndex) drawVertexIndices(c.ctx, currentRhombs(), c.cx, c.cy);
+        },
     });
 
     function restackPenrose() {
@@ -1243,6 +1285,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // ── Drawing ───────────────────────────────────────────────────────
 
+    /** The origin, ringed: sunstar's mark, since that is the point γ is about. */
+    function drawCenter(tc: CanvasRenderingContext2D, cx: number, cy: number) {
+        const [ox, oy] = mathToScreen(0, 0, cx, cy);
+        tc.beginPath();
+        tc.arc(ox, oy, 5, 0, 2 * Math.PI);
+        tc.lineWidth = 2;
+        tc.strokeStyle = "#111";
+        tc.stroke();
+    }
+
     function drawAxes(tc: CanvasRenderingContext2D, w: number, h: number, cx: number, cy: number) {
         tc.save();
 
@@ -1431,7 +1483,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         const seen = new Set<string>();
         dualVertices = [];
-        tc.fillStyle = "#c0392b";
+        const mark = tileStyle.vertexMark;
+        const { lo } = indexRange();
+        // The circled index: big enough to read, never bigger than a tile corner.
+        const R = Math.max(6, Math.min(9, scale * 0.12));
+        if (mark !== "dot") {
+            tc.font = `bold ${Math.round(R * 1.4)}px sans-serif`;
+            tc.textAlign = "center";
+            tc.textBaseline = "middle";
+            tc.lineWidth = 1;
+        }
         for (const rhomb of rhombs) {
             for (let vi = 0; vi < rhomb.vertices.length; vi++) {
                 const [vx, vy] = rhomb.vertices[vi];
@@ -1441,9 +1502,58 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 const [sx, sy] = mathToScreen(vx, vy, cx, cy);
                 dualVertices.push({ sx, sy, mx: vx, my: vy, K: rhomb.kTuples[vi] });
                 if (!show) continue;
+                if (mark === "dot") {
+                    tc.fillStyle = "#c0392b";
+                    tc.beginPath();
+                    tc.arc(sx, sy, 3, 0, 2 * Math.PI);
+                    tc.fill();
+                    continue;
+                }
+                // ❶ or ①: the index once, on the vertex, in place of the dot.
+                const m = vertexIndex(rhomb.kTuples[vi]) - lo + 1;
                 tc.beginPath();
-                tc.arc(sx, sy, 3, 0, 2 * Math.PI);
+                tc.arc(sx, sy, R, 0, 2 * Math.PI);
+                tc.fillStyle = mark === "filled" ? "#111" : "#fff";
                 tc.fill();
+                tc.strokeStyle = "#111";
+                tc.stroke();
+                tc.fillStyle = mark === "filled" ? "#fff" : "#111";
+                tc.fillText(String(m), sx, sy + 0.5);
+            }
+        }
+    }
+
+    /**
+     * The index of every corner, on the tile face just inside it: each tile
+     * writes its own four, pulled a little toward the tile's center so the
+     * label sits on the face rather than on the vertex dot, and the same
+     * vertex reads the same number from every tile around it. Normalized to
+     * the patch minimum, so Penrose is 1..4 — Jake: "for Penrose the index is
+     * always in {1,2,3,4}" — the same number the decorations are placed by.
+     */
+    function drawVertexIndices(
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
+    ) {
+        const { lo, hi } = indexRange();
+        const size = Math.max(8, Math.min(13, scale * 0.16));
+        if (size < 8) return;
+        tc.font = `${size}px sans-serif`;
+        tc.textAlign = "center";
+        tc.textBaseline = "middle";
+        for (const rhomb of rhombs) {
+            const V = rhomb.vertices;
+            const mx = (V[0][0] + V[2][0]) / 2, my = (V[0][1] + V[2][1]) / 2;
+            for (let vi = 0; vi < 4; vi++) {
+                const m = vertexIndex(rhomb.kTuples[vi]) - lo + 1;
+                // Toward the center by a fixed fraction of the diagonal, so it
+                // stays inside a thin tile's acute corner too.
+                const t = 0.22;
+                const [sx, sy] = mathToScreen(V[vi][0] + (mx - V[vi][0]) * t,
+                                              V[vi][1] + (my - V[vi][1]) * t, cx, cy);
+                // Extremes dark, the middle levels lighter, so the rhomb-group
+                // centers read at a glance.
+                tc.fillStyle = m === 1 || m === hi - lo + 1 ? "#1a1a1e" : "#6a6a72";
+                tc.fillText(String(m), sx, sy);
             }
         }
     }
@@ -1501,6 +1611,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         const { lo, hi } = indexRange();
         if (hi - lo !== 3) return;
+        if (tileStyle.coloredArrows) { drawColoredArrows(tc, rhombs, cx, cy, lo); return; }
         const L = 0.11;          // chevron arm, tiling units
         const GAP = 0.09;        // between the two of a double
         tc.strokeStyle = "#222";
@@ -1527,6 +1638,56 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 } else {
                     chevron(a.x + a.dx * L / 2, a.y + a.dy * L / 2);
                 }
+            }
+        }
+    }
+
+    /**
+     * The arrows as de Bruijn draws them, in the shape of jake/arrow.svg: a
+     * rounded shaft with a solid triangular head, the head a sixth of the
+     * length and about a third as wide as long, the shaft a thirtieth. It runs
+     * from just short of one vertex to just short of the other — clear of the
+     * vertex dots — so the arrows at a vertex do not pile onto it. One head
+     * each: the color carries the double/single distinction, green on the
+     * doubles (the 1-2 and 3-4 edges), red on the singles (2-3), so a second
+     * head would say it twice. Jake: "No doubles!" A shared edge is drawn
+     * once per tile, identically, since the rule agrees across it.
+     */
+    function drawColoredArrows(
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, lo: number,
+    ) {
+        const DOUBLE = "#3aa655", SINGLE = "#e0423c";
+        const inset = 6 / scale;             // past the 3 px vertex dot, in tiling units
+        const L = 1 - 2 * inset;             // the arrow's length, of a unit edge
+        if (L <= 0.2) return;
+        const HEAD = 0.163 * L, HALF = 0.054 * L, SHAFT = 0.034 * L;
+        tc.lineWidth = Math.max(1.2, SHAFT * scale);
+        tc.lineCap = "round";
+        for (const r of rhombs) {
+            for (const a of rhombArrows(model, r, lo)) {
+                const nx = -a.dy, ny = a.dx;
+                const color = a.double ? DOUBLE : SINGLE;
+                const tx = a.x - a.dx * L / 2, ty = a.y - a.dy * L / 2;   // tail
+                const hx = a.x + a.dx * L / 2, hy = a.y + a.dy * L / 2;   // tip
+                // Shaft, stopping under the head so the round cap never shows.
+                const tail = mathToScreen(tx, ty, cx, cy);
+                const neck = mathToScreen(hx - a.dx * HEAD * 0.8, hy - a.dy * HEAD * 0.8, cx, cy);
+                tc.strokeStyle = color;
+                tc.beginPath();
+                tc.moveTo(tail[0], tail[1]);
+                tc.lineTo(neck[0], neck[1]);
+                tc.stroke();
+                // The head, one only.
+                tc.fillStyle = color;
+                const tip = mathToScreen(hx, hy, cx, cy);
+                const l = mathToScreen(hx - a.dx * HEAD + nx * HALF, hy - a.dy * HEAD + ny * HALF, cx, cy);
+                const rr = mathToScreen(hx - a.dx * HEAD - nx * HALF, hy - a.dy * HEAD - ny * HALF, cx, cy);
+                tc.beginPath();
+                tc.moveTo(tip[0], tip[1]);
+                tc.lineTo(l[0], l[1]);
+                tc.lineTo(rr[0], rr[1]);
+                tc.closePath();
+                tc.fill();
             }
         }
     }
@@ -2189,7 +2350,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * Which panel a row belongs in. One panel is the usual case; with `panelP`
      * the Penrose rows — the P side of the G/P split — go there instead.
      */
-    const P_ROWS = new Set(["Penrose", "Tile style", "Tile shade", "Tile edges", "ribbons"]);
+    const P_ROWS = new Set(["Penrose", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons"]);
     function panelFor(title: string): HTMLElement {
         return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
     }
@@ -2347,18 +2508,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         });
         tilesRow.appendChild(status);
 
+        // Five families on one line, at the canvas width: no swatch — the two
+        // fields wear the family's color instead, as a wash behind and a rule
+        // around — and the fields are as narrow as their contents allow.
         for (let j = 0; j < model.n; j++) {
             const wrap = document.createElement("label");
-            wrap.className = "layer-toggle";
+            wrap.className = "layer-toggle ribbon-family";
             wrap.title = `Family ${j}: dualize all its lines, none, or the one numbered here.`;
-            const sw = document.createElement("span");
-            sw.className = "layer-swatch";
-            sw.style.background = COLORS[j % COLORS.length];
-            wrap.appendChild(sw);
+            const color = COLORS[j % COLORS.length];
+            const tint = (el: HTMLElement) => {
+                el.style.background = lighten(color, 0.8);
+                el.style.borderColor = color;
+            };
 
             const mode = document.createElement("select");
             mode.className = "line-pick";
-            mode.style.width = "52px";
+            mode.style.width = "48px";
             for (const v of ["all", "none", "one"]) {
                 const o = document.createElement("option");
                 o.value = v;
@@ -2366,13 +2531,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 mode.appendChild(o);
             }
             mode.value = "all";
+            tint(mode);
 
             const nBox = document.createElement("input");
             nBox.type = "number";
             nBox.className = "line-pick";
-            nBox.style.width = "40px";
+            nBox.style.width = "34px";
             nBox.value = "0";
             nBox.title = "Which line, when the mode is `one`.";
+            tint(nBox);
 
             perFamily.push({ mode, n: nBox });
             mode.addEventListener("change", () => { applyFamily(j); showStatus(); draw(); });
@@ -2397,6 +2564,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const axesLayer = stack.get("axes");
         if (axesLayer) {
             featureToggle(viewRow, "axes", "axes");
+            featureToggle(viewRow, "center", "center").title = "Ring the origin.";
         }
         const stats = document.createElement("span");
         stats.className = "view-stats";
@@ -2530,7 +2698,45 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             bold.title = "Draw the tile edges as real lines, dark and two wide, rather than a gray hairline.";
             featureToggle(edgeRow, "penroseDecor", "arcs");
             featureToggle(edgeRow, "arrows", "arrows");
+            const colored = checkbox(edgeRow, "colored arrows", tileStyle.coloredArrows, (v) => {
+                tileStyle.coloredArrows = v;
+                if (v && !features.arrows) setFeatures({ arrows: true }, { merge: true });
+                draw();
+            });
+            colored.title = "De Bruijn's arrows: solid, along the edge from dot to dot — "
+                + "green doubles, red singles.";
             featureToggle(edgeRow, "pseudoEdges", "pseudo edges");
+        }
+
+        // ── Tile vertex ───────────────────────────────────────────────
+        {
+            const vRow = row(panelFor("Tile vertex"), "Tile vertex");
+            // What marks the vertex: the dot, or the index in a circle, either way
+            // round. Jake could not tell which reads better, so both are here.
+            const mark = document.createElement("select");
+            mark.className = "line-pick";
+            mark.style.width = "62px";
+            mark.title = "The vertex mark: a red dot, or its index in a circle — "
+                + "white on black, or black on white.";
+            for (const [value, text] of [["dot", "dot"], ["filled", "\u2776 index"], ["open", "\u2460 index"]] as const) {
+                const o = document.createElement("option");
+                o.value = value;
+                o.textContent = text;
+                mark.appendChild(o);
+            }
+            mark.value = tileStyle.vertexMark;
+            mark.addEventListener("change", () => {
+                tileStyle.vertexMark = mark.value as TileStyle["vertexMark"];
+                if (mark.value !== "dot" && !features.penroseVertices) {
+                    setFeatures({ penroseVertices: true }, { merge: true });
+                }
+                draw();
+            });
+            vRow.appendChild(mark);
+            const idx = featureToggle(vRow, "vertexIndex", "index");
+            idx.title = "Write each corner's de Bruijn index on the tile face beside it, "
+                + "once per tile corner: 1 to 4 on a Penrose patch, 1 to 5 otherwise; "
+                + "the extremes are the rhomb-group centers.";
         }
 
         // The gridline-tiles row was built first, for its hook; it belongs on
@@ -2814,7 +3020,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     function formatKTooltip(K: readonly number[]): string {
         const parts = K.map((v, j) => {
-            const color = gammaSet.familyEnabled(j) ? "#fff" : "#999";
+            const color = gammaSet.familyEnabled(j) ? TIP_ON : TIP_OFF;
             return `<span style="color:${color}">${v}</span>`;
         });
         const index = K.reduce((a, b) => a + b, 0);
@@ -2937,7 +3143,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     `families <span style="color:${COLORS[hit.j]}">${hit.j}</span>` +
                     `&times;<span style="color:${COLORS[hit.k]}">${hit.k}</span>` +
                     ` &nbsp;n = (${hit.nj}, ${hit.nk})` +
-                    `<br><span style="color:#fc0">${hit.thick ? "thick" : "thin"}</span> rhomb`;
+                    `<br><span style="color:${TIP_NAME}">${hit.thick ? "thick" : "thin"}</span> rhomb`;
                 placeTooltip(e, 34);
                 return;
             }
@@ -2965,7 +3171,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         `${seg.nj} of family ${seg.j}</span>` +
                         `<br>${formatKTooltip(seg.K1)}` +
                         `<br>${formatKTooltip(seg.K2)}` +
-                        `<br><span style="color:#fc0">edge</span> = v${sub}`;
+                        `<br><span style="color:${TIP_NAME}">edge</span> = v${sub}`;
                     placeTooltip(e, 40);
                     return;
                 }
@@ -3000,12 +3206,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (best) {
                 // Equation: f = Σ K_j · v_j
                 const terms = best.K.map((v, j) => {
-                    const color = gammaSet.familyEnabled(j) ? "#fff" : "#999";
+                    const color = gammaSet.familyEnabled(j) ? TIP_ON : TIP_OFF;
                     return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
                 });
                 tooltip.innerHTML =
                     formatKTooltip(best.K) +
-                    `<br><span style="color:#fc0">f</span> = ${terms.join(" + ")}`;
+                    `<br><span style="color:${TIP_NAME}">f</span> = ${terms.join(" + ")}`;
                 placeTooltip(e);
 
                 // Highlight the hovered dot
@@ -3147,6 +3353,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         setGridAlpha: (a) => { gridAlpha = a; draw(); },
         setTileStyle: (st) => { Object.assign(tileStyle, st); draw(); },
         exposeRows,
+        panelRow: (label) => panelRows.get(label),
         onFeatureOn: (cb) => { featureOnListeners.push(cb); },
         getView: () => ({ scale, x: viewX, y: viewY }),
         setView: (v) => {

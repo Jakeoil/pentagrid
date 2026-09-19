@@ -354,6 +354,10 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     color: #444;
 }
 .layer-toggle input { margin: 0; }
+/* The ribbons row: five families on one line, the fields wearing the family
+   color instead of a swatch. */
+.ribbon-family { gap: 2px; }
+.ribbon-family .line-pick { padding: 1px 2px; }
 .line-pick {
     width: 46px;
     font: inherit;

@@ -367,7 +367,7 @@ export function mountReticulum(
 
 export interface FloatingReticulumOptions {
     colors: readonly string[];
-    /** Where the "γ reticulum" and "γ sliders" buttons go. */
+    /** Where the "show reticulum" and "γ sliders" buttons go. */
     buttons: HTMLElement;
     /** The slider bank to fold, if the page has one. */
     sliders?: HTMLElement;
@@ -382,7 +382,7 @@ export interface FloatingReticulumOptions {
  * It floats because it is something you want beside whichever part of the
  * picture you are looking at, not a thing pinned under the controls. Drag it by
  * the bar; it remembers where you put it. Closing it is not a one-way door: the
- * "γ reticulum" button appears the moment it is shut. The slider bank, being a
+ * "show reticulum" button appears the moment it is shut. The slider bank, being a
  * lot of screen for something you set and forget, folds behind "γ sliders".
  *
  * One implementation for method.html and grow.html, so they cannot drift.
@@ -393,7 +393,7 @@ export function mountFloatingReticulum(
     const reopen = document.createElement("button");
     reopen.type = "button";
     reopen.className = "reopen-panel";
-    reopen.textContent = "γ reticulum";
+    reopen.textContent = "show reticulum";
     reopen.title = "Show the reticulum again";
     reopen.hidden = true;
 
