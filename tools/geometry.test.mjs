@@ -1052,3 +1052,46 @@ test("kites and darts assemble: every P2 edge is shared, and the unlisted sides 
         assert.equal(bad, 0, `gamma ${gamma}: ${bad} sides do not assemble`);
     }
 });
+
+// Deflation on the pentagrid itself. The deflated tiling, rescaled by phi, is
+// again the dual of a pentagrid — same five directions, the shifts transformed
+// by the lattice map that multiplies by phi in Z[zeta]: phi = -(zeta^2 + zeta^3),
+// so gamma''_j = -(gamma_{j+2} + gamma_{j+3}). Checked as vertex sets, exactly,
+// no translation. Sun (c = 1/5) goes to c = -2/5 = 3/5: the star.
+test("deflating T(gamma) and rescaling by phi is T(gamma'') with gamma''_j = -(gamma_{j+2} + gamma_{j+3})", () => {
+    const key = (p) => `${Math.round(p[0] * 1e4) || 0},${Math.round(p[1] * 1e4) || 0}`;
+    const R = 8;
+    for (const gamma of [[0.2, 0.2, 0.2, 0.2, 0.2], [0.07, 0.11, 0.13, 0.17, -0.48], [0.1, -0.3, 0.25, 0.05, -0.1]]) {
+        const pg = { n: 5, directions: makeDirections(true), gamma };
+        const rh = collectRhombs(pg, { xMin: -R - 3, xMax: R + 3, yMin: -R - 3, yMax: R + 3 }, { gain: 2.5 });
+        let lo = Infinity; for (const r of rh) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+        const deflated = new Map();
+        for (const r of rh) {
+            const d = rhombDeflation(r, lo);
+            for (const P of [...d.gold, ...d.gray]) for (const p of P) {
+                const q = [p[0] * PHI, p[1] * PHI];
+                if (Math.hypot(q[0], q[1]) < R) deflated.set(key(q), q);
+            }
+        }
+        const g2 = gamma.map((_, j) => -(gamma[(j + 2) % 5] + gamma[(j + 3) % 5]));
+        const pg2 = { n: 5, directions: makeDirections(true), gamma: g2 };
+        const rh2 = collectRhombs(pg2, { xMin: -R - 3, xMax: R + 3, yMin: -R - 3, yMax: R + 3 }, { gain: 2.5 });
+        const tiling = new Set();
+        for (const r of rh2) for (const p of r.vertices) if (Math.hypot(p[0], p[1]) < R) tiling.add(key(p));
+        let hit = 0;
+        for (const k of deflated.keys()) if (tiling.has(k)) hit++;
+        assert.ok(deflated.size > 200);
+        assert.equal(hit, deflated.size, `gamma ${gamma}: ${deflated.size - hit} deflated vertices are not vertices of T(gamma'')`);
+        let back = 0, inWin = 0;
+        for (const k of tiling) { const [x, y] = k.split(",").map((v) => v / 1e4); if (Math.hypot(x, y) < R - 1) { inWin++; if (deflated.has(k)) back++; } }
+        assert.equal(back, inWin, `gamma ${gamma}: ${inWin - back} vertices of T(gamma'') are not deflated vertices`);
+        // and the wrong pairing is wrong, or the test proves nothing — off the
+        // uniform family, where every pairing gives the same uniform gamma''
+        if (gamma.every((v) => v === gamma[0])) continue;
+        const g3 = gamma.map((_, j) => -(gamma[(j + 1) % 5] + gamma[(j + 4) % 5]));
+        const rh3 = collectRhombs({ n: 5, directions: makeDirections(true), gamma: g3 }, { xMin: -R - 3, xMax: R + 3, yMin: -R - 3, yMax: R + 3 }, { gain: 2.5 });
+        const t3 = new Set(); for (const r of rh3) for (const p of r.vertices) t3.add(key(p));
+        let hit3 = 0; for (const k of deflated.keys()) if (t3.has(k)) hit3++;
+        assert.ok(hit3 < deflated.size / 2, `the j+1, j+4 pairing must not work (${hit3} of ${deflated.size})`);
+    }
+});

@@ -87,7 +87,7 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    turned; count whether the de Bruijn resolutions of the decagon are exactly
    the ten orientations, against the 62 rhombic tilings the zonogon admits, and
    whether the mirror-symmetric one-parameter family is one tiling or several
-   (`perpOfGamma` in `acceptance.ts` is the tool). See §5.8.
+   (`perpOfGamma` in `acceptance.ts` is the tool). See §5.9.
 4. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
    made it. Every rhomb carries `(j, nj, k, nk)`, so the lines are known; what
    is missing is a page that starts from the tiling. Estimated as a layer plus
@@ -123,7 +123,7 @@ is capped so the whole thing fits, and gestures beat sliders for a camera
 Theatre.js is a tool in search of an application and this is not it. A
 continuous parameter is a float and a `render(t)`; the growth pages are exactly
 that. The transition worth having is not a mesh morph — each rhomb moves from
-`(n/2)·x₀` to `f` by only the bounded wobble, which is the theorem (§5.23).
+`(n/2)·x₀` to `f` by only the bounded wobble, which is the theorem (§5.24).
 
 ### 4.3 Nomenclature
 
@@ -134,11 +134,19 @@ that. The transition worth having is not a mesh morph — each rhomb moves from
 | `γ_j` | **phase** of family j |
 | `Γ = (γ_0 … γ_{n−1})` | the **phase vector** |
 | `Σγ` | the total; Penrose ⟺ Σγ ∈ ℤ |
-| `λ` | gridline spacing, currently 1 and unnamed (§5.6) |
+| `λ` | gridline spacing, currently 1 and unnamed (§5.7) |
 | `c` | the uniform phase, every γ_j = c |
+| `E∥` | "E-parallel": the plane of ℝ⁵ spanned by (cos θⱼ)ⱼ, (sin θⱼ)ⱼ, θⱼ = 2πj/n — where x ↦ (x·vⱼ)ⱼ lands, and where f = ΣKⱼvⱼ projects K back to |
+| `E⊥` | "E-perp": the plane spanned by (cos 2θⱼ)ⱼ, (sin 2θⱼ)ⱼ — the same angles doubled, ζ ↦ ζ². With the all-ones line ⟨𝟙⟩ (the index's direction; Σγ is γ's coordinate on it) it makes ℝ⁵ = E∥ ⊕ E⊥ ⊕ ⟨𝟙⟩ |
 
 Replace `ζ_5` with `ζ_7` and nothing in the notation changes — only the
-cyclotomic field underneath.
+cyclotomic field underneath (at n = 7 there are two perpendicular planes, the
+angles doubled and tripled).
+
+γ's three parts do three different things: its E∥ part slides the grid rigidly
+and leaves the tiling where it was; its E⊥ part is the only thing that changes
+the pattern (wiggle.html's dot, the acceptance region, what deflation acts on);
+its 𝟙 part is Σγ, Penrose or not, and the index range.
 
 **The correction that keeps being needed (Jake):** Σγ = 0, 1, 2, 3, 4 are
 identical mod 1 — all Penrose, all one LI class. What distinguishes the caps is
@@ -179,7 +187,7 @@ repositories:
 | φ and the golden constants | everywhere |
 
 It has already bitten — "one inflation apart" was ambiguous because the projects
-count generations differently (§5.18). This file became the hub for
+count generations differently (§5.19). This file became the hub for
 cross-project mathematics, which is either the fix or a fourth place for it to
 live. The cheap move, if wanted: an authority **per topic** — the lift to
 `wieringa-roof`, the discrete wheels to `penrose-mosaic`, de Bruijn (the
@@ -218,7 +226,7 @@ The plans themselves are gone from this file; what they left behind:
   popup (vertical-axis symmetry lives there: a fact about the frame, seen on
   the reticulum), a mirror mode beside symmetric (γ_j = γ_{n−j} about γ₀'s
   axis in whichever frame, γ₀ floating to hold Σγ = 1 — the deca's family,
-  §5.8), and put on every page; the slider bank kept, folded. §5.13 has what changed in the doing.
+  §5.9), and put on every page; the slider bank kept, folded. §5.14 has what changed in the doing.
 - **Singularities (2026-09-12 → 09-15).** Angle-code names, the 2k-gon drawn and
   described, the Penrose catalog decided by arithmetic and offered as presets,
   the superposed rhombs' edges restored, the pseudo-edge toggle, grow routing
@@ -307,7 +315,54 @@ Tile style, Tile shade, Tile edges and ribbons to `panelP`. `split.ts` is one
 create and one reticulum mount. Split's pagecheck went from ~220 s to 27 s —
 the scan runs once per draw instead of twice, and there is no relay redraw.
 
-### 5.1 Kites and darts — P2 read off P3, per tile (2026-09-20)
+### 5.1 Deflation on the pentagrid: γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃) (2026-09-20)
+
+Jake: *what does the literature say about doing inflation (next gen) on a
+given pentagrid? I assume one step would be reducing the grid by linear tile
+size (1/φ). What about the rest of the grid.*
+
+**The literature.** De Bruijn 1981 (part II) treats deflation at the level of
+the pentagrid: the deflation of a pentagrid's AR-pattern is again the
+AR-pattern of a pentagrid. The modern framing (Gähler–Rhyner 1986; Senechal;
+Baake–Grimm, *Aperiodic Order*) is cut-and-project: the Penrose vertices are
+the points K ∈ ℤ⁵ whose projection off E∥ lands in the window — the
+projected unit cube, shifted by γ — and inflation is the lattice map that
+multiplies by the unit φ in ℤ[ζ₅]. Since φ = −(ζ² + ζ³) there, that map is
+M = −(S² + S³), S the cyclic shift of the five coordinates: φ on E∥, and on
+E⊥ its Galois conjugate −(ζ⁴ + ζ) = −1/φ. Which is why deflation (edge → edge/φ)
+and the window (which shrinks by 1/φ and flips) are the same operation seen
+from the two subspaces.
+
+**On the pentagrid, derived and verified.** A pentagrid's tiling depends on γ
+only through its E⊥ part and its total (§5.22: the E∥ part slides the grid
+under a stationary tiling), so the deflated tiling, rescaled by φ, is T(γ″)
+with γ″⊥ = −γ⊥/φ — i.e. γ″ = Mγ:
+
+    γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃)          Σγ″ = −2 Σγ
+
+Tested as vertex sets: deflate T(γ) with `rhombDeflation`, rescale by φ, and
+compare with `collectRhombs` on γ″ — 311 of 311, 304 of 304, 301 of 301 on
+the sun, the regular preset and a generic vector, **exactly, no translation**;
+and the wrong pairing (j+1, j+4: that is multiplication by −1/φ on E∥, φ on
+E⊥) fails off the uniform family. `geometry.test.mjs` pins it.
+
+**So, to Jake's question.** Yes: the spacing goes to λ/φ (§5.7's λ, at last
+with a use). The five directions stay. The rest is the shifts, and they do
+not stay: family j's new shift is minus the sum of families j+2 and j+3 — the
+ζ ↦ ζ² conjugation showing through, since E⊥ reads the families in the order
+0, 2, 4, 1, 3. The new grid is a whole new pentagrid, not a subset of the old
+lines: no old line survives, and both routes — dualize the new grid, or cut
+the old tiles by Robinson's triangles — give the same vertices.
+
+**Consequences.** The uniform family maps c ↦ −2c: sun (1/5) ↦ −2/5 ≡ 3/5,
+the star; star (2/5) ↦ −4/5 ≡ 1/5, the sun — §5.15's prediction that
+inflating a sun gives a star, now a computation. Penrose stays Penrose (an
+integer total stays integer). Iterating is one line, so the "no way to
+iterate" of §5.3 is gone: a next-gen *page* is `gamma ↦ Mγ`, `λ ↦ λ/φ`, and
+the same drawing. To be checked against de Bruijn's own statement of the
+formula before it is cited as his.
+
+### 5.2 Kites and darts — P2 read off P3, per tile (2026-09-20)
 
 Jake's three references: Wikipedia's *Penrose tilings P2 and P3* pair (the thin
 rhomb split by its short diagonal into two half-kites; the thick with a dart
@@ -346,7 +401,7 @@ in the tiles. `rhombKitesDarts` in `geometry/decor.ts`; `kites` in the tile
 style dropdown ("kites & darts"), and a `kites` checkbox on roof and grow.
 Kite `#dfe9f3`, dart `#8fa8c2`.
 
-### 5.2 The next-gen tile style — the deflation, drawn per tile (2026-09-18)
+### 5.3 The next-gen tile style — the deflation, drawn per tile (2026-09-18)
 
 Jake's `jake/Inflation_1.png`: each prototile cut into the next generation's
 pieces, thick gold and thin gray, with de Bruijn's arrows on the edges. Like
@@ -389,10 +444,10 @@ base (1 or 1/φ²) by two halves of the same color, on three gammas, 0 misses.
 
 `rhombDeflation` in `geometry/decor.ts`; `nextgen` in the tile style dropdown.
 Gold `#f7d058`, gray `#b6b6b6`, from the picture. This is the first inflation
-machinery in the project (§5.14 said "nothing implemented"); it is one step
+machinery in the project (§5.15 said "nothing implemented"); it is one step
 down, per tile, with no way yet to iterate or to go up.
 
-### 5.3 The pentagons tile style — P1 at the big-rhomb scale (2026-09-18)
+### 5.4 The pentagons tile style — P1 at the big-rhomb scale (2026-09-18)
 
 Jake: *The P1 tile style does not match my expectations.* Right — the `p1`
 style is the **small-rhombs** overlay (a pentagon of circumradius one rhomb
@@ -423,7 +478,7 @@ with **0** misses; the other three fail on 350–490 overlaps. The thin's two 14
 corners are its m and m+2 corners — the short diagonal is e1 + e2 — so the
 index does tell them apart, which the arrows and curves never needed.
 
-**Consistent with §5.15's recognizer**, seen from the big side: at the extreme
+**Consistent with §5.16's recognizer**, seen from the big side: at the extreme
 corner the thick shows only blue, and the 5-fold vertex of the sun is a Pe5
 center at the big scale exactly as it is a star-group center at the small.
 The two overlays differ by φ² in linear scale, as the plan already said of big
@@ -434,7 +489,7 @@ blue. `rhombPentagons` in `geometry/decor.ts`; the test pins the assembly and
 the rear corners on the edges. One gotcha, again: a pentagon at the origin
 keyed by `toFixed` split into `0.000` and `-0.000` (§4.3).
 
-### 5.4 How P1 worked at all — the small-rhombs overlay, explained (2026-09-18)
+### 5.5 How P1 worked at all — the small-rhombs overlay, explained (2026-09-18)
 
 Jake: *next-gen and pentagons had relatively simple implementations. I am a
 bit amazed that the implementation of P1 succeeded. This was not just two
@@ -444,7 +499,7 @@ It was not figured out from the tile shapes, and it was not derived. It stood
 on a fact recorded a week earlier and was then measured into place, in three
 steps.
 
-**1. The rhomb-group partition was already there (§5.15, 2026-09-09).** Jake's
+**1. The rhomb-group partition was already there (§5.16, 2026-09-09).** Jake's
 index observation: lift every vertex to its Wieringa index ΣK. A rhomb's
 corners carry m, m+1, m+2, m+1, and a Penrose tiling uses exactly four levels,
 so every rhomb spans either the bottom three or the top three — it touches
@@ -465,8 +520,8 @@ edges leaving the center. At a minimum-index center the spokes go +v_j, so the
 corners are at c − v_j; at a maximum, c + v_j. That sign is the whole
 orientation rule, one line in `p1Pentagons`.
 
-**3. The assembly check decided**, as it did for pentagons (§5.3) and next-gen
-(§5.2). On our own tiling the pentagons from all groups had zero overlaps, and
+**3. The assembly check decided**, as it did for pentagons (§5.4) and next-gen
+(§5.3). On our own tiling the pentagons from all groups had zero overlaps, and
 neighbors sat at exactly distance φ — two inradii, sharing an edge. That is
 the test of whether it is a P1 tiling; a wrong placement overlaps somewhere in
 a patch of 500.
@@ -475,7 +530,7 @@ Two things to be clear about. It works because a pentagon per *group* is
 well-defined — the partition guarantees each rhomb exactly one — and the
 per-tile drawing just clips that pentagon to each rhomb it reaches. And it is
 only half of P1: the Pe family. The St5/St3/St1 tiles are never placed; they
-are the gaps, filled blue, which is exactly §5.14's "the St family are
+are the gaps, filled blue, which is exactly §5.15's "the St family are
 second-class citizens — they own no rhombs". It *looks* complete because the
 gaps between the pentagons are precisely the star shapes.
 
@@ -483,7 +538,7 @@ The amazement is better aimed at the index rule than at the implementation:
 that is what made a six-shape tiling reduce to "one pentagon per extreme
 vertex."
 
-### 5.5 The AR-pattern from the indices, with the thick/thin twist (2026-09-17)
+### 5.6 The AR-pattern from the indices, with the thick/thin twist (2026-09-17)
 
 AR is de Bruijn's *arrowed rhombus*. His Fig. 1 (1981, p. 41) is the ground
 truth, read at 400 dpi from `jake/597566.pdf`, and it settles a question three
@@ -522,7 +577,7 @@ are not, and are not to be trusted at that resolution.
 The `arrows` toggle on the Tile edges row draws this. Off a Penrose patch the
 index spans five values and nothing is drawn.
 
-### 5.6 λ, the gridline spacing (2026-09-16)
+### 5.7 λ, the gridline spacing (2026-09-16)
 
 Recorded, not a task. Every page runs with the lines one unit apart, and that 1 is not named anywhere.
 It should be **λ** (§4.3), and it is the one knob inflation needs:
@@ -542,7 +597,7 @@ the form `x·v + γ` or `n − γ`, plus the gain in `view/growth.ts` and
 Jake, *"Nothing should be done. Just want to make sure it's recorded when we
 need it."*
 
-### 5.7 What the ghost lines are, exactly (2026-09-15)
+### 5.8 What the ghost lines are, exactly (2026-09-15)
 
 Jake: *"The ghost lines of the 2K-gons are not exactly a dualization of something
 on the Pentagrid. Some of the vertex dots within the 2K-gon apparently are."*
@@ -590,7 +645,7 @@ were pulled apart — which is exactly why routing the grow band through them
 failures. The ghost vertices are the cube corners from the earlier note: the
 regions that *open up* under perturbation.
 
-### 5.8 The deca is the resolution of the 5-fold (2026-09-14)
+### 5.9 The deca is the resolution of the 5-fold (2026-09-14)
 
 Jake: *"No the deca is not the 2K-gon decagon, in wieringa it is the queen
 (misnamed) patch. It has 2 fold symmetry."* The first Caps row had `deca` as
@@ -632,7 +687,7 @@ question — `perpOfGamma` in `acceptance.ts` is the tool to settle it.
 The `sunstar.html` button for `c = 0` is relabeled **5-fold**; it never was the
 deca.
 
-### 5.9 The Penrose singularity catalog — it has three entries (2026-09-14)
+### 5.10 The Penrose singularity catalog — it has three entries (2026-09-14)
 
 Jake: *"I'm looking for penrose singularities. Gamma must equal 0."* Under that
 constraint the hunt closes completely. `geometry/hunt.ts` decides it by arithmetic
@@ -699,7 +754,7 @@ shows. `classifySingularities` in `geometry/hunt.ts` is the decider.
   hundredths and thousandths so every reachable phase is rational — but this is
   stated in `hunt.ts` rather than assumed.
 
-### 5.10 The superposition, and how it went missing (2026-09-14)
+### 5.11 The superposition, and how it went missing (2026-09-14)
 
 **The regression.**
 
@@ -771,7 +826,7 @@ center**, realised 0 times in 400, which is the `f(empty) = f(all)` collapse.
   measuring a viewport with tiles on — it now measures a grid-only one, which is
   the saving it was always about.
 
-### 5.11 Naming the resolutions, and what a Penrose setting should be (Jake, 2026-09-13)
+### 5.12 Naming the resolutions, and what a Penrose setting should be (Jake, 2026-09-13)
 
 **The angle code — Jake's scheme, and it is complete.**
 
@@ -811,14 +866,14 @@ initialization happens to be quote illegal unquote."* So the layer stays on by
 default and the rest follows from assuming they occur.
 
 The next thing was **finding** them — now the presets popup on the reticulum,
-decided by `geometry/hunt.ts` (§5.9). The rules:
+decided by `geometry/hunt.ts` (§5.10). The rules:
 
     3-fold   gamma_L in Z  AND  gamma_P + gamma_Q in Z   — no other integral phase
     4-fold   four integral phases                        — rare, and real
     5-fold   all five                                    — unique, Gamma = 0
 
 **What a Penrose setting is, and what it does on a 2k-gon.** Built as stated,
-and pinned by `containers.test.mjs` (§5.10). The layers behave differently over a
+and pinned by `containers.test.mjs` (§5.11). The layers behave differently over a
 singularity, deliberately:
 
 - **Vertices, then edges** — these are wanted. They give a singularity structure
@@ -834,7 +889,7 @@ The longer list that went with it — the two-color composites of the bands, the
 five-color tiling at full width, isoglosses, index shading, transparency — is the
 Tile style / Tile shade / Tile edges rows of the panel.
 
-### 5.12 One deliberate singularity, and the space a resolution takes (Jake, 2026-09-12)
+### 5.13 One deliberate singularity, and the space a resolution takes (Jake, 2026-09-12)
 
 **Only one deliberate singularity, and that is provable.**
 
@@ -902,7 +957,7 @@ dualizes to, the space the rhombs would occupy if the lines were pulled apart,
 and `describeResolution` names it from the combo — "K122 thick hexagon · 2 thick
 + 1 thin" rather than "3 lines".
 
-### 5.13 The reticulum: what changed in the doing (2026-09-11)
+### 5.14 The reticulum: what changed in the doing (2026-09-11)
 
 The plan was five axes on a decagon, each family's phase sitting on its own
 grid direction so that mod 1 is structural rather than enforced; wheel primary,
@@ -943,7 +998,7 @@ and is on every page with the slider bank folded beneath it. Presets call
 controls drive one `GammaSet`; nothing should assume there is exactly one set
 per page.
 
-### 5.14 Inflation — nothing implemented, and the open question (2026-09-10)
+### 5.15 Inflation — nothing implemented, and the open question (2026-09-10)
 
 Reference images, both in `jake/` (untracked):
 
@@ -967,7 +1022,7 @@ those four values. Untested — there is no inflation to test it with.
 
 **Settled: big rhombs and little rhombs are TWO inflations apart**, i.e. one full
 P1 generation, phi^2 — not the intermediate phi level. That closes the question
-left open in §5.18, and kills the guess made there that
+left open in §5.19, and kills the guess made there that
 `penrose-mosaic`'s small/large rhomb pair might already be the missing half step.
 It is not; it is a whole P1 generation. [[penrose-mosaic-rhomb-groups]] updated.
 
@@ -1030,7 +1085,7 @@ seeded on Pe5, generation by generation:
     ratio    -  5.000  5.600  5.964  6.257    6.473    6.618      -> phi^4 = 6.854
 
 The shortfall from phi^4 falls by roughly 1/phi each generation, which is the
-boundary of a seeded patch. **This settles §5.18's caveat that nothing there
+boundary of a seeded patch. **This settles §5.19's caveat that nothing there
 had been measured in this repo: it has been now.** One P1
 generation is linear phi^2, and the count/area factor is phi^4.
 
@@ -1126,7 +1181,7 @@ phi, the chain
     P1(n) -> rhombs -> one Robinson step -> rhombs -> P1
 
 lands *between* P1 generations. That is the intermediate phi level, expressed
-back in the six P1 shapes — exactly the thing §5.18
+back in the six P1 shapes — exactly the thing §5.19
 called unfound. It turns an open question into a construction.
 
 **State of the two directions.**
@@ -1158,7 +1213,7 @@ recognition. Missing is the map itself, the Robinson half-step, and any way to
 iterate. TODO, and it is the prerequisite for the deflation-tower idea above —
 that proposal drives `acceptance.ts` from a tower nobody can currently build.
 
-### 5.15 Caps, the index, and sun versus star (2026-09-09)
+### 5.16 Caps, the index, and sun versus star (2026-09-09)
 
 Prompted by Levochik's `Penrose_LI_classes.svg` on Wikipedia's *Aperiodic tiling*
 (CC BY-SA 3.0, so we should redraw rather than embed). Eighteen patches, 6 across
@@ -1245,7 +1300,7 @@ appears to have no analogue at seven, which is worth saying on grow7.html.
 - Our own version of the LI-class grid: a row of patches across Sigma-gamma in
   [0,1), same even split, so the flowers appear and disappear as you sweep. All
   the geometry exists; it is a layout job.
-- ~~Read Figure 3 of `multigrids.pdf`~~ — done, §5.12.
+- ~~Read Figure 3 of `multigrids.pdf`~~ — done, §5.13.
 
 Two measurement gotchas from here are now standing rules (§4.3).
 
@@ -1304,7 +1359,7 @@ brute force at sums of 0.5, 0.9 and 2.5 as well, so it appears to cover the
 generalised case too — for rational γ. Worth stating carefully rather than
 claiming priority.
 
-### 5.16 What the literature says — Lutfalla 2021, and n as a parameter (2026-09-09)
+### 5.17 What the literature says — Lutfalla 2021, and n as a parameter (2026-09-09)
 
 V. H. Lutfalla, *An Effective Construction for Cut-And-Project Rhombus Tilings
 with Global n-Fold Rotational Symmetry*, AUTOMATA 2021,
@@ -1321,7 +1376,7 @@ recorded here.
 `Gn(x)` means **all n offsets equal to x**.
 
 **So the ½ is per-offset, not the sum.** `G5(½)` is five offsets of ½ each, which
-in our terms is Σγ = 5/2 — the largest pentagon (§5.17). This also generalises, which a sum cannot:
+in our terms is Σγ = 5/2 — the largest pentagon (§5.18). This also generalises, which a sum cannot:
 `Gn(½)` means the same thing for every n.
 
 **Theorem 1.** `Pn(½)` has global **2n**-fold symmetry for any n ≥ 4; `Pn(1/n)`
@@ -1339,7 +1394,7 @@ Three consequences for us:
   integer ⟹ regular. Lutfalla proves it for all odd n.
 - **Our statement is under-qualified.** The split `u + φv = 0 ⟹ u = v = 0` needs
   u and v *rational*, so the corollary holds for **rational γ**. The code is safe
-  — γ is exact rationals over 2000n by construction — and §5.24 now says
+  — γ is exact rationals over 2000n by construction — and §5.25 now says
   so.
 - **n = 7 is much easier than this plan assumed.** An earlier note that the ℚ(ζ₇) split
   would need a real rederivation was wrong in practice: for odd n the guard is just
@@ -1380,7 +1435,7 @@ Still n = 5 only, and not needed by a grow page: the Wieringa lift (ℝ⁷ has a
 decorations, `perpBasis` (returns the first of n = 7's two perpendicular planes),
 and the exact `TRIPLES` criterion.
 
-### 5.17 The sum, and the flowers (2026-09-09)
+### 5.18 The sum, and the flowers (2026-09-09)
 
 Σγ = 0 was hardwired at the time; generalizing it to Σγ = s opened real ground.
 
@@ -1459,7 +1514,7 @@ is the angle *between* v_j and v_k — 72° for |Δ|=1 but **144°** for |Δ|=2 
 had written the thin rhomb's angles the other way round, so its 36° and 144°
 corners were swapped. The impossible totals are what caught it.
 
-### 5.18 Which inflation, φ or φ² (Jake, 2026-09-09)
+### 5.19 Which inflation, φ or φ² (Jake, 2026-09-09)
 
 Shared vocabulary, so "one generation" stops being ambiguous. There are **two
 natural notions of a step**, and they differ by a factor of phi:
@@ -1490,11 +1545,11 @@ they are not. Say which from now on.
 a full P1 generation of φ², so `penrose-mosaic`'s small/large pair is not the
 missing half step. The intermediate φ level is ungenerated rather than unfound:
 the wheels give it by dropping the middle term of the three-term successor
-(§5.14). Measured in this repo: rhomb counts seeded on Pe5 grow toward φ⁴ = 6.854
+(§5.15). Measured in this repo: rhomb counts seeded on Pe5 grow toward φ⁴ = 6.854
 per P1 generation. Attribution: the φ/φ² distinction and the intermediate-level
 conjecture are Jake's.
 
-### 5.19 A hall of mirrors, and telling the mirrors apart (2026-09-09)
+### 5.20 A hall of mirrors, and telling the mirrors apart (2026-09-09)
 
 Jake's framing: aperiodic tiling is a hall of mirrors — dichotomies, duals,
 conjugates, parity, involutions everywhere — and **P1 is the ground truth.
@@ -1508,7 +1563,7 @@ accidental. Three kinds turned up, and they behave differently:
 
 **1. Real involutions.** `Sigma-gamma -> -Sigma-gamma` on R/Z. Its fixed points
 are exactly 0 and 1/2 — arithmetic, since 2x = 0 mod 1 — and those are precisely
-the two distinguished values measured in §5.15: 0 is the vertex-type cap (Penrose),
+the two distinguished values measured in §5.16: 0 is the vertex-type cap (Penrose),
 1/2 is the flower. **That is why there is no harmonic at 1/3 or 2/3**: they are
 not fixed points. The symmetric flower staircase is the same involution seen
 sideways. (Empirically, comparing vertex-type multisets at c and 1-c gives 4-10%
@@ -1547,7 +1602,7 @@ at n = 7: 23, 21, 20, 25 types at sums 0, 1, 2, 3, no dip. So being a fixed poin
 of the involution is not sufficient for distinction, and Penrose's minimality at
 five needs something the involution does not supply. Unexplained.
 
-### 5.20 Reverse-engineering a patch back to a pentagrid (Jake, 2026-09-09)
+### 5.21 Reverse-engineering a patch back to a pentagrid (Jake, 2026-09-09)
 
 **The question.** Start from a gen-0 core — `Pe5`, `St5` or `deca` — draw the
 pentagrid lines that produce it, then step to the next generation and narrow the
@@ -1583,13 +1638,13 @@ Sun/Star centering question, which vertex probing could not reach
 because a star's center is a star-shaped gap rather than a vertex figure. That is
 the payoff, and it is the reason to build it.
 
-The recognizer was then written (§5.15) and answered Sun/Star by the index
+The recognizer was then written (§5.16) and answered Sun/Star by the index
 instead; the tower itself is not built. What it would still add: two dimensions
 of γ never shrink — sliding along E∥ translates the grid and leaves the tiling
 alone — so the tower pins γ only up to that slide, and seeding from `St5` or the
-queen would need the P1 shapes placed, not just recognized (§5.14).
+queen would need the P1 shapes placed, not just recognized (§5.15).
 
-### 5.21 E1 — Wiggle room: the ribbon, the growth, and the acceptance region (2026-09-05/06)
+### 5.22 E1 — Wiggle room: the ribbon, the growth, and the acceptance region (2026-09-05/06)
 
 Reading **(a)**, ribbon geometry, gave the closed forms below and then
 `grow.html`. Reading **(b)** — the region of γ-space that produces a given finite
@@ -1783,7 +1838,7 @@ page — and with registration permanent, "drag this and watch the grid slide un
 a stationary tiling" is a demonstration in itself. A change to the bank's
 callbacks, not new machinery.
 
-### 5.22 E3 — The Wieringa roof (2026-09-06, `roof.html`)
+### 5.23 E3 — The Wieringa roof (2026-09-06, `roof.html`)
 
 Jake's ask after seeing `grow.html`: the same growth, but standing up.
 
@@ -1820,11 +1875,11 @@ The lift lives in `src/geometry/roof.ts` — DOM-free like the rest of `geometry
 so the page is not where the mathematics is kept. Four tests cover it.
 
 Since then: the level count follows Σγ (four levels only at an integer total,
-§5.17), the height ramp on the flat pages shades by the same index, and the roof
+§5.18), the height ramp on the flat pages shades by the same index, and the roof
 carries the P1 overlay. The oblate and acute golden hexahedra — the roof is the
 lid on them — are not built (§6).
 
-### 5.23 The dual map has gain 5/2 (2026-09-05)
+### 5.24 The dual map has gain 5/2 (2026-09-05)
 
 The tiling is drawn 2½ times the size of the pentagrid that generates it. Not an
 error; a consequence of drawing unit rhombs. But it means the two pictures do not
@@ -1872,7 +1927,7 @@ and the density ratio (7.6942 regions per unit area against 1.2311 rhombs) is
   `lerp(x₀, f, t)` — the latter is a 2.5× zoom-out with the content buried in it. Then the motion is *only* the wobble — each rhomb moves
   at most ~1.6 units and settles — which shows the actual theorem: **the dual map
   is a similarity plus a bounded perturbation.**
-- A ribbon-straightening picture (§5.21) has the same defect. Comparing a wiggly dual path
+- A ribbon-straightening picture (§5.22) has the same defect. Comparing a wiggly dual path
   against its straight generator only means something at matched scale, or the
   2.5× swamps the wiggle being looked at.
 
@@ -1882,7 +1937,7 @@ made it. Scaling the grid up rather than the tiling down keeps the rhombs at the
 size they deserve. You cannot have both registration and edge = line spacing;
 the gain is the reason.
 
-### 5.24 Regularity: decided, not tested (2026-09-04)
+### 5.25 Regularity: decided, not tested (2026-09-04)
 
 Two different claims, one of which an earlier draft got wrong. Region *size*
 cannot be bounded below — that stands. But exact *concurrency* is a measure-zero
@@ -1970,7 +2025,7 @@ default window, the origin among them with all five lines. The guard (*force
 regular*) moves off it by 1/10⁴ and says so; unchecking sits on it deliberately.
 The default is now the sun, c = 1/5, which is regular untouched.
 
-### 5.25 The loupe (2026-09-04)
+### 5.26 The loupe (2026-09-04)
 
 Regions are hoverable at *any* size already — `computeKTuple` at the cursor is
 exact, so a 0.1 px triangle returns the right K-tuple. **The only thing that
@@ -2029,13 +2084,13 @@ Thought about, recorded, not started. None is scheduled.
   appear and disappear as you sweep — Levochik's figure, redrawn from our own
   geometry (the SVG is CC BY-SA). A layout job.
 - **E∥ / E⊥ split of the instrument.** Two of the five phases only slide the
-  grid under a stationary tiling (§5.21). Showing which is which on the
+  grid under a stationary tiling (§5.22). Showing which is which on the
   reticulum is a change to callbacks, not machinery.
 - **The deflation tower.** Drive the acceptance region from generations of a
-  seed rather than a hand-picked patch (§5.20); convergence is 1/φ per
+  seed rather than a hand-picked patch (§5.21); convergence is 1/φ per
   generation, ~18 generations to the denominator we carry.
 - **P1 round trip.** rhombs → P1 recovers only the Pe family; placing the St
-  tiles is the missing half (§5.14). With both directions the Robinson half-step
+  tiles is the missing half (§5.15). With both directions the Robinson half-step
   becomes visible in the six P1 shapes.
 - **devicePixelRatio.** The backing store is CSS pixels, so the canvas is soft on
   a retina display. A couple of lines, but it changes how everything renders.
