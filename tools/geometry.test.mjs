@@ -17,7 +17,7 @@ import {
     solveIntersection, segmentAt, nearestLine,
 } from "../dist/geometry/pentagrid.js";
 import { TRIPLES, noIntegerGamma, scanRegions, singularTriples } from "../dist/geometry/regularity.js";
-import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts } from "../dist/geometry/decor.js";
+import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, extremeCorner } from "../dist/geometry/decor.js";
 import { regionPoly } from "../dist/geometry/region.js";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 
@@ -1094,4 +1094,75 @@ test("deflating T(gamma) and rescaling by phi is T(gamma'') with gamma''_j = -(g
         let hit3 = 0; for (const k of deflated.keys()) if (t3.has(k)) hit3++;
         assert.ok(hit3 < deflated.size / 2, `the j+1, j+4 pairing must not work (${hit3} of ${deflated.size})`);
     }
+});
+
+// Off Penrose — five index levels — the index-placed dressings can still be
+// drawn on the tiles that touch the top or bottom level (Jake's "decorate off
+// Penrose"); the middle tiles (2,3,4,3) have no extreme corner and stay bare.
+// Measured: about a quarter of the tiles are dressed, and where two dressed
+// tiles share an edge their arrows agree — the two ends never touch, so the
+// failure of matching shows as bareness rather than contradiction.
+test("off Penrose: the tiles at the extreme levels are dressed, the middle ones bare, and no two dressed tiles disagree", () => {
+    const pg = { n: 5, directions: makeDirections(true), gamma: [0.07, 0.11, 0.13, 0.17, 0.02] };   // sum 1/2
+    const R = collectRhombs(pg, { xMin: -7, xMax: 7, yMin: -7, yMax: 7 }, { gain: 2.5 });
+    let lo = Infinity, hi = -Infinity;
+    for (const r of R) for (const K of r.kTuples) { const m = K.reduce((a, b) => a + b, 0); lo = Math.min(lo, m); hi = Math.max(hi, m); }
+    assert.equal(hi - lo + 1, 5, "five levels off Penrose");
+    const key = (p) => `${Math.round(p[0] * 1e5)},${Math.round(p[1] * 1e5)}`;
+    let dressed = 0; const byEdge = new Map();
+    for (const r of R) {
+        const m = r.kTuples[0].reduce((a, b) => a + b, 0) - lo + 1;
+        const touchesEnd = m === 1 || m + 2 === 5;
+        const arrows = rhombArrows(pg, r, lo, 5);
+        const kd = rhombKitesDarts(r, lo, 5), nd = rhombDeflation(r, lo, 5), pd = rhombPentagons(r, lo, 5);
+        assert.equal(arrows.length > 0, touchesEnd, "arrows exactly on the tiles touching an extreme level");
+        assert.equal(kd.kites.length > 0, touchesEnd, "kites likewise");
+        assert.equal(nd.gold.length > 0, touchesEnd, "next-gen likewise");
+        assert.equal(pd.orange.length > 0, touchesEnd, "pentagons likewise");
+        if (touchesEnd) dressed++;
+        for (const a of arrows) { const k = key([a.x, a.y]); (byEdge.get(k) ?? byEdge.set(k, []).get(k)).push(`${a.double}:${a.dx.toFixed(4)},${a.dy.toFixed(4)}`); }
+    }
+    assert.ok(dressed > R.length / 6 && dressed < R.length / 2, `${dressed} of ${R.length} dressed`);
+    let shared = 0, agree = 0;
+    for (const l of byEdge.values()) if (l.length === 2) { shared++; if (l[0] === l[1]) agree++; }
+    assert.ok(shared > 50);
+    assert.equal(agree, shared, "dressed neighbors never disagree: the two ends do not touch");
+});
+
+// The ambiguous tiles can be asked for either reading. extremeCorner says
+// null on a (2,3,4,3) tile off Penrose; forcing v0 or v2 gives the two
+// alternatives, the tile's decoration turned end for end — on a thick every
+// arrow reverses, on a thin the doubles and singles trade edges — and the view
+// draws both at half strength.
+test("an ambiguous tile has two readings, each other's reverse, and a decided tile has one", () => {
+    const pg = { n: 5, directions: makeDirections(true), gamma: [0.07, 0.11, 0.13, 0.17, 0.02] };
+    const R = collectRhombs(pg, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 }, { gain: 2.5 });
+    let lo = Infinity, hi = -Infinity;
+    for (const r of R) for (const K of r.kTuples) { const m = K.reduce((a, b) => a + b, 0); lo = Math.min(lo, m); hi = Math.max(hi, m); }
+    const levels = hi - lo + 1;
+    let ambiguous = 0, decided = 0;
+    for (const r of R) {
+        const e = extremeCorner(r, lo, levels);
+        const m = r.kTuples[0].reduce((a, b) => a + b, 0) - lo + 1;
+        if (e === null) {
+            assert.equal(m, 2, "only the middle tiles are ambiguous");
+            ambiguous++;
+            const a0 = rhombArrows(pg, r, lo, levels, 0), a2 = rhombArrows(pg, r, lo, levels, 2);
+            assert.equal(a0.length, 4); assert.equal(a2.length, 4);
+            for (let i = 0; i < 4; i++) {
+                // a thick's two readings reverse every arrow (doubles in, singles
+                // out); a thin's agree in direction (both point in) and only swap
+                // which edges are the doubles
+                const same = Math.abs(a0[i].dx - a2[i].dx) < 1e-9 && Math.abs(a0[i].dy - a2[i].dy) < 1e-9;
+                assert.equal(same, !r.thick, r.thick ? "a thick's readings reverse every arrow" : "a thin's readings agree in direction");
+                assert.equal(a0[i].double, !a2[i].double, "and swap doubles for singles");
+            }
+            assert.equal(rhombKitesDarts(r, lo, levels).kites.length, 0, "unforced, an ambiguous tile is bare");
+            assert.equal(rhombKitesDarts(r, lo, levels, 0).kites.length, 2, "forced, it is dressed");
+        } else {
+            decided++;
+            assert.deepEqual(rhombArrows(pg, r, lo, levels, e), rhombArrows(pg, r, lo, levels), "forcing the real extreme changes nothing");
+        }
+    }
+    assert.ok(ambiguous > decided, `${ambiguous} ambiguous, ${decided} decided`);
 });

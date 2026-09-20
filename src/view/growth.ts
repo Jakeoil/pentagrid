@@ -16,7 +16,7 @@ import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
-import { rhombPentagons, rhombDeflation, rhombKitesDarts } from "../geometry/decor.js";
+import { rhombPentagons, rhombDeflation, rhombKitesDarts, extremeCorner } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
 import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
@@ -97,6 +97,9 @@ export interface GrowthState {
     /** Paint P2 — the `kites` tile style: kites light, a dart in every thick,
      *  P2's edges as hairlines — per tile, in the tile's (a, b) frame. */
     kites: boolean;
+    /** Draw penta, next-gen and kites off a Penrose patch too — the tiles at the
+     *  top or bottom index level; the middle ones stay bare. */
+    offPenrose: boolean;
     /**
      * Outline the 2k-gon each stack of tiles is growing into.
      *
@@ -125,6 +128,7 @@ const DART: [number, number, number] = [143, 168, 194];
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
+    offPenrose: false,
     boldEdges: false,
 };
 
@@ -584,9 +588,20 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             if (m > idxHi) idxHi = m;
                         }
                     }
-                    const pentaOn = state.penta && idxHi - idxLo === 3;   // Penrose only
-                    const nextOn = state.nextgen && idxHi - idxLo === 3;
-                    const kitesOn = state.kites && idxHi - idxLo === 3;
+                    const levels = idxHi - idxLo + 1;
+                    const placeable = levels === 4 || (levels === 5 && state.offPenrose);
+                    // One reading on a tile with an extreme corner; both, at half
+                    // strength, on an ambiguous one off Penrose (the view's rule).
+                    const readings = (r: Rhomb): { extAt: 0 | 2; alpha: number }[] => {
+                        const e = extremeCorner(r, idxLo, levels);
+                        if (e !== null) return [{ extAt: e, alpha: 1 }];
+                        const m = r.kTuples[0].reduce((a, b) => a + b, 0) - idxLo + 1;
+                        if (m < 1 || m + 2 > levels) return [];
+                        return [{ extAt: 0, alpha: 0.5 }, { extAt: 2, alpha: 0.5 }];
+                    };
+                    const pentaOn = state.penta && placeable;
+                    const nextOn = state.nextgen && placeable;
+                    const kitesOn = state.kites && placeable;
                     const toLocal = (r: Rhomb, p: Vec2): [number, number] => {
                         const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
                         const det = vj[0] * vk[1] - vj[1] * vk[0];
@@ -613,8 +628,9 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                 kitesOn ? KITE : nextOn ? NEXTGEN_THICK
                                     : state.p1 || pentaOn ? rgbOf(P1_STAR) : [255, 255, 255], k);
                             ctx.fill();
-                            if (kitesOn) {
-                                const d = rhombKitesDarts(r, idxLo);
+                            if (kitesOn) for (const { extAt, alpha } of readings(r)) {
+                                ctx.globalAlpha = alpha;
+                                const d = rhombKitesDarts(r, idxLo, levels, extAt);
                                 for (const poly of d.darts) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
                                     ctx.fillStyle = tint(DART, k);
@@ -631,9 +647,11 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.lineTo(pb.x, pb.y);
                                 }
                                 ctx.stroke();
+                                ctx.globalAlpha = 1;
                             }
-                            if (nextOn) {
-                                const d = rhombDeflation(r, idxLo);
+                            if (nextOn) for (const { extAt, alpha } of readings(r)) {
+                                ctx.globalAlpha = alpha;
+                                const d = rhombDeflation(r, idxLo, levels, extAt);
                                 for (const poly of d.gray) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
                                     ctx.fillStyle = tint(NEXTGEN_THIN, k);
@@ -650,9 +668,11 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.lineTo(pb.x, pb.y);
                                 }
                                 ctx.stroke();
+                                ctx.globalAlpha = 1;
                             }
-                            if (pentaOn) {
-                                const parts = rhombPentagons(r, idxLo);
+                            if (pentaOn) for (const { extAt, alpha } of readings(r)) {
+                                ctx.globalAlpha = alpha;
+                                const parts = rhombPentagons(r, idxLo, levels, extAt);
                                 const pieces: [number[][], string][] = parts.orange.map(
                                     (o) => [o, P1_FILL.Pe1] as [number[][], string]);
                                 if (parts.yellow) pieces.push([parts.yellow, P1_FILL.Pe3]);
@@ -663,6 +683,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.fillStyle = tint(rgbOf(fill), k);
                                     ctx.fill();
                                 }
+                                ctx.globalAlpha = 1;
                             }
                             if (state.p1) {
                                 const mx = (r.vertices[0][0] + r.vertices[2][0]) / 2;

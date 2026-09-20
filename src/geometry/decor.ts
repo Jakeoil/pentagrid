@@ -80,23 +80,44 @@ export interface EdgeArrow {
  *
  * Off a Penrose patch the index spans five values and the rule does not apply.
  */
-export function rhombArrows(pg: Pentagrid, r: Rhomb, lo: number): EdgeArrow[] {
-    const idx = (K: readonly number[]) => K.reduce((a, b) => a + b, 0) - lo + 1;
+/**
+ * Which corner of a rhomb is its extreme — the one the doubles point into, the
+ * rhomb-group center, where every index-placed dressing hangs from. A rhomb's
+ * corners are (m, m+1, m+2, m+1) with the candidates at v0 and v2; the extreme
+ * is the one at the patch's minimum or maximum level (1 or `levels` after
+ * normalizing the minimum to 1). On a Penrose patch, four levels, every tile
+ * has exactly one. With five levels the middle tiles (2,3,4,3) have none:
+ * null, and the caller may draw BOTH candidates on top of each other — Jake's
+ * "in those spots draw both" — by asking for each with `extAt`.
+ *
+ * `extAt` forces the choice, 0 or 2. It is the caller's business to know that
+ * a forced choice is one of two.
+ */
+export function extremeCorner(r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): 0 | 2 | null {
+    if (extAt !== undefined) return extAt;
+    const m = r.kTuples[0].reduce((a, b) => a + b, 0) - lo + 1;    // v0's level; v2 is m + 2
+    if (m < 1 || m + 2 > levels) return null;                       // outside the patch's range
+    if (m === 1) return 0;
+    if (m + 2 === levels) return 2;
+    return null;
+}
+
+export function rhombArrows(pg: Pentagrid, r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): EdgeArrow[] {
+    const E = extremeCorner(r, lo, levels, extAt);
+    if (E === null) return [];
+    const R = (E + 2) % 4;                               // the red corner, opposite
     const out: EdgeArrow[] = [];
     for (let i = 0; i < 4; i++) {
         const A = r.vertices[i], B = r.vertices[(i + 1) % 4];
-        const a = idx(r.kTuples[i]), b = idx(r.kTuples[(i + 1) % 4]);
-        const [lowI, highI] = a < b ? [a, b] : [b, a];
-        const dbl = lowI === 1 || highI === 4;
-        let toward: number;
-        if (dbl) {
-            toward = lowI === 1 ? 1 : 4;                 // into the extreme
-        } else {
-            const m = idx(r.kTuples[0]);                 // 1 or 2 on a Penrose patch
-            const red = m === 1 ? 3 : 2;                 // the corner opposite the green
-            toward = r.thick ? (red === 3 ? 2 : 3) : red; // thick: out of it; thin: into it
-        }
-        const [from, to] = toward === a ? [B, A] : [A, B];
+        // Edge i runs V[i] -> V[i+1]. The two edges at the extreme corner are
+        // doubles and point into it; the two at the red corner are singles,
+        // out of it on a thick and into it on a thin.
+        const touchesE = i === E || (i + 1) % 4 === E;
+        const dbl = touchesE;
+        let toward: number;                              // the corner the arrow points at
+        if (dbl) toward = E;
+        else toward = r.thick ? ((i === R) ? (i + 1) % 4 : i) : R;
+        const [from, to] = toward === i ? [B, A] : [A, B];   // toward V[i] means B -> A
         const dx = to[0] - from[0], dy = to[1] - from[1];
         const len = Math.hypot(dx, dy) || 1;
         out.push({ x: (A[0] + B[0]) / 2, y: (A[1] + B[1]) / 2,
@@ -158,12 +179,10 @@ function regularPentagon(cx: number, cy: number, ang: number): Pentagon {
  *
  * Off a Penrose patch the index spans five values and nothing is emitted.
  */
-export function rhombPentagons(r: Rhomb, lo: number): RhombPentagons {
+export function rhombPentagons(r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): RhombPentagons {
     const none: RhombPentagons = { yellow: null, orange: [] };
-    const idx = (K: readonly number[]) => K.reduce((a, b) => a + b, 0) - lo + 1;
-    const ids = r.kTuples.map(idx);
-    let ext = ids.findIndex((v) => v === 1 || v === 4);
-    if (ext < 0 || ids.some((v) => v < 1 || v > 4)) return none;
+    const ext = extremeCorner(r, lo, levels, extAt);
+    if (ext === null) return none;
     const V = r.vertices;
     const c = r.thick ? ext : (ext + 2) % 4;
     const C = V[c], A = V[(c + 1) % 4], B = V[(c + 3) % 4];
@@ -240,12 +259,10 @@ export interface RhombDeflation {
  *
  * Off a Penrose patch the index spans five values and nothing is emitted.
  */
-export function rhombDeflation(r: Rhomb, lo: number): RhombDeflation {
+export function rhombDeflation(r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): RhombDeflation {
     const none: RhombDeflation = { gold: [], gray: [], edges: [] };
-    const idx = (K: readonly number[]) => K.reduce((a, b) => a + b, 0) - lo + 1;
-    const ids = r.kTuples.map(idx);
-    const ext = ids.findIndex((v) => v === 1 || v === 4);
-    if (ext < 0 || ids.some((v) => v < 1 || v > 4)) return none;
+    const ext = extremeCorner(r, lo, levels, extAt);
+    if (ext === null) return none;
     const V = r.vertices;
     const lerp = (a: Vec2, b: Vec2, t: number): Vec2 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
     const t = 1 / PHI;
@@ -308,12 +325,10 @@ export interface RhombKitesDarts {
  *
  * Off a Penrose patch the index spans five values and nothing is emitted.
  */
-export function rhombKitesDarts(r: Rhomb, lo: number): RhombKitesDarts {
+export function rhombKitesDarts(r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): RhombKitesDarts {
     const none: RhombKitesDarts = { kites: [], darts: [], edges: [] };
-    const idx = (K: readonly number[]) => K.reduce((a, b) => a + b, 0) - lo + 1;
-    const ids = r.kTuples.map(idx);
-    const ext = ids.findIndex((v) => v === 1 || v === 4);
-    if (ext < 0 || ids.some((v) => v < 1 || v > 4)) return none;
+    const ext = extremeCorner(r, lo, levels, extAt);
+    if (ext === null) return none;
     const V = r.vertices;
     const E = V[ext], Rd = V[(ext + 2) % 4], S1 = V[(ext + 1) % 4], S2 = V[(ext + 3) % 4];
     if (r.thick) {

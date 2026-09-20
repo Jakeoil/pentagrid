@@ -1557,3 +1557,25 @@ test("deflate on the reticulum leaves the deflated tiling in the same screen fra
     assert.equal(hit, before.size, `${before.size - hit} subdivision points are not vertices of the deflated tiling on screen`);
     void v0;
 });
+
+test("off Penrose is a switch: nothing dressed with it off, the extreme-level tiles with it on", () => {
+    const h = createPentagrid({ container: sizedHost(800, 800), panel: sizedHost(800, 100),
+                                features: { penroseTiles: true, arrows: true } });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.07, 0.11, 0.13, 0.17, 0.02]);       // sum 1/2
+    const layer = h.stack.get("penrose-decor");
+    let strokes = 0; layer.ctx.stroke = () => { strokes++; };
+    h.redraw();
+    assert.equal(strokes, 0, "off Penrose, off by default: no arrows");
+    h.setTileStyle({ offPenrose: true });
+    strokes = 0; h.redraw();
+    assert.ok(strokes > 50, `with the switch on the extreme-level tiles carry arrows (${strokes})`);
+    h.setTileStyle({ color: "kites" });
+    const tiles = h.stack.get("penrose-tiles");
+    let fills = 0; tiles.ctx.fill = () => { fills++; };
+    h.redraw();
+    const withKites = fills;
+    h.setTileStyle({ offPenrose: false });
+    fills = 0; h.redraw();
+    assert.ok(withKites > fills + 20, `kites' darts are drawn only with the switch on (${withKites} vs ${fills})`);
+});

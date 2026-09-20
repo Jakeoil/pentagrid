@@ -15,7 +15,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, extremeCorner } from "../geometry/decor.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
@@ -93,6 +93,15 @@ export interface TileStyle {
      * to see it, four times per vertex.
      */
     vertexMark: "dot" | "filled" | "open";
+    /**
+     * Decorate off a Penrose patch too. The index-placed dressings — arrows,
+     * curves, pentagons, next-gen, kites — need a corner at the patch's extreme
+     * level; on Penrose every tile has one. Off it the index spans five
+     * levels: the tiles touching the top or bottom still get their decoration
+     * and the middle ones stay bare, and the matching across edges no longer
+     * holds everywhere — which is the picture. Off by default. Jake's idea.
+     */
+    offPenrose: boolean;
     /**
      * The height ramp, over whatever color is chosen — wieringa-roof's shading.
      * Lighter towards the top of the patch, darker towards the bottom, each tile
@@ -486,6 +495,36 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         };
     }
 
+    /**
+     * How many index levels the patch spans, for the index-placed dressings —
+     * 4 on Penrose. Null when there is nothing to place by: five levels with
+     * the off-Penrose switch off, or fewer than four (a patch too small to
+     * show its extremes).
+     */
+    function dressingLevels(): number | null {
+        const { lo, hi } = indexRange();
+        const levels = hi - lo + 1;
+        if (levels === 4) return 4;
+        if (levels === 5 && tileStyle.offPenrose) return 5;
+        return null;
+    }
+
+    /**
+     * How to dress one tile: which corner is its extreme, and at what opacity.
+     * One reading at full strength on a tile that has an extreme; on an
+     * ambiguous tile — the (2,3,4,3) middle off Penrose, with the switch on —
+     * BOTH readings at half strength, one over the other, so what is drawn is
+     * the union of the two alternatives and the overlap reads as the blend.
+     * Jake: "in those spots draw both".
+     */
+    function dressings(rhomb: Rhomb, lo: number, levels: number): { extAt: 0 | 2; alpha: number }[] {
+        const e = extremeCorner(rhomb, lo, levels);
+        if (e !== null) return [{ extAt: e, alpha: 1 }];
+        const m = vertexIndex(rhomb.kTuples[0]) - lo + 1;
+        if (m < 1 || m + 2 > levels) return [];
+        return [{ extAt: 0, alpha: 0.5 }, { extAt: 2, alpha: 0.5 }];
+    }
+
     /** A signed integer as a superscript, for λ = φᵐ. */
     function superscript(m: number): string {
         const digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
@@ -600,7 +639,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
-        boldEdges: false, coloredArrows: false, vertexMark: "dot",
+        boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
     };
 
@@ -1628,9 +1667,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function drawArrows(
         tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
     ) {
-        const { lo, hi } = indexRange();
-        if (hi - lo !== 3) return;
-        if (tileStyle.coloredArrows) { drawColoredArrows(tc, rhombs, cx, cy, lo); return; }
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;
+        if (tileStyle.coloredArrows) { drawColoredArrows(tc, rhombs, cx, cy, lo, levels); return; }
         const L = 0.11;          // chevron arm, tiling units
         const GAP = 0.09;        // between the two of a double
         tc.strokeStyle = "#222";
@@ -1638,7 +1678,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         tc.lineCap = "round";
         tc.lineJoin = "round";
         for (const r of rhombs) {
-            for (const a of rhombArrows(model, r, lo)) {
+            for (const { extAt, alpha } of dressings(r, lo, levels)) {
+            tc.globalAlpha = alpha;
+            for (const a of rhombArrows(model, r, lo, levels, extAt)) {
                 const nx = -a.dy, ny = a.dx;
                 const chevron = (ox: number, oy: number) => {
                     // tip at (ox,oy), arms trailing back at 45 degrees
@@ -1658,7 +1700,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     chevron(a.x + a.dx * L / 2, a.y + a.dy * L / 2);
                 }
             }
+            }
         }
+        tc.globalAlpha = 1;
     }
 
     /**
@@ -1673,7 +1717,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * once per tile, identically, since the rule agrees across it.
      */
     function drawColoredArrows(
-        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, lo: number,
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, lo: number, levels: number,
     ) {
         const DOUBLE = "#3aa655", SINGLE = "#e0423c";
         const inset = 6 / scale;             // past the 3 px vertex dot, in tiling units
@@ -1683,7 +1727,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         tc.lineWidth = Math.max(1.2, SHAFT * scale);
         tc.lineCap = "round";
         for (const r of rhombs) {
-            for (const a of rhombArrows(model, r, lo)) {
+            for (const { extAt, alpha } of dressings(r, lo, levels)) {
+            tc.globalAlpha = alpha;
+            for (const a of rhombArrows(model, r, lo, levels, extAt)) {
                 const nx = -a.dy, ny = a.dx;
                 const color = a.double ? DOUBLE : SINGLE;
                 const tx = a.x - a.dx * L / 2, ty = a.y - a.dy * L / 2;   // tail
@@ -1708,7 +1754,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.closePath();
                 tc.fill();
             }
+            }
         }
+        tc.globalAlpha = 1;
     }
 
     /**
@@ -1912,12 +1960,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         tc.fillStyle = ramped(tc, rhomb, sv, CURVE_FACE);
         tc.fill();
-        const { lo, hi } = indexRange();
-        if (hi - lo !== 3) return;                       // no indices to place it by
-        const m = vertexIndex(rhomb.kTuples[0]) - lo + 1;
-        const X = m === 1 ? 0 : 2;                        // the extreme: v0 is 1, or v2 is 4
-        const Y = X === 0 ? 2 : 0;
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;                     // no indices to place it by
         const V = rhomb.vertices;
+        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+        const X = extAt, Y = X === 0 ? 2 : 0;           // the extreme, and the red corner
+        tc.globalAlpha = tileStyle.opacity * alpha;
         const sector = (c: number, rIn: number, rOut: number, style: string) => {
             const C = V[c], A = V[(c + 1) % 4], B = V[(c + 3) % 4];
             let a0 = Math.atan2(A[1] - C[1], A[0] - C[0]);
@@ -1952,6 +2001,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         sector(X, 0, 0.25, CURVE_DARK);
         if (rhomb.thick) sector(Y, 0.75, 1, CURVE_BLUE);
         else sector(Y, 0, 0.25, CURVE_BLUE);
+        }
+        tc.globalAlpha = tileStyle.opacity;
     }
 
     /**
@@ -1967,10 +2018,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
         tc.fill();
-        const { lo, hi } = indexRange();
-        if (hi - lo !== 3) return;                       // no indices to place it by
-        const parts = rhombPentagons(rhomb, lo);
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;                     // no indices to place it by
         tc.clip();                                       // inside save/restore already
+        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+        tc.globalAlpha = tileStyle.opacity * alpha;
+        const parts = rhombPentagons(rhomb, lo, levels, extAt);
         const poly = (pts: [number, number][], style: string) => {
             tc.beginPath();
             pts.forEach(([x, y], i) => {
@@ -1983,6 +2037,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         };
         for (const o of parts.orange) poly(o, P1_FILL.Pe1);
         if (parts.yellow) poly(parts.yellow, P1_FILL.Pe3);
+        }
+        tc.globalAlpha = tileStyle.opacity;
     }
 
     /**
@@ -1997,9 +2053,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         tc.fillStyle = ramped(tc, rhomb, sv, NEXTGEN_THICK);
         tc.fill();
-        const { lo, hi } = indexRange();
-        if (hi - lo !== 3) return;                       // no indices to place it by
-        const d = rhombDeflation(rhomb, lo);
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;                     // no indices to place it by
+        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+        tc.globalAlpha = tileStyle.opacity * alpha;
+        const d = rhombDeflation(rhomb, lo, levels, extAt);
         for (const poly of d.gray) {
             tc.beginPath();
             poly.forEach(([x, y], i) => {
@@ -2024,6 +2083,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             tc.lineTo(bx, by);
         }
         tc.stroke();
+        }
+        tc.globalAlpha = tileStyle.opacity;
     }
 
     /**
@@ -2037,9 +2098,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         tc.fillStyle = ramped(tc, rhomb, sv, KITE);
         tc.fill();
-        const { lo, hi } = indexRange();
-        if (hi - lo !== 3) return;                       // no indices to place it by
-        const d = rhombKitesDarts(rhomb, lo);
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;                     // no indices to place it by
+        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+        tc.globalAlpha = tileStyle.opacity * alpha;
+        const d = rhombKitesDarts(rhomb, lo, levels, extAt);
         for (const poly of d.darts) {
             tc.beginPath();
             poly.forEach(([x, y], i) => {
@@ -2060,6 +2124,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             tc.lineTo(bx, by);
         }
         tc.stroke();
+        }
+        tc.globalAlpha = tileStyle.opacity;
     }
 
     /** A tile's fill for a base color: the color, or the ramp over it. */
@@ -2722,6 +2788,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             bandWrap.hidden = tileStyle.color !== "bands";
             sRow.appendChild(sel);
             sRow.appendChild(bandWrap);   // re-append: it must follow the select
+            const offP = checkbox(sRow, "off Penrose", tileStyle.offPenrose, (v) => {
+                tileStyle.offPenrose = v;
+                draw();
+            });
+            offP.title = "Draw the index-placed dressings — arrows, curves, pentagons, next-gen, "
+                + "kites — off a Penrose patch too: the tiles touching the top or bottom index "
+                + "level get theirs, and the middle ones, which could go either way, get both "
+                + "readings at half strength.";
 
             // Second row: how the fill is shaded.
             const shadeRow = row(panelFor("Tile shade"), "Tile shade");

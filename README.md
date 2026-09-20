@@ -198,7 +198,9 @@ are off) or `kites` (P2 on the rhombs, a dart in every thick); plus `isogloss`, 
 Wieringa height ramp, over any color), `boldEdges`, `coloredArrows` (de Bruijn's
 solid arrows along the edges, dot to dot, green doubles and red singles, in place
 of the chevrons), `vertexMark` (the red dot, or the vertex's index in a circle —
-`filled` white on black, `open` black on white), and `opacity`.
+`filled` white on black, `open` black on white), `offPenrose` (dress the tiles at
+the extreme index levels off a Penrose patch; the middle ones stay bare), and
+`opacity`.
 
 Size comes from `data-width` / `data-height` on the container, or from the
 container's laid-out size. **Those two behave differently on resize**: naming a
