@@ -23,6 +23,7 @@ if (host) {
         { id: "grow-p1", key: "p1" },
         { id: "grow-penta", key: "penta" },
         { id: "grow-nextgen", key: "nextgen" },
+        { id: "grow-kites", key: "kites" },
     ]);
 
     // The γ controls are a cluster, not markup: one call mounts the five linked

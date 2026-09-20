@@ -17,7 +17,7 @@ import {
     solveIntersection, segmentAt, nearestLine,
 } from "../dist/geometry/pentagrid.js";
 import { TRIPLES, noIntegerGamma, scanRegions, singularTriples } from "../dist/geometry/regularity.js";
-import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation } from "../dist/geometry/decor.js";
+import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts } from "../dist/geometry/decor.js";
 import { regionPoly } from "../dist/geometry/region.js";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 
@@ -986,6 +986,69 @@ test("the deflation assembles: next-gen edges pair up and half-rhombs meet their
             }
         }
         assert.ok(edges > 500 && bases > 200, `only ${edges} edges, ${bases} bases judged`);
+        assert.equal(bad, 0, `gamma ${gamma}: ${bad} sides do not assemble`);
+    }
+});
+
+// Kites and darts: P2 read off P3 per tile. It is P2 only if the half-kites on
+// a rhomb's single-arrow edges meet their other halves next door: every side
+// of every piece inside the patch is shared by exactly two pieces; a side that
+// is NOT a listed P2 edge must be a kite axis, i.e. shared by two half-kites
+// that are mirror images across it; and the listed edges are everything else.
+test("kites and darts assemble: every P2 edge is shared, and the unlisted sides are kite axes", () => {
+    const key = (p) => `${(Math.round(p[0] * 1e6) || 0) / 1e6},${(Math.round(p[1] * 1e6) || 0) / 1e6}`;
+    const ekey = (a, b) => [key(a), key(b)].sort().join("|");
+    const polyArea = (P) => { let a = 0; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length]; a += p[0] * q[1] - q[0] * p[1]; } return Math.abs(a) / 2; };
+    for (const gamma of [[0.2, 0.2, 0.2, 0.2, 0.2], [0.07, 0.11, 0.13, 0.17, -0.48], [0.4, 0.4, 0.4, 0.4, 0.4]]) {
+        const pg = { n: 5, directions: makeDirections(true), gamma };
+        const R = collectRhombs(pg, { xMin: -6, xMax: 6, yMin: -6, yMax: 6 }, { gain: 2.5 });
+        let lo = Infinity;
+        for (const r of R) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+        const sides = new Map();           // side -> [{kind, apex}]
+        const listed = new Set();
+        let halfKites = 0, darts = 0;
+        for (const r of R) {
+            const d = rhombKitesDarts(r, lo);
+            assert.equal(d.kites.length, 2);
+            assert.equal(d.darts.length, r.thick ? 1 : 0);
+            halfKites += 2; darts += d.darts.length;
+            let covered = 0;
+            for (const [kind, P] of [...d.kites.map((P) => ["kite", P]), ...d.darts.map((P) => ["dart", P])]) {
+                covered += polyArea(P);
+                for (let i = 0; i < P.length; i++) {
+                    const a = P[i], b = P[(i + 1) % P.length];
+                    // the vertex of the piece not on this side, for the mirror check
+                    const other = P.filter((_, k) => k !== i && k !== (i + 1) % P.length);
+                    (sides.get(ekey(a, b)) ?? sides.set(ekey(a, b), []).get(ekey(a, b))).push({ kind, other });
+                }
+            }
+            assert.ok(Math.abs(covered - polyArea(r.vertices)) < 1e-9, "the pieces cover the tile");
+            for (const [a, b] of d.edges) listed.add(ekey(a, b));
+        }
+        const thick = R.filter((r) => r.thick).length, thin = R.length - thick;
+        assert.equal(halfKites / 2, thick + thin, "#kites = #thick + #thin");
+        assert.equal(darts, thick, "#darts = #thick");
+
+        let edges = 0, axes = 0, bad = 0;
+        for (const [k, list] of sides) {
+            const ends = k.split("|").map((e) => e.split(",").map(Number));
+            if (ends.some(([x, y]) => Math.hypot(x, y) > 7.5)) continue;     // well inside
+            if (list.length !== 2) { bad++; continue; }
+            if (listed.has(k)) { edges++; continue; }
+            // an axis: two half-kites, mirror images across the side
+            axes++;
+            if (!list.every((s) => s.kind === "kite")) { bad++; continue; }
+            const [a, b] = ends;
+            const reflect = (p) => {                       // across the line a-b
+                const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+                const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2;
+                const fx = a[0] + t * dx, fy = a[1] + t * dy;
+                return [2 * fx - p[0], 2 * fy - p[1]];
+            };
+            const q = reflect(list[0].other[0]);
+            if (Math.hypot(q[0] - list[1].other[0][0], q[1] - list[1].other[0][1]) > 1e-6) bad++;
+        }
+        assert.ok(edges > 400 && axes > 100, `only ${edges} edges, ${axes} axes judged`);
         assert.equal(bad, 0, `gamma ${gamma}: ${bad} sides do not assemble`);
     }
 });

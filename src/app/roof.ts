@@ -22,6 +22,7 @@ if (host) {
         { id: "roof-p1", key: "p1" },
         { id: "roof-penta", key: "penta" },
         { id: "roof-nextgen", key: "nextgen" },
+        { id: "roof-kites", key: "kites" },
     ]);
 
     // Σγ shifts the de Bruijn index range, so here it also changes how many

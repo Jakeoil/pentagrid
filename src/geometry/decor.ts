@@ -267,3 +267,68 @@ export function rhombDeflation(r: Rhomb, lo: number): RhombDeflation {
         edges: [[B, T], [B, P1], [B, P2], [L, P1], [Rt, P2]],
     };
 }
+
+// ── Kites and darts: P2 on the rhombs, at the same scale ─────────────
+
+export interface RhombKitesDarts {
+    /** Half-kites, as triangles: tip, side, back. Two on either prototile. */
+    kites: Vec2[][];
+    /** The whole dart a thick rhomb carries: tip, the two wings, the notch. */
+    darts: Vec2[][];
+    /**
+     * P2's edges on this tile: the dart's two long edges (on the rhomb's double
+     * edges) and its two short, the kite's long edge inside the thick, the
+     * kites' short edge on the thin's short diagonal and their long edges on
+     * its double edges. A kite's AXIS is not an edge and is not here: it lies
+     * along a single-arrow rhomb edge, and the kite's other half is across it.
+     */
+    edges: [Vec2, Vec2][];
+}
+
+/**
+ * De Bruijn's Fig. 4, "from rhombuses to kites and darts": P2 read off P3 at
+ * the same scale, per tile, the halves on a rhomb's edges meeting their other
+ * halves in the neighbor. The pieces are the Robinson triangles again, at
+ * scale 1 this time: a half-kite is the acute triangle (legs 1, base 1/φ), a
+ * half-dart the obtuse (legs 1/φ, base 1).
+ *
+ *   thick, A the extreme corner (doubles into it), P the red corner opposite,
+ *   D and B the obtuse corners, X on the long diagonal at |PX| = 1:
+ *     dart   D, A, B, X — tip A, notch X; whole, inside the tile
+ *     kites  P, D, X and P, X, B — half each, axes P–D and P–B, long edge P–X
+ *   thin, E the extreme (144°), T the red corner, L and R the acute:
+ *     kites  L, E, T and R, E, T — half each, split by the short diagonal E–T
+ *            (their short edge), axes L–T and R–T, long edges L–E and R–E
+ *
+ * So the single-arrow rhomb edges are kite axes on both prototiles and the
+ * double-arrow edges are P2 edges on both, which is what makes the halves
+ * meet: a shared edge is the same kind on either side. Assembly is tested.
+ * Area: thick = kite + dart, thin = kite, and #kites = #thick + #thin,
+ * #darts = #thick — the φ : 1 of P2 from the φ : 1 of P3.
+ *
+ * Off a Penrose patch the index spans five values and nothing is emitted.
+ */
+export function rhombKitesDarts(r: Rhomb, lo: number): RhombKitesDarts {
+    const none: RhombKitesDarts = { kites: [], darts: [], edges: [] };
+    const idx = (K: readonly number[]) => K.reduce((a, b) => a + b, 0) - lo + 1;
+    const ids = r.kTuples.map(idx);
+    const ext = ids.findIndex((v) => v === 1 || v === 4);
+    if (ext < 0 || ids.some((v) => v < 1 || v > 4)) return none;
+    const V = r.vertices;
+    const E = V[ext], Rd = V[(ext + 2) % 4], S1 = V[(ext + 1) % 4], S2 = V[(ext + 3) % 4];
+    if (r.thick) {
+        const A = E, P = Rd, D = S1, B = S2;
+        const X: Vec2 = [P[0] + (A[0] - P[0]) / PHI, P[1] + (A[1] - P[1]) / PHI];
+        return {
+            kites: [[P, D, X], [P, X, B]],
+            darts: [[D, A, B, X]],
+            edges: [[D, X], [X, B], [P, X], [D, A], [A, B]],
+        };
+    }
+    const T = Rd, L = S1, Rt = S2;
+    return {
+        kites: [[L, E, T], [Rt, E, T]],
+        darts: [],
+        edges: [[E, T], [L, E], [Rt, E]],
+    };
+}

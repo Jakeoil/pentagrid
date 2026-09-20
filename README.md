@@ -190,9 +190,9 @@ three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 families as crossed bands, `band` wide), `groups` (the rhomb groups in sun-star's
 colors), `p1` (the pentagon tiling on the groups — the small rhombs), `curves`
 (Penrose's matching curves as filled regions) `pentagons` (P1 at the scale
-where every thick rhomb holds one whole — the big rhombs) or `nextgen` (the
+where every thick rhomb holds one whole — the big rhombs) `nextgen` (the
 deflation: thick gold, thin gray, at 1/φ — the next generation once the edges
-are off); plus `isogloss`, `shading` with its `ramp` (the
+are off) or `kites` (P2 on the rhombs, a dart in every thick); plus `isogloss`, `shading` with its `ramp` (the
 Wieringa height ramp, over any color), `boldEdges`, `coloredArrows` (de Bruijn's
 solid arrows along the edges, dot to dot, green doubles and red singles, in place
 of the chevrons), `vertexMark` (the red dot, or the vertex's index in a circle —

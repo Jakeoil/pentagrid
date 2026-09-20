@@ -16,7 +16,7 @@ import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
-import { rhombPentagons, rhombDeflation } from "../geometry/decor.js";
+import { rhombPentagons, rhombDeflation, rhombKitesDarts } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
 import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
@@ -94,6 +94,9 @@ export interface GrowthState {
      * pieces ride the tile's (a, b) frame and fold with it on the roof.
      */
     nextgen: boolean;
+    /** Paint P2 — the `kites` tile style: kites light, a dart in every thick,
+     *  P2's edges as hairlines — per tile, in the tile's (a, b) frame. */
+    kites: boolean;
     /**
      * Outline the 2k-gon each stack of tiles is growing into.
      *
@@ -116,10 +119,12 @@ export interface GrowthHandle {
 /** The next-gen palette, shared with the tile style. */
 const NEXTGEN_THICK: [number, number, number] = [247, 208, 88];
 const NEXTGEN_THIN: [number, number, number] = [182, 182, 182];
+const KITE: [number, number, number] = [223, 233, 243];
+const DART: [number, number, number] = [143, 168, 194];
 
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
-    showResolutions: false, p1: false, penta: false, nextgen: false,
+    showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     boldEdges: false,
 };
 
@@ -571,7 +576,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // `world` then puts it where the tile is, lifted or not.
                     const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
                     let idxLo = Infinity, idxHi = -Infinity;
-                    if (state.penta || state.nextgen) {
+                    if (state.penta || state.nextgen || state.kites) {
                         for (const r of rhombs) for (const K of r.kTuples) {
                             let m = 0;
                             for (const k of K) m += k;
@@ -581,6 +586,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     }
                     const pentaOn = state.penta && idxHi - idxLo === 3;   // Penrose only
                     const nextOn = state.nextgen && idxHi - idxLo === 3;
+                    const kitesOn = state.kites && idxHi - idxLo === 3;
                     const toLocal = (r: Rhomb, p: Vec2): [number, number] => {
                         const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
                         const det = vj[0] * vk[1] - vj[1] * vk[0];
@@ -604,9 +610,28 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         if (grow > 0.02) {
                             trace(r, BODY);
                             ctx.fillStyle = tint(
-                                nextOn ? NEXTGEN_THICK
+                                kitesOn ? KITE : nextOn ? NEXTGEN_THICK
                                     : state.p1 || pentaOn ? rgbOf(P1_STAR) : [255, 255, 255], k);
                             ctx.fill();
+                            if (kitesOn) {
+                                const d = rhombKitesDarts(r, idxLo);
+                                for (const poly of d.darts) {
+                                    trace(r, poly.map((p) => toLocal(r, p)));
+                                    ctx.fillStyle = tint(DART, k);
+                                    ctx.fill();
+                                }
+                                ctx.strokeStyle = shaded
+                                    ? `rgba(0,0,0,${(0.30 + 0.30 * k).toFixed(3)})`
+                                    : "rgba(0,0,0,0.55)";
+                                ctx.lineWidth = 1;
+                                ctx.beginPath();
+                                for (const [a, b] of d.edges) {
+                                    const [pa, pb] = [a, b].map((p) => toLocal(r, p)).map(([x, y]) => S(world(r, dirs, x, y)));
+                                    ctx.moveTo(pa.x, pa.y);
+                                    ctx.lineTo(pb.x, pb.y);
+                                }
+                                ctx.stroke();
+                            }
                             if (nextOn) {
                                 const d = rhombDeflation(r, idxLo);
                                 for (const poly of d.gray) {

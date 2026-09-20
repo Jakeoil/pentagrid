@@ -15,7 +15,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts } from "../geometry/decor.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
@@ -64,7 +64,8 @@ export interface TileStyle {
      * not Penrose and groups are undefined), the P1 tiling it carries, the
      * matching curves as filled regions (Wikipedia's rhombus-with-arcs), the P1
      * pentagons at the scale where every thick rhomb holds one whole, the next
-     * generation (the deflation: thick gold, thin gray, at scale 1/φ) — or
+     * generation (the deflation: thick gold, thin gray, at scale 1/φ), the
+     * kites and darts (P2 at the same scale, per de Bruijn's Fig. 4) — or
      * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
      * them. Each band runs across the tile in its family's color, `band` wide as
      * a fraction of the edge, and the square where they cross is the composite.
@@ -72,7 +73,7 @@ export interface TileStyle {
      * below that the tile reads as two gridlines passing through. A 2k-gon takes
      * no color under it.
      */
-    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves" | "pentagons" | "nextgen";
+    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves" | "pentagons" | "nextgen" | "kites";
     /** Band width for `bands`, 0..1 of the edge. */
     band: number;
     /** Contour lines across each tile. */
@@ -1758,6 +1759,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (tileStyle.color === "curves") return CURVE_FACE; // a bare face
         if (tileStyle.color === "pentagons") return NO_GROUP; // no indices to place by
         if (tileStyle.color === "nextgen") return NO_GROUP;
+        if (tileStyle.color === "kites") return NO_GROUP;
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -2018,6 +2020,42 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         tc.stroke();
     }
 
+    /**
+     * Kites and darts: the tile filled kite, the dart laid over on a thick, and
+     * P2's edges as hairlines — the halves on the rhomb edges meet their other
+     * halves next door, so with the edges layer off the picture is P2.
+     */
+    const KITE = "#dfe9f3", DART = "#8fa8c2";
+    function drawKites(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    ) {
+        tc.fillStyle = ramped(tc, rhomb, sv, KITE);
+        tc.fill();
+        const { lo, hi } = indexRange();
+        if (hi - lo !== 3) return;                       // no indices to place it by
+        const d = rhombKitesDarts(rhomb, lo);
+        for (const poly of d.darts) {
+            tc.beginPath();
+            poly.forEach(([x, y], i) => {
+                const [px, py] = mathToScreen(x, y, cx, cy);
+                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+            });
+            tc.closePath();
+            tc.fillStyle = ramped(tc, rhomb, sv, DART);
+            tc.fill();
+        }
+        tc.strokeStyle = "#556";
+        tc.lineWidth = 1;
+        tc.beginPath();
+        for (const [a, b] of d.edges) {
+            const [ax, ay] = mathToScreen(a[0], a[1], cx, cy);
+            const [bx, by] = mathToScreen(b[0], b[1], cx, cy);
+            tc.moveTo(ax, ay);
+            tc.lineTo(bx, by);
+        }
+        tc.stroke();
+    }
+
     /** A tile's fill for a base color: the color, or the ramp over it. */
     function ramped(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
@@ -2082,6 +2120,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     drawPentagons(tc, rhomb, sv, cx, cy);
                 } else if (tileStyle.color === "nextgen") {
                     drawNextGen(tc, rhomb, sv, cx, cy);
+                } else if (tileStyle.color === "kites") {
+                    drawKites(tc, rhomb, sv, cx, cy);
                 } else {
                     tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
                     tc.fill();
@@ -2645,12 +2685,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "matching curves as filled regions, dark at the arrow corner · "
                 + "pentagons: P1 at the scale where every thick rhomb holds a whole "
                 + "one (the big rhombs) · next-gen: the deflation, thick gold and thin "
-                + "gray at 1/φ — switch the edges off and it is the next generation. "
+                + "gray at 1/φ — switch the edges off and it is the next generation · "
+                + "kites & darts: P2 on the rhombs, a dart in every thick. "
                 + "A 2k-gon follows the same choice.";
             for (const [value, text] of [
                 ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
                 ["groups", "rhomb groups"], ["p1", "P1"], ["curves", "curves"],
-                ["pentagons", "pentagons"], ["nextgen", "next-gen"],
+                ["pentagons", "pentagons"], ["nextgen", "next-gen"], ["kites", "kites & darts"],
             ] as const) {
                 const opt = document.createElement("option");
                 opt.value = value;
