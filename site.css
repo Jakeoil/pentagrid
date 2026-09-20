@@ -449,3 +449,5 @@ nav.site a:hover { text-decoration: underline; }
 }
 .ret-presets[hidden] { display: none; }
 .ret-settings { font-size: 11.5px; color: #444; }
+.ret-gen { margin-top: 4px; }
+.ret-lambda { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #333; min-width: 58px; }

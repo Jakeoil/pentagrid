@@ -34,8 +34,10 @@ carries a **settings** popup (vertical-axis symmetry: the star turned so v₀
 points up — a rotation of the frame, nothing else), two constrained modes —
 **symmetric** (every γ the same; the axes drive and the total floats, or — click
 a γ label — the total drives and every γ floats; Σ hands it back) and **mirror** (γ_j = γ_{n−j}
-about γ₀'s axis, γ₀ floating to hold Σγ = 1: the deca's family) — and the
-**presets** — the three caps (sun, star, deca) and the singular
+about γ₀'s axis, γ₀ floating to hold Σγ = 1: the deca's family) — a generation
+row (λ = φᵐ, the spacing, with **deflate** / **inflate**: γ ↦ Mγ and λ ↦ λ/φ,
+de Bruijn's deflation on the grid, the finer tiling landing inside the old one
+in place) — and the **presets** — the three caps (sun, star, deca) and the singular
 catalog (decagon, couple, octagon, 1 thick, 2 thick, 1 thin, 2 thin); choosing
 one puts its name on the title bar. The slider bank is still there, folded, for
 comparison.
@@ -218,7 +220,7 @@ The handle:
 | `onFeatureOn(cb)` | a panel switch turned a feature on — a narrative can go to its page |
 | `getView()`, `setView(v)` | the pan and zoom, read and driven |
 | `setGamma(g)` | set the offsets outright |
-| `gamma` | the `GammaSet` itself: values, total, lock, guard, ribbons, `onChange` |
+| `gamma` | the `GammaSet` itself: values, total, lock, guard, ribbons, generation (λ = φᵐ, `deflate`/`inflate`), `onChange` |
 | `stack` | the `LayerStack` |
 
 ### Registering a layer

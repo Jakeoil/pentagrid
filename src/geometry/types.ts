@@ -15,6 +15,15 @@ export interface Pentagrid {
     readonly n: number;
     readonly directions: readonly Vec2[];
     readonly gamma: readonly number[];
+    /**
+     * λ, the gridline spacing, in world units; default 1. The geometry is
+     * written for spacing 1 and stays that way — a grid at spacing λ with
+     * shifts γ IS the unit grid scaled by λ, tiling included (line n of family
+     * j sits at x·vⱼ = λ(n − γⱼ), the dual's edge is λ). So λ is applied once,
+     * at the view: a tiling unit is λ world units. It is a power of φ, and
+     * deflation is λ ↦ λ/φ with γ ↦ Mγ — see geometry/gamma.ts.
+     */
+    readonly lambda?: number;
 }
 
 export interface ViewRect {

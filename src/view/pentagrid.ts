@@ -486,6 +486,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         };
     }
 
+    /** A signed integer as a superscript, for λ = φᵐ. */
+    function superscript(m: number): string {
+        const digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+        return (m < 0 ? "⁻" : "") + String(Math.abs(m)).split("").map((d) => digits[+d]).join("");
+    }
+
     /** Cursor position in grid coordinates, undoing the registration gain. */
     function screenToGrid(sx: number, sy: number, cx: number, cy: number): [number, number] {
         const g = gridGain();
@@ -2623,9 +2629,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         viewRow.appendChild(stats);
         viewStats = () => {
             const vis = getVisibleRect();
+            const m = gammaSet.getGeneration();
             stats.textContent = `×${scale.toFixed(0)} · `
                 + `${(vis.xMax - vis.xMin).toFixed(1)}×${(vis.yMax - vis.yMin).toFixed(1)} `
-                + `at (${viewX.toFixed(2)}, ${viewY.toFixed(2)})`;
+                + `at (${viewX.toFixed(2)}, ${viewY.toFixed(2)})`
+                + (m ? ` · λ = φ${superscript(m)}` : "");
         };
         viewStats();
 
@@ -3390,9 +3398,25 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     if (config.gamma) gammaSet.setValues(config.gamma);
     else gammaSet.setSum(1, true);
 
-    // One subscription: any change to γ, the lock, the sum, the symmetry or the
-    // guard lands here rather than each call site remembering to redraw.
+    // One subscription: any change to γ, the lock, the sum, the symmetry, the
+    // guard or λ lands here rather than each call site remembering to redraw.
+    //
+    // λ is applied here and nowhere else: the geometry is in tiling units and a
+    // tiling unit is λ world units, so a change of λ is a zoom about the origin
+    // that keeps every WORLD point where it was on screen — the invariants are
+    // scale/λ and λ·view. Deflate, and the finer tiling lands inside the old
+    // one instead of the picture jumping.
+    let lambdaShown = gammaSet.model.lambda ?? 1;
     gammaSet.onChange(() => {
+        const lambda = gammaSet.model.lambda ?? 1;
+        if (lambda !== lambdaShown) {
+            const k = lambda / lambdaShown;
+            scale *= k;
+            viewX /= k;
+            viewY /= k;
+            lambdaShown = lambda;
+            notifyView();
+        }
         rhombCache = null;
         draw();
     });

@@ -615,3 +615,50 @@ test("a singular configuration is kept, not quietly corrected", () => {
     assert.ok(!g.nudged());
     assert.equal(g.singular().length, 10, "and it is genuinely singular");
 });
+
+// ── λ and the generations ─────────────────────────────────────────
+
+test("deflate is gamma''_j = -(gamma_{j+2} + gamma_{j+3}) and lambda/phi; inflate undoes it exactly", () => {
+    const g = createGammaSet({ guard: false });
+    g.setLocked(-1);
+    g.setValues([0.07, 0.11, 0.13, 0.17, -0.48]);
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    assert.equal(g.getGeneration(), 0);
+    assert.equal(g.model.lambda, 1);
+    let fired = 0; g.onChange(() => { fired++; });
+    g.deflate();
+    assert.equal(fired, 1);
+    assert.equal(g.getGeneration(), -1);
+    assert.ok(Math.abs(g.model.lambda - 1 / PHI) < 1e-12);
+    const v = g.values();
+    const eq = (a, b) => Math.abs(a - b) < 1e-9;
+    assert.ok(eq(v[0], -(0.13 + 0.17)) && eq(v[1], -(0.17 - 0.48)) && eq(v[2], -(-0.48 + 0.07)), `deflated to ${v}`);
+    assert.ok(eq(v.reduce((a, b) => a + b, 0), 0), "an integer total stays integer");
+    g.inflate();
+    assert.equal(g.getGeneration(), 0);
+    assert.equal(g.model.lambda, 1);
+    // on a Penrose gamma the round trip returns the same tiling: the same
+    // offsets up to one integer added to all of them (here Σγ = 0, so exactly)
+    assert.deepEqual(g.values().map((x) => +x.toFixed(9)), [0.07, 0.11, 0.13, 0.17, -0.48], "inflate undoes deflate");
+
+    // the sun deflates to the star and back; inflating the sun is the star too,
+    // and Penrose — the first version halved the total and left Penrose
+    g.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    g.deflate();
+    assert.ok(g.values().every((x) => eq(((x % 1) + 1) % 1, 0.6)), `sun -> star: ${g.values()}`);
+    g.inflate();
+    assert.ok(g.values().every((x) => eq(((x % 1) + 1) % 1, 0.2)), "and back to the sun");
+    g.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    g.inflate();
+    assert.ok(g.values().every((x) => eq(x, 0.4)), `inflated sun is the star: ${g.values()}`);
+    assert.ok(Number.isInteger(+g.getSum().toFixed(9)), "and Penrose");
+    g.deflate();
+    const back = g.values().map((x) => ((x % 1) + 1) % 1);
+    assert.ok(back.every((x) => eq(x, 0.2)), `deflating it is the sun again: ${g.values()}`);
+
+    // the spacing alone
+    const held = g.values();
+    g.setGeneration(2);
+    assert.ok(Math.abs(g.model.lambda - PHI * PHI) < 1e-12);
+    assert.deepEqual(g.values(), held, "setGeneration leaves gamma alone");
+});

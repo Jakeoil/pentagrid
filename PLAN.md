@@ -134,7 +134,7 @@ that. The transition worth having is not a mesh morph — each rhomb moves from
 | `γ_j` | **phase** of family j |
 | `Γ = (γ_0 … γ_{n−1})` | the **phase vector** |
 | `Σγ` | the total; Penrose ⟺ Σγ ∈ ℤ |
-| `λ` | gridline spacing, currently 1 and unnamed (§5.7) |
+| `λ` | gridline spacing, a power of φ: `model.lambda`, the reticulum's generation row (§5.7, built 2026-09-20) |
 | `c` | the uniform phase, every γ_j = c |
 | `E∥` | "E-parallel": the plane of ℝ⁵ spanned by (cos θⱼ)ⱼ, (sin θⱼ)ⱼ, θⱼ = 2πj/n — where x ↦ (x·vⱼ)ⱼ lands, and where f = ΣKⱼvⱼ projects K back to |
 | `E⊥` | "E-perp": the plane spanned by (cos 2θⱼ)ⱼ, (sin 2θⱼ)ⱼ — the same angles doubled, ζ ↦ ζ². With the all-ones line ⟨𝟙⟩ (the index's direction; Σγ is γ's coordinate on it) it makes ℝ⁵ = E∥ ⊕ E⊥ ⊕ ⟨𝟙⟩ |
@@ -361,6 +361,21 @@ integer total stays integer). Iterating is one line, so the "no way to
 iterate" of §5.3 is gone: a next-gen *page* is `gamma ↦ Mγ`, `λ ↦ λ/φ`, and
 the same drawing. To be checked against de Bruijn's own statement of the
 formula before it is cited as his.
+
+**Built the same day: λ, and the generation row.** `GammaSet` carries the
+generation m with `model.lambda = φᵐ`, `deflate()` (γ ↦ Mγ, m − 1) and
+`inflate()` (γ ↦ M⁻¹γ = (S + S⁴)γ − (Σγ/2)·𝟙, m + 1; exact when the numerators'
+total is even). The geometry stays in tiling units — a grid at spacing λ with
+shifts γ *is* the unit grid scaled by λ, tiling included — so λ is applied at
+one place, the view: a change of λ is a zoom about the origin keeping every
+world point where it was on screen (invariants scale/λ and λ·view). The
+reticulum's second tools row shows `λ = φᵐ` with deflate / inflate (the
+spacing with the shifts; a spacing-only button was there for an hour and went —
+it is a zoom, and beside deflate it invited the wrong press: Jake, "yours
+doesn't flip"). Tested at the view: deflate, and
+every point of the old tiling's Robinson subdivision is a vertex of the new
+tiling at the same screen pixel — the deflation happens in place. The sun
+deflates to the star and inflates back.
 
 ### 5.2 Kites and darts — P2 read off P3, per tile (2026-09-20)
 

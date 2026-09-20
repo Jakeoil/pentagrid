@@ -68,6 +68,30 @@ export interface GammaSet {
     getSymmetry: () => boolean;
     setGuard: (on: boolean) => void;
     getGuard: () => boolean;
+    /**
+     * The generation: λ = φ^m is the gridline spacing (model.lambda). 0 is the
+     * unit grid; each step down is one deflation's worth of scale.
+     */
+    setGeneration: (m: number) => void;
+    getGeneration: () => number;
+    /**
+     * One deflation: γ ↦ Mγ with γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃) and λ ↦ λ/φ. The tiling
+     * this leaves, drawn at the new λ, is exactly the old tiling with every
+     * rhomb cut by Robinson's triangles — de Bruijn's deflation on the grid
+     * itself. PLAN.md §5.1. Releases the total, like a preset.
+     */
+    deflate: () => void;
+    /**
+     * The inverse, λ ↦ λφ and γ ↦ γ′ with Mγ′ the same tiling as γ. On a
+     * Penrose γ that is γ′ⱼ = γⱼ₋₁ + γⱼ₊₁, i.e. (S + S⁴)γ: then Mγ′ = γ − Σγ·𝟙,
+     * and an integer added to every offset is the same tiling (K ↦ K + k𝟙,
+     * f unchanged). The real inverse (S + S⁴)γ − (Σγ/2)·𝟙 would halve the
+     * total and take a Penrose tiling out of Penrose — sun ↦ Σγ = −½, no rhomb
+     * groups — which is what the first version did. Off Penrose there is no
+     * integer to hide behind and the real inverse is used, rounded by at most
+     * one unit of the denominator.
+     */
+    inflate: () => void;
 
     /**
      * Whether a family takes part at all. Off removes its lines *and* the tiles
@@ -242,7 +266,9 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     const q: number[] = new Array(n).fill(0);
     const directions: Vec2[] = [];
     const gamma: number[] = new Array(n).fill(0);
-    const model: Pentagrid = { n, directions, gamma };
+    let generation = 0;
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    const model: Pentagrid & { lambda: number } = { n, directions, gamma, lambda: 1 };
 
     function rebuildDirections() {
         const next = makeDirections(symmetry, n);
@@ -368,6 +394,35 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         getSymmetry: () => symmetry,
         setGuard: (on) => { guard = on; settle(); },
         getGuard: () => guard,
+        setGeneration: (m) => {
+            generation = Math.round(m);
+            model.lambda = Math.pow(PHI, generation);
+            for (const cb of listeners) cb();
+        },
+        getGeneration: () => generation,
+        deflate: () => {
+            // The shift map is the pentagrid's (φ = −(ζ² + ζ³) in Z[ζ₅]); at
+            // another n only the spacing steps.
+            const next = n === 5 ? q.map((_, j) => -(q[(j + 2) % n] + q[(j + 3) % n])) : q.slice();
+            locked = -1;
+            for (let j = 0; j < n; j++) q[j] = next[j];
+            uniformIntent = next.every((v) => v === next[0]);
+            generation -= 1;
+            model.lambda = Math.pow(PHI, generation);
+            settle();
+        },
+        inflate: () => {
+            const total = q.reduce((a, b) => a + b, 0);
+            const penrose = total % den === 0;
+            const shift = penrose ? 0 : Math.round(total / 2);
+            const next = n === 5 ? q.map((_, j) => q[(j + n - 1) % n] + q[(j + 1) % n] - shift) : q.slice();
+            locked = -1;
+            for (let j = 0; j < n; j++) q[j] = next[j];
+            uniformIntent = next.every((v) => v === next[0]);
+            generation += 1;
+            model.lambda = Math.pow(PHI, generation);
+            settle();
+        },
 
         reset,
         n,

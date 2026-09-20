@@ -364,6 +364,36 @@ export function mountReticulum(
     tools.appendChild(settingsBtn);
 
     wrap.appendChild(tools);
+
+    // λ, the spacing, as a power of φ, with the generation buttons: "deflate"
+    // and "inflate" step it with the shifts, which is de Bruijn's deflation on
+    // the grid — the finer tiling lands inside the old one, the star at the
+    // center upside down. There is no spacing-only button: that is a zoom, the
+    // wheel does it, and next to deflate it only invited the wrong press.
+    const gen = document.createElement("div");
+    gen.className = "ret-tools ret-gen";
+    const lambdaOut = document.createElement("span");
+    lambdaOut.className = "ret-lambda";
+    lambdaOut.title = "λ, the gridline spacing, as a power of φ. The tiling's edge is λ too.";
+    gen.appendChild(lambdaOut);
+    const genBtn = (text: string, title: string, on: () => void) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ret-bump";
+        b.textContent = text;
+        b.title = title;
+        b.addEventListener("click", () => { on(); render(); });
+        gen.appendChild(b);
+        return b;
+    };
+    if (n === 5) {
+        const off = () => { symmetric = false; symInput.checked = false; mirror = false; mirrorInput.checked = false; };
+        genBtn("deflate", "One generation down: λ ÷ φ and γ\u2033\u2c7c = \u2212(γ\u2c7c\u208a\u2082 + γ\u2c7c\u208a\u2083). "
+            + "The tiling becomes its own deflation, in place.", () => { off(); set.deflate(); });
+        genBtn("inflate", "One generation up: λ × φ and the inverse map on γ.", () => { off(); set.inflate(); });
+    }
+    wrap.appendChild(gen);
+
     wrap.appendChild(popup);
     wrap.appendChild(settings);
     container.appendChild(wrap);
@@ -378,6 +408,10 @@ export function mountReticulum(
         const sumDrives = symmetric && symDrive === "sum";
         ret.sync({ values, locked, sum, allDependent: sumDrives });
         strip.sync({ sum, released: locked < 0 && !sumDrives });
+        const m = set.getGeneration();
+        const sup = (k: number) => (k < 0 ? "\u207b" : "") + String(Math.abs(k)).split("")
+            .map((d) => "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"[+d]).join("");
+        lambdaOut.textContent = `λ = φ${sup(m)}`;
     };
     set.onChange(render);
     render();

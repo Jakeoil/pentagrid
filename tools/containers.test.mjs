@@ -9,6 +9,8 @@ import { handlers, makeStub } from "./domstub.mjs";
 import { createGrowthView } from "../dist/view/growth.js";
 import { createRegionPanel } from "../dist/view/region-panel.js";
 import { polygonArea, pointInPolygon, convexBoundary } from "../dist/geometry/acceptance.js";
+import { rhombDeflation } from "../dist/geometry/decor.js";
+import { collectRhombs } from "../dist/geometry/pentagrid.js";
 
 function host(w = 800, h = 600) {
     const el = makeStub({
@@ -1518,4 +1520,40 @@ test("the vertex mark: a dot, or the index in a circle once per vertex, either w
     assert.ok(fives > 0, "a fifth level exists off Penrose");
     assert.equal(texts.filter(([t, c]) => t === "5" && c === "#fff").length, fives, "fives are white on black");
     assert.equal(texts.filter(([t, c]) => t !== "5" && c === "#111").length, texts.length - fives, "the rest stay black on white");
+});
+
+// ── λ on the view: deflate in place ───────────────────────────────
+
+test("deflate on the reticulum leaves the deflated tiling in the same screen frame", () => {
+    const h = createPentagrid({ container: sizedHost(800, 800), features: { penroseTiles: true } });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.07, 0.11, 0.13, 0.17, -0.48]);
+    const v0 = h.getView();
+    h.setView({ scale: 40, x: 0.3, y: -0.2 });
+    // the old tiling's vertices and its Robinson subdivision, in SCREEN pixels
+    const before = new Map();
+    const world = (p) => [400 + (p[0] - 0.3) * 40, 400 - (p[1] + 0.2) * 40];
+    const key = (p) => `${Math.round(p[0] * 10)},${Math.round(p[1] * 10)}`;
+    const R = collectRhombs(h.gamma.model, { xMin: -8, xMax: 8, yMin: -8, yMax: 8 }, { gain: 2.5 });
+    let lo = Infinity; for (const r of R) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+    for (const r of R) for (const P of [...rhombDeflation(r, lo).gold, ...rhombDeflation(r, lo).gray]) for (const p of P) {
+        const s = world(p); if (Math.hypot(s[0] - 400, s[1] - 400) < 300) before.set(key(s), s);
+    }
+    assert.ok(before.size > 300);
+
+    h.gamma.deflate();
+    const v1 = h.getView();
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    assert.ok(Math.abs(v1.scale - 40 / PHI) < 1e-9, "the scale followed lambda");
+    assert.ok(Math.abs(v1.x - 0.3 * PHI) < 1e-9 && Math.abs(v1.y + 0.2 * PHI) < 1e-9, "the pan kept the world frame");
+    // the new tiling's vertices, mapped through the NEW view, are the old subdivision's points
+    const R2 = collectRhombs(h.gamma.model, { xMin: -14, xMax: 14, yMin: -14, yMax: 14 }, { gain: 2.5 });
+    const after = new Set();
+    for (const r of R2) for (const p of r.vertices) {
+        const s = [400 + (p[0] - v1.x) * v1.scale, 400 - (p[1] - v1.y) * v1.scale];
+        if (Math.hypot(s[0] - 400, s[1] - 400) < 300) after.add(key(s));
+    }
+    let hit = 0; for (const k of before.keys()) if (after.has(k)) hit++;
+    assert.equal(hit, before.size, `${before.size - hit} subdivision points are not vertices of the deflated tiling on screen`);
+    void v0;
 });
