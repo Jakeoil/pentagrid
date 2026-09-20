@@ -493,7 +493,7 @@ test("symmetric mode couples every gamma and releases the total", () => {
     const after = set.values();
     assert.ok(after.every((v) => Math.abs(v - after[0]) < 1e-9),
               `symmetric mode broke equality: ${after}`);
-    assert.ok(Math.abs(after[0] - (vals[0] + 0.01)) < 1e-9, "the coupled move was wrong");
+    assert.ok(Math.abs(after[0] - (vals[0] + 0.1)) < 1e-9, "the coupled move was wrong: a notch is a tenth");
 
     // and Σγ = n·g floats with it
     assert.ok(Math.abs(set.getSum() - 5 * after[0]) < 1e-9);
@@ -537,4 +537,20 @@ test("a released total refuses a push instead of graying politely", () => {
     hit.on.pointerdown[0]({ clientX: 100, pointerId: 1, preventDefault() {} });
     hit.on.pointermove[0]({ clientX: 400, pointerId: 1, preventDefault() {} });
     assert.deepEqual(set.exact(), before, "nor dragged");
+});
+
+test("the Sigma strip's wheel snaps to the next tenth, thousandths with a modifier", () => {
+    const set = createGammaSet({ guard: false });
+    set.setSum(1.034);
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+    const strip = host.children[0].children[1];
+    const hit = strip.children.find((c) => c.getAttribute("class") === "ss-hit");
+    hit.on.wheel[0]({ deltaY: -1, preventDefault() {} });
+    assert.ok(Math.abs(set.getSum() - 1.1) < 1e-9, `1.034 up a notch is 1.1, got ${set.getSum()}`);
+    hit.on.wheel[0]({ deltaY: 1, preventDefault() {} });
+    hit.on.wheel[0]({ deltaY: 1, preventDefault() {} });
+    assert.ok(Math.abs(set.getSum() - 0.9) < 1e-9, `and two down is 0.9, got ${set.getSum()}`);
+    hit.on.wheel[0]({ deltaY: -1, shiftKey: true, preventDefault() {} });
+    assert.ok(Math.abs(set.getSum() - 0.901) < 1e-9, `shift: a thousandth, got ${set.getSum()}`);
 });

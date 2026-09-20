@@ -30,3 +30,14 @@ export function wheelNotch(e: WheelEvent, s: WheelSteps): number {
     if (!raw) return 0;
     return (raw > 0 ? -1 : 1) * (isFine(e) ? s.fine : s.step);
 }
+
+/**
+ * The next multiple of `unit` in the direction of `d`, from `cur`. Sitting on
+ * a multiple moves a whole unit; sitting between lands on the nearer edge in
+ * that direction — 0.234 up is 0.3, down is 0.2 — and 1.5 up is 2, not 3.
+ */
+export function snapStep(cur: number, unit: number, d: number): number {
+    const eps = 1e-9;
+    const k = d > 0 ? Math.floor(cur / unit + eps) + 1 : Math.ceil(cur / unit - eps) - 1;
+    return k * unit;
+}

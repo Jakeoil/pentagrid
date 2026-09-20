@@ -155,17 +155,25 @@ test("nothing sits at the center but the cross — the hub is gone", () => {
     }
 });
 
-test("wheel: hundredths a notch, thousandths with shift, and it eats the scroll", () => {
+test("wheel: a notch snaps to the next tenth, thousandths with shift, and it eats the scroll", () => {
     const moves = [];
     const { hit } = ret(5, { onChange: (j, v) => moves.push([j, +v.toFixed(6)]) });
     hit.on.pointerdown[0](ev(760, 400));
     hit.on.pointerup[0](ev(760, 400));
     const up = ev(760, 400, { deltaY: -1 });
     hit.on.wheel[0](up);
-    assert.deepEqual(moves.at(-1), [0, 0.21]);
+    assert.deepEqual(moves.at(-1), [0, 0.3]);
     assert.ok(up.dp);
     hit.on.wheel[0](ev(760, 400, { deltaY: -1, shiftKey: true }));
     assert.deepEqual(moves.at(-1), [0, 0.201]);
+    // from off a tenth, a plain notch lands ON the next tenth, not 0.1 further
+    const { r: r2, hit: hit2 } = ret(5, { onChange: (j, v) => moves.push([j, +v.toFixed(6)]) });
+    r2.sync({ values: [0.234, 0.2, 0.2, 0.2, 0.2], locked: 4, sum: 1.034 });
+    hit2.on.pointerdown[0](ev(760, 400)); hit2.on.pointerup[0](ev(760, 400));
+    hit2.on.wheel[0](ev(760, 400, { deltaY: -1 }));
+    assert.deepEqual(moves.at(-1), [0, 0.3], "0.234 up a notch is 0.3");
+    hit2.on.wheel[0](ev(760, 400, { deltaY: 1 }));
+    assert.deepEqual(moves.at(-1), [0, 0.2], "the state did not follow (a bare reticulum); 0.234 down a notch is 0.2");
 });
 
 test("dragging is 1:1 across the full width, and reports unwrapped state", () => {
@@ -456,9 +464,9 @@ test("mirror: pairs move together, gamma0 floats, and the total is held at 1", (
     hit.on.pointerdown[0](p); hit.on.pointerup[0](p);
     hit.on.wheel[0](p);
     const h = set.values();
-    assert.ok(eq(h[1], -0.175) && eq(h[4], -0.175), `pair did not move together: ${h}`);
+    assert.ok(eq(h[1], -0.1) && eq(h[4], -0.1), `pair did not move together, to the next tenth: ${h}`);
     assert.ok(eq(h[2], 0.15) && eq(h[3], 0.15), "the other pair is untouched");
-    assert.ok(eq(h[0], 1.05), "gamma0 floated to hold the total");
+    assert.ok(eq(h[0], 1 - 2 * (-0.1) - 0.3), "gamma0 floated to hold the total");
 
     // the mirror is gamma0's axis wherever the frame puts it: with vertical-axis
     // symmetry off the pairing is the same, about the horizontal
@@ -468,7 +476,7 @@ test("mirror: pairs move together, gamma0 floats, and the total is held at 1", (
     hit.on.pointerdown[0](p2); hit.on.pointerup[0](p2);
     hit.on.wheel[0](p2);
     const k = set.values();
-    assert.ok(eq(k[2], 0.16) && eq(k[3], 0.16), `pair 2-3 did not move together: ${k}`);
+    assert.ok(eq(k[2], 0.2) && eq(k[3], 0.2), `pair 2-3 did not move together: ${k}`);
     assert.equal(set.getSymmetry(), false, "the mode does not touch the frame");
 
     // symmetric and mirror are exclusive
@@ -508,22 +516,51 @@ test("symmetric: a gamma label floats all the gammas and the sum drives; sigma f
     const [dx, dy] = set.model.directions[1];
     const p = ev(400 + 300 * dx, 400 - 300 * dy, { deltaY: -1 });
     hit.on.pointerdown[0](p); hit.on.pointerup[0](p); hit.on.wheel[0](p);
-    assert.ok(set.values().every((v) => eq(v, 0.21)), `axes drive all gammas: ${set.values()}`);
+    assert.ok(set.values().every((v) => eq(v, 0.3)), `axes drive all gammas, to the next tenth: ${set.values()}`);
 
     // a gamma label: every axis floats, the wheel on one is refused
     labels[2].on.pointerdown[0](ev(0, 0));
     assert.equal(dependent(), 5, "every axis is dependent");
     hit.on.wheel[0](p);
-    assert.ok(set.values().every((v) => eq(v, 0.21)), "a floating axis does not move");
-    // and the strip drives the lot
+    assert.ok(set.values().every((v) => eq(v, 0.3)), "a floating axis does not move");
+    // and the strip drives the lot — snapping to integer totals, so the five
+    // offsets step through the Penrose caps: 0.3 each (Σ 1.5) goes to Σ 2, 0.4 each
     if (stripHit) {
         stripHit.on.wheel[0](ev(0, 0, { deltaY: -1 }));
         const s = set.values().reduce((a, b) => a + b, 0);
-        assert.ok(!eq(s, 1.05), `the sum moved: ${s}`);
-        assert.ok(set.values().every((v) => eq(v, set.values()[0])), "and the gammas stayed equal");
+        assert.ok(eq(s, 2), `the sum snapped to the next integer: ${s}`);
+        assert.ok(set.values().every((v) => eq(v, 0.4)), `and the gammas are the star: ${set.values()}`);
+        stripHit.on.wheel[0](ev(0, 0, { deltaY: 1 }));
+        assert.ok(set.values().every((v) => eq(v, 0.2)), "back down: the sun");
+        stripHit.on.wheel[0](ev(0, 0, { deltaY: -1, shiftKey: true }));
+        assert.ok(eq(set.values().reduce((a, b) => a + b, 0), 1.5), "shift: half a step, the flower");
     }
 
     // sigma: the sum floats again and the axes drive
     sigma.on.pointerdown[0](ev(0, 0));
     assert.equal(dependent(), 0, "sigma hands the drive back to the axes");
+});
+
+test("the live axis shows five fifth marks, the size of the cross arm, and none when nothing is live", () => {
+    const { r, hit } = ret(5);
+    const ticksOf = () => pick(r.element, "ret-ticks")[0];
+    assert.ok(ticksOf(), "the ticks path exists");
+    assert.equal(ticksOf().getAttribute("opacity"), "0", "off while nothing is live");
+    assert.equal(ticksOf().getAttribute("stroke-width"), "0.007", "thin, as an attribute — not left to a stylesheet");
+    assert.equal(ticksOf().getAttribute("fill"), "none");
+    hit.on.pointerdown[0](ev(760, 400)); hit.on.pointerup[0](ev(760, 400));   // axis 0 live
+    assert.equal(ticksOf().getAttribute("opacity"), "0.75");
+    const d = ticksOf().getAttribute("d");
+    const segs = d.split("M").filter(Boolean);
+    assert.equal(segs.length, 5, "one tick per fifth: 0, .2, .4, .6, .8");
+    // each is 2 * 0.055 A long, across the axis: axis 0 is along x, so the ticks are vertical
+    for (const sg of segs) {
+        const [a, b] = sg.split("L").map((p) => p.trim().split(" ").map(Number));
+        assert.ok(Math.abs(a[0] - b[0]) < 1e-6, "a tick crosses the axis");
+        assert.ok(Math.abs(Math.abs(a[1] - b[1]) - 0.11) < 1e-3, `a tick is the cross arm's length, got ${Math.abs(a[1] - b[1])}`);
+    }
+    // they sit where the line would at those gammas: x = -signed(k/5)*2A,
+    // i.e. 0, -0.4, -0.8, +0.8, +0.4
+    const xs = segs.map((sg) => +sg.split("L")[0].trim().split(" ")[0]).sort((p, q) => p - q);
+    assert.deepEqual(xs.map((x) => +x.toFixed(3)), [-0.8, -0.4, 0, 0.4, 0.8]);
 });

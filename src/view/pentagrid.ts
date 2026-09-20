@@ -2,7 +2,7 @@ import type {
     Concurrency, Pentagrid, Rhomb, SmallRegion, Vec2, ViewRect,
 } from "../geometry/types.js";
 import {
-    NUM_GRIDS, collectRhombs as geoCollectRhombs, computeKTuple as geoComputeKTuple,
+    NUM_GRIDS, K_EPS, collectRhombs as geoCollectRhombs, computeKTuple as geoComputeKTuple,
     solveIntersection as geoSolveIntersection, segmentAt, nearestLine, dualVertex,
 } from "../geometry/pentagrid.js";
 import type { GridSegment } from "../geometry/pentagrid.js";
@@ -15,7 +15,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, extremeCorner } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings } from "../geometry/decor.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
@@ -420,6 +420,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // gave us somewhere to put it.
     const showsMeter = !!config.controls;
 
+    // The scan depends on γ, the frame, the rect and the scale — never on which
+    // switch was flipped — so it is keyed like the rhomb cache. It was rerun on
+    // every draw, and every panel checkbox is a draw. PLAN.md open item 1.
+    let scanKey = "";
     function scanSmallRegions() {
         // The tiling reads it too: the 2k-gons ARE the concurrencies, and which
         // rhombs are stacked is decided from the same scan. Without this the
@@ -433,12 +437,19 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             concurrencies = [];
             resolutionCache = null;
             stackedCache = null;
+            scanKey = "";
             return;
         }
         // The scan is grid-space, so it gets the grid rect. It had been handed the
         // tiling rect, which since registration became permanent meant scanning 6.25x
         // the area and counting regions that are not on screen toward the meter.
-        const found = scanRegions(model, gridVisibleRect(), {
+        const rect = gridVisibleRect();
+        const key = [
+            gammaSet.exact().join(","), String(gammaSet.getSymmetry()), scale.toFixed(6),
+            rect.xMin.toFixed(4), rect.xMax.toFixed(4), rect.yMin.toFixed(4), rect.yMax.toFixed(4),
+        ].join("|");
+        if (key === scanKey) return;
+        const found = scanRegions(model, rect, {
             candidate: CANDIDATE_PX,
             concurrentTol: CONCURRENT_TOL,
             scale,
@@ -447,6 +458,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         concurrencies = found.concurrencies;
         resolutionCache = null;
         stackedCache = null;
+        scanKey = key;
     }
 
     // Narration and its presets are the page's, not this file's.
@@ -517,13 +529,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * the union of the two alternatives and the overlap reads as the blend.
      * Jake: "in those spots draw both".
      */
-    function dressings(rhomb: Rhomb, lo: number, levels: number): { extAt: 0 | 2; alpha: number }[] {
-        const e = extremeCorner(rhomb, lo, levels);
-        if (e !== null) return [{ extAt: e, alpha: 1 }];
-        const m = vertexIndex(rhomb.kTuples[0]) - lo + 1;
-        if (m < 1 || m + 2 > levels) return [];
-        return [{ extAt: 0, alpha: 0.5 }, { extAt: 2, alpha: 0.5 }];
-    }
+    const dressings = dressingReadings;
 
     /** A signed integer as a superscript, for λ = φᵐ. */
     function superscript(m: number): string {
@@ -2230,36 +2236,53 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
 
+    // The bitmap depends on γ, the frame and the view — never on a switch — so
+    // it is cached on those (the old PLAN item 5), and the per-pixel loop is
+    // written flat: no arrays, no calls, the hue palette computed once. It was
+    // 83 ms a draw, on every checkbox; the tiles and edges together are 1 ms.
+    let kBitmap: ImageData | null = null;
+    let kBitmapKey = "";
+    const K_PALETTE: [number, number, number][] = [];
+    for (let hue = 0; hue < 360; hue++) K_PALETTE.push(hslToRgb(hue, 0.45, 0.82));
     function drawKRegions(tc: CanvasRenderingContext2D, cx: number, cy: number) {
         const w = canvas.w;
         const h = canvas.h;
-        const imgData = tc.createImageData(w, h);
-        const data = imgData.data;
-
-        // The whole canvas, gutter included. Stopping at the margin left a blank
-        // strip round the edge with source regions missing from it.
-        for (let py = 0; py < h; py++) {
-            for (let px = 0; px < w; px++) {
-                const [mx, my] = screenToMath(px, py, cx, cy);
-                const K = computeKTuple(mx, my);
-
-                // Hash full K-tuple to a hue
-                let hash = 0;
-                for (let j = 0; j < model.n; j++) {
-                    hash = ((hash << 5) - hash + K[j] + 50) | 0;
+        const key = [
+            w, h, cx, cy, scale.toFixed(6), viewX.toFixed(6), viewY.toFixed(6),
+            gammaSet.exact().join(","), String(gammaSet.getSymmetry()),
+        ].join("|");
+        if (!kBitmap || key !== kBitmapKey) {
+            const imgData = tc.createImageData(w, h);
+            const data = imgData.data;
+            const n = model.n;
+            const dirs = model.directions, gamma = model.gamma;
+            const vx: number[] = [], vy: number[] = [], gj: number[] = [];
+            for (let j = 0; j < n; j++) { vx.push(dirs[j][0]); vy.push(dirs[j][1]); gj.push(gamma[j] - K_EPS); }
+            // The whole canvas, gutter included. Stopping at the margin left a
+            // blank strip round the edge with source regions missing from it.
+            let idx = 0;
+            for (let py = 0; py < h; py++) {
+                const my = viewY - (py - cy) / scale;
+                for (let px = 0; px < w; px++) {
+                    const mx = viewX + (px - cx) / scale;
+                    // Hash the K-tuple to a hue, family by family.
+                    let hash = 0;
+                    for (let j = 0; j < n; j++) {
+                        const K = Math.ceil(mx * vx[j] + my * vy[j] + gj[j]);
+                        hash = ((hash << 5) - hash + K + 50) | 0;
+                    }
+                    const rgb = K_PALETTE[(((hash * 137) % 360) + 360) % 360];
+                    data[idx] = rgb[0];
+                    data[idx + 1] = rgb[1];
+                    data[idx + 2] = rgb[2];
+                    data[idx + 3] = 255;
+                    idx += 4;
                 }
-                const hue = (((hash * 137) % 360) + 360) % 360;
-                const [r, g, b] = hslToRgb(hue, 0.45, 0.82);
-
-                const idx = (py * w + px) * 4;
-                data[idx] = r;
-                data[idx + 1] = g;
-                data[idx + 2] = b;
-                data[idx + 3] = 255;
             }
+            kBitmap = imgData;
+            kBitmapKey = key;
         }
-
-        tc.putImageData(imgData, 0, 0);
+        tc.putImageData(kBitmap, 0, 0);
     }
 
     // ── K edge labels ─────────────────────────────────────────────────
@@ -3029,10 +3052,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         footprintCtx.strokeRect(mx - w / 2, my - h / 2, w, h);
     }
 
-    function closeLoupe() {
-        loupeHoverK = null;
-        loupe.close();
-    }
 
     // ── Intersection picking ──────────────────────────────────────────
 

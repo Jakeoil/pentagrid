@@ -407,7 +407,9 @@ export function mountReticulum(
         // does on a released set, which is exactly the symmetric family).
         const sumDrives = symmetric && symDrive === "sum";
         ret.sync({ values, locked, sum, allDependent: sumDrives });
-        strip.sync({ sum, released: locked < 0 && !sumDrives });
+        // With the total driving the symmetric family, the stops that matter
+        // are the integer totals — the five Penrose caps — so the strip snaps.
+        strip.sync({ sum, released: locked < 0 && !sumDrives, snap: sumDrives ? 1 : undefined });
         const m = set.getGeneration();
         const sup = (k: number) => (k < 0 ? "\u207b" : "") + String(Math.abs(k)).split("")
             .map((d) => "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"[+d]).join("");

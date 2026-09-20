@@ -16,7 +16,7 @@ import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
-import { rhombPentagons, rhombDeflation, rhombKitesDarts, extremeCorner } from "../geometry/decor.js";
+import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
 import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
@@ -590,15 +590,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     }
                     const levels = idxHi - idxLo + 1;
                     const placeable = levels === 4 || (levels === 5 && state.offPenrose);
-                    // One reading on a tile with an extreme corner; both, at half
-                    // strength, on an ambiguous one off Penrose (the view's rule).
-                    const readings = (r: Rhomb): { extAt: 0 | 2; alpha: number }[] => {
-                        const e = extremeCorner(r, idxLo, levels);
-                        if (e !== null) return [{ extAt: e, alpha: 1 }];
-                        const m = r.kTuples[0].reduce((a, b) => a + b, 0) - idxLo + 1;
-                        if (m < 1 || m + 2 > levels) return [];
-                        return [{ extAt: 0, alpha: 0.5 }, { extAt: 2, alpha: 0.5 }];
-                    };
+                    const readings = (r: Rhomb) => dressingReadings(r, idxLo, levels);
                     const pentaOn = state.penta && placeable;
                     const nextOn = state.nextgen && placeable;
                     const kitesOn = state.kites && placeable;

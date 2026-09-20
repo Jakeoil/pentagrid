@@ -10,7 +10,7 @@
 //
 // A pure view. It reports moves and renders what it is told.
 
-import { wheelNotch } from "./wheel.js";
+import { wheelNotch, snapStep } from "./wheel.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const W = 100;
@@ -29,6 +29,15 @@ export interface SumStripState {
     sum: number;
     /** True when nothing holds the total, so it is the dependent member. */
     released: boolean;
+    /**
+     * Snap the wheel and the drag to multiples of this instead of the fine
+     * steps. Symmetric mode with the total driving uses 1: the five offsets are
+     * all Σγ/n, so the settings worth stopping at are the integer totals — the
+     * Penrose members of the uniform family, c = 0, 1/5, 2/5, 3/5, 4/5 — and a
+     * hundredth at a time would never land on one. Shift still gives ½, the
+     * flower.
+     */
+    snap?: number;
 }
 
 export interface SumStripOptions {
@@ -48,7 +57,7 @@ export interface SumStrip {
 }
 
 export function createSumStrip(opts: SumStripOptions): SumStrip {
-    const step = opts.wheelStep ?? 0.01;
+    const step = opts.wheelStep ?? 0.1;
     const fine = opts.wheelFine ?? 0.001;
 
     const svg = el("svg") as SVGSVGElement;
@@ -90,6 +99,7 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
 
     let current = 0;
     let released = false;
+    let snap: number | undefined;
     let dragging = false;
     let from = 0;
     let warnTimer: ReturnType<typeof setTimeout> | null = null;
@@ -122,6 +132,15 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
         const d = wheelNotch(e, { step, fine });
         if (d === 0) return;
         if (released) { refuse(); return; }
+        if (snap) {
+            // A notch is one snap; a fine notch (any modifier) is half of one.
+            const unit = Math.abs(d) <= fine * 1.5 ? snap / 2 : snap;
+            opts.onChange(snapStep(current, unit, d));
+            return;
+        }
+        // Otherwise a plain notch snaps to the next tenth, like an axis; a
+        // fine one is thousandths.
+        if (Math.abs(d) === step) { opts.onChange(snapStep(current, step, d)); return; }
         opts.onChange(current + d);
     }, { passive: false });
 
@@ -136,7 +155,8 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
         if (!dragging) return;
         const x = at(ev as PointerEvent);
         // One turn across the bed, so the touch matches an axis of the decagon.
-        opts.onChange(current + (x - from) / (R - L));
+        const next = current + (x - from) / (R - L);
+        opts.onChange(snap ? Math.round(next / snap) * snap : next);
         from = x;
     });
     const end = () => { dragging = false; };
@@ -144,6 +164,7 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
     hit.addEventListener("pointercancel", end);
 
     function sync(s: SumStripState) {
+        snap = s.snap;
         current = s.sum;
         released = s.released;
         const p = phase(s.sum);

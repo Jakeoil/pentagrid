@@ -18,7 +18,7 @@
 // A pure view, like ui/dials.ts. It reports moves and renders what it is told; it
 // never computes the dependent value and knows nothing about pentagrids.
 
-import { wheelNotch } from "./wheel.js";
+import { wheelNotch, snapStep } from "./wheel.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -99,7 +99,10 @@ const attrs = (node: SVGElement, a: Record<string, string | number>) => {
 
 export function createReticulum(opts: ReticulumOptions): Reticulum {
     const { count, colors, directions } = opts;
-    const step = opts.wheelStep ?? 0.01;
+    // A plain notch snaps to tenths — 000, 100, 200 … on the readout, the
+    // stops that mean something on the uniform family — and any modifier
+    // gives thousandths. Jake: "snap to tenths when simply wheeling".
+    const step = opts.wheelStep ?? 0.1;
     const fine = opts.wheelFine ?? 0.001;
     const SPAN = 2 * LABEL_R + 0.28;
 
@@ -176,6 +179,15 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
 
     const band = attrs(el("polygon"), { class: "ret-band", points: "" });
     svg.appendChild(band);
+    // Fifth marks along the live axis — γ = 0, .2, .4, .6, .8, the uniform
+    // family's Penrose stops — parallel to the family's lines, thin, the length
+    // of the center cross's arm, and only while the band shows. Jake.
+    // Presentation as attributes, not CSS: a stale stylesheet leaves a path at
+    // the default stroke-width of 1 — a bar the size of the axis. Jake saw it.
+    const ticks = attrs(el("path"), { class: "ret-ticks", d: "", fill: "none",
+                                      "stroke-width": 0.007, opacity: 0,
+                                      "pointer-events": "none" });
+    svg.appendChild(ticks);
 
     const rim = attrs(el("polygon"), { class: "ret-rim", points: poly(corners()) });
     svg.appendChild(rim);
@@ -285,9 +297,16 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         // scrolling the page out from under the instrument is not "nothing".
         e.preventDefault();
         const j = target(at(e));
-        if (wheelNotch(e, { step, fine }) === 0) return;
+        const d = wheelNotch(e, { step, fine });
+        if (d === 0) return;
         if (isDependent(j)) { refuse(); return; }
-        drive(j, wheelNotch(e, { step, fine }));
+        if (Math.abs(d) === step) {
+            // Coarse: land on the next multiple of the step, not current + step.
+            const cur = current[j] ?? 0;
+            drive(j, snapStep(cur, step, d) - cur);
+            return;
+        }
+        drive(j, d);
     }, { passive: false });
 
     hit.addEventListener("pointerdown", (ev) => {
@@ -380,8 +399,22 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
             ]));
             band.setAttribute("fill", lighten(colors[live % colors.length], 0.82));
             band.setAttribute("class", "ret-band on");
+            // Five ticks at the fifths, placed like the line itself: at
+            // d = -signed(γ)·2A along the axis, each lying across it.
+            const t = 0.055 * A;
+            let d = "";
+            for (let k = 0; k < 5; k++) {
+                const at = -signedGamma(k / 5) * 2 * A;
+                const cx = u[0] * at, cy = u[1] * at;
+                d += `M${(cx - w[0] * t).toFixed(4)} ${(cy - w[1] * t).toFixed(4)}`
+                   + `L${(cx + w[0] * t).toFixed(4)} ${(cy + w[1] * t).toFixed(4)}`;
+            }
+            ticks.setAttribute("d", d);
+            ticks.setAttribute("stroke", colors[live % colors.length]);
+            ticks.setAttribute("opacity", "0.75");
         } else {
             band.setAttribute("class", "ret-band");
+            ticks.setAttribute("opacity", "0");
         }
 
         // The cross: active arm and dependent arm, each along that family's lines.

@@ -205,6 +205,7 @@ footer {
 /* the active gamma's full range, side to side — subordinate to the marker */
 .ret-band { opacity: 0; }   /* fill is the family color, washed out */
 .ret-band.on { opacity: 0.55; }
+.ret-ticks { pointer-events: none; }   /* the rest is on the element: see reticulum.ts */
 
 /* a reference mark, not a cursor */
 .ret-cross-active { stroke: #444; stroke-width: 0.012; }

@@ -11,7 +11,6 @@ import { computeKTuple, dualVertex, makeDirections } from "../geometry/pentagrid
 import {
     convexBoundary, gammaFromPerp, perpBasis, polygonArea, vertexRealised,
 } from "../geometry/acceptance.js";
-import type { Vec2 } from "../geometry/types.js";
 
 const dirs = makeDirections(true);
 const basis = perpBasis(dirs);

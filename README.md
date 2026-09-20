@@ -29,7 +29,7 @@ its dual on the other, one γ), `wiggle.html`, and the index's linked pair.
 
 The **reticulum** is the γ instrument: a decagon with one axis per family, the
 offset shown as a signed representative in [−½, ½] and driven by the mouse wheel
-(hundredths; thousandths with a modifier). It floats, remembers where you put it,
+(a notch snaps to the next tenth; thousandths with a modifier). It floats, remembers where you put it,
 carries a **settings** popup (vertical-axis symmetry: the star turned so v₀
 points up — a rotation of the frame, nothing else), two constrained modes —
 **symmetric** (every γ the same; the axes drive and the total floats, or — click

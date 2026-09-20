@@ -78,30 +78,27 @@ overloading one page. There is no explorations index; the nav is it.
 
 Nothing here blocks anything. Ordered by how likely they are to be wanted.
 
-1. **Scan cache.** `scanRegions` reruns on every draw. Key it on (γ, rect,
-   scale) the way the rhomb cache is; the split page paid it twice until §5.0
-   and still pays it once per draw.
-2. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
+1. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
    from `directions` so only the rim needs to follow n.
-3. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
+2. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
    turned; count whether the de Bruijn resolutions of the decagon are exactly
    the ten orientations, against the 62 rhombic tilings the zonogon admits, and
    whether the mirror-symmetric one-parameter family is one tiling or several
    (`perpOfGamma` in `acceptance.ts` is the tool). See §5.10.
-4. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
+3. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
    made it. Every rhomb carries `(j, nj, k, nk)`, so the lines are known; what
    is missing is a page that starts from the tiling. Estimated as a layer plus
    a hit-test, not a redesign.
-5. **Two-tries preset.** Jake saw a preset needing a second click once; never
+4. **Two-tries preset.** Jake saw a preset needing a second click once; never
    reproduced. Presets now `setLocked(-1)` before writing, which removed the one
    mechanism found.
-6. **Which level is the fifth?** Off Penrose the index takes five consecutive
+5. **Which level is the fifth?** Off Penrose the index takes five consecutive
    values and the vertex mark draws the top one in the complementary style
    (Jake's idea, 2026-09-19). The top is the normalization's choice — the
    minimum anchored at 1 — and nothing intrinsic marks one level as the extra.
    Whether there is a canonical one (by Σγ − ⌊Σγ⌋ against ½, or by the mirror
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
-7. **The timing test is flaky.** "Nothing consumes the scan" asserts on
+6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
 
 ## 4. Standing rules
@@ -231,6 +228,13 @@ The plans themselves are gone from this file; what they left behind:
   described, the Penrose catalog decided by arithmetic and offered as presets,
   the superposed rhombs' edges restored, the pseudo-edge toggle, grow routing
   its bands through them.
+- **The two caches (2026-09-20).** The regularity scan and the K-region bitmap
+  both reran on every draw — and every panel checkbox is a draw — though
+  neither depends on anything but γ, the frame, the view and the size. Keyed on
+  those, like the rhomb cache; the bitmap's per-pixel loop flattened (no
+  arrays, no calls, a 360-entry palette). A draw with nothing changed went from
+  84 ms to under 2 (the bitmap was 83 of it; tiles and edges together are 1);
+  a pan from ~130 to ~46; split's pagecheck from 27 s to 5.5.
 - **Tile styles (2026-09-15 → 09-18).** type, pair, bands (families2), rhomb
   groups, P1 (small rhombs), curves, pentagons (big rhombs), next-gen (the
   deflation), kites & darts (P2); isogloss, Wieringa height shading with ramp, bold edges,

@@ -102,7 +102,23 @@ export function extremeCorner(r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): 
     return null;
 }
 
-export function rhombArrows(pg: Pentagrid, r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): EdgeArrow[] {
+/**
+ * How to dress one tile: which corner is its extreme, at what strength. One
+ * reading at full strength on a tile that has an extreme; on an ambiguous
+ * tile — the (2,3,4,3) middle off Penrose — BOTH candidates at half, one over
+ * the other, so what is drawn is the union of the alternatives and the
+ * overlap reads as the blend. Jake: "in those spots draw both". Shared by the
+ * view and the growth pages so the policy cannot drift.
+ */
+export function dressingReadings(r: Rhomb, lo: number, levels: number): { extAt: 0 | 2; alpha: number }[] {
+    const e = extremeCorner(r, lo, levels);
+    if (e !== null) return [{ extAt: e, alpha: 1 }];
+    const m = r.kTuples[0].reduce((a, b) => a + b, 0) - lo + 1;
+    if (m < 1 || m + 2 > levels) return [];
+    return [{ extAt: 0, alpha: 0.5 }, { extAt: 2, alpha: 0.5 }];
+}
+
+export function rhombArrows(_pg: Pentagrid, r: Rhomb, lo: number, levels = 4, extAt?: 0 | 2): EdgeArrow[] {
     const E = extremeCorner(r, lo, levels, extAt);
     if (E === null) return [];
     const R = (E + 2) % 4;                               // the red corner, opposite
