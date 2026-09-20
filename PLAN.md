@@ -2119,6 +2119,21 @@ of looking at the picture.
 
 Thought about, recorded, not started. None is scheduled.
 
+- **Off Penrose, the next steps** (Jake, 2026-09-20: *I can think of many
+  improvements, particularly in curves… dynamic animation of the instability?*):
+  (a) stroke both readings' *arcs* on a bare face — the fills collide on the
+  thin, the lines never do, so the middle tiles would show both continuations
+  of every loop instead of a blend; (b) trace each loop through the decided
+  tiles and color a middle tile's arcs by which loop they would continue,
+  marking the tiles where two loops arrive from the two ends as the junctions;
+  (c) weight the two readings by how close the tile's levels sit to either end
+  rather than 50/50, so sweeping Σγ toward an integer shows the ambiguous
+  tiles resolving continuously and snapping at the integer; (d) the
+  animation: oscillate Σγ across an integer from the reticulum and watch the
+  fifth level appear, the middle dressings double, the rhomb groups vanish and
+  return — and on wiggle's perpendicular plane, the four-slice window becoming
+  five; (e) an "ambiguous only" toggle.
+
 - ~~**Circled digits for the vertex index.**~~ Built 2026-09-19 as the vertex
   mark on the Tile vertex row: the red dot, or the index in a circle once per
   vertex, ❶ white on black or ① black on white — drawn, not the glyphs, so it
