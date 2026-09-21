@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multigrid — De Bruijn for any n</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="stylesheet" href="./site.css">
+    <style>
+        .n-pick { display: flex; gap: 10px; align-items: center; margin: 10px 0 8px; }
+        .n-pick select { font: inherit; padding: 2px 6px; }
+        .n-note { font-size: 12px; color: var(--ink-faint); font-family: ui-monospace, Menlo, monospace; }
+        #multigrid-controls:empty { display: none; }
+    </style>
+</head>
+<body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="./" draggable="false">Home</a>
+    <a href="method.html" draggable="false">Method</a>
+    <a href="grow.html" draggable="false">Grow</a>
+    <a href="grow7.html" draggable="false">Grow 7</a>
+    <a href="multigrid.html" draggable="false" aria-current="page">Multigrid</a>
+    <a href="roof.html" draggable="false">Roof</a>
+    <a href="sunstar.html" draggable="false">Sun &amp; Star</a>
+    <a href="split.html" draggable="false">Split</a>
+    <a href="wiggle.html" draggable="false">Wiggle</a>
+</nav>
+<div class="wrap">
+    <h1>Multigrid</h1>
+    <h2>De Bruijn's construction for any <i>n</i> &mdash; one number, and a reticulum with 2<i>n</i> sides</h2>
+
+    <p>The method page is the pentagrid. Nothing in it is five-specific except the
+    number: <i>n</i> families of parallel lines, <i>n</i> phases, every crossing a
+    tile, and a dual with &lfloor;<i>n</i>/2&rfloor; rhomb shapes. This page is the
+    same view with <i>n</i> chosen here. Odd <i>n</i> spaces the families 2&pi;/<i>n</i>
+    apart round a full turn; even <i>n</i> spaces them &pi;/<i>n</i> apart round a
+    half turn, since a full turn would make family <i>j</i>&thinsp;+&thinsp;<i>n</i>/2
+    the same lines as family <i>j</i>. The reticulum grows a side for every family.</p>
+
+    <p>What does not carry over is worth knowing before you go looking for it.
+    The Penrose dressings &mdash; rhomb groups, P1, the matching curves, the
+    deflation, kites and darts, de Bruijn's arrows &mdash; are pentagrid facts and
+    are not offered off it. The index still exists at every vertex (it is
+    &sum;<i>K</i>), but &ldquo;four levels at an integer total&rdquo; leans on
+    &sum;<b>v</b><sub><i>j</i></sub>&thinsp;=&thinsp;0, which even <i>n</i> loses.
+    The exact regularity criterion is five&rsquo;s; here the meter can promise
+    regularity for odd <i>n</i> (every offset a non-integer rational, Lutfalla
+    Thm&thinsp;2.2) and for the uniform grid at any <i>n</i>, and says
+    <i>unproved</i> otherwise. The page opens on the uniform offset &mdash; 1/<i>n</i>
+    for odd <i>n</i>, the one setting with global <i>n</i>-fold symmetry; &frac12;
+    for even, which gives 2<i>n</i>-fold.</p>
+
+    <div class="n-pick">
+        <label>n <select id="multigrid-n">
+            <option>4</option><option>5</option><option>6</option><option selected>7</option>
+            <option>8</option><option>9</option><option>10</option><option>11</option><option>12</option>
+        </select></label>
+        <span class="n-note" id="multigrid-note"></span>
+    </div>
+    <div class="bar" id="multigrid-bar" hidden></div>
+    <div class="controls" id="multigrid-controls"></div>
+    <div class="layer-panel" id="multigrid-panel"></div>
+    <div class="viewport" id="multigrid-view"></div>
+    <p class="hint">Drag to pan, scroll to zoom, double-click to reset. Hover a region, a
+    gridline or a crossing for its vertex, edge or tile.</p>
+
+    <script type="module" src="./dist/app/multigrid.js"></script>
+</div>
+</body>
+</html>

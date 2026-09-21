@@ -65,6 +65,7 @@ State of play, 2026-09-17.
 | `grow.html` | tiles growing out of their crossings; the 2k-gons grow with them; ribbons routed through the pseudo edges; P1 overlay | `app/grow.ts` |
 | `roof.html` | the same growth folded into the Wieringa roof; right-drag orbits; P1 overlay | `app/roof.ts` |
 | `grow7.html` | the heptagrid: three rhomb shapes, no Penrose cap, no roof | `app/grow7.ts` |
+| `multigrid.html` | de Bruijn for any n, 4–12, chosen on the page; the reticulum a 2n-gon; even n on the half turn | `app/multigrid.ts` |
 | `sunstar.html` | the uniform family: sun, star, 5-fold, deca; rhomb groups colored | `app/sunstar.ts` |
 | `split.html` | grid on one canvas, dual on the other, one γ, one panel | `app/split.ts` |
 | `wiggle.html` | the acceptance region: drag γ in E⊥ and watch the patch hold or break | `app/wiggle.ts` |
@@ -78,27 +79,25 @@ overloading one page. There is no explorations index; the nav is it.
 
 Nothing here blocks anything. Ordered by how likely they are to be wanted.
 
-1. **Reticulum as a 2n-gon.** It draws a decagon on `grow7.html`; the axes come
-   from `directions` so only the rim needs to follow n.
-2. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
+1. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
    turned; count whether the de Bruijn resolutions of the decagon are exactly
    the ten orientations, against the 62 rhombic tilings the zonogon admits, and
    whether the mirror-symmetric one-parameter family is one tiling or several
    (`perpOfGamma` in `acceptance.ts` is the tool). See §5.10.
-3. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
+2. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
    made it. Every rhomb carries `(j, nj, k, nk)`, so the lines are known; what
    is missing is a page that starts from the tiling. Estimated as a layer plus
    a hit-test, not a redesign.
-4. **Two-tries preset.** Jake saw a preset needing a second click once; never
+3. **Two-tries preset.** Jake saw a preset needing a second click once; never
    reproduced. Presets now `setLocked(-1)` before writing, which removed the one
    mechanism found.
-5. **Which level is the fifth?** Off Penrose the index takes five consecutive
+4. **Which level is the fifth?** Off Penrose the index takes five consecutive
    values and the vertex mark draws the top one in the complementary style
    (Jake's idea, 2026-09-19). The top is the normalization's choice — the
    minimum anchored at 1 — and nothing intrinsic marks one level as the extra.
    Whether there is a canonical one (by Σγ − ⌊Σγ⌋ against ½, or by the mirror
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
-6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
+5. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
 
 ## 4. Standing rules
@@ -245,6 +244,49 @@ The plans themselves are gone from this file; what they left behind:
   arcs, AR arrows; opacity; ribbons with OR semantics.
 
 ---
+
+### 4.6 Multigrid — de Bruijn for any n (2026-09-21)
+
+Jake: *I'd like to start on n-fold de Bruijn. We have a nice example of 7-fold
+started in grow. Let's start with a multigrid page with a multi reticulum.*
+
+`multigrid.html`: the method view with n chosen on the page, 4 to 12, the
+instance rebuilt on a change (n is fixed at construction — the γ set, the
+directions, the palette come from it). The reticulum was already a 2n-gon
+(its rim is the axes and their opposites); its label radii now follow the
+rim, and it floats on grow7 too, which closes the old open item.
+
+**Even n takes the half turn.** `makeDirections` spaces odd n at 2π/n round a
+full turn as before and even n at π/n round a half, since a full turn would
+make family j + n/2 the same lines as family j and no crossings between them.
+Checked for 4, 6, 8, 12: no parallel pair, the frame still tight (Σvvᵀ =
+n/2·I, so the registration gain is n/2 as ever), floor(n/2) rhomb shapes with
+class min(k−j, n−(k−j)) in both spacings. What even n loses is Σvⱼ = 0, so
+the index arguments built on it — four levels at an integer total — are
+pentagrid facts and are stated as such on the page. The page opens on the
+uniform offset: 1/n for odd n (global n-fold, Lutfalla Thm 1.2), ½ for even
+(2n-fold, Thm 1.1).
+
+**Gated off the pentagrid**: the Penrose dressings (rhomb groups, P1, curves,
+next-gen, kites), the arrows, and the presets catalog are n = 5 facts and are
+not offered at any other n; what remains — thick/thin, families, bands, arcs,
+isogloss, shading, the index, the hover trio, ribbons — is the geometry.
+Tested: n = 8 builds and draws, the dropdown offers the general three, eight
+family controls, no arrows.
+
+**The instrument's units follow n** (Jake: *use mod 1400 — n·200 — for the
+gammas and the division into nths*). A turn is 200n units — 1000 at five, the
+thousandths the readouts always showed, so the pentagrid is untouched; 1400
+at seven — the nths sit at 200k and read round, a plain notch is 100 units
+(half an nth; the tenth at five), a modifier gives one unit, the live axis's
+marks and the Σ strip's graduations are the nths. λ and the generation row
+are the pentagrid's only: φ is ℤ[ζ₅]'s unit and the deflation is its; what
+the scale is at seven is not known yet.
+
+**Not yet**: what a "Penrose" setting means at other n (Lutfalla's P_n(1/n)
+and P_n(½)), the exact singularity criterion (n = 5 only; the meter says
+*unproved* where nothing covers the case), deflation at other n (the shift
+map is ℤ[ζ₅]'s), and the 2k-gons (`resolve.ts` is written for five).
 
 ## 5. The record
 

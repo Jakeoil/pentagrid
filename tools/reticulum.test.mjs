@@ -570,3 +570,46 @@ test("one flick, one notch: a burst of coarse wheel events within 90 ms is one s
     for (let i = 0; i < 4; i++) hit.on.wheel[0](ev(760, 400, { deltaY: -1, shiftKey: true, timeStamp: 1400 + i * 10 }));
     assert.equal(moves.length, 6);
 });
+
+// ── the units follow n ────────────────────────────────────────────
+
+test("at n = 7 a turn is 1400 units, the marks are the sevenths, a notch is 100 units; five is untouched", () => {
+    // seven
+    const set = createGammaSet({ guard: false, n: 7 });
+    set.setLocked(-1);
+    set.setValues(new Array(7).fill(1 / 7));
+    const container = host();
+    mountReticulum(set, container, { colors: ["#1", "#2", "#3", "#4", "#5", "#6", "#7"] });
+    const values = [], axes = []; let hit = null, ticks = null, readout = null, stripHit = null;
+    walk(container, (c) => {
+        const k = cls(c);
+        if (k.startsWith("ret-value")) values.push(c);
+        if (k.startsWith("ret-axis")) axes.push(c);
+        if (k.startsWith("ret-hit")) hit = c;
+        if (k.startsWith("ret-ticks")) ticks = c;
+        if (k.startsWith("ss-readout")) readout = c;
+        if (k.startsWith("ss-hit")) stripHit = c;
+    });
+    assert.equal(values.length, 7);
+    assert.equal(values[0].textContent, "0200", "1/7 of 1400 is 200, four digits");
+    assert.equal(readout.textContent, "0000", "Σγ = 1: phase 0 of 1400");
+    // a notch: 100 units, to 300; the marks at the sevenths
+    const [dx, dy] = set.model.directions[1];
+    const p = ev(400 + 300 * dx, 400 - 300 * dy, { deltaY: -1 });
+    hit.on.pointerdown[0](p); hit.on.pointerup[0](p); hit.on.wheel[0](p);
+    assert.ok(Math.abs(set.values()[1] - (1 / 7 + 1 / 14)) < 1e-9, `a notch is 1/14: ${set.values()[1]}`);
+    assert.equal(values[1].textContent, "0300");
+    const segs = ticks.getAttribute("d").split("M").filter(Boolean);
+    assert.equal(segs.length, 7, "seven marks on the live axis");
+    // no generation row off five
+    let gen = null; walk(container, (c) => { if (String(c.className).includes("ret-gen")) gen = c; });
+    assert.ok(gen && gen.hidden, "the λ row is the pentagrid's");
+
+    // five, exactly as before: thousandths, three digits, a notch a tenth
+    const five = createGammaSet({ guard: false });
+    five.setLocked(-1); five.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const c5 = host();
+    mountReticulum(five, c5, { colors: ["#1", "#2", "#3", "#4", "#5"] });
+    const v5 = []; walk(c5, (c) => { if (cls(c).startsWith("ret-value")) v5.push(c); });
+    assert.equal(v5[0].textContent, "200");
+});

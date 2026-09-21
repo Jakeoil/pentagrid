@@ -41,6 +41,8 @@ export interface SumStripState {
 }
 
 export interface SumStripOptions {
+    /** How many families: the turn is graduated at the nths and read in 200n units. Default 5. */
+    count?: number;
     wheelStep?: number;
     wheelFine?: number;
     onChange: (sum: number) => void;
@@ -57,8 +59,10 @@ export interface SumStrip {
 }
 
 export function createSumStrip(opts: SumStripOptions): SumStrip {
-    const step = opts.wheelStep ?? 0.1;
-    const fine = opts.wheelFine ?? 0.001;
+    const count = opts.count ?? 5;
+    const UNITS = 200 * count;                 // 1000 at five: the thousandths
+    const step = opts.wheelStep ?? 1 / (2 * count);
+    const fine = opts.wheelFine ?? 1 / UNITS;
 
     const svg = el("svg") as SVGSVGElement;
     attrs(svg, { viewBox: `0 0 ${W} ${H}`, class: "sumstrip", role: "group",
@@ -68,13 +72,13 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
                                     class: "ss-hit", fill: "transparent" });
     svg.appendChild(hit);
 
-    // The scale: a light gray bed under the whole turn, graduated at the fifths.
+    // The scale: a light gray bed under the whole turn, graduated at the nths.
     const bed = attrs(el("rect"), { x: L, y: BASE - 3.2, width: R - L, height: 6.4,
                                     rx: 1, class: "ss-bed" });
     svg.appendChild(bed);
     const ticks = attrs(el("g"), { class: "ss-ticks" });
-    for (let k = 1; k <= 4; k++) {
-        const x = L + (k / 5) * (R - L);
+    for (let k = 1; k < count; k++) {
+        const x = L + (k / count) * (R - L);
         ticks.appendChild(attrs(el("line"),
             { x1: x, y1: BASE - 3.2, x2: x, y2: BASE + 3.2, class: "ss-tick" }));
     }
@@ -172,7 +176,7 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
         const p = phase(s.sum);
         const x = L + p * (R - L);
         attrs(marker, { x1: x, x2: x });
-        readout.textContent = String(Math.round(p * 1000) % 1000).padStart(3, "0");
+        readout.textContent = String(Math.round(p * UNITS) % UNITS).padStart(String(UNITS - 1).length, "0");
         if (!warnTimer) {
             svg.setAttribute("class", "sumstrip" + (s.released ? " released" : ""));
         }

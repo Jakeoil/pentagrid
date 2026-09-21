@@ -10,7 +10,19 @@ export const NUM_GRIDS = 5;
 export const K_EPS = 1e-9;
 
 /**
- * n unit vectors at 2*pi/n — five at 72 degrees for the pentagrid.
+ * n unit vectors — five at 72 degrees for the pentagrid.
+ *
+ * Odd n: at 2*pi/n, a full turn. Even n: at pi/n, a HALF turn, because a full
+ * turn would put v_{j+n/2} = -v_j, two families with the same lines, and no
+ * crossings between them. The half-turn set is Lutfalla's G_n for even n, the
+ * multigrid of an 2n-fold tiling (his Theorem 1.1: P_n(1/2) has global 2n-fold
+ * symmetry). Either way the n normals are spread evenly over the undirected
+ * directions, the frame is tight (sum v v^T = n/2 I, the registration gain),
+ * and the rhomb from families j, k has corner angle pi*(k-j)/n at the
+ * half-turn spacing or 2pi*(k-j)/n at the full — the same floor(n/2) shapes,
+ * class min(k-j, n-(k-j)) in both. What even n loses is sum v_j = 0, so the
+ * index arguments that lean on it (four levels at an integer total) are
+ * pentagrid facts and do not carry over.
  *
  * With verticalSymmetry the star is turned a quarter turn, so v0 points up and
  * family 0's LINES are horizontal. For odd n the bare direction set is mirror
@@ -21,9 +33,10 @@ export const K_EPS = 1e-9;
  */
 export function makeDirections(verticalSymmetry: boolean, n: number = NUM_GRIDS): Vec2[] {
     const offset = verticalSymmetry ? Math.PI / 2 : 0;
+    const turn = n % 2 === 1 ? 2 * Math.PI : Math.PI;
     const out: Vec2[] = [];
     for (let j = 0; j < n; j++) {
-        const a = (2 * Math.PI * j) / n + offset;
+        const a = (turn * j) / n + offset;
         out.push([Math.cos(a), Math.sin(a)]);
     }
     return out;

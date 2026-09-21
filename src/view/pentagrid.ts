@@ -27,7 +27,8 @@ import type { LoupeTarget } from "../ui/loupe.js";
 // Five for the pentagrid, then two more so a heptagrid has one per family. The
 // first five are unchanged, so every existing page keeps its exact palette.
 const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
-                "#e07a5f", "#3d5a80"];
+                "#e07a5f", "#3d5a80", "#8ac926", "#ff6b35", "#6a4c93",
+                "#118ab2", "#b5838d"];   // twelve, for the multigrid page
 
 // Rhomb fill colors
 const THICK_FILL = "#e8c170";
@@ -117,7 +118,7 @@ export interface TileStyle {
 }
 
 // Unicode subscripts for K labels
-const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄'];
+const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₁₀', '₁₁'];
 
 
 export interface Features {
@@ -2799,11 +2800,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "gray at 1/φ — switch the edges off and it is the next generation · "
                 + "kites & darts: P2 on the rhombs, a dart in every thick. "
                 + "A 2k-gon follows the same choice.";
-            for (const [value, text] of [
-                ["type", "thick/thin"], ["pair", "families"], ["bands", "families2"],
+            // The Penrose dressings are pentagrid facts — rhomb groups, P1, the
+            // matching curves, the deflation, P2 — and are not offered off it.
+            const general = [["type", "thick/thin"], ["pair", "families"], ["bands", "families2"]] as const;
+            const penrose = [
                 ["groups", "rhomb groups"], ["p1", "P1"], ["curves", "curves"],
                 ["pentagons", "pentagons"], ["nextgen", "next-gen"], ["kites", "kites & darts"],
-            ] as const) {
+            ] as const;
+            for (const [value, text] of model.n === 5 ? [...general, ...penrose] : general) {
                 const opt = document.createElement("option");
                 opt.value = value;
                 opt.textContent = text;
@@ -2869,14 +2873,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             });
             bold.title = "Draw the tile edges as real lines, dark and two wide, rather than a gray hairline.";
             featureToggle(edgeRow, "penroseDecor", "arcs");
-            featureToggle(edgeRow, "arrows", "arrows");
-            const colored = checkbox(edgeRow, "colored arrows", tileStyle.coloredArrows, (v) => {
-                tileStyle.coloredArrows = v;
-                if (v && !features.arrows) setFeatures({ arrows: true }, { merge: true });
-                draw();
-            });
-            colored.title = "De Bruijn's arrows: solid, along the edge from dot to dot — "
-                + "green doubles, red singles.";
+            if (model.n === 5) {
+                featureToggle(edgeRow, "arrows", "arrows");
+                const colored = checkbox(edgeRow, "colored arrows", tileStyle.coloredArrows, (v) => {
+                    tileStyle.coloredArrows = v;
+                    if (v && !features.arrows) setFeatures({ arrows: true }, { merge: true });
+                    draw();
+                });
+                colored.title = "De Bruijn's arrows: solid, along the edge from dot to dot — "
+                    + "green doubles, red singles.";
+            }
             featureToggle(edgeRow, "pseudoEdges", "pseudo edges");
         }
 

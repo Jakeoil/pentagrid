@@ -1166,3 +1166,24 @@ test("an ambiguous tile has two readings, each other's reverse, and a decided ti
     }
     assert.ok(ambiguous > decided, `${ambiguous} ambiguous, ${decided} decided`);
 });
+
+// Even n on the half turn: no two families parallel, the frame still tight,
+// floor(n/2) rhomb shapes. Odd n unchanged.
+test("even n spaces the families over a half turn: no parallel pair, frame n/2, floor(n/2) shapes", () => {
+    for (const n of [4, 6, 8, 12, 7, 9]) {
+        const d = makeDirections(true, n);
+        let xx = 0, xy = 0, yy = 0;
+        for (const [x, y] of d) { xx += x * x; xy += x * y; yy += y * y; }
+        assert.ok(Math.abs(xx - n / 2) < 1e-9 && Math.abs(yy - n / 2) < 1e-9 && Math.abs(xy) < 1e-9, `n=${n}: frame ${xx},${xy},${yy}`);
+        for (let j = 0; j < n; j++) for (let k = j + 1; k < n; k++) {
+            assert.ok(Math.abs(d[j][0] * d[k][0] + d[j][1] * d[k][1]) < 1 - 1e-6, `n=${n}: families ${j},${k} are parallel`);
+        }
+        const pg = { n, directions: d, gamma: new Array(n).fill(n % 2 ? 1 / n : 0.5) };
+        const R = collectRhombs(pg, { xMin: -4, xMax: 4, yMin: -4, yMax: 4 }, { gain: n / 2 });
+        assert.deepEqual([...new Set(R.map((r) => r.cls))].sort((a, b) => a - b), [...Array(Math.floor(n / 2)).keys()].map((i) => i + 1));
+    }
+    // n = 5 is untouched: v0 up, 72 degrees apart
+    const five = makeDirections(true, 5);
+    assert.ok(Math.abs(five[0][0]) < 1e-12 && Math.abs(five[0][1] - 1) < 1e-12);
+    assert.ok(Math.abs(five[1][0] - Math.cos(Math.PI / 2 + 2 * Math.PI / 5)) < 1e-12);
+});

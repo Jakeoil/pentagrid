@@ -6,7 +6,7 @@
 // of the exercise.
 
 import { createGrowthView } from "../view/growth.js";
-import { bindSliders, bindToggles, mountGammaControls } from "../view/controls.js";
+import { bindSliders, bindToggles, mountGammaControls, mountFloatingReticulum } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("grow7-view");
@@ -26,9 +26,15 @@ if (host) {
 
     const gammaHost = document.getElementById("grow7-gamma");
     if (gammaHost) {
-        // Sliders stay open here, alone: the reticulum is a decagon by
-        // construction (ui/reticulum.ts, cos(pi/10)) and has no honest shape for
-        // seven families until it is generalized to a 2n-gon.
         mountGammaControls(view.pentagrid.gamma, gammaHost, { colors: FAMILY_COLORS });
     }
+    // The reticulum draws a 2n-gon — fourteen sides here — so it floats on this
+    // page like the others, the sliders folded beneath it.
+    const bar = document.querySelector<HTMLElement>(".bar");
+    mountFloatingReticulum(view.pentagrid.gamma, {
+        colors: FAMILY_COLORS,
+        buttons: bar ?? document.body,
+        sliders: gammaHost ?? undefined,
+        foldSliders: true,
+    });
 }

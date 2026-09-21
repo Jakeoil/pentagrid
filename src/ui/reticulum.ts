@@ -25,7 +25,9 @@ const NS = "http://www.w3.org/2000/svg";
 /** Center-to-side distance of the decagon. Gamma's full travel is 2A. */
 const A = 1;
 /** Center-to-vertex. */
-const CIRC = A / Math.cos(Math.PI / 10);
+/** Circumradius of the 2n-gon with apothem A; the decagon's, until sync says n. */
+const circ = (n: number) => A / Math.cos(Math.PI / (2 * n));
+const CIRC = circ(5);   // the SPAN is fixed at the decagon's, so every n shares a frame
 /** Where the family labels sit — just clear of the corners, not orbiting. */
 const LABEL_R = CIRC + 0.1;
 /** And the read-out, on the far side of the decagon from its own label. */
@@ -112,11 +114,15 @@ const attrs = (node: SVGElement, a: Record<string, string | number>) => {
 
 export function createReticulum(opts: ReticulumOptions): Reticulum {
     const { count, colors, directions } = opts;
-    // A plain notch snaps to tenths — 000, 100, 200 … on the readout, the
-    // stops that mean something on the uniform family — and any modifier
-    // gives thousandths. Jake: "snap to tenths when simply wheeling".
-    const step = opts.wheelStep ?? 0.1;
-    const fine = opts.wheelFine ?? 0.001;
+    // THE UNITS FOLLOW n. A turn is 200n units — 1000 at five, the thousandths
+    // the readouts always showed; 1400 at seven — so the nths sit at 200k and
+    // the readout is round there. A plain notch is 100 units, half an nth
+    // (a tenth at five: 000, 100, 200 …), and any modifier gives one unit.
+    // Jake: "mod 1400 (n·200) for the gammas and the division into nths".
+    const UNITS = 200 * count;
+    const step = opts.wheelStep ?? 1 / (2 * count);
+    const fine = opts.wheelFine ?? 1 / UNITS;
+    const nths = [...Array(count).keys()].map((k) => k / count);
     const SPAN = 2 * LABEL_R + 0.28;
 
     const svg = el("svg") as SVGSVGElement;
@@ -236,10 +242,9 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         });
         svg.appendChild(label);
 
-        // The value, opposite its own symbol. Canonical thousandths, 000..999 —
-        // the same number the dial bank shows, so the two instruments never
-        // disagree about what they are reporting even though the decagon places
-        // it by the signed representative.
+        // The value, opposite its own symbol, in canonical units of the turn —
+        // 000..999 at five, the same number the dial bank shows — even though
+        // the rim places it by the signed representative.
         const value = attrs(el("text"), {
             class: "ret-value", "text-anchor": "middle", "dominant-baseline": "middle",
         });
@@ -260,7 +265,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     let lockedNow = count - 1;
     let allDependent = false;
     let coupled = false;
-    let tickAt: readonly number[] = [0, 0.2, 0.4, 0.6, 0.8];
+    let tickAt: readonly number[] = nths;
     const isDependent = (j: number) => allDependent || j === lockedNow;
     /** Refuse a push on a dependent axis — unless the whole set moves together. */
     const refuses = (j: number) => isDependent(j) && !coupled;
@@ -393,14 +398,15 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
                 x2: u[0] * d + w[0] * hi, y2: u[1] * d + w[1] * hi,
             });
 
-            attrs(label, { x: u[0] * LABEL_R, y: u[1] * LABEL_R });
+            const labelR = circ(count) + 0.1, valueR = circ(count) + 0.13;
+            attrs(label, { x: u[0] * labelR, y: u[1] * labelR });
             label.setAttribute("class", "ret-label"
                 + (dep ? " dependent" : "") + (isLive ? " live" : ""));
             label.setAttribute("fill", dep ? "#aaa" : colors[j % colors.length]);
 
-            const thousandths = Math.round((((current[j] ?? 0) % 1) + 1) % 1 * 1000) % 1000;
-            value.textContent = String(thousandths).padStart(3, "0");
-            attrs(value, { x: -u[0] * VALUE_R, y: -u[1] * VALUE_R });
+            const units = Math.round((((current[j] ?? 0) % 1) + 1) % 1 * UNITS) % UNITS;
+            value.textContent = String(units).padStart(String(UNITS - 1).length, "0");
+            attrs(value, { x: -u[0] * valueR, y: -u[1] * valueR });
             value.setAttribute("class", "ret-value"
                 + (dep ? " dependent" : "") + (isLive ? " live" : ""));
             value.setAttribute("fill", dep ? "#bbb" : colors[j % colors.length]);
@@ -460,7 +466,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         lockedNow = s.locked;
         allDependent = s.allDependent ?? false;
         coupled = s.coupled ?? false;
-        tickAt = s.ticks ?? [0, 0.2, 0.4, 0.6, 0.8];
+        tickAt = s.ticks ?? nths;
         if (selected >= 0 && refuses(selected)) selected = -1;
         render();
         const live = selected >= 0 ? selected : hovered;

@@ -1621,3 +1621,26 @@ test("at Gamma = 0 the index range is the tiling's 1..4, not the decagon's ghost
     h.redraw();
     assert.ok(strokes > 100, `arrows at Gamma = 0 (${strokes})`);
 });
+
+test("the multigrid: createPentagrid at n = 8 builds, the reticulum has sixteen sides, and the Penrose dressings are not offered", () => {
+    // makeStub's appendChild MOVES a re-appended child; sizedHost's duplicates it,
+    // and the ribbons row is re-appended to land on the P side
+    const panel = makeStub();
+    const h = createPentagrid({ container: sizedHost(800, 800), panel, n: 8, features: { gridLines: true, penroseTiles: true } });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues(new Array(8).fill(0.5));
+    assert.equal(h.gamma.model.n, 8);
+    const tiles = h.stack.get("penrose-tiles");
+    let fills = 0; tiles.ctx.fill = () => { fills++; };
+    h.redraw();
+    assert.ok(fills > 100, `tiles drawn at n = 8 (${fills})`);
+    // the style dropdown: only the general three
+    let sel = null;
+    const walk = (node) => { if (!node || !node.children) return; for (const c of node.children) { if (c.tagName === "select" && c.className === "line-pick" && c.children.some((o) => o.value === "type")) sel = c; walk(c); } };
+    walk(panel);
+    assert.ok(sel, "the tile style select exists");
+    assert.deepEqual(sel.children.map((o) => o.value), ["type", "pair", "bands"]);
+    const rows = panelRows(panel);
+    assert.ok(!rows.get("Tile edges").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
+    assert.equal(rows.get("ribbons").length, 8, `eight family controls: ${rows.get("ribbons").map((c) => c.label)}`);
+});

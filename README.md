@@ -21,7 +21,8 @@ dual construction in seven steps:
 
 The other pages are explorations on the same machinery: `grow.html` (the tiling
 assembling out of its crossings), `roof.html` (the same, folded into the
-Wieringa roof), `grow7.html` (a heptagrid), `sunstar.html` (the sun, the star and
+Wieringa roof), `grow7.html` (a heptagrid), `multigrid.html` (any n from 4 to 12, chosen on the
+page), `sunstar.html` (the sun, the star and
 the deca as one family of uniform phase), `split.html` (the grid on one canvas,
 its dual on the other, one γ), `wiggle.html`, and the index's linked pair.
 

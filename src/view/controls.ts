@@ -231,6 +231,7 @@ export function mountReticulum(
     // span is symmetric so 0 sits in the middle — the old 0..n/2 range clamped at
     // the bottom, which made the wheel dead downwards at the default Σγ = 0.
     const strip = createSumStrip({
+        count: n,
         onChange: (v) => set.setSum(v, true),
         onRelease: () => { if (!symmetric) set.setLocked(-1); },
     });
@@ -324,7 +325,7 @@ export function mountReticulum(
         popup.hidden = !popup.hidden;
         if (!popup.hidden) settings.hidden = true;
     });
-    tools.appendChild(presetBtn);
+    if (n === 5) tools.appendChild(presetBtn);     // the catalog is the pentagrid's
 
     // Settings, behind a button of the same kind: things about the instrument
     // itself rather than a phase vector. One so far.
@@ -366,8 +367,11 @@ export function mountReticulum(
     // the grid — the finer tiling lands inside the old one, the star at the
     // center upside down. There is no spacing-only button: that is a zoom, the
     // wheel does it, and next to deflate it only invited the wrong press.
+    // The pentagrid's only: λ is a power of φ because φ is ℤ[ζ₅]'s unit and the
+    // deflation is its. What the scale is at seven is not known yet (Jake).
     const gen = document.createElement("div");
     gen.className = "ret-tools ret-gen";
+    gen.hidden = n !== 5;
     const lambdaOut = document.createElement("span");
     lambdaOut.className = "ret-lambda";
     lambdaOut.title = "λ, the gridline spacing, as a power of φ. The tiling's edge is λ too.";
