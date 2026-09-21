@@ -32,6 +32,30 @@ export function wheelNotch(e: WheelEvent, s: WheelSteps): number {
 }
 
 /**
+ * ONE FLICK, ONE NOTCH. A trackpad reports a single flick as a burst of wheel
+ * events a few milliseconds apart, and keeps reporting while the inertia runs
+ * down; a control that snaps a whole step per event then runs away — 000 to
+ * 200 arrives at 600, and the picture never matches the notch you meant. A
+ * mouse wheel's notches come ~100 ms apart, so a short cooldown after an
+ * accepted coarse step keeps one gesture to one step without slowing a
+ * deliberate spin. Fine steps (a modifier held) are not gated: those are
+ * meant to be many.
+ */
+export function makeNotchGate(coolMs = 90) {
+    let last = -Infinity;
+    return (e: WheelEvent): boolean => {
+        if (isFine(e)) return true;
+        // The event's own clock, so a burst is judged by when it was generated;
+        // a synthetic event with no timestamp is always accepted.
+        const now = e.timeStamp;
+        if (!(now > 0)) return true;
+        if (now - last < coolMs) return false;
+        last = now;
+        return true;
+    };
+}
+
+/**
  * The next multiple of `unit` in the direction of `d`, from `cur`. Sitting on
  * a multiple moves a whole unit; sitting between lands on the nearer edge in
  * that direction — 0.234 up is 0.3, down is 0.2 — and 1.5 up is 2, not 3.

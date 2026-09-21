@@ -2479,12 +2479,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // ── Main draw ─────────────────────────────────────────────────────
 
     function draw() {
+        // The scan FIRST. The tiles layer reads it — which rhombs are stacked
+        // in a 2k-gon, and the 2k-gons themselves — so it has to be current
+        // for this γ and view before anything draws. It used to run after
+        // drawAll, so every γ change drew the tiles against the previous
+        // γ's concurrencies: the singular tiles went blank, and a second
+        // redraw (toggling tiles) fixed it. Jake: "transitions leave many
+        // blank tiles (from singularity); click tiles off and on, all okay."
+        scanSmallRegions();
         // Every layer decides for itself whether it is wanted; see the specs above.
         stack.drawAll();
         viewStats?.();          // pan and zoom change it, not just the panel
-
-        // The scan depends on γ and the view, exactly like the rhomb set does.
-        scanSmallRegions();
         updateMeter();
         if (loupe.view) { loupe.redraw(); drawFootprint(); }
     }

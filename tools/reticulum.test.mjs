@@ -555,3 +555,18 @@ test("the live axis shows five fifth marks, the size of the cross arm, and none 
     const xs = segs.map((sg) => +sg.split("L")[0].trim().split(" ")[0]).sort((p, q) => p - q);
     assert.deepEqual(xs.map((x) => +x.toFixed(3)), [-0.8, -0.4, 0, 0.4, 0.8]);
 });
+
+test("one flick, one notch: a burst of coarse wheel events within 90 ms is one step; fine steps are not gated", () => {
+    const moves = [];
+    const { hit } = ret(5, { onChange: (j, v) => moves.push(+v.toFixed(6)) });
+    hit.on.pointerdown[0](ev(760, 400)); hit.on.pointerup[0](ev(760, 400));
+    // a trackpad burst: five events 16 ms apart
+    for (let i = 0; i < 5; i++) hit.on.wheel[0](ev(760, 400, { deltaY: -1, timeStamp: 1000 + i * 16 }));
+    assert.equal(moves.length, 1, `a burst is one step, got ${moves.length}`);
+    // the next gesture, 200 ms later, is another
+    hit.on.wheel[0](ev(760, 400, { deltaY: -1, timeStamp: 1300 }));
+    assert.equal(moves.length, 2);
+    // fine steps come through every time
+    for (let i = 0; i < 4; i++) hit.on.wheel[0](ev(760, 400, { deltaY: -1, shiftKey: true, timeStamp: 1400 + i * 10 }));
+    assert.equal(moves.length, 6);
+});

@@ -18,7 +18,7 @@
 // A pure view, like ui/dials.ts. It reports moves and renders what it is told; it
 // never computes the dependent value and knows nothing about pentagrids.
 
-import { wheelNotch, snapStep } from "./wheel.js";
+import { wheelNotch, snapStep, makeNotchGate } from "./wheel.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
@@ -308,6 +308,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         opts.onChange(j, current[j] + delta);
     }
 
+    const gate = makeNotchGate();
     hit.addEventListener("wheel", (ev) => {
         const e = ev as WheelEvent;
         // Swallowed either way. A wheel over the dependent axis does nothing, but
@@ -316,6 +317,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         const j = target(at(e));
         const d = wheelNotch(e, { step, fine });
         if (d === 0) return;
+        if (!gate(e)) return;                 // the rest of a trackpad burst
         if (refuses(j)) { refuse(); return; }
         if (Math.abs(d) === step) {
             // Coarse: land on the next multiple of the step, not current + step.

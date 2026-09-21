@@ -1579,3 +1579,24 @@ test("off Penrose is a switch: nothing dressed with it off, the extreme-level ti
     fills = 0; h.redraw();
     assert.ok(withKites > fills + 20, `kites' darts are drawn only with the switch on (${withKites} vs ${fills})`);
 });
+
+test("a gamma change draws the singular tiles right the first time — the scan runs before the layers", () => {
+    // From the sun (regular) to Gamma = 0 (every triple singular): the tiles
+    // layer must withhold the stacked rhombs and draw the 2k-gons for the NEW
+    // gamma on the very first draw, not the second.
+    const h = createPentagrid({ container: sizedHost(800, 800), features: { penroseTiles: true, penroseEdges: true } });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const layer = h.stack.get("penrose-tiles");
+    const capture = (fn) => { const log = []; let cur = null; const om = layer.ctx.moveTo, of = layer.ctx.fill;
+        layer.ctx.moveTo = (x, y) => { cur = [x, y]; }; layer.ctx.fill = () => { log.push(cur ? cur.map((v) => v.toFixed(1)).join(",") : "?"); };
+        try { fn(); } finally { layer.ctx.moveTo = om; layer.ctx.fill = of; } return log.sort().join("|"); };
+    // the first draw after the change, versus a second draw of the same state
+    const first = capture(() => h.gamma.setValues([0, 0, 0, 0, 0]));
+    const second = capture(() => h.redraw());
+    assert.equal(first, second, "the first draw after a gamma change must equal a redraw of the same state");
+    // and back
+    const back1 = capture(() => h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]));
+    const back2 = capture(() => h.redraw());
+    assert.equal(back1, back2);
+});

@@ -10,7 +10,7 @@
 //
 // A pure view. It reports moves and renders what it is told.
 
-import { wheelNotch, snapStep } from "./wheel.js";
+import { wheelNotch, snapStep, makeNotchGate } from "./wheel.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const W = 100;
@@ -126,12 +126,14 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
         return !r || !r.width ? 0 : (e.clientX - r.left) / r.width * W;
     };
 
+    const gate = makeNotchGate();
     hit.addEventListener("wheel", (ev) => {
         const e = ev as WheelEvent;
         e.preventDefault();                 // never scroll the page from in here
         const d = wheelNotch(e, { step, fine });
         if (d === 0) return;
         if (released) { refuse(); return; }
+        if (!gate(e)) return;               // the rest of a trackpad burst
         if (snap) {
             // A notch is one snap; a fine notch (any modifier) is half of one.
             const unit = Math.abs(d) <= fine * 1.5 ? snap / 2 : snap;
