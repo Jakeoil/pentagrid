@@ -726,6 +726,29 @@ the center is the one point with index 0 in the Penrose universe: a 4- or
 the same point, Σvⱼ = 0, the 31-not-32 collapse of §5.10 — so the singular
 center is where 0 and 5 meet.
 
+**Why the fifth level off Penrose is not the same thing** (Jake: *what's the
+difference if we consider the 5's on the non-Penrose to be zeros? Is it
+because it disagrees with the neighboring indexes?*). Exactly that. The index
+is a height, not a label: along every edge it changes by exactly ±1 (an edge
+is one vⱼ, one unit of one Kⱼ), which is what makes ΣK the height the
+Wieringa roof stands on, and why the labels cannot be renamed freely — a
+vertex at 5 has edges to vertices at 4, and calling it 0 would put edges
+climbing four levels at once. Off Penrose the fifth level is a real terrace
+of the roof (§5.15's correction: the roof stands on five levels there); every
+5 is a genuine vertex one step above a genuine 4, and the tiling is entirely
+consistent with it. The decagon's center is the opposite case: the fan's
+ghost edges reach it one step *down* from the 1s (so 0) and one step *up*
+from the 4s (so 5), and the edge rule assigns it two heights at once. A real
+vertex cannot be at two heights; that contradiction is the precise reason
+the decagon can be neither tiled by rhombs nor lifted — the roof has a hole
+there, and the "vertex" at its center does not exist. It is not that the
+index *is* 0 rather than 5; it is that it is *both*, and only a non-vertex
+can be. What survives at the center is the index mod 5, where 0 and 5 agree
+— adding 𝟙 to K moves the dual point by Σvⱼ = 0, so ΣK mod 5 is a genuine
+invariant of position, the 𝟙-coordinate of the 5-cube read modulo the
+collapse; the ghost is the one point where the integer lift of that residue
+is ambiguous.
+
 **What the ghost lines are good for.** They are a record of the fan, and every
 ghost edge parallel to `v_fam` is where that family's zone would cross if the fan
 were pulled apart — which is exactly why routing the grow band through them
