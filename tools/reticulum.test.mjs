@@ -486,10 +486,10 @@ test("mirror: pairs move together, gamma0 floats, and the total is held at 1", (
     assert.equal(symCb.checked, false);
 });
 
-test("symmetric: a gamma label floats all the gammas and the sum drives; sigma floats the sum", () => {
+test("symmetric: the total is the knob; the gammas float, marked at the five settings for its phase, and a notch steps among them", () => {
     const set = createGammaSet({ guard: false });
     set.setLocked(-1);
-    set.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    set.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);                     // the sun, Σγ = 1
     const container = host();
     mountReticulum(set, container, { colors: ["#000", "#000", "#000", "#000", "#000"] });
     const boxes = [];
@@ -498,49 +498,40 @@ test("symmetric: a gamma label floats all the gammas and the sum drives; sigma f
     const symCb = boxes.find((b) => label(b).includes("symmetric")).children.find((c) => c.type === "checkbox");
     symCb.checked = true; symCb.on.change.forEach((f) => f({}));
 
-    let hit = null, sigma = null, stripHit = null; const labels = [], axes = [];
+    let hit = null, stripHit = null, ticks = null; const axes = [];
     walk(container, (c) => {
         const k = cls(c);
         if (k.startsWith("ret-hit")) hit = c;
-        if (k.startsWith("ret-label")) labels.push(c);
         if (k.startsWith("ret-axis")) axes.push(c);
-        if (k.startsWith("ss-sigma")) sigma = c;
+        if (k.startsWith("ret-ticks")) ticks = c;
         if (k.startsWith("ss-hit")) stripHit = c;
     });
-    assert.ok(hit && sigma && labels.length === 5 && axes.length === 5, "the parts are there");
-    const dependent = () => axes.filter((a) => cls(a).includes("dependent")).length;
     const eq = (a, b) => Math.abs(a - b) < 1e-9;
+    const dependent = () => axes.filter((a) => cls(a).includes("dependent")).length;
+    const lit = () => axes.filter((a) => cls(a).includes("live")).length;
+    assert.equal(dependent(), 5, "the gammas float (ghosted)");
 
-    // default: the axes drive, the sum floats
-    assert.equal(dependent(), 0, "symmetric starts with every axis live");
+    // the total is solid: a notch is a tenth, and the gammas follow as Σγ/5
+    stripHit.on.wheel[0](ev(0, 0, { deltaY: 1 }));                // 1.0 -> 0.9
+    assert.ok(eq(set.getSum(), 0.9), `the total steps by a tenth: ${set.getSum()}`);
+    assert.ok(set.values().every((v) => eq(v, 0.18)), `and the gammas are Σγ/5: ${set.values()}`);
+    // set it to a phase of 0.5: the marks slide to 100, 300, 500, 700, 900
+    set.setSum(0.5, true);
     const [dx, dy] = set.model.directions[1];
     const p = ev(400 + 300 * dx, 400 - 300 * dy, { deltaY: -1 });
-    hit.on.pointerdown[0](p); hit.on.pointerup[0](p); hit.on.wheel[0](p);
-    assert.ok(set.values().every((v) => eq(v, 0.3)), `axes drive all gammas, to the next tenth: ${set.values()}`);
-
-    // a gamma label: every axis floats, the wheel on one is refused
-    labels[2].on.pointerdown[0](ev(0, 0));
-    assert.equal(dependent(), 5, "every axis is dependent");
+    hit.on.pointerdown[0](p); hit.on.pointerup[0](p);             // axis 1 live
+    assert.equal(lit(), 5, "every axis is lit while one is live");
+    const marks = ticks.getAttribute("d").split("M").filter(Boolean).length;
+    assert.equal(marks, 25, "five marks on each of five axes");
+    // a notch on an axis steps c by a fifth: 0.1 -> 0.3, the total by one
     hit.on.wheel[0](p);
-    assert.ok(set.values().every((v) => eq(v, 0.3)), "a floating axis does not move");
-    // and the strip drives the lot — snapping to integer totals, so the five
-    // offsets step through the Penrose caps: 0.3 each (Σ 1.5) goes to Σ 2, 0.4 each
-    if (stripHit) {
-        stripHit.on.wheel[0](ev(0, 0, { deltaY: -1 }));
-        const s = set.values().reduce((a, b) => a + b, 0);
-        assert.ok(eq(s, 2), `the sum snapped to the next integer: ${s}`);
-        assert.ok(set.values().every((v) => eq(v, 0.4)), `and the gammas are the star: ${set.values()}`);
-        stripHit.on.wheel[0](ev(0, 0, { deltaY: 1 }));
-        assert.ok(set.values().every((v) => eq(v, 0.2)), "back down: the sun");
-        stripHit.on.wheel[0](ev(0, 0, { deltaY: -1, shiftKey: true }));
-        assert.ok(eq(set.values().reduce((a, b) => a + b, 0), 1.5), "shift: half a step, the flower");
-    }
-
-    // sigma: the sum floats again and the axes drive
-    sigma.on.pointerdown[0](ev(0, 0));
-    assert.equal(dependent(), 0, "sigma hands the drive back to the axes");
+    assert.ok(set.values().every((v) => eq(v, 0.3)), `a notch steps every gamma by a fifth: ${set.values()}`);
+    assert.ok(eq(set.getSum(), 1.5), "the total went up by one, same phase");
+    hit.on.wheel[0](p);
+    assert.ok(set.values().every((v) => eq(v, 0.5)), "and again: 500");
+    hit.on.wheel[0](ev(400 + 300 * dx, 400 - 300 * dy, { deltaY: 1 }));
+    assert.ok(set.values().every((v) => eq(v, 0.3)), "and back");
 });
-
 test("the live axis shows five fifth marks, the size of the cross arm, and none when nothing is live", () => {
     const { r, hit } = ret(5);
     const ticksOf = () => pick(r.element, "ret-ticks")[0];

@@ -219,7 +219,11 @@ The plans themselves are gone from this file; what they left behind:
   called the geometry directly — there are now tests that go through the view.
 - **The reticulum (2026-09-11).** Built as a second `GammaControl` over the same
   set, SVG, one chord per family at `frac(γ_j)·SPACING`, labels on the rim,
-  wheel-driven. Then floated, resized, given the presets popup and a settings
+  wheel-driven; in symmetric mode the total is the knob and the five γ float,
+  ghosted, each axis marked at the five all-equal settings for the total's
+  phase, (Σγ + k)/5, a notch on any axis stepping among them with every axis
+  lit (Jake's spec, third try, 2026-09-21: set Σ to 000 and the marks sit at
+  000 … 800, set it to 500 and they slide to 100 … 900). Then floated, resized, given the presets popup and a settings
   popup (vertical-axis symmetry lives there: a fact about the frame, seen on
   the reticulum), a mirror mode beside symmetric (γ_j = γ_{n−j} about γ₀'s
   axis in whichever frame, γ₀ floating to hold Σγ = 1 — the deca's family,

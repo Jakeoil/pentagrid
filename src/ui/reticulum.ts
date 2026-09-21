@@ -42,6 +42,19 @@ export interface ReticulumState {
      * follow it. Symmetric mode with the gammas floating.
      */
     allDependent?: boolean;
+    /**
+     * The five move as one and the wheel on any of them is welcome even though
+     * they all float: symmetric mode with the total driving still has five
+     * all-equal settings for that total, c = (Σγ + k)/n, and a notch steps k.
+     * While an axis is live every axis is lit, since every one is moving.
+     */
+    coupled?: boolean;
+    /**
+     * Where the marks on a live axis go, as γ values. Default the fifths, 0 …
+     * 0.8. Symmetric mode passes the five all-equal settings for the current
+     * total, (Σγ + k)/n, which slide with it.
+     */
+    ticks?: readonly number[];
     sum: number;
     sumNote?: string;
 }
@@ -246,7 +259,11 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     let current: readonly number[] = new Array(count).fill(0);
     let lockedNow = count - 1;
     let allDependent = false;
+    let coupled = false;
+    let tickAt: readonly number[] = [0, 0.2, 0.4, 0.6, 0.8];
     const isDependent = (j: number) => allDependent || j === lockedNow;
+    /** Refuse a push on a dependent axis — unless the whole set moves together. */
+    const refuses = (j: number) => isDependent(j) && !coupled;
     let selected = -1;
     let hovered = -1;
     let dragging = -1;
@@ -286,7 +303,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
     const target = (p: [number, number]) => (selected >= 0 ? selected : nearest(p));
 
     function drive(j: number, delta: number) {
-        if (j < 0 || isDependent(j) || delta === 0) return;
+        if (j < 0 || refuses(j) || delta === 0) return;
         // Unwrapped: the state runs on, only the picture wraps.
         opts.onChange(j, current[j] + delta);
     }
@@ -299,7 +316,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         const j = target(at(e));
         const d = wheelNotch(e, { step, fine });
         if (d === 0) return;
-        if (isDependent(j)) { refuse(); return; }
+        if (refuses(j)) { refuse(); return; }
         if (Math.abs(d) === step) {
             // Coarse: land on the next multiple of the step, not current + step.
             const cur = current[j] ?? 0;
@@ -315,7 +332,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         const j = nearest(p);
         selected = j;
         opts.onSelect?.(j);
-        if (!isDependent(j)) { dragging = j; dragFrom = p; } else { refuse(); }
+        if (!refuses(j)) { dragging = j; dragFrom = p; } else { refuse(); }
         render();
     });
 
@@ -350,7 +367,7 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         for (let j = 0; j < count; j++) {
             const { group, line, grid, label, value } = axes[j];
             const u = axisVec(j), w = lineVec(j);
-            const isLive = j === live;
+            const isLive = j === live || (coupled && live >= 0);
             const dep = isDependent(j);
             group.setAttribute("class", "ret-axis"
                 + (isLive ? " live" : "") + (dep ? " dependent" : ""));
@@ -400,14 +417,18 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
             band.setAttribute("fill", lighten(colors[live % colors.length], 0.82));
             band.setAttribute("class", "ret-band on");
             // Five ticks at the fifths, placed like the line itself: at
-            // d = -signed(γ)·2A along the axis, each lying across it.
+            // d = -signed(γ)·2A along the axis, each lying across it. Coupled,
+            // every axis gets them — the five are all moving.
             const t = 0.055 * A;
             let d = "";
-            for (let k = 0; k < 5; k++) {
-                const at = -signedGamma(k / 5) * 2 * A;
-                const cx = u[0] * at, cy = u[1] * at;
-                d += `M${(cx - w[0] * t).toFixed(4)} ${(cy - w[1] * t).toFixed(4)}`
-                   + `L${(cx + w[0] * t).toFixed(4)} ${(cy + w[1] * t).toFixed(4)}`;
+            for (const j of coupled ? [...Array(count).keys()] : [live]) {
+                const uj = axisVec(j), wj = lineVec(j);
+                for (const g of tickAt) {
+                    const at = -signedGamma(g) * 2 * A;
+                    const cx = uj[0] * at, cy = uj[1] * at;
+                    d += `M${(cx - wj[0] * t).toFixed(4)} ${(cy - wj[1] * t).toFixed(4)}`
+                       + `L${(cx + wj[0] * t).toFixed(4)} ${(cy + wj[1] * t).toFixed(4)}`;
+                }
             }
             ticks.setAttribute("d", d);
             ticks.setAttribute("stroke", colors[live % colors.length]);
@@ -436,7 +457,9 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         current = s.values;
         lockedNow = s.locked;
         allDependent = s.allDependent ?? false;
-        if (selected >= 0 && isDependent(selected)) selected = -1;
+        coupled = s.coupled ?? false;
+        tickAt = s.ticks ?? [0, 0.2, 0.4, 0.6, 0.8];
+        if (selected >= 0 && refuses(selected)) selected = -1;
         render();
         const live = selected >= 0 ? selected : hovered;
         svg.setAttribute("aria-label", live >= 0

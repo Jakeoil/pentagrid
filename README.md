@@ -32,8 +32,9 @@ offset shown as a signed representative in [−½, ½] and driven by the mouse w
 (a notch snaps to the next tenth; thousandths with a modifier). It floats, remembers where you put it,
 carries a **settings** popup (vertical-axis symmetry: the star turned so v₀
 points up — a rotation of the frame, nothing else), two constrained modes —
-**symmetric** (every γ the same; the axes drive and the total floats, or — click
-a γ label — the total drives and every γ floats; Σ hands it back) and **mirror** (γ_j = γ_{n−j}
+**symmetric** (every γ the same: Σ is the knob, the γ float, ghosted, each axis
+marked at the five settings for Σ's phase — (Σγ + k)/5 — and a notch on any
+axis steps among them) and **mirror** (γ_j = γ_{n−j}
 about γ₀'s axis, γ₀ floating to hold Σγ = 1: the deca's family) — a generation
 row (λ = φᵐ, the spacing, with **deflate** / **inflate**: γ ↦ Mγ and λ ↦ λ/φ,
 de Bruijn's deflation on the grid, the finer tiling landing inside the old one

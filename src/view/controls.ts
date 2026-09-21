@@ -176,13 +176,13 @@ export function mountReticulum(
      * flag then lights at exactly those k/n where the condition is met.
      */
     let symmetric = false;
-    /**
-     * In symmetric mode one number is the whole state, so either the axes drive
-     * it and the total floats, or the total drives it and the axes float. A γ
-     * label floats all the gammas; Σ floats the sum. Jake's spec, and the same
-     * gesture as in the ordinary mode, where a label floats that one gamma.
-     */
-    let symDrive: "gammas" | "sum" = "gammas";
+    // Symmetric mode, Jake's spec (2026-09-21): the total is the knob, solid,
+    // stepped by tenths like any offset; the five gammas float — ghosted, one
+    // number c = Σγ/n — but every axis shows five marks, the all-equal
+    // settings for the total's phase, c = (Σγ + k)/n, and a notch on any axis
+    // steps among them (c by a fifth, the total by one), every axis lit while
+    // it does. Set the total to 000 and the marks sit at 000, 200 … 800; set
+    // it to 500 and they slide to 100, 300 … 900.
     /**
      * Mirror mode: two-fold symmetry about γ0's axis, so γ_j = γ_{n−j} and each
      * move carries its partner. The axis is v0 wherever the frame puts it —
@@ -203,7 +203,11 @@ export function mountReticulum(
         directions: set.model.directions as readonly (readonly [number, number])[],
         colors: opts.colors,
         onChange: (j, v) => {
-            if (symmetric) { set.setValues(new Array(n).fill(v)); return; }
+            if (symmetric) {
+                const c = set.values()[j] ?? 0;
+                set.setValues(new Array(n).fill(c + Math.sign(v - c) / n));
+                return;
+            }
             if (mirror) {
                 if (j === 0) return;                      // the float; inert
                 const values = set.values();
@@ -213,13 +217,9 @@ export function mountReticulum(
             }
             set.setValue(j, v);
         },
-        // -1 is Sigma itself: hold nothing, and every offset goes free. In
-        // symmetric mode a label hands the drive to the total instead; in
-        // mirror mode the lock is part of the mode and stays put.
-        onLock: (j) => {
-            if (symmetric) { symDrive = "sum"; render(); return; }
-            if (!mirror) set.setLocked(j);
-        },
+        // -1 is Sigma itself: hold nothing, and every offset goes free. In the
+        // constrained modes the lock is part of the mode and stays put.
+        onLock: (j) => { if (!symmetric && !mirror) set.setLocked(j); },
     });
 
     const wrap = document.createElement("div");
@@ -232,10 +232,7 @@ export function mountReticulum(
     // the bottom, which made the wheel dead downwards at the default Σγ = 0.
     const strip = createSumStrip({
         onChange: (v) => set.setSum(v, true),
-        onRelease: () => {
-            if (symmetric) { symDrive = "gammas"; render(); return; }
-            set.setLocked(-1);
-        },
+        onRelease: () => { if (!symmetric) set.setLocked(-1); },
     });
     wrap.appendChild(strip.element);
 
@@ -248,7 +245,6 @@ export function mountReticulum(
     symInput.type = "checkbox";
     symInput.addEventListener("change", () => {
         symmetric = symInput.checked;
-        symDrive = "gammas";
         if (symmetric) {
             mirror = false; mirrorInput.checked = false;
             // Nothing can hold the total while all n move together.
@@ -402,14 +398,15 @@ export function mountReticulum(
         const values = set.values();
         const sum = values.reduce((a, b) => a + b, 0);
         const locked = set.getLocked();
-        // Symmetric with the sum driving: every axis floats and the strip is
-        // live even though the set holds nothing (an even split is what setSum
-        // does on a released set, which is exactly the symmetric family).
-        const sumDrives = symmetric && symDrive === "sum";
-        ret.sync({ values, locked, sum, allDependent: sumDrives });
-        // With the total driving the symmetric family, the stops that matter
-        // are the integer totals — the five Penrose caps — so the strip snaps.
-        strip.sync({ sum, released: locked < 0 && !sumDrives, snap: sumDrives ? 1 : undefined });
+        // Symmetric: the gammas float together and are stepped together; the
+        // marks are the five settings for the total's phase; the strip is live
+        // though the set holds nothing (setSum on a released set spreads
+        // evenly, which IS the symmetric family).
+        const phaseMarks = symmetric
+            ? [...Array(n).keys()].map((k) => (((sum + k) / n) % 1 + 1) % 1)
+            : undefined;
+        ret.sync({ values, locked, sum, allDependent: symmetric, coupled: symmetric, ticks: phaseMarks });
+        strip.sync({ sum, released: locked < 0 && !symmetric });
         const m = set.getGeneration();
         const sup = (k: number) => (k < 0 ? "\u207b" : "") + String(Math.abs(k)).split("")
             .map((d) => "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"[+d]).join("");

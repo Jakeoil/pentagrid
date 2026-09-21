@@ -493,7 +493,7 @@ test("symmetric mode couples every gamma and releases the total", () => {
     const after = set.values();
     assert.ok(after.every((v) => Math.abs(v - after[0]) < 1e-9),
               `symmetric mode broke equality: ${after}`);
-    assert.ok(Math.abs(after[0] - (vals[0] + 0.1)) < 1e-9, "the coupled move was wrong: a notch is a tenth");
+    assert.ok(Math.abs(after[0] - (vals[0] + 0.2)) < 1e-9, "the coupled move was wrong: a notch is a fifth, the next setting for the total's phase");
 
     // and Σγ = n·g floats with it
     assert.ok(Math.abs(set.getSum() - 5 * after[0]) < 1e-9);

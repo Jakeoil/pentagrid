@@ -219,18 +219,20 @@ test("with no controls and no loupe, nothing consumes the scan", () => {
     // rhombs are stacked comes from the same scan — so "nothing consumes it" now
     // means the grid alone. Asking for tiles here asked for the scan, and the
     // saving this test is about is the one a bare viewport gets.
+    // The scan is cached on its inputs now, so a repeated redraw skips it either
+    // way; what a bare viewport saves is the scan on every NEW view. So pan.
     const quiet = { gridLines: true, penroseTiles: false, penroseEdges: false };
+    // Wall-clock in a parallel test run is noisy; take the best of three passes
+    // each, interleaved, so a busy moment hits both alike.
+    const pans = (v, k) => { for (let i = 1; i <= 12; i++) v.setView({ scale: 60, x: k + i * 0.05, y: 0 }); };
+    const timed = (v, k) => { const t = process.hrtime.bigint(); pans(v, k); return Number(process.hrtime.bigint() - t) / 1e6; };
     const h = createPentagrid({ container: host(), steps: [], features: quiet });
-    const t0 = process.hrtime.bigint();
-    for (let i = 0; i < 40; i++) h.redraw();
-    const bare = Number(process.hrtime.bigint() - t0) / 1e6;
-
-    const g = createPentagrid({
-        container: host(), steps: [], loupe: true, features: quiet,
-    });
-    const t1 = process.hrtime.bigint();
-    for (let i = 0; i < 40; i++) g.redraw();
-    const scanned = Number(process.hrtime.bigint() - t1) / 1e6;
+    const g = createPentagrid({ container: host(), steps: [], loupe: true, features: quiet });
+    let bare = Infinity, scanned = Infinity;
+    for (let k = 0; k < 3; k++) {
+        bare = Math.min(bare, timed(h, k));
+        scanned = Math.min(scanned, timed(g, k));
+    }
 
     assert.ok(bare < scanned, `bare ${bare.toFixed(1)}ms should beat scanned ${scanned.toFixed(1)}ms`);
 });
