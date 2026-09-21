@@ -65,7 +65,7 @@ State of play, 2026-09-17.
 | `grow.html` | tiles growing out of their crossings; the 2k-gons grow with them; ribbons routed through the pseudo edges; P1 overlay | `app/grow.ts` |
 | `roof.html` | the same growth folded into the Wieringa roof; right-drag orbits; P1 overlay | `app/roof.ts` |
 | `grow7.html` | the heptagrid: three rhomb shapes, no Penrose cap, no roof | `app/grow7.ts` |
-| `multigrid.html` | de Bruijn for any n, 4–12, chosen on the page; the reticulum a 2n-gon; even n on the half turn | `app/multigrid.ts` |
+| `multigrid.html` | de Bruijn for any n, 4–12 and 17, chosen on the page; the reticulum a 2n-gon; even n on the half turn | `app/multigrid.ts` |
 | `sunstar.html` | the uniform family: sun, star, 5-fold, deca; rhomb groups colored | `app/sunstar.ts` |
 | `split.html` | grid on one canvas, dual on the other, one γ, one panel | `app/split.ts` |
 | `wiggle.html` | the acceptance region: drag γ in E⊥ and watch the patch hold or break | `app/wiggle.ts` |

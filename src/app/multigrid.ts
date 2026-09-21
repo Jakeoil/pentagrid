@@ -12,7 +12,8 @@ import { mountFloatingReticulum } from "../view/controls.js";
 
 const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
                 "#e07a5f", "#3d5a80", "#8ac926", "#ff6b35", "#6a4c93",
-                "#118ab2", "#b5838d"];
+                "#118ab2", "#b5838d", "#2b9348", "#c9184a", "#f4a261",
+                "#7209b7", "#588157"];   // seventeen: twelve, and five more for Jake's 17
 
 const byId = (id: string) => document.getElementById(id) ?? undefined;
 const viewHost = byId("multigrid-view");

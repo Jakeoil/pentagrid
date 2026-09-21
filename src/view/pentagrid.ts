@@ -28,7 +28,8 @@ import type { LoupeTarget } from "../ui/loupe.js";
 // first five are unchanged, so every existing page keeps its exact palette.
 const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
                 "#e07a5f", "#3d5a80", "#8ac926", "#ff6b35", "#6a4c93",
-                "#118ab2", "#b5838d"];   // twelve, for the multigrid page
+                "#118ab2", "#b5838d", "#2b9348", "#c9184a", "#f4a261",
+                "#7209b7", "#588157"];   // seventeen: twelve, and five more for Jake's 17
 
 // Rhomb fill colors
 const THICK_FILL = "#e8c170";
@@ -118,7 +119,7 @@ export interface TileStyle {
 }
 
 // Unicode subscripts for K labels
-const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₁₀', '₁₁'];
+const SUBSCRIPTS = ['₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉', '₁₀', '₁₁', '₁₂', '₁₃', '₁₄', '₁₅', '₁₆'];
 
 
 export interface Features {
