@@ -1644,3 +1644,23 @@ test("the multigrid: createPentagrid at n = 8 builds, the reticulum has sixteen 
     assert.ok(!rows.get("Tile edges").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
     assert.equal(rows.get("ribbons").length, 8, `eight family controls: ${rows.get("ribbons").map((c) => c.label)}`);
 });
+
+test("by shape: off the pentagrid the rhomb classes wear warm (odd) and cool (even) shades, all distinct; five is thick gold and thin blue", () => {
+    const fillsAt = (n) => {
+        const h = createPentagrid({ container: sizedHost(800, 800), n, features: { penroseTiles: true } });
+        h.gamma.setLocked(-1); h.gamma.setValues(new Array(n).fill(n % 2 ? 1 / n : 0.5));
+        const layer = h.stack.get("penrose-tiles");
+        const seen = new Set();
+        layer.ctx.fill = function () { seen.add(String(this.fillStyle)); };
+        h.redraw();
+        return [...seen];
+    };
+    assert.deepEqual(fillsAt(5).sort(), ["#7eb8da", "#e8c170"], "five: the two fills as ever");
+    const seven = fillsAt(7);
+    assert.equal(seven.length, 3, `seven: three classes, three fills (${seven})`);
+    assert.ok(seven.includes("#e8c170") && seven.includes("#7eb8da"), "class 1 and 2 keep their colors");
+    const twelve = fillsAt(12);
+    assert.equal(twelve.length, 6, `twelve: six classes (${twelve})`);
+    const warm = (c) => { const r = parseInt(c.slice(1, 3), 16), b = parseInt(c.slice(5, 7), 16); return r > b; };
+    assert.equal(twelve.filter(warm).length, 3, "three warm, three cool");
+});

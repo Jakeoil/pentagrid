@@ -34,6 +34,21 @@ const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
 // Rhomb fill colors
 const THICK_FILL = "#e8c170";
 const THIN_FILL = "#7eb8da";
+/**
+ * Off the pentagrid a grid of order n makes floor(n/2) rhomb shapes, class 1
+ * the fattest. The odd classes wear warm shades and the even ones cool, so
+ * neighboring classes contrast the way thick and thin do — class 1 IS the
+ * thick gold and class 2 the thin blue, so five is untouched — and each class
+ * within a parity darkens as it narrows. Jake: "different and contrasting
+ * (odd vs even) colors".
+ */
+const WARM_FILLS = [THICK_FILL, "#d98e5a", "#bd6a48", "#9e4f3c", "#7a3a30"];
+const COOL_FILLS = [THIN_FILL, "#6d9fc6", "#5a86ad", "#476d93", "#355577"];
+function classFill(cls: number): string {
+    const i = Math.floor((cls - 1) / 2);
+    const pal = cls % 2 === 1 ? WARM_FILLS : COOL_FILLS;
+    return pal[Math.min(i, pal.length - 1)];
+}
 /** A 2k-gon is neither thick nor thin — it is a stack of both — so it gets its own. */
 const SINGULAR_FILL = "#b48ec4";
 /** One per Wieringa level. Penrose uses four; the index is taken modulo. */
@@ -1928,7 +1943,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             // tiling wears all n family colors at once.
             return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
         }
-        return rhomb.thick ? THICK_FILL : THIN_FILL;
+        return classFill(rhomb.cls);
     }
 
     /**
@@ -2803,7 +2818,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "A 2k-gon follows the same choice.";
             // The Penrose dressings are pentagrid facts — rhomb groups, P1, the
             // matching curves, the deflation, P2 — and are not offered off it.
-            const general = [["type", "thick/thin"], ["pair", "families"], ["bands", "families2"]] as const;
+            const general = [["type", model.n === 5 ? "thick/thin" : "by shape"], ["pair", "families"], ["bands", "families2"]] as const;
             const penrose = [
                 ["groups", "rhomb groups"], ["p1", "P1"], ["curves", "curves"],
                 ["pentagons", "pentagons"], ["nextgen", "next-gen"], ["kites", "kites & darts"],
