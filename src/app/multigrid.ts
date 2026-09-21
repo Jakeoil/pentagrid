@@ -17,7 +17,6 @@ const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5",
 const byId = (id: string) => document.getElementById(id) ?? undefined;
 const viewHost = byId("multigrid-view");
 const panelHost = byId("multigrid-panel");
-const controlsHost = byId("multigrid-controls");
 const pick = document.getElementById("multigrid-n") as HTMLSelectElement | null;
 const note = byId("multigrid-note");
 
@@ -27,13 +26,14 @@ if (viewHost && pick) {
 
     const build = (n: number) => {
         teardown?.();
-        for (const el of [viewHost, panelHost, controlsHost]) {
+        for (const el of [viewHost, panelHost]) {
             if (el) el.replaceChildren();
         }
         handle = createPentagrid({
             container: viewHost,
             panel: panelHost,
-            controls: controlsHost,
+            // No `controls`: the reticulum is the instrument here, and the slider
+            // bank and meter that come with a controls host are not wanted. Jake.
             n,
             features: { gridLines: true, intersectionDots: true, center: true,
                         penroseTiles: true, penroseEdges: true, penroseVertices: false,
@@ -44,9 +44,8 @@ if (viewHost && pick) {
         // (Thm 1.1). Start there, so the page opens on the reason it exists.
         handle.gamma.setLocked(-1);
         handle.gamma.setValues(new Array(n).fill(n % 2 === 1 ? 1 / n : 1 / 2));
-        const bar = byId("multigrid-bar") ?? document.body;
         const { panel } = mountFloatingReticulum(handle.gamma, {
-            colors: COLORS, buttons: handle.panelRow("View") ?? bar,
+            colors: COLORS, buttons: handle.panelRow("View") ?? document.body,
         });
         panel.setTitle(`Reticulum · n = ${n}`);
         teardown = () => { panel.element.remove(); };
