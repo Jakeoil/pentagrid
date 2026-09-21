@@ -1600,3 +1600,24 @@ test("a gamma change draws the singular tiles right the first time — the scan 
     const back2 = capture(() => h.redraw());
     assert.equal(back1, back2);
 });
+
+test("at Gamma = 0 the index range is the tiling's 1..4, not the decagon's ghost 0..4", () => {
+    const h = createPentagrid({ container: sizedHost(800, 800), panel: sizedHost(800, 100),
+                                features: { penroseTiles: true, penroseVertices: true, arrows: true } });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0, 0, 0, 0, 0]);
+    h.setTileStyle({ vertexMark: "open" });
+    const layer = h.stack.get("penrose-vertices");
+    const texts = [];
+    layer.ctx.fillText = (t) => { texts.push(t); };
+    h.redraw();
+    const levels = [...new Set(texts)].sort();
+    // the real vertices read 1..4; the decagon's ghost center, if marked, reads 0
+    assert.deepEqual(levels.filter((t) => t !== "0"), ["1", "2", "3", "4"], `levels ${levels}`);
+    assert.ok(!texts.includes("5"), "no fives: the ghost must not shift the range");
+    // and the arrows, which need four levels, are drawn
+    const decor = h.stack.get("penrose-decor");
+    let strokes = 0; decor.ctx.stroke = () => { strokes++; };
+    h.redraw();
+    assert.ok(strokes > 100, `arrows at Gamma = 0 (${strokes})`);
+});

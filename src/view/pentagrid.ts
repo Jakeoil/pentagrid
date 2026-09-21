@@ -675,7 +675,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function indexRange(): { lo: number; hi: number } {
         if (indexRangeCache) return indexRangeCache;
         let lo = Infinity, hi = -Infinity;
-        for (const r of currentRhombs()) {
+        // Over the tiling proper — the rhombs not stacked in a 2k-gon. A stack's
+        // fan can carry a GHOST vertex, a tuple of a region with no area
+        // (PLAN.md, the ghost lines): at Γ = 0 the decagon's center is f(K0)
+        // with index 0, one below the tiling's real 1..4, so the whole patch
+        // read 2..5 — index 5 everywhere, and the index-placed dressings gone —
+        // until the smallest nudge dissolved the decagon. Jake: "the 5's
+        // surprised me." The real tiling decides the range.
+        const all = currentRhombs();
+        const laid = all.filter((r) => !isStacked(r));
+        for (const r of laid.length ? laid : all) {
             for (const K of r.kTuples) {
                 const m = vertexIndex(K);
                 if (m < lo) lo = m;

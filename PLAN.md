@@ -713,6 +713,19 @@ hexagon it is not a tiling at all: it fans from an outline corner, overlaps near
 it, and misses the opposite corner. For the decagon it overlaps three-fold at
 the center (the ten corner angles sum to three turns).
 
+**The ghost center and the index (2026-09-21).** Jake, marking vertices at
+Γ = 0: *index 5 vertices scattered all over the map; nudge the gammas and
+there are no 5's.* The decagon's ten rhombs fan from K₀ = (0,0,0,0,0), whose
+dual point is the center — a ghost — with index 0, one below the tiling's
+1..4; the index range was taken over every rhomb, ghosts included, so the
+whole patch read 2..5 until a nudge dissolved the decagon. `indexRange()` now
+reads the laid tiling only (the arrows and the rest now draw at Γ = 0). And
+the center is the one point with index 0 in the Penrose universe: a 4- or
+5-fold concurrency is the only way to make a ghost, no octagon is Penrose
+(§5.9), and the decagon is unique. It carries index 5 as well — f(K₀ + 𝟙) is
+the same point, Σvⱼ = 0, the 31-not-32 collapse of §5.10 — so the singular
+center is where 0 and 5 meet.
+
 **What the ghost lines are good for.** They are a record of the fan, and every
 ghost edge parallel to `v_fam` is where that family's zone would cross if the fan
 were pulled apart — which is exactly why routing the grow band through them
