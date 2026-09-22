@@ -6,7 +6,7 @@
 // every generation while the real one does not and never will (sin 36° is
 // degree 4 over ℚ; the lattice reaches only ℚ(√5)).
 
-import { WHEELS, generation, halfStep, wheel, pentagon, limitSeed,
+import { WHEELS, wheelAt, wheel, pentagon, limitSeed,
          limitAngles, discreteDirections, frameOperator } from "./wheels.js";
 import type { WheelName } from "./wheels.js";
 
@@ -50,11 +50,12 @@ function axis(ctx: CanvasRenderingContext2D, cx: number, h: number) {
 /** Which wheel is on show. The scale differs; the limiting directions do not. */
 let which: WheelName = "P";
 
-/** The seed at a rung of the ladder: whole generations even, half steps odd. */
-function rung(v: number) {
-    const base = WHEELS[which];
-    return v % 2 === 0 ? generation(base, v / 2) : halfStep(generation(base, (v - 1) / 2));
-}
+/**
+ * The wheel at a rung, in half generations — penrose-mosaic's numbering, so
+ * rung 2 is the seed and rung 0 is the deflation below it, exactly as
+ * measurements.html prints them.
+ */
+const rung = (v: number) => wheelAt(which, v);
 
 // ── the wheel, with its angles ────────────────────────────────────
 
@@ -185,7 +186,8 @@ if (wheelCanvas && pentCanvas && slider) {
     const render = () => {
         const v = parseInt(slider.value, 10);
         const atLimit = v > 9;
-        if (genOut) genOut.textContent = atLimit ? "limit" : v % 2 === 0 ? String(v / 2) : `${(v - 1) / 2}½`;
+        if (genOut) genOut.textContent = atLimit ? "limit"
+            : v % 2 === 0 ? String(v / 2) : `${(v - 1) / 2}½`;
         drawWheel(wheelCanvas, v, atLimit);
         drawPentagons(pentCanvas, v, atLimit);
         report(v, atLimit);

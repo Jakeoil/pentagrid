@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { QUADRILLE, WHEELS, PHI, inflate, deflate, halfStep, generation, wheel, pentagon, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
+import { QUADRILLE, WHEELS, SEED_GENERATION, PHI, inflate, deflate, halfStep, generation, wheelAt, wheel, pentagon, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
 
 test("inflate and deflate are exact inverses on integer seeds", () => {
     let s = QUADRILLE;
@@ -97,32 +97,38 @@ test("the half step: x is Fibonacci exactly, y up to the alternating +-2, and tw
     }
 });
 
-test("below zero: one positive half generation, then psi land", () => {
-    // Jake: "there is a funky half gen below gen 0 which is positive. After that
-    // you get into psi land." Deflating, the phi^2 part runs out and the
-    // conjugate — psi = -1/phi, the other root of lambda^2 - 3 lambda + 1 —
-    // takes over, which shows up as coordinates going negative.
-    const g0 = QUADRILLE;
-    const gm1 = deflate(g0);
-    assert.deepEqual(gm1.map(([x, y]) => [x, y]), [[0, 2], [1, 2], [2, 0]], "gen -1, still positive");
-    const halfBelow = halfStep(gm1);
-    assert.deepEqual(halfBelow.map(([x, y]) => [x, y]), [[0, 4], [2, 2], [3, 2]], "the half below gen 0: positive");
-    assert.ok(halfBelow.flat().every((v) => v >= 0), "every coordinate");
-    const gm2 = deflate(gm1);
-    assert.deepEqual(gm2.map(([x, y]) => [x, y]), [[0, 2], [0, 0], [1, 0]], "gen -2 is degenerate: slot 1 is the origin");
-    const gm3 = deflate(gm2);
-    assert.ok(gm3.flat().some((v) => v < 0), "gen -3 and below: psi land");
+test("the seed is generation 1, as penrose-mosaic numbers it", () => {
+    // makeWheels puts the seed at index 1 and ONE DEFLATION of it at index 0,
+    // so the wheel index matches the shape generation the drawing asks for
+    // (wheels.p[gen]); measurements.html prints rows on that convention.
+    assert.equal(SEED_GENERATION, 1);
+    assert.deepEqual(wheelAt("P", 2), QUADRILLE.map(([x, y]) => [x, y]), "generation 1 IS the seed");
+    assert.deepEqual(wheelAt("P", 0).map(([x, y]) => [x, y]), deflate(QUADRILLE).map(([x, y]) => [x, y]),
+                     "generation 0 is one deflation below it");
+    assert.deepEqual(wheelAt("P", 4).map(([x, y]) => [x, y]), inflate(QUADRILLE).map(([x, y]) => [x, y]));
+    assert.deepEqual(wheelAt("P", 3).map(([x, y]) => [x, y]), halfStep(QUADRILLE).map(([x, y]) => [x, y]));
 });
 
-test("the figure's ladder: even slider values are whole generations, odd ones the halves", () => {
-    // What the index figure indexes. Slider v -> generation v/2, half steps at odd v.
-    const at = (v) => (v % 2 === 0 ? generation(QUADRILLE, v / 2) : halfStep(generation(QUADRILLE, (v - 1) / 2)));
-    assert.deepEqual(at(0).map(([x]) => x), [0, 3, 5]);
-    assert.deepEqual(at(1).map(([x]) => x), [0, 5, 8]);
-    assert.deepEqual(at(2).map(([x]) => x), [0, 8, 13]);
-    assert.deepEqual(at(3).map(([x]) => x), [0, 13, 21]);
-    // every rung is on the lattice
-    for (let v = 0; v < 10; v++) for (const [x, y] of wheel(at(v))) {
+test("below the seed: generation 0 and the half above it are positive, then psi land", () => {
+    // Jake: "there is a funky half gen below which is positive. After that you
+    // get into psi land." Deflating, the phi^2 part runs out and the conjugate —
+    // psi = -1/phi, the other root of lambda^2 - 3 lambda + 1 — takes over,
+    // which shows up as coordinates going negative.
+    assert.deepEqual(wheelAt("P", 0).map(([x, y]) => [x, y]), [[0, 2], [1, 2], [2, 0]], "gen 0, still positive");
+    assert.deepEqual(wheelAt("P", 1).map(([x, y]) => [x, y]), [[0, 4], [2, 2], [3, 2]], "gen 1/2: positive");
+    assert.ok(wheelAt("P", 1).flat().every((v) => v >= 0), "every coordinate");
+    assert.deepEqual(wheelAt("P", -2).map(([x, y]) => [x, y]), [[0, 2], [0, 0], [1, 0]],
+                     "gen -1 is degenerate: slot 1 is the origin");
+    assert.ok(wheelAt("P", -4).flat().some((v) => v < 0), "gen -2 and below: psi land");
+});
+
+test("the figure's ladder is half generations on the mosaic's numbering", () => {
+    // rung v = half generations: 2 is the seed (generation 1), odd values the halves
+    assert.deepEqual(wheelAt("P", 2).map(([x]) => x), [0, 3, 5]);
+    assert.deepEqual(wheelAt("P", 3).map(([x]) => x), [0, 5, 8]);
+    assert.deepEqual(wheelAt("P", 4).map(([x]) => x), [0, 8, 13]);
+    assert.deepEqual(wheelAt("P", 5).map(([x]) => x), [0, 13, 21]);
+    for (let v = 0; v < 12; v++) for (const [x, y] of wheel(wheelAt("P", v))) {
         assert.equal(x, Math.round(x)); assert.equal(y, Math.round(y));
     }
 });
@@ -166,8 +172,7 @@ test("the wheels differ in scale only: P is the pentagon-to-pentagon vector, D o
     const p = limitAngles(WHEELS.P), d = limitAngles(WHEELS.D);
     assert.deepEqual(p.map((a) => +a.toFixed(9)), d.map((a) => +a.toFixed(9)));
     // and both stay on the lattice at every rung, whole or half
-    for (const base of [WHEELS.P, WHEELS.D]) for (let v = 0; v < 8; v++) {
-        const seed = v % 2 === 0 ? generation(base, v / 2) : halfStep(generation(base, (v - 1) / 2));
-        for (const [x, y] of wheel(seed)) { assert.equal(x, Math.round(x)); assert.equal(y, Math.round(y)); }
+    for (const name of ["P", "D"]) for (let v = 0; v < 10; v++) {
+        for (const [x, y] of wheel(wheelAt(name, v))) { assert.equal(x, Math.round(x)); assert.equal(y, Math.round(y)); }
     }
 });

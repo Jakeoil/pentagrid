@@ -74,10 +74,10 @@
             </select></label>
             <p></p>
             <label><span class="cap">generation <span class="val" id="fig-gen-value">0</span></span><br>
-                <input type="range" id="fig-gen" min="0" max="10" step="1" value="0" style="width: 210px"></label>
+                <input type="range" id="fig-gen" min="0" max="10" step="1" value="2" style="width: 210px"></label>
             <p class="hint" style="margin:6px 0 10px">Whole generations and the half steps
             between them; past the end, the limit. Scrolling over either figure steps the
-            ladder too.</p>
+            ladder too. <b>Generation 1 is the seed</b>, as penrose-mosaic numbers it.</p>
             <div class="readouts">
                 <b>seed</b><span id="fig-seed"></span>
                 <b>wheel, degrees from the vertical</b><span id="fig-angles"></span>
@@ -107,6 +107,12 @@
     a half step. The two free angles are</p>
 
     <p class="hint" id="fig-exact"></p>
+
+    <p><b>The numbering is penrose-mosaic's.</b> Its <code>makeWheels</code> puts the
+    seed at index <b>1</b> and one <i>deflation</i> of it at index 0, so that the wheel
+    index matches the shape generation the drawing code asks for &mdash;
+    <code>wheels.p[gen]</code> &mdash; and that is what
+    <code>measurements.html</code> prints. Generation 1 is the seed here too.</p>
 
     <p><b>The &phi;&sup2; ladder, and its missing halves.</b> The stored wheels hold
     only <i>even</i> powers of &phi;, so their x-components are <b>alternate</b>

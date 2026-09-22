@@ -36,6 +36,14 @@ export type Seed = readonly (readonly [number, number])[];
  *   P   2r    center to center of two pentagons — the one the tiling is laid on
  *   D   R     center to vertex, one pentagon's own radius
  *
+ * THESE SEEDS ARE GENERATION 1, not 0. penrose-mosaic builds `wheels.p[1]`
+ * from the seed and `wheels.p[0]` from ONE DEFLATION of it, so that the wheel
+ * index matches the shape generation the drawing code asks for (`wheels.p[gen]`).
+ * measurements.html prints rows 0..6 on that convention, and docs/wheels.md
+ * states it: "makeWheels uses it once, to produce generation 0 from the seed at
+ * generation 1." Anything here that speaks of a generation means the same
+ * number that table does — see SEED_GENERATION and wheelAt.
+ *
  * penrose-mosaic carries two more, S (pentagon to near diamond) and T (two
  * star centers, feet touching); they are not needed here.
  */
@@ -47,6 +55,22 @@ export type WheelName = keyof typeof WHEELS;
 
 /** The P wheel, the default everywhere: 2r, pentagon center to pentagon center. */
 export const QUADRILLE: Seed = WHEELS.P;
+
+/** The stored seeds are penrose-mosaic's generation 1. */
+export const SEED_GENERATION = 1;
+
+/**
+ * A wheel at a given generation, counted penrose-mosaic's way, in HALF steps:
+ * `halves` = 2·generation, so 0 is generation 0 (one deflation below the seed),
+ * 2 is the seed itself, 3 is generation 1½, and negatives go below. Odd values
+ * are the half steps — see halfStep.
+ */
+export function wheelAt(name: WheelName, halves: number): Seed {
+    let s = WHEELS[name];
+    const whole = Math.floor(halves / 2) - SEED_GENERATION;
+    for (let i = 0; i < Math.abs(whole); i++) s = whole > 0 ? inflate(s) : deflate(s);
+    return halves % 2 === 0 ? s : halfStep(s);
+}
 
 /** One inflation. */
 export function inflate(seed: Seed): Seed {
