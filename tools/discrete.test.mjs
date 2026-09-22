@@ -231,3 +231,26 @@ test("four wheels, all on the same limit; three seeds carry the whole ten", () =
     assert.ok(Math.abs(mag("P", far) / mag("D", far) - PHI) < 1e-3, "P/D -> phi");
     assert.ok(Math.abs(mag("T", far) / mag("P", far) - PHI) < 1e-3, "T/P -> phi");
 });
+
+test("the star's proportions, and why T = phi * P", () => {
+    // penrose-mosaic builds the star as starTips = unitUp * pgram.rho and
+    // starDimples = unitDown * pgram.R (shape-modes.js). Those two are in the
+    // ratio 1/phi^2, so the star is the {5/2} star polygon; in the pentagon's
+    // own terms its tips reach phi*R, which is why two stars mesh at phi*P.
+    const S5 = Math.sqrt(5);
+    const rho = Math.sqrt((5 - S5) / 10);          // pgram.rho, 0.525
+    const Rp = Math.sqrt((25 - 11 * S5) / 10);     // pgram.R,   0.2008
+    assert.ok(Math.abs(Rp / rho - 1 / (PHI * PHI)) < 1e-12, `dimple/tip = ${Rp / rho}`);
+    // scale both tables to a common side a = 4, as shape-modes does
+    const a = 4;
+    const pgramA = (3 - S5) / 2, pgonR = Math.sqrt(50 + 10 * S5) / 10, pgonr = Math.sqrt(25 + 10 * S5) / 10;
+    const tip = rho * (a / pgramA), R = pgonR * a, r = pgonr * a;
+    assert.ok(Math.abs(tip / R - PHI) < 1e-9, `the star's tip radius is phi*R, got ${tip / R}`);
+    // T = 2(pgram.R + pgram.y) and P = 2r, and their ratio is phi
+    const y = Math.sqrt((25 - 11 * S5) / 2) / 2;
+    const T = 2 * (Rp + y) * (a / pgramA), P = 2 * r;
+    assert.ok(Math.abs(T / P - PHI) < 1e-9, `T/P = ${T / P}`);
+    // and the wheels agree, in the limit
+    const mag = (n, g) => Math.hypot(...wheelAt(n, g)[1]);
+    assert.ok(Math.abs(mag("T", 18) / mag("P", 18) - PHI) < 1e-3);
+});

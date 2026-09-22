@@ -6,7 +6,7 @@
 // every generation while the real one does not and never will (sin 36° is
 // degree 4 over ℚ; the lattice reaches only ℚ(√5)).
 
-import { WHEELS, wheelAt, wheel, pentagon, pentagonDown, limitSeed,
+import { WHEELS, PHI, wheelAt, wheel, pentagon, pentagonDown, limitSeed,
          limitAngles, discreteDirections, frameOperator } from "./wheels.js";
 import type { WheelName } from "./wheels.js";
 
@@ -117,37 +117,95 @@ function drawWheel(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
 
 /**
  * The right-hand figure: not the wheel over again, but the thing it is the
- * measure OF. Jake: *illustrate what's actually being measured.*
+ * measure OF — and each wheel measures between a DIFFERENT pair of figures,
+ * which is what Jake's outline of T made plain.
  *
- *   P  a pentaflake — one pentagon and the five that share its edges — with
- *      the five spokes running center to center. That length is 2r.
- *   D  one pentagon with its five spokes running center to corner. That is R.
+ *   P  pentagon → pentagon.  A pentaflake, spokes center to center. That is 2r.
+ *   S  pentagon → diamond.   The five near diamonds, long axis pointing in.
+ *   T  star → star.          Feet touching, a boat between each pair.
+ *   D  pentagon → its own corners. That is R.
  *
- * The quadrille construction in red over the Euclidean one in dark blue, at
- * matched size, so the gap between the geometries is the gap between the two
- * outlines. The pentagon itself is always the D wheel's — D IS the pentagon's
- * radius — and the P spokes reach the neighbors' centers, which are the P
- * wheel's DOWN points: a neighbor sits across an edge, and the edge normals of
- * the point-up pentagon are the point-down directions.
+ * Quadrille in red over the real construction in dark blue, at matched size,
+ * so the gap between the geometries is the gap between the outlines. The
+ * spokes and their directions are the wheel data; the outlines at their ends
+ * are drawn from those same directions at the size the measurement forces —
+ * a star whose feet touch at T is T/2 across, a diamond is the tiling's thin
+ * rhomb — so the figure says what is being measured without pretending to be
+ * a tiling.
  */
+type Shape = "pentagon" | "star" | "diamond";
+const FAR: Record<WheelName, Shape> = { P: "pentagon", S: "diamond", T: "star", D: "pentagon" };
+
+/** A point-up pentagon of circumradius R about (0,0), from five directions. */
+function pentaOutline(dirs: readonly (readonly [number, number])[], R: number): [number, number][] {
+    return dirs.map(([x, y]) => [x * R, y * R] as [number, number]);
+}
+
+/**
+ * A five-pointed star, built as penrose-mosaic builds it: tips along `up` at
+ * `pgram.rho`, dimples along `down` at `pgram.R` (shape-modes.js, `starTips`
+ * and `starDimples`). Those two are in the ratio
+ *
+ *     pgram.R / pgram.rho = √((25−11√5)/10) / √((5−√5)/10) = 1/φ²
+ *
+ * so it is the {5/2} star polygon after all, and in the pentagon's own terms
+ * the tip radius is φ·R — which is why T, the star-to-star distance, is φ·P.
+ */
+function starOutline(up: readonly (readonly [number, number])[],
+                     down: readonly (readonly [number, number])[], R: number): [number, number][] {
+    const out: [number, number][] = [];
+    const inner = R / (PHI * PHI);
+    for (let k = 0; k < 5; k++) {
+        out.push([up[k][0] * R, up[k][1] * R]);
+        out.push([down[k][0] * inner, down[k][1] * inner]);
+    }
+    return out;
+}
+
+/** The thin rhomb — P1's diamond — long axis along `u`, side `a`. */
+function diamondOutline(u: readonly [number, number], a: number): [number, number][] {
+    const w: [number, number] = [-u[1], u[0]];
+    const L = a * Math.cos(Math.PI / 10), S = a * Math.sin(Math.PI / 10);
+    return [
+        [u[0] * L, u[1] * L],
+        [w[0] * S, w[1] * S],
+        [-u[0] * L, -u[1] * L],
+        [-w[0] * S, -w[1] * S],
+    ];
+}
+
+const unit = (p: readonly [number, number]): [number, number] => {
+    const m = Math.hypot(p[0], p[1]) || 1;
+    return [p[0] / m, p[1] / m];
+};
+
 function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const w = canvas.width, h = canvas.height;
     const cx = Math.round(w / 2) + 0.5, cy = Math.round(h / 2) + 0.5;
-    const seed = atLimit ? limitSeed(WHEELS.D) : wheelAt("D", v);
-    const corners = pentagon(seed);                        // the pentagon, in lattice units
-    const Rq = Math.max(...corners.map(([x, y]) => Math.hypot(x, y))) || 1;
 
-    // D stops at the pentagon's own corners; P, S and T reach out to another
-    // figure's center, so they need room for it. Scale to whichever it is.
-    const spokeSeed = atLimit ? limitSeed(WHEELS[which]) : wheelAt(which, v);
-    const centers = pentagonDown(spokeSeed);
-    const reach = which === "D"
-        ? Rq
-        : Math.max(...centers.map(([x, y]) => Math.hypot(x, y))) + Rq;
-    const S = Math.min(w, h) * 0.44 / reach;               // pixels per lattice unit
-    paper(ctx, w, h, cx, cy, atLimit ? 0 : S);
+    // The spokes: this wheel's own vectors. D runs to its own corners and T to
+    // the stars its feet point at, both UP directions; P and S cross an edge to
+    // the next figure, which is a DOWN direction. (Jake's outline of T measures
+    // 90, 18, 306 — the up set — which is what settled this.)
+    const seed = atLimit ? limitSeed(WHEELS[which]) : wheelAt(which, v);
+    const spokeEnds = which === "D" || which === "T" ? pentagon(seed) : pentagonDown(seed);
+    const reachSpoke = Math.max(...spokeEnds.map(([x, y]) => Math.hypot(x, y))) || 1;
+
+    // The figure at the center, sized by what the spoke means.
+    const dSeed = atLimit ? limitSeed(WHEELS.D) : wheelAt("D", v);
+    const upQ = pentagon(dSeed).map(unit), downQ = pentagonDown(dSeed).map(unit);
+    const Rq = Math.max(...pentagon(dSeed).map(([x, y]) => Math.hypot(x, y))) || 1;
+    // A star's tips reach φ·R, the pentagon's R times φ — so two of them at T =
+    // φ·P mesh tip into dimple, which is what "feet touching" means and what
+    // Jake's outline shows. A diamond is the tiling's thin rhomb, side a = 2R sin36°.
+    const centerR = which === "T" ? PHI * Rq : Rq;
+    const farR = which === "T" ? PHI * Rq : which === "S" ? 2 * Rq * Math.sin(Math.PI / 5) : Rq;
+
+    const reach = which === "D" ? Rq : reachSpoke + (which === "S" ? farR : centerR);
+    const S = Math.min(w, h) * 0.44 / reach;
+    paper(ctx, w, h, cx, cy, atLimit ? 0 : S * (Rq / (Math.max(...pentagon(dSeed).map(([x, y]) => Math.hypot(x, y))) || 1)));
 
     const at = (x: number, y: number): [number, number] => [cx + x * S, cy - y * S];
     const poly = (pts: readonly (readonly [number, number])[], color: string, width: number,
@@ -168,11 +226,7 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
         ctx.fillStyle = color;
         ctx.lineWidth = 2;
         ctx.beginPath();
-        for (const [x, y] of ends) {
-            const [px, py] = at(x, y);
-            ctx.moveTo(cx, cy);
-            ctx.lineTo(px, py);
-        }
+        for (const [x, y] of ends) { const [px, py] = at(x, y); ctx.moveTo(cx, cy); ctx.lineTo(px, py); }
         ctx.stroke();
         if (!dots) return;
         for (const [x, y] of ends) {
@@ -183,41 +237,36 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
         }
     };
 
-    // The real construction underneath: same circumradius, corners at 72°.
-    const realCorners: [number, number][] = [];
-    for (let k = 0; k < 5; k++) {
-        const a = (90 - k * 72) * Math.PI / 180;
-        realCorners.push([Rq * Math.cos(a), Rq * Math.sin(a)]);
-    }
-    const realCenters: [number, number][] = [];      // 2r, along the edge normals
-    const rReal = Rq * Math.cos(Math.PI / 5);
-    for (let k = 0; k < 5; k++) {
-        const a = (90 - 36 - k * 72) * Math.PI / 180;
-        realCenters.push([2 * rReal * Math.cos(a), 2 * rReal * Math.sin(a)]);
-    }
+    // The same construction in real geometry, at the same center size.
+    const dir = (deg: number): [number, number] => [Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180)];
+    const upR = [0, 1, 2, 3, 4].map((k) => dir(90 - k * 72));
+    const downR = [0, 1, 2, 3, 4].map((k) => dir(90 - 36 - k * 72));
+    const realSpoke = which === "D" ? Rq : (which === "T" ? PHI : which === "S" ? 1 : 1) * 2 * Rq * Math.cos(Math.PI / 5);
+    const realEnds = (which === "D" || which === "T" ? upR : downR)
+        .map(([x, y]) => [x * realSpoke, y * realSpoke] as [number, number]);
 
-    if (which === "D") {
-        poly(realCorners, REAL, 1.5);
-        poly(corners, QUAD, 1.5);
-        spokes(realCorners, REAL, false);
-        spokes(corners, QUAD, true);
-    } else {
-        // The neighbor at each spoke's end, drawn light: for P it is the
-        // pentagon across an edge and the flake closes up; for S and T it is
-        // further off — a diamond, a star — and the outline only says how far.
-        const realFar = realCenters.map(([x, y]) => {
-            const m = Math.hypot(...centers[0]) / (Math.hypot(...realCenters[0]) || 1);
-            return [x * m, y * m] as [number, number];
-        });
+    const centerQ = which === "T" ? starOutline(upQ, downQ, centerR) : pentaOutline(upQ, centerR);
+    const centerRl = which === "T" ? starOutline(upR, downR, centerR) : pentaOutline(upR, centerR);
+    poly(centerRl, REAL, 1.5);
+    poly(centerQ, QUAD, 1.5);
+
+    if (which !== "D") {
         for (let k = 0; k < 5; k++) {
-            poly(realCorners, REAL, 1, realFar[k][0], realFar[k][1], true);
-            poly(corners, QUAD, 1, centers[k][0], centers[k][1], true);
+            const [qx, qy] = spokeEnds[k], [rx, ry] = realEnds[k];
+            if (FAR[which] === "diamond") {
+                poly(diamondOutline(unit(realEnds[k]), farR), REAL, 1, rx, ry);
+                poly(diamondOutline(unit(spokeEnds[k]), farR), QUAD, 1, qx, qy);
+            } else if (FAR[which] === "star") {
+                poly(starOutline(upR, downR, farR), REAL, 1, rx, ry, true);
+                poly(starOutline(upQ, downQ, farR), QUAD, 1, qx, qy, true);
+            } else {
+                poly(pentaOutline(upR, farR), REAL, 1, rx, ry, true);
+                poly(pentaOutline(upQ, farR), QUAD, 1, qx, qy, true);
+            }
         }
-        poly(realCorners, REAL, 1.5);
-        poly(corners, QUAD, 1.5);
-        spokes(realFar, REAL, false);
-        spokes(centers, QUAD, true);
     }
+    spokes(realEnds, REAL, false);
+    spokes(spokeEnds, QUAD, true);
     axis(ctx, cx, h);
 }
 

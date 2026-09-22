@@ -113,6 +113,21 @@ for a pentagon's minor radius (inradius, center to edge) and R for the major
 
 All four are on the picker.
 
+**Each wheel connects a different pair of figures**, which is what Jake's
+outline of T made plain — the figure had been drawing pentagons for all of
+them. P is pentagon to pentagon, S pentagon to diamond, T star to star, D a
+pentagon to its own corners. The shapes come from `shape-modes.js` rather than
+from guesswork: `starTips = unitUp × pgram.rho`, `starDimples = unitDown ×
+pgram.R`, and
+
+    pgram.R / pgram.rho = √((25−11√5)/10) / √((5−√5)/10) = 1/φ²
+
+so the star is the {5/2} star polygon, tips at **φ·R** of the pentagon and
+dimples at **R/φ**. That is why T = **φ·P**: two stars mesh tip into dimple at
+exactly that distance, which is what "feet touching" means. (A first attempt
+reasoned the star was five thin rhombs about their acute corner, giving
+inner/outer = 1/(2cos18°) = 0.526 — wrong, and visibly too fat.)
+
 **T, confirmed from Jake's figure.** He produced a drawing of it — four stars
 with spokes from one center to three of its neighbors' — and measuring the
 spokes off the image gives 92.5°, 17.5° and ~305°, which is 90 / 18 / 306
