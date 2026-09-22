@@ -79,10 +79,12 @@ in two steps and then changes character.
 The discrete mode is called **quadrille** — the seeds are the quadrille seeds,
 and the picture is a figure drawn on square graph paper. That is the name to
 use here; `mosaic` is penrose-mosaic's other geometry and is a different thing,
-kept in mind rather than mixed in. The index figure draws the quadrille pentagon
-on its own lattice beside the Euclidean ("real") one, both on the same blue
-grid, because the whole point of this corner is that they are two geometries and
-not one rounded off.
+kept in mind rather than mixed in. The index draws the wheel with its angles
+and, beside it, the quadrille pentagon with the real one laid **over** it at the
+same circumradius — both on the blue grid, because the whole point of this
+corner is that they are two geometries and not one rounded off. One page: E2 is
+a section of it, not a page of its own. Jake, 2026-09-22: *the only breadcrumb I
+want to see is home to pentagrid/index.*
 
 ## Open
 
