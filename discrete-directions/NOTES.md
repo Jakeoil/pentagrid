@@ -111,7 +111,17 @@ for a pentagon's minor radius (inradius, center to edge) and R for the major
     T         two star centers, feet touching
     D   R     one pentagon's own radius, center to corner
 
-All four are on the picker. A wheel stores **three seeds only**: the other
+All four are on the picker.
+
+**T, confirmed from Jake's figure.** He produced a drawing of it — four stars
+with spokes from one center to three of its neighbors' — and measuring the
+spokes off the image gives 92.5°, 17.5° and ~305°, which is 90 / 18 / 306
+within drawing accuracy: three of the five `up` directions, in real geometry.
+So T's endpoints really are two star centers with their feet touching, as
+`shape-modes.js` says, and `measurements.js`'s caption **"T Star to boat"**
+describes what the segment *crosses* — a boat sits between each pair of stars
+— rather than where it ends. The endpoint reading is the one that matches the
+seed arithmetic, and it is what the page says. A wheel stores **three seeds only**: the other
 seven of its ten points are those three reflected (negate x, negate y, negate
 both) and carry nothing new — worth saying on the page, since the tables print
 all ten.
