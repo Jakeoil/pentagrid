@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>E2 — The discrete wheel</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="../site.css">
+    <style>
+        .figure { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin: 16px 0; }
+        .figure canvas { border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); }
+        .readouts { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.9; }
+        .readouts b { font-family: inherit; color: var(--ink-faint); font-weight: 400; display: block; }
+        .legend span { display: inline-block; margin-right: 14px; font-size: 12px; }
+        .swatch { display: inline-block; width: 22px; height: 3px; vertical-align: middle; margin-right: 5px; }
+    </style>
+</head>
+<body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="../" draggable="false">Home</a>
+    <a href="../method.html" draggable="false">Method</a>
+    <a href="../multigrid.html" draggable="false">Multigrid</a>
+    <a href="./" draggable="false">Discrete</a>
+</nav>
+<div class="wrap">
+    <h1>E2 &mdash; the discrete wheel</h1>
+    <h2>Where the integer substitution actually points</h2>
+
+    <p>The wheel is ten lattice points: three free seeds and their reflections.
+    Inflation replaces each seed with the sum of three consecutive entries, and
+    because the two reflections act on the two coordinates differently, <b>x and
+    y evolve under two different integer matrices</b>. That asymmetry is the
+    whole story &mdash; a similarity would use one matrix for both.</p>
+
+    <pre>        ⎡1 0 0⎤              ⎡1 2 0⎤
+  Mx =  ⎢1 1 1⎥        My =  ⎢1 1 1⎥
+        ⎣0 1 2⎦              ⎣0 1 0⎦
+
+  char(Mx) = (1−λ)(λ²−3λ+1)      char(My) = (1+λ)(λ²−3λ+1)</pre>
+
+    <p>Both carry &phi;&sup2; and &phi;&#8315;&sup2;, so the growth ratio is
+    &phi;&sup2; &mdash; proved, not measured. Mx carries an extra eigenvalue 1:
+    <i>x</i>&#8320; never moves, which is why the first seed sits on the vertical
+    at every generation. My carries an extra &minus;1: an alternating component
+    that neither grows nor decays.</p>
+
+    <div class="figure">
+        <canvas id="e2-wheel" width="420" height="420"></canvas>
+        <div>
+            <label><span class="cap">generation <span class="val" id="e2-gen-value">0</span></span>
+                <input type="range" id="e2-gen" min="0" max="9" step="1" value="0" style="width: 220px"></label>
+            <p class="legend">
+                <span><i class="swatch" style="background:#c9ccd6"></i>Euclidean, 36&deg; apart</span>
+                <span><i class="swatch" style="background:#e63946"></i>discrete</span>
+            </p>
+            <div class="readouts">
+                <b>seed</b><span id="e2-seed"></span>
+                <b>wheel, degrees from the vertical</b><span id="e2-angles"></span>
+                <b>gaps</b><span id="e2-gaps"></span>
+                <b>frame operator</b><span id="e2-frame"></span>
+            </div>
+        </div>
+    </div>
+
+    <p>Push the slider past the last generation for the limit. The two free
+    angles are exactly</p>
+    <p class="hint" id="e2-exact"></p>
+
+    <p><b>Where this leaves a multigrid.</b> Five directions, unequally spaced,
+    mirror symmetric about the vertical. Every step of de Bruijn's construction
+    that reads the direction array still works &mdash; crossings, K-tuples, the
+    dual map. What breaks is everything that assumed the spacing was even:</p>
+
+    <ul>
+        <li>The rhomb class <i>min</i>(<i>k</i>&minus;<i>j</i>,
+        <i>n</i>&minus;(<i>k</i>&minus;<i>j</i>)) names a shape only when the
+        families are evenly spread. Here the ten family pairs could give ten
+        parallelogram types rather than two golden rhombs &mdash; and whether
+        they collapse to fewer <i>is the first result</i>.</li>
+        <li>The registration gain <i>n</i>/2 comes from &sum;<b>vv</b>&#7488;
+        = (<i>n</i>/2)<b>I</b>, which needs a tight frame. The discrete frame is
+        diagonal &mdash; the mirror symmetry survives &mdash; but not isotropic,
+        so the dual map is a linear map with two different gains rather than a
+        similarity.</li>
+        <li>&sum;<b>v</b><sub><i>j</i></sub> &ne; 0, so &sum;<i>K</i> is not a
+        height function: no Wieringa lift, no index argument, no four levels.</li>
+    </ul>
+
+    <p class="hint">Nothing above is a conclusion about the dual tiling. It is
+    the list of what has to be rebuilt before there is one.</p>
+
+    <script type="module" src="./dist/e2.js"></script>
+</div>
+</body>
+</html>

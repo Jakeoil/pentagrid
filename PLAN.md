@@ -69,6 +69,7 @@ State of play, 2026-09-17.
 | `sunstar.html` | the uniform family: sun, star, 5-fold, deca; rhomb groups colored | `app/sunstar.ts` |
 | `split.html` | grid on one canvas, dual on the other, one γ, one panel | `app/split.ts` |
 | `wiggle.html` | the acceptance region: drag γ in E⊥ and watch the patch hold or break | `app/wiggle.ts` |
+| `discrete-directions/` | a subproject of its own: penrose-mosaic's integer substitution, its limiting directions, and what a multigrid on them would be (§6, E2) | its own `src/`, `dist/`, test |
 
 Every page carries the top nav and the floating reticulum with its presets
 popup (sun, star, deca; decagon, couple, octagon, 1 thick, 2 thick, 1 thin,
@@ -2226,16 +2227,18 @@ Thought about, recorded, not started. None is scheduled.
   scales with the zoom. Jake's glyph sets, for the record:
   `⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳`, `❶❷❸❹❺❻❼❽❾❿`, `➊➋➌➍➎➏➐➑➒➓`.
 
-- **E2 — the pentagrid on the discrete directions.** Fully specified in
-  [RESEARCH.md](RESEARCH.md): replace the 72° directions with the limiting
-  directions of penrose-mosaic's integer construction, `arctan((3−φ)/2) =
-  34.6438°` and `arctan((5+3√5)/4) = 71.1377°`, and dualize that. `n` and
-  `directions` are already parameters, so the coupling is gone; what breaks is
-  the thick/thin classification (three edge lengths, up to ten parallelogram
-  types — whether it stays two shapes *is the first result*) and the meaning of
-  Σγ. The payoff: the old prediction that the discrete construction converges
-  back to standard Penrose has closed forms saying otherwise, so it is
-  falsifiable.
+- **E2 — dualizing the discrete directions.** STARTED 2026-09-22 as its own
+  subproject, `discrete-directions/` (index + `e2.html`), independent of these
+  pages but for the mathematics and the stylesheet. The directions are settled
+  there: the substitution and its inverse adapted from penrose-mosaic, the
+  limit computed rather than quoted, checked against that project's stated
+  results. What remains is the dualization — whether the dual stays two rhomb
+  shapes or splits into ten parallelogram types (*the first result*), whether
+  it is aperiodic (finite generations are rational, hence periodic; only the
+  limit is irrational), and whether the P3 regroups into the discrete P1 tiles.
+  Two things it must face: the frame is diagonal but **not** isotropic, so the
+  dual map is a linear map with two gains rather than a similarity; and
+  Σvⱼ ≠ 0, so ΣK is not a height and there is no index argument.
 - **Phason flips in slow motion.** Crossing a singular γ rearranges tiles
   locally; the hunt presets put you on one and `wiggle.html` shows the boundary.
   A page that animates one crossing is the payoff for the exact criterion.
