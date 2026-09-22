@@ -6,8 +6,9 @@
 // every generation while the real one does not and never will (sin 36° is
 // degree 4 over ℚ; the lattice reaches only ℚ(√5)).
 
-import { QUADRILLE, generation, halfStep, wheel, pentagon, limitSeed,
+import { WHEELS, generation, halfStep, wheel, pentagon, limitSeed,
          limitAngles, discreteDirections, frameOperator } from "./wheels.js";
+import type { WheelName } from "./wheels.js";
 
 const GRID = "#c8d8ef";          // quadrille blue
 const GRID_BOLD = "#9fbde4";
@@ -46,9 +47,13 @@ function axis(ctx: CanvasRenderingContext2D, cx: number, h: number) {
     ctx.setLineDash([]);
 }
 
+/** Which wheel is on show. The scale differs; the limiting directions do not. */
+let which: WheelName = "P";
+
 /** The seed at a rung of the ladder: whole generations even, half steps odd. */
 function rung(v: number) {
-    return v % 2 === 0 ? generation(QUADRILLE, v / 2) : halfStep(generation(QUADRILLE, (v - 1) / 2));
+    const base = WHEELS[which];
+    return v % 2 === 0 ? generation(base, v / 2) : halfStep(generation(base, (v - 1) / 2));
 }
 
 // ── the wheel, with its angles ────────────────────────────────────
@@ -59,7 +64,7 @@ function drawWheel(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     const w = canvas.width, h = canvas.height;
     const cx = Math.round(w / 2) + 0.5, cy = Math.round(h / 2) + 0.5;
     const R = Math.min(w, h) * 0.40;
-    const pts = wheel(atLimit ? limitSeed(QUADRILLE) : rung(v));
+    const pts = wheel(atLimit ? limitSeed(WHEELS[which]) : rung(v));
     const reach = Math.max(...pts.map(([x, y]) => Math.hypot(x, y))) || 1;
     paper(ctx, w, h, cx, cy, atLimit ? 0 : R / reach);
 
@@ -114,7 +119,7 @@ function drawPentagons(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     if (!ctx) return;
     const w = canvas.width, h = canvas.height;
     const cx = Math.round(w / 2) + 0.5, cy = Math.round(h / 2) + 0.5;
-    const pts = pentagon(atLimit ? limitSeed(QUADRILLE) : rung(v));
+    const pts = pentagon(atLimit ? limitSeed(WHEELS[which]) : rung(v));
     const reach = Math.max(...pts.map(([x, y]) => Math.hypot(x, y))) || 1;
     const R = Math.min(w, h) * 0.40;
     const cell = atLimit ? 0 : R / reach;
@@ -154,7 +159,7 @@ function drawPentagons(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
 // ── the readouts ──────────────────────────────────────────────────
 
 function report(v: number, atLimit: boolean) {
-    const seed = atLimit ? limitSeed(QUADRILLE) : rung(v);
+    const seed = atLimit ? limitSeed(WHEELS[which]) : rung(v);
     const set = (id: string, text: string) => { const el = byId(id); if (el) el.textContent = text; };
     set("fig-seed", atLimit ? "the limit"
         : seed.map(([x, y]) => `(${x}, ${y})`).join("  "));
@@ -164,7 +169,7 @@ function report(v: number, atLimit: boolean) {
     set("fig-angles", from.map((a) => fmt(a, 4)).join("  "));
     set("fig-gaps", from.slice(1, 6).map((a, i) => fmt(a - from[i], 4)).join("  ")
         + "   (real: 36 36 36 36 36)");
-    const [xx, xy, yy] = frameOperator(discreteDirections());
+    const [xx, xy, yy] = frameOperator(discreteDirections(WHEELS[which]));
     set("fig-frame", atLimit
         ? `Σ v vᵀ = [${fmt(xx)}, ${fmt(xy)}; ${fmt(xy)}, ${fmt(yy)}]   — the pentagrid's is [2.5, 0; 0, 2.5]`
         : "");
@@ -174,6 +179,7 @@ const wheelCanvas = byId("fig-wheel") as HTMLCanvasElement | null;
 const pentCanvas = byId("fig-pentagons") as HTMLCanvasElement | null;
 const slider = byId("fig-gen") as HTMLInputElement | null;
 const genOut = byId("fig-gen-value");
+const pick = byId("fig-wheel-pick") as HTMLSelectElement | null;
 
 if (wheelCanvas && pentCanvas && slider) {
     const render = () => {
@@ -185,6 +191,26 @@ if (wheelCanvas && pentCanvas && slider) {
         report(v, atLimit);
     };
     slider.addEventListener("input", render);
+    pick?.addEventListener("change", () => {
+        which = (pick.value === "D" ? "D" : "P");
+        render();
+    });
+    // The wheel scrolls the generations, over either canvas. A notch a rung, so
+    // one flick is one step of the ladder rather than a run down it.
+    let last = -Infinity;
+    const scroll = (e: WheelEvent) => {
+        e.preventDefault();
+        const d = e.deltaY || e.deltaX;
+        if (!d) return;
+        const t = e.timeStamp;
+        if (t > 0 && t - last < 90) return;
+        last = t;
+        const next = parseInt(slider.value, 10) + (d > 0 ? -1 : 1);
+        const lo = parseInt(slider.min, 10), hi = parseInt(slider.max, 10);
+        slider.value = String(Math.max(lo, Math.min(hi, next)));
+        render();
+    };
+    for (const c of [wheelCanvas, pentCanvas]) c.addEventListener("wheel", scroll, { passive: false });
     render();
 }
 

@@ -24,11 +24,29 @@
 export type Seed = readonly (readonly [number, number])[];
 
 /**
- * penrose-mosaic's quadrille seeds — `p(0,-6), p(3,-4), p(5,-2)` there, where
- * y runs down the screen; negated here so y runs up. Slot 0 is `up0` and lies
- * on the vertical, which is the axis the whole wheel mirrors about.
+ * penrose-mosaic's quadrille seeds, negated in y (it draws with y down) so that
+ * y runs up here. Slot 0 lies on the vertical, which is the axis the whole
+ * wheel mirrors about.
+ *
+ * Which wheel you take sets the SCALE and nothing else: all four share the
+ * substitution, so all four share its dominant eigenvector and therefore the
+ * same limiting directions. Writing r for a pentagon's minor radius (its
+ * inradius, center to edge) and R for the major (center to vertex):
+ *
+ *   P   2r    center to center of two pentagons — the one the tiling is laid on
+ *   D   R     center to vertex, one pentagon's own radius
+ *
+ * penrose-mosaic carries two more, S (pentagon to near diamond) and T (two
+ * star centers, feet touching); they are not needed here.
  */
-export const QUADRILLE: Seed = [[0, 6], [3, 4], [5, 2]];
+export const WHEELS = {
+    P: [[0, 6], [3, 4], [5, 2]] as Seed,
+    D: [[0, 3], [2, 3], [3, 1]] as Seed,
+};
+export type WheelName = keyof typeof WHEELS;
+
+/** The P wheel, the default everywhere: 2r, pentagon center to pentagon center. */
+export const QUADRILLE: Seed = WHEELS.P;
 
 /** One inflation. */
 export function inflate(seed: Seed): Seed {

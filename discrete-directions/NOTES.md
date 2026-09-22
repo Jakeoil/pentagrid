@@ -77,6 +77,25 @@ Worth saying plainly: **the ladder is two-sided but not symmetric.** Upward it
 is φ² growth with exact lattice coordinates forever. Downward it reaches a floor
 in two steps and then changes character.
 
+## Which wheel: P and D
+
+penrose-mosaic carries four wheels, and they differ in **scale only** — same
+substitution, same dominant eigenvector, same limiting directions. Writing r
+for a pentagon's minor radius (inradius, center to edge) and R for the major
+(center to vertex), and following Jake's convention:
+
+    P   2r    center to center of two pentagons — what the tiling is laid out on
+    D   R     one pentagon's own radius, center to vertex
+    S         pentagon center to the near diamond      (not used here)
+    T         two star centers, feet touching          (not used here)
+
+P/D tends to 2r/R = 2cos36° = **φ**, which the discrete seeds reach from a
+long way off: 1.3868 at generation 0, then 1.6765, 1.5907, 1.6278, … 1.61807
+by the ninth. That the ratio of two *integer* wheels converges on φ is the
+same fact as the Fibonacci interleave, seen sideways.
+
+The index shows P by default, with D on the picker.
+
 ## Quadrille, and mosaic
 
 The discrete mode is called **quadrille** — the seeds are the quadrille seeds,

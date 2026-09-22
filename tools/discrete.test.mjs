@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { QUADRILLE, PHI, inflate, deflate, halfStep, generation, wheel, pentagon, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
+import { QUADRILLE, WHEELS, PHI, inflate, deflate, halfStep, generation, wheel, pentagon, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
 
 test("inflate and deflate are exact inverses on integer seeds", () => {
     let s = QUADRILLE;
@@ -147,4 +147,27 @@ test("the pentagon is the wheel's up set, and its corners are lattice points at 
     });
     const onLattice = real.filter(([x, y]) => Math.abs(x - Math.round(x)) < 1e-9 && Math.abs(y - Math.round(y)) < 1e-9);
     assert.equal(onLattice.length, 1, "only the top corner lands on a lattice point");
+});
+
+test("the wheels differ in scale only: P is the pentagon-to-pentagon vector, D one pentagon's radius, same limit", () => {
+    assert.deepEqual(WHEELS.P.map(([x, y]) => [x, y]), [[0, 6], [3, 4], [5, 2]]);
+    assert.deepEqual(WHEELS.D.map(([x, y]) => [x, y]), [[0, 3], [2, 3], [3, 1]]);
+    assert.deepEqual(QUADRILLE, WHEELS.P, "the default is P");
+    // P is the longer, and P/D tends to phi: 2r/R = 2 cos 36 = phi in the real
+    // geometry, and the discrete seeds are coarse at generation 0 but converge —
+    // 1.3868, 1.6765, 1.5907, ... 1.61807 by the ninth
+    const mag = (s) => Math.hypot(...s[1]);
+    assert.ok(mag(WHEELS.P) > mag(WHEELS.D));
+    let p9 = WHEELS.P, d9 = WHEELS.D;
+    for (let g = 0; g < 9; g++) { p9 = inflate(p9); d9 = inflate(d9); }
+    assert.ok(Math.abs(mag(p9) / mag(d9) - PHI) < 1e-4,
+              `P/D should tend to phi; at generation 9 it is ${mag(p9) / mag(d9)}`);
+    // same substitution, same dominant eigenvector: the same limiting directions
+    const p = limitAngles(WHEELS.P), d = limitAngles(WHEELS.D);
+    assert.deepEqual(p.map((a) => +a.toFixed(9)), d.map((a) => +a.toFixed(9)));
+    // and both stay on the lattice at every rung, whole or half
+    for (const base of [WHEELS.P, WHEELS.D]) for (let v = 0; v < 8; v++) {
+        const seed = v % 2 === 0 ? generation(base, v / 2) : halfStep(generation(base, (v - 1) / 2));
+        for (const [x, y] of wheel(seed)) { assert.equal(x, Math.round(x)); assert.equal(y, Math.round(y)); }
+    }
 });

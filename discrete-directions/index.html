@@ -14,6 +14,8 @@
         .readouts { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.85; }
         .readouts b { font-family: inherit; color: var(--ink-faint); font-weight: 400; display: block; margin-top: 4px; }
         .k { font-family: ui-monospace, Menlo, monospace; }
+        .pair select { font: inherit; font-size: 12px; padding: 2px 4px; }
+        .pair canvas { touch-action: none; }
     </style>
 </head>
 <body>
@@ -40,6 +42,19 @@
     a <i>simpler</i> field than the true tangents, which need nested radicals. Two
     geometries, not one rounded off.</p>
 
+    <p><b>The wheel on show is the P wheel.</b> Writing <i>r</i> for a pentagon's
+    <b>minor</b> radius &mdash; its inradius, center to edge &mdash; and <i>R</i> for
+    the <b>major</b> one, center to vertex: <b>P</b> is <b>2<i>r</i></b>, the vector
+    from one pentagon's center to its neighbor's, which is what the tiling is laid out
+    on. <b>D</b> is <b><i>R</i></b>, one pentagon's own radius, center to vertex. The
+    picker swaps them, and penrose-mosaic carries two more (S, pentagon to near diamond;
+    T, two star centers with their feet touching) which are not needed here. <b>Which
+    wheel you take sets the scale and nothing else</b> &mdash; they share the
+    substitution, so they share its dominant eigenvector and land on the same limiting
+    directions. Their ratio tends to 2<i>r</i>/<i>R</i>&thinsp;=&thinsp;2&thinsp;cos&thinsp;36&deg;
+    &thinsp;=&thinsp;&phi;, though the seeds are coarse enough at generation 0 to read
+    1.387 rather than 1.618.</p>
+
     <div class="pair">
         <figure>
             <canvas id="fig-wheel" width="340" height="340"></canvas>
@@ -53,10 +68,16 @@
             <b class="k" style="color:#2a3b6b">real</b> at 72&deg;, same circumradius</figcaption>
         </figure>
         <div>
+            <label>wheel <select id="fig-wheel-pick">
+                <option value="P" selected>P &mdash; 2r, center to center</option>
+                <option value="D">D &mdash; R, center to vertex</option>
+            </select></label>
+            <p></p>
             <label><span class="cap">generation <span class="val" id="fig-gen-value">0</span></span><br>
                 <input type="range" id="fig-gen" min="0" max="10" step="1" value="0" style="width: 210px"></label>
             <p class="hint" style="margin:6px 0 10px">Whole generations and the half steps
-            between them; past the end, the limit.</p>
+            between them; past the end, the limit. Scrolling over either figure steps the
+            ladder too.</p>
             <div class="readouts">
                 <b>seed</b><span id="fig-seed"></span>
                 <b>wheel, degrees from the vertical</b><span id="fig-angles"></span>
