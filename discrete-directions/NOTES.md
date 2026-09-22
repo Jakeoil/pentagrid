@@ -52,24 +52,46 @@ reachable exactly in x and up to that alternation in y, and **the wheels store
 φ² because that is where the two coordinates agree.** That is the structural
 reason for the even-generation ladder, not a choice.
 
-## Below zero: one positive half generation, then ψ land
+## The seed is generation 1
+
+**Jake, 2026-09-22:** *check penrose-mosaic/measurements.html for generation
+number not matching. Is this intentional.*
+
+It is, there, and this copy was the one out of step. `makeWheels` puts the seed
+at `wheels.p[1]` and **one deflation of it** at `wheels.p[0]`, so the wheel
+index matches the shape generation the drawing asks for (`wheels.p[gen]`), and
+`measurements.html` prints its rows on that convention. `docs/wheels.md` says so
+in as many words: *"makeWheels uses it once, to produce generation 0 from the
+seed at generation 1."*
+
+Our first pass called the seed generation 0 and deflated below it, so every
+number here was one low against that table. Fixed: `SEED_GENERATION = 1`, and
+`wheelAt(name, halves)` counts half generations on the mosaic's numbering —
+rung 2 is the seed, rung 0 the deflation below it, odd rungs the half steps.
+Nothing about the arithmetic moved; only what the rungs are called.
+
+(Do not confuse either with the **P1 generation** numbers used for patches in
+the parent project's PLAN: those count φ² steps of the tile substitution, a
+different ladder that happens to have the same growth rate.)
+
+## Below the seed: one positive half generation, then ψ land
 
 **Jake:** *there is a funky half gen below gen 0 which is positive. After that
 you get into ψ land.*
 
-Deflating the quadrille seed:
+Deflating the quadrille seed, in the mosaic's numbering:
 
-    gen  0   (0, 6)  (3, 4)  (5, 2)
-    half     (0, 4)  (2, 2)  (3, 2)     ← the funky one: still every coordinate ≥ 0
-    gen −1   (0, 2)  (1, 2)  (2, 0)
-    gen −2   (0, 2)  (0, 0)  (1, 0)     ← degenerate: slot 1 IS the origin
-    gen −3   (0, 2) (−1, 0)  (1, −2)    ← negatives
-    gen −4   (0, 6) (−3, −2) (2, −4)
+    gen  1   (0, 6)  (3, 4)  (5, 2)     ← the seed
+    gen  ½   (0, 4)  (2, 2)  (3, 2)     ← the funky one: still every coordinate ≥ 0
+    gen  0   (0, 2)  (1, 2)  (2, 0)
+    gen −1   (0, 2)  (0, 0)  (1, 0)     ← degenerate: slot 1 IS the origin
+    gen −2   (0, 2) (−1, 0)  (1, −2)    ← negatives
+    gen −3   (0, 6) (−3, −2) (2, −4)
 
 Going down, the φ² component shrinks and the conjugate root takes over — ψ =
 −1/φ, the other root of λ² − 3λ + 1, which is negative, so the coordinates
-alternate in sign and the "wheel" turns inside out. The half step below gen 0 is
-the last one that reads as a figure. Gen −2 is the hinge: slot 1 collapses onto
+alternate in sign and the "wheel" turns inside out. Generation ½ is the last one
+that reads as a figure. Gen −1 is the hinge: slot 1 collapses onto
 the origin, which is the deflation running out of wheel rather than a numerical
 accident. Everything below is arithmetically exact and geometrically ψ.
 
