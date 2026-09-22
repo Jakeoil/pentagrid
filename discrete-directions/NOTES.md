@@ -128,6 +128,23 @@ exactly that distance, which is what "feet touching" means. (A first attempt
 reasoned the star was five thin rhombs about their acute corner, giving
 inner/outer = 1/(2cos18°) = 0.526 — wrong, and visibly too fat.)
 
+**St1's reference point is its star's center, not its middle.** Jake: *the
+center of the diamond is not in the center. It is where the center of its star
+would be. Hence the name St1.* The diamond is a star with one point — St1 to
+the star's St5 and the boat's St3 — so it is measured from the star's center,
+which is a **corner** of the tile. The figure hangs the diamond off the end of
+the spoke accordingly.
+
+**S and P are the same vector in real geometry, and differ only discretely.**
+S = pgon.R + pgram.R = R + R/φ = φR, and P = 2r = 2R cos36° = φR: equal
+exactly. So the two wheels are two integer approximations of one limiting
+vector, which is why S/P → 1 (1.1662, 1.0225, 1.0033, 1.0005 by generation 7).
+**Open:** where the diamond actually sits against the pentagon. Taking the
+spoke along a corner ray leaves a gap of R/φ between the pentagon's corner and
+the diamond's acute vertex, and taking it along an edge normal puts the star
+center exactly where the neighboring pentagon's center is. Neither reading is
+obviously the tiling's, and the figure currently draws the first. Ask.
+
 **T, confirmed from Jake's figure.** He produced a drawing of it — four stars
 with spokes from one center to three of its neighbors' — and measuring the
 spokes off the image gives 92.5°, 17.5° and ~305°, which is 90 / 18 / 306

@@ -162,16 +162,25 @@ function starOutline(up: readonly (readonly [number, number])[],
     return out;
 }
 
-/** The thin rhomb — P1's diamond — long axis along `u`, side `a`. */
+/**
+ * P1's diamond — the thin rhomb — with its ACUTE VERTEX at the origin and the
+ * long axis running out along `u`.
+ *
+ * Jake: *the center of the diamond is not in the center. It is where the center
+ * of its star would be. Hence the name St1.* The diamond is a star with one
+ * point — St1 to the star's St5 and the boat's St3 — so the point it is
+ * measured from is its star's center, which is a corner of the tile and not its
+ * middle. S therefore ends ON that corner: pgon.R out to a pentagon corner,
+ * then pgram.R further, and the diamond hangs off the end.
+ */
 function diamondOutline(u: readonly [number, number], a: number): [number, number][] {
-    const w: [number, number] = [-u[1], u[0]];
-    const L = a * Math.cos(Math.PI / 10), S = a * Math.sin(Math.PI / 10);
-    return [
-        [u[0] * L, u[1] * L],
-        [w[0] * S, w[1] * S],
-        [-u[0] * L, -u[1] * L],
-        [-w[0] * S, -w[1] * S],
-    ];
+    const rot = (deg: number): [number, number] => {
+        const t = deg * Math.PI / 180, c = Math.cos(t), s = Math.sin(t);
+        return [u[0] * c - u[1] * s, u[0] * s + u[1] * c];
+    };
+    const far = 2 * a * Math.cos(Math.PI / 10);      // the long diagonal
+    const l = rot(18), r = rot(-18);
+    return [[0, 0], [l[0] * a, l[1] * a], [u[0] * far, u[1] * far], [r[0] * a, r[1] * a]];
 }
 
 const unit = (p: readonly [number, number]): [number, number] => {
@@ -185,12 +194,13 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     const w = canvas.width, h = canvas.height;
     const cx = Math.round(w / 2) + 0.5, cy = Math.round(h / 2) + 0.5;
 
-    // The spokes: this wheel's own vectors. D runs to its own corners and T to
-    // the stars its feet point at, both UP directions; P and S cross an edge to
-    // the next figure, which is a DOWN direction. (Jake's outline of T measures
-    // 90, 18, 306 — the up set — which is what settled this.)
+    // The spokes: this wheel's own vectors. Only P crosses an EDGE to the next
+    // pentagon, which is a down direction; D runs to its own corners, S out past
+    // a corner to the near diamond's star center, T to the stars its feet point
+    // at — all up directions. (Jake's outline of T measures 90, 18, 306, the up
+    // set, which is what settled T.)
     const seed = atLimit ? limitSeed(WHEELS[which]) : wheelAt(which, v);
-    const spokeEnds = which === "D" || which === "T" ? pentagon(seed) : pentagonDown(seed);
+    const spokeEnds = which === "P" ? pentagonDown(seed) : pentagon(seed);
     const reachSpoke = Math.max(...spokeEnds.map(([x, y]) => Math.hypot(x, y))) || 1;
 
     // The figure at the center, sized by what the spoke means.
@@ -203,7 +213,8 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     const centerR = which === "T" ? PHI * Rq : Rq;
     const farR = which === "T" ? PHI * Rq : which === "S" ? 2 * Rq * Math.sin(Math.PI / 5) : Rq;
 
-    const reach = which === "D" ? Rq : reachSpoke + (which === "S" ? farR : centerR);
+    const reach = which === "D" ? Rq
+        : reachSpoke + (which === "S" ? 2 * farR * Math.cos(Math.PI / 10) : centerR);
     const S = Math.min(w, h) * 0.44 / reach;
     paper(ctx, w, h, cx, cy, atLimit ? 0 : S * (Rq / (Math.max(...pentagon(dSeed).map(([x, y]) => Math.hypot(x, y))) || 1)));
 
@@ -241,8 +252,9 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     const dir = (deg: number): [number, number] => [Math.cos(deg * Math.PI / 180), Math.sin(deg * Math.PI / 180)];
     const upR = [0, 1, 2, 3, 4].map((k) => dir(90 - k * 72));
     const downR = [0, 1, 2, 3, 4].map((k) => dir(90 - 36 - k * 72));
-    const realSpoke = which === "D" ? Rq : (which === "T" ? PHI : which === "S" ? 1 : 1) * 2 * Rq * Math.cos(Math.PI / 5);
-    const realEnds = (which === "D" || which === "T" ? upR : downR)
+    // D stops at R; P is 2r = φR; S is R + R/φ, which is φR again; T is φP = φ²R.
+    const realSpoke = which === "D" ? Rq : which === "T" ? PHI * PHI * Rq : PHI * Rq;
+    const realEnds = (which === "P" ? downR : upR)
         .map(([x, y]) => [x * realSpoke, y * realSpoke] as [number, number]);
 
     const centerQ = which === "T" ? starOutline(upQ, downQ, centerR) : pentaOutline(upQ, centerR);
@@ -254,6 +266,7 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
         for (let k = 0; k < 5; k++) {
             const [qx, qy] = spokeEnds[k], [rx, ry] = realEnds[k];
             if (FAR[which] === "diamond") {
+                // hung off the spoke's end, pointing on outward
                 poly(diamondOutline(unit(realEnds[k]), farR), REAL, 1, rx, ry);
                 poly(diamondOutline(unit(spokeEnds[k]), farR), QUAD, 1, qx, qy);
             } else if (FAR[which] === "star") {
