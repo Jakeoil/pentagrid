@@ -65,12 +65,16 @@ export function computeKTuple(pg: Pentagrid, x: number, y: number): number[] {
     return K;
 }
 
-/** The dual vertex f(x) = Σ K_j·v_j for a K-tuple. */
+/** What the dual builds edges from: `edges` when a host supplies it, else the directions. */
+export const edgeVectors = (pg: Pentagrid): readonly Vec2[] => pg.edges ?? pg.directions;
+
+/** The dual vertex f(x) = Σ K_j·e_j for a K-tuple. */
 export function dualVertex(pg: Pentagrid, K: readonly number[]): Vec2 {
+    const e = edgeVectors(pg);
     let fx = 0, fy = 0;
     for (let j = 0; j < pg.n; j++) {
-        fx += K[j] * pg.directions[j][0];
-        fy += K[j] * pg.directions[j][1];
+        fx += K[j] * e[j][0];
+        fy += K[j] * e[j][1];
     }
     return [fx, fy];
 }
@@ -80,6 +84,7 @@ export function computeRhomb(
     pg: Pentagrid, j: number, k: number, nj: number, nk: number,
     x0: number, y0: number,
 ): Rhomb {
+    const edge = edgeVectors(pg);
     const baseK: number[] = [];
     let fx = 0, fy = 0;
     for (let i = 0; i < pg.n; i++) {
@@ -91,12 +96,12 @@ export function computeRhomb(
             Ki = Math.ceil(dot + pg.gamma[i] - K_EPS);
         }
         baseK.push(Ki);
-        fx += Ki * pg.directions[i][0];
-        fy += Ki * pg.directions[i][1];
+        fx += Ki * edge[i][0];
+        fy += Ki * edge[i][1];
     }
 
-    const [vjx, vjy] = pg.directions[j];
-    const [vkx, vky] = pg.directions[k];
+    const [vjx, vjy] = edge[j];
+    const [vkx, vky] = edge[k];
 
     const vertices: Vec2[] = [
         [fx, fy],

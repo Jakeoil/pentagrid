@@ -189,6 +189,47 @@ corner is that they are two geometries and not one rounded off. One page: E2 is
 a section of it, not a page of its own. Jake, 2026-09-22: *the only breadcrumb I
 want to see is home to pentagrid/index.*
 
+## Dualizing them: dual.html
+
+Built 2026-09-22, split's arrangement — the multigrid on one canvas, its dual
+on the other, one γ, one view — because the question is what the dual *does*
+and the differences show as differences between two pictures. Not the method
+page (its narrative is about facts that do not survive) and not grow first
+(the growth animation's charm is that each tile moves by a bounded wobble and
+settles, which needs the dual map to be a similarity; here it shears).
+
+**Two switches, because de Bruijn's construction conflates two choices** that
+come apart the moment the directions are unequal:
+
+- **spacing** λⱼ, how far apart family j's lines are. All equal isolates the
+  effect of direction alone; the wheel's own lengths (1.0462, 1, 1.0288,
+  1.0288, 1) are what the lattice supplies.
+- **edges** eⱼ, what the dual adds up: f = Σ Kⱼ eⱼ. Unit vectors are de
+  Bruijn's and give rhombs; the wheel vectors give parallelograms with unequal
+  sides — the reading that could reproduce the quadrille tiles, whose edges are
+  4, √13, √17.
+
+One array used to do both (scaling a direction tightens the grid *and*
+lengthens the edge), so `Pentagrid` gained an optional `edges`; without it
+nothing changes, and the pentagrid never notices.
+
+**What it shows.**
+
+- **Six shapes, not two** — and not the ten RESEARCH.md expected. The ten
+  family pairs give 34.6438, 36.4939, 37.7245, 69.2876, 71.1377, 74.2184;
+  the mirror symmetry pairs four of them off. Tested from the directions and
+  from the tiles.
+- **The dual map shears.** Σ v vᵀ is diagonal — the mirror survives — but not
+  isotropic, so there are two gains instead of the pentagrid's single n/2.
+  The view registers by the mean and the page reports both and the gap.
+- **The index almost survives.** Σvⱼ over the five directions is
+  **(0, 0.0012)**: exactly zero across the mirror, only just off it the other
+  way. So ΣK is not a height function but drifts from one *slowly* — a more
+  interesting failure than a flat one, and a patch may look as though the lift
+  were there. (An earlier note here said 3.292; that came from taking all five
+  normals in the upper half plane, which is a choice of representative and
+  says nothing, since each direction is a ± pair. The test caught it.)
+
 ## Open
 
 - The dualization itself (E2's actual question). The frame is diagonal but not

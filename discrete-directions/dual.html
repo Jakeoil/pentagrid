@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dualizing the discrete directions</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="../site.css">
+    <style>
+        .wrap { max-width: 1240px; }
+        .split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto auto;
+            grid-auto-flow: column;
+            gap: 0 20px;
+            margin: 16px 0 8px;
+        }
+        .split figure { display: contents; }
+        .split figcaption { font-size: 12px; color: var(--ink-faint); margin: 8px 0; text-align: center; }
+        .split .layer-panel { align-self: start; }
+        .split .viewport { width: 580px; height: 580px; justify-self: center; }
+        @media (max-width: 1240px) {
+            .split { grid-template-columns: 1fr; grid-auto-flow: row; grid-template-rows: none; }
+        }
+        .switches { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+        .switches select { font: inherit; padding: 2px 6px; }
+        .report { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.9; margin: 8px 0 4px; }
+        .report b { font-family: inherit; font-weight: 400; color: var(--ink-faint); display: inline-block; min-width: 13em; }
+    </style>
+</head>
+<body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="../" draggable="false">Home</a>
+    <a href="./" draggable="false">Discrete</a>
+</nav>
+<div class="wrap">
+    <h1>Dualizing the discrete directions</h1>
+    <h2>The grid on the left, its dual on the right &mdash; one &gamma;, one view</h2>
+
+    <p>De Bruijn's construction needs only a set of directions, a phase for each,
+    and the rule that every crossing becomes a tile. None of that asks the
+    directions to be evenly spread. So: hand it
+    <a href="./">the discrete five</a> and look at what comes out.</p>
+
+    <p>Two things the pentagrid never has to separate come apart here, and they
+    are the two switches.</p>
+
+    <ul>
+        <li><b>Spacing</b> &mdash; how far apart family <i>j</i>'s lines are.
+        All equal isolates the effect of <i>direction</i> alone; the wheel's own
+        lengths (1.0462, 1, 1.0288, 1.0288, 1) are what the lattice actually
+        supplies, and no two families then have the same spacing.</li>
+        <li><b>Edges</b> &mdash; the vector the dual builds each tile edge from.
+        Unit vectors are de Bruijn's, and give rhombs. The wheel vectors
+        themselves give parallelograms with unequal sides, which is the reading
+        that could reproduce the quadrille tiles, whose edges are 4, &radic;13
+        and &radic;17.</li>
+    </ul>
+
+    <div class="switches">
+        <label>geometry <select id="dual-geometry">
+            <option value="discrete" selected>discrete (quadrille)</option>
+            <option value="real">real (de Bruijn)</option>
+        </select></label>
+        <label class="check"><input type="checkbox" id="dual-spacing"> wheel spacing</label>
+        <label class="check"><input type="checkbox" id="dual-edges"> wheel edges</label>
+    </div>
+
+    <p class="report">
+        <b>tile shapes</b><span id="dual-shapes"></span><br>
+        <b>gains of the dual map</b><span id="dual-gains"></span><br>
+        <b>spacing &lambda;</b><span id="dual-spacings"></span><br>
+        <b>edge lengths</b><span id="dual-edges-out"></span><br>
+        <b>&sum;<b>v</b><sub>j</sub></b><span id="dual-sum"></span>
+    </p>
+
+    <div class="split">
+        <figure>
+            <div class="layer-panel" id="dual-grid-panel"></div>
+            <figcaption>the multigrid &mdash; lines, crossings</figcaption>
+            <div class="viewport" id="dual-grid"></div>
+        </figure>
+        <figure>
+            <div class="layer-panel" id="dual-tiles-panel"></div>
+            <figcaption>its dual &mdash; a tile per crossing</figcaption>
+            <div class="viewport" id="dual-tiles"></div>
+        </figure>
+    </div>
+
+    <p class="hint">Drag to pan, scroll to zoom, on either side.</p>
+
+    <h3>What to watch for</h3>
+
+    <p><b>Six shapes, not two.</b> The ten family pairs give six distinct angles
+    &mdash; 34.6438&deg;, 36.4939&deg;, 37.7245&deg;, 69.2876&deg;,
+    71.1377&deg;, 74.2184&deg; &mdash; where the pentagrid gives two, 72 and
+    144. The mirror symmetry is what keeps it to six rather than ten.</p>
+
+    <p><b>The dual map shears.</b> Its gain comes from
+    &sum;<b>vv</b>&#7488;, which for evenly spread directions is
+    (<i>n</i>/2)<b>I</b> &mdash; a similarity, one number. Here it is diagonal
+    but not isotropic, so there are two gains and the dual is stretched along
+    one axis relative to the other. The readout gives both and the gap between
+    them.</p>
+
+    <p><b>The index almost survives.</b> &sum;<b>v</b><sub><i>j</i></sub> over the
+    five directions is <b>(0,&thinsp;0.0012)</b> &mdash; exactly zero across the
+    mirror, and only just off it the other way, where the pentagrid's is zero
+    outright. So &sum;<i>K</i> is not a height function but drifts from one
+    slowly, which is a more interesting failure than a flat one: there is no
+    Wieringa lift and no four levels, but a patch may look as though there
+    were. The rhomb groups, the arrows and the exact regularity criterion are
+    five's, and are not offered.</p>
+
+    <p><b>Periodic at every finite generation.</b> The wheel's slopes are
+    rational until the limit, so a grid built from generation <i>g</i> is
+    periodic with a period that grows with <i>g</i>. The directions used here
+    are the limit; which generation you dualize is a question of its own.</p>
+
+    <script type="module" src="../dist/discrete/dual.js"></script>
+</div>
+</body>
+</html>

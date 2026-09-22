@@ -24,6 +24,14 @@ export interface Pentagrid {
      * deflation is λ ↦ λ/φ with γ ↦ Mγ — see geometry/gamma.ts.
      */
     readonly lambda?: number;
+    /**
+     * The vectors the DUAL builds its tile edges from, if not the directions
+     * themselves. De Bruijn uses one array for both and the pentagrid never
+     * notices; off the even spread they come apart, since the grid's spacing
+     * and the tiling's edge lengths are separate choices. Omitted means
+     * `directions`, which is de Bruijn's.
+     */
+    readonly edges?: readonly Vec2[];
 }
 
 export interface ViewRect {

@@ -38,6 +38,16 @@ export interface GammaSetOptions {
      * useless for 7 — hence the default below scales with n.
      */
     n?: number;
+    /**
+     * Directions of your own, in place of the evenly spread ones — the
+     * discrete-directions experiment (see `src/discrete/`). Length sets n, and
+     * `symmetry` no longer applies: these are used as given. Everything else
+     * behaves the same; what breaks off the even spread is stated where it is
+     * assumed (the regularity criterion, the index, the registration gain).
+     */
+    directions?: readonly Vec2[];
+    /** What the dual builds tile edges from, if not the directions. See Pentagrid. */
+    edges?: readonly Vec2[];
 }
 
 export interface GammaSet {
@@ -243,7 +253,7 @@ export function penroseCondition(
 }
 
 export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
-    const n = options.n ?? NUM_GRIDS;
+    const n = options.directions?.length ?? options.n ?? NUM_GRIDS;
     // 1/n has to land on an integer numerator, and so does 1/2; 2000n does both
     // and keeps the pentagrid's historical 10000.
     const den = options.denominator ?? 2000 * n;
@@ -268,9 +278,16 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     const gamma: number[] = new Array(n).fill(0);
     let generation = 0;
     const PHI = (1 + Math.sqrt(5)) / 2;
-    const model: Pentagrid & { lambda: number } = { n, directions, gamma, lambda: 1 };
+    const model: Pentagrid & { lambda: number } = {
+        n, directions, gamma, lambda: 1,
+        ...(options.edges ? { edges: options.edges.map(([x, y]) => [x, y] as Vec2) } : {}),
+    };
 
     function rebuildDirections() {
+        if (options.directions) {
+            for (let j = 0; j < n; j++) directions[j] = [...options.directions[j]] as Vec2;
+            return;
+        }
         const next = makeDirections(symmetry, n);
         for (let j = 0; j < n; j++) directions[j] = next[j];
     }

@@ -5,7 +5,8 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { QUADRILLE, WHEELS, SEED_GENERATION, PHI, inflate, deflate, halfStep, generation, wheelAt, wheel, pentagon, pentagonDown, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
+import { collectRhombs } from "../dist/geometry/pentagrid.js";
+import { QUADRILLE, WHEELS, SEED_GENERATION, PHI, inflate, deflate, halfStep, generation, wheelAt, wheel, pentagon, pentagonDown, limitSeed, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
 
 test("inflate and deflate are exact inverses on integer seeds", () => {
     let s = QUADRILLE;
@@ -253,4 +254,76 @@ test("the star's proportions, and why T = phi * P", () => {
     // and the wheels agree, in the limit
     const mag = (n, g) => Math.hypot(...wheelAt(n, g)[1]);
     assert.ok(Math.abs(mag("T", 18) / mag("P", 18) - PHI) < 1e-3);
+});
+
+// ── dualizing the discrete directions ─────────────────────────────
+
+test("the discrete dual: six rhomb shapes, a frame that is diagonal but not isotropic, and no height function", () => {
+    const pts = pentagon(limitSeed(WHEELS.P));
+    const mags = pts.map((p) => Math.hypot(...p));
+    const order = pts.map((p, i) => ({ p, i, a: Math.atan2(p[1], p[0]) })).sort((u, w) => u.a - w.a);
+    const dirs = order.map(({ p, i }) => [p[0] / mags[i], p[1] / mags[i]]);
+    const lens = order.map(({ i }) => mags[i] / Math.min(...mags));
+
+    // Six shapes, not two and not ten: the mirror symmetry pairs four of the
+    // ten family pairs off. The pentagrid gives 72 and 144.
+    const angles = [];
+    for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) {
+        let a = Math.abs(Math.atan2(dirs[i][1], dirs[i][0]) - Math.atan2(dirs[j][1], dirs[j][0])) * 180 / Math.PI;
+        a %= 180; if (a > 90) a = 180 - a;          // fold BEFORE comparing, or a reversed pair reads negative
+        angles.push(+a.toFixed(4));
+    }
+    assert.deepEqual([...new Set(angles)].sort((a, b) => a - b),
+                     [34.6438, 36.4939, 37.7245, 69.2876, 71.1377, 74.2184]);
+    // and the tiles really do take those angles, folded the same way
+    const pg = { n: 5, directions: dirs, gamma: [0.2, 0.2, 0.2, 0.2, 0.2] };
+    const R = collectRhombs(pg, { xMin: -5, xMax: 5, yMin: -5, yMax: 5 }, { gain: 2.5 });
+    const seen = new Set();
+    for (const r of R) {
+        const u = [r.vertices[1][0] - r.vertices[0][0], r.vertices[1][1] - r.vertices[0][1]];
+        const w = [r.vertices[3][0] - r.vertices[0][0], r.vertices[3][1] - r.vertices[0][1]];
+        let a = Math.abs(Math.atan2(u[1], u[0]) - Math.atan2(w[1], w[0])) * 180 / Math.PI;
+        a = Math.abs(a) % 180; if (a > 90) a = 180 - a;
+        seen.add(+a.toFixed(4));
+    }
+    assert.equal(seen.size, 6, `tiles show ${[...seen].sort((a, b) => a - b)}`);
+
+    // The frame: diagonal (the mirror survives) but not isotropic, so the dual
+    // map has two gains and shears. The pentagrid's is exactly (5/2) I.
+    let xx = 0, xy = 0, yy = 0;
+    for (const [x, y] of dirs) { xx += x * x; xy += x * y; yy += y * y; }
+    assert.ok(Math.abs(xy) < 1e-9, "diagonal");
+    assert.ok(Math.abs(xx + yy - 5) < 1e-9, "trace is still n");
+    assert.ok(Math.abs(xx - yy) > 0.1, `not isotropic: ${xx} vs ${yy}`);
+
+    // The height function ALMOST survives. Sum v_j over the five directions of
+    // the wheel is (0, 0.00118): zero along the mirror by symmetry, and only
+    // just off it the other way — so Sum K drifts rather than being a height,
+    // and it drifts slowly. (Taking all five normals in the upper half plane
+    // instead gives (0, 3.29), but that is a choice of representative and says
+    // nothing: each direction is a +- pair.)
+    const sum = dirs.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0]);
+    assert.ok(Math.abs(sum[0]) < 1e-9, "zero across the mirror, exactly");
+    assert.ok(Math.abs(sum[1]) > 1e-4 && Math.abs(sum[1]) < 1e-2, `sum v = ${sum}`);
+
+    // The two switches are independent: spacing scales the normals, edges the
+    // dual's vectors, and only the second changes the tiles' side lengths.
+    const normals = dirs.map(([x, y], j) => [x / lens[j], y / lens[j]]);
+    const edges = dirs.map(([x, y], j) => [x * lens[j], y * lens[j]]);
+    const sides = (P) => {
+        const S = new Set();
+        for (const r of collectRhombs(P, { xMin: -5, xMax: 5, yMin: -5, yMax: 5 }, { gain: 2.5 })) {
+            const a = r.vertices[1], b = r.vertices[0];
+            S.add(+Math.hypot(a[0] - b[0], a[1] - b[1]).toFixed(4));
+        }
+        return S;
+    };
+    // With no `edges` supplied the dual builds from the normals themselves, so
+    // changing the spacing changes the edges too — that is exactly the
+    // conflation the page's two switches undo, and why `edges` had to become a
+    // field of its own.
+    assert.ok(sides({ ...pg, directions: normals }).size > 1, "one array does double duty");
+    assert.equal(sides({ ...pg, directions: normals, edges: dirs }).size, 1,
+                 "with edges given, spacing alone leaves unit edges");
+    assert.ok(sides({ ...pg, edges }).size > 1, "wheel edges give unequal sides");
 });

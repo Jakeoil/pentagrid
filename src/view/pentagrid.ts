@@ -227,6 +227,21 @@ export interface PentagridConfig {
      * page shows is written for it; seven gives Lutfalla's heptagrid.
      */
     n?: number;
+    /**
+     * Directions of your own instead of the evenly spread ones — the
+     * discrete-directions experiment. Length sets n. Off the even spread the
+     * gain is a matrix rather than n/2, so registration is approximate; the
+     * view scales by the frame's mean and says so on the page rather than
+     * pretending otherwise.
+     */
+    directions?: readonly Vec2[];
+    /**
+     * What the dual builds tile edges from, if not the directions. De Bruijn
+     * uses one array for both; separating them is the discrete experiment's
+     * second switch — the grid's spacing and the tiling's edge lengths are not
+     * the same choice once the directions are unequal.
+     */
+    edges?: readonly Vec2[];
     /** Fired whenever the user pans or zooms this instance. Not fired by
      *  setView, so linking two instances does not loop. */
     onViewChange?: (v: View) => void;
@@ -349,7 +364,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // corrected. Moving someone's offsets to keep a theorem tidy hides exactly
     // the cases worth looking at. The guard has no switch on the page; a host
     // that wants it calls gamma.setGuard(true).
-    const gammaSet = createGammaSet({ n: config.n ?? NUM_GRIDS, guard: false });
+    const gammaSet = createGammaSet({
+        n: config.n ?? NUM_GRIDS, guard: false,
+        directions: config.directions, edges: config.edges,
+    });
     const directions = gammaSet.model.directions;
     const gamma = gammaSet.model.gamma;
     // "Sometimes you just have to see them."
@@ -509,7 +527,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // rhombs. See PLAN.md item 3.
     // Permanent, not a toggle. The grid and the tiling share one coordinate system;
     // showing or hiding the tiling is what the Penrose layers are for.
-    const REGISTER_GAIN = model.n / 2;
+    //
+    // Off the even spread there is no single gain: Σ v vᵀ is not (n/2)·I, so the
+    // dual map is a linear map with a gain per axis. The view registers by the
+    // MEAN of the two — tr/2n · n = tr/2 — which is exactly n/2 when the frame
+    // is tight and an honest compromise when it is not. `frameGains` reports
+    // both so a page can say how far from a similarity it is.
+    const REGISTER_GAIN = (() => {
+        let xx = 0, yy = 0;
+        for (const [x, y] of model.directions) { xx += x * x; yy += y * y; }
+        return (xx + yy) / 2;                           // tr/2; n/2 when tight
+    })();
 
     function gridGain(): number {
         return REGISTER_GAIN;

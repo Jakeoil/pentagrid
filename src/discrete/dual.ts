@@ -1,0 +1,156 @@
+// dual.html: dualize the discrete directions.
+//
+// Split's arrangement — grid on the left, its dual on the right, one γ, one
+// view — because the question is what the dual DOES, and the differences from
+// the pentagrid show up as differences between two pictures you can pan
+// together.
+//
+// Two switches, which de Bruijn's construction conflates and the pentagrid
+// never notices:
+//
+//   spacing   λⱼ, how far apart family j's lines are. All 1 isolates the
+//             effect of DIRECTION alone; the wheel's own lengths (1.0462, 1,
+//             1.0288, 1.0288, 1) are what the lattice actually supplies.
+//   edges     eⱼ, the vector the dual builds each tile edge from. Unit is de
+//             Bruijn's and gives rhombs; the wheel vectors themselves give
+//             parallelograms with unequal sides, which is the reading that
+//             could reproduce the quadrille tiles (edges 4, √13, √17).
+//
+// What the readout reports is the experiment: how many tile shapes there are,
+// and how far the dual map is from a similarity.
+
+import { createPentagrid } from "../view/pentagrid.js";
+import type { PentagridHandle } from "../view/pentagrid.js";
+import { mountFloatingReticulum } from "../view/controls.js";
+import { WHEELS, wheelAt, pentagon, limitSeed } from "./wheels.js";
+import type { Vec2 } from "../geometry/types.js";
+
+const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
+const byId = (id: string) => document.getElementById(id) ?? undefined;
+
+/** The five limiting directions as unit normals, and their own lengths. */
+function discreteFrame(): { dirs: Vec2[]; lengths: number[] } {
+    const pts = pentagon(limitSeed(WHEELS.P));
+    const mags = pts.map(([x, y]) => Math.hypot(x, y));
+    const min = Math.min(...mags);
+    const order = pts
+        .map((p, i) => ({ p, i, a: Math.atan2(p[1], p[0]) }))
+        .sort((u, w) => u.a - w.a);
+    return {
+        dirs: order.map(({ p, i }) => [p[0] / mags[i], p[1] / mags[i]] as Vec2),
+        lengths: order.map(({ i }) => mags[i] / min),
+    };
+}
+
+/** The Euclidean five, for the comparison. */
+function realFrame(): { dirs: Vec2[]; lengths: number[] } {
+    const dirs: Vec2[] = [];
+    for (let j = 0; j < 5; j++) {
+        const a = (2 * Math.PI * j) / 5 + Math.PI / 2;
+        dirs.push([Math.cos(a), Math.sin(a)]);
+    }
+    return { dirs, lengths: [1, 1, 1, 1, 1] };
+}
+
+/** Σ v vᵀ, as [xx, xy, yy] — (n/2)·I exactly when the frame is tight. */
+function frame(dirs: readonly Vec2[]): [number, number, number] {
+    let xx = 0, xy = 0, yy = 0;
+    for (const [x, y] of dirs) { xx += x * x; xy += x * y; yy += y * y; }
+    return [xx, xy, yy];
+}
+
+/** The two gains: the eigenvalues of Σ v vᵀ. Equal when it is a similarity. */
+function gains(dirs: readonly Vec2[]): [number, number] {
+    const [xx, xy, yy] = frame(dirs);
+    const t = (xx + yy) / 2, d = Math.sqrt(((xx - yy) / 2) ** 2 + xy * xy);
+    return [t + d, t - d];
+}
+
+/** Every pairwise angle between the directions, to the nearest ten-thousandth. */
+function shapeAngles(dirs: readonly Vec2[]): number[] {
+    const out: number[] = [];
+    for (let i = 0; i < dirs.length; i++) {
+        for (let j = i + 1; j < dirs.length; j++) {
+            let a = Math.abs(Math.atan2(dirs[i][1], dirs[i][0]) - Math.atan2(dirs[j][1], dirs[j][0])) * 180 / Math.PI;
+            a %= 180;
+            if (a > 90) a = 180 - a;
+            out.push(+a.toFixed(4));
+        }
+    }
+    return out.sort((a, b) => a - b);
+}
+
+const gridHost = byId("dual-grid");
+const tileHost = byId("dual-tiles");
+
+if (gridHost && tileHost) {
+    let handle: PentagridHandle | null = null;
+    let teardown: (() => void) | null = null;
+    const opt = (id: string) => (byId(id) as HTMLInputElement | undefined);
+
+    const build = () => {
+        const real = (byId("dual-geometry") as HTMLSelectElement | undefined)?.value === "real";
+        const spaced = !!opt("dual-spacing")?.checked;
+        const wheelEdges = !!opt("dual-edges")?.checked;
+        const { dirs, lengths } = real ? realFrame() : discreteFrame();
+
+        // Two independent choices, which one array used to conflate.
+        //
+        //   grid normals   scaled by 1/λⱼ, since x·(v/λ) = n − γ puts line n at
+        //                  x·v = λ(n − γ): a longer vector is a tighter grid.
+        //   edge vectors   what the dual adds up, f = Σ Kⱼ eⱼ.
+        const normals: Vec2[] = spaced
+            ? dirs.map(([x, y], j) => [x / lengths[j], y / lengths[j]] as Vec2)
+            : dirs;
+        const edges: Vec2[] = wheelEdges
+            ? dirs.map(([x, y], j) => [x * lengths[j], y * lengths[j]] as Vec2)
+            : dirs;
+
+        teardown?.();
+        gridHost.replaceChildren();
+        tileHost.replaceChildren();
+        handle = createPentagrid({
+            container: gridHost,
+            containerP: tileHost,
+            panel: byId("dual-grid-panel"),
+            panelP: byId("dual-tiles-panel"),
+            directions: normals,
+            edges,
+            features: {
+                gridLines: true, intersectionDots: true, center: true, axes: false,
+                penroseTiles: true, penroseEdges: true,
+            },
+        });
+        // λ: the grid's line spacing, per family. The geometry is written for one
+        // λ, so unequal spacing is expressed where it is equivalent — as a shift
+        // of each family's own scale — and reported rather than faked.
+        handle.gamma.setLocked(-1);
+        handle.gamma.setValues(new Array(5).fill(0.2));
+        const { panel } = mountFloatingReticulum(handle.gamma, {
+            colors: COLORS, buttons: handle.panelRow("View") ?? document.body,
+        });
+        panel.setTitle(real ? "Reticulum · real" : "Reticulum · quadrille");
+        teardown = () => { panel.element.remove(); };
+
+        const [g1, g2] = gains(edges);
+        const angles = shapeAngles(dirs);
+        const distinct = [...new Set(angles)];
+        const say = (id: string, text: string) => { const el = byId(id); if (el) el.textContent = text; };
+        say("dual-shapes", `${distinct.length} — ${distinct.map((a) => a.toFixed(4) + "°").join(", ")}`);
+        const sum = dirs.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0]);
+        say("dual-sum", `(${sum[0].toFixed(4)}, ${sum[1].toFixed(4)})`
+            + (Math.hypot(...sum) < 1e-9 ? "  — zero: ΣK is a height function"
+                                         : "  — not zero: ΣK drifts, no lift"));
+        say("dual-gains", `${g1.toFixed(4)} and ${g2.toFixed(4)}`
+            + (Math.abs(g1 - g2) < 1e-9 ? "  (equal: a similarity, gain n/2)" : `  — ${(100 * (g1 / g2 - 1)).toFixed(2)}% apart, so the dual map shears`));
+        say("dual-spacings", spaced ? lengths.map((v) => v.toFixed(4)).join("  ") : "1  1  1  1  1");
+        say("dual-edges-out", wheelEdges
+            ? lengths.map((v) => v.toFixed(4)).join("  ") + "  — parallelograms, unequal sides"
+            : "1  1  1  1  1  — rhombs");
+    };
+
+    for (const id of ["dual-geometry", "dual-spacing", "dual-edges"]) {
+        byId(id)?.addEventListener("change", build);
+    }
+    build();
+}
