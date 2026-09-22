@@ -116,7 +116,15 @@ long way off: 1.3868 at generation 0, then 1.6765, 1.5907, 1.6278, … 1.61807
 by the ninth. That the ratio of two *integer* wheels converges on φ is the
 same fact as the Fibonacci interleave, seen sideways.
 
-The index shows P by default, with D on the picker.
+The index shows P by default, with D on the picker, and the right-hand figure
+draws what each one measures rather than repeating the wheel: for P a
+**pentaflake** — one pentagon and the five that share its edges — with the
+spokes center to center; for D a single pentagon with its spokes center to
+corner. The pentagon drawn is always the **D** wheel's, since D *is* the
+pentagon's radius, and the P spokes end on the **down** points: a neighbor sits
+across an edge, and the edge normals of a point-up pentagon are the point-down
+directions. (Checked: the D pentagon's edge midpoints land exactly on the P
+down directions, at half their length.)
 
 ## Quadrille, and mosaic
 

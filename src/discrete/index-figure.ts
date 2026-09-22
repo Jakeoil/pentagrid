@@ -6,7 +6,7 @@
 // every generation while the real one does not and never will (sin 36° is
 // degree 4 over ℚ; the lattice reaches only ℚ(√5)).
 
-import { WHEELS, wheelAt, wheel, pentagon, limitSeed,
+import { WHEELS, wheelAt, wheel, pentagon, pentagonDown, limitSeed,
          limitAngles, discreteDirections, frameOperator } from "./wheels.js";
 import type { WheelName } from "./wheels.js";
 
@@ -113,47 +113,104 @@ function drawWheel(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     }
 }
 
-// ── the pentagons, overlain ───────────────────────────────────────
+// ── what the wheel measures ──────────────────────────────────────
 
-function drawPentagons(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
+/**
+ * The right-hand figure: not the wheel over again, but the thing it is the
+ * measure OF. Jake: *illustrate what's actually being measured.*
+ *
+ *   P  a pentaflake — one pentagon and the five that share its edges — with
+ *      the five spokes running center to center. That length is 2r.
+ *   D  one pentagon with its five spokes running center to corner. That is R.
+ *
+ * The quadrille construction in red over the Euclidean one in dark blue, at
+ * matched size, so the gap between the geometries is the gap between the two
+ * outlines. The pentagon itself is always the D wheel's — D IS the pentagon's
+ * radius — and the P spokes reach the neighbors' centers, which are the P
+ * wheel's DOWN points: a neighbor sits across an edge, and the edge normals of
+ * the point-up pentagon are the point-down directions.
+ */
+function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     const w = canvas.width, h = canvas.height;
     const cx = Math.round(w / 2) + 0.5, cy = Math.round(h / 2) + 0.5;
-    const pts = pentagon(atLimit ? limitSeed(WHEELS[which]) : rung(v));
-    const reach = Math.max(...pts.map(([x, y]) => Math.hypot(x, y))) || 1;
-    const R = Math.min(w, h) * 0.40;
-    const cell = atLimit ? 0 : R / reach;
-    paper(ctx, w, h, cx, cy, cell);
+    const seed = atLimit ? limitSeed(WHEELS.D) : wheelAt("D", v);
+    const corners = pentagon(seed);                        // the pentagon, in lattice units
+    const Rq = Math.max(...corners.map(([x, y]) => Math.hypot(x, y))) || 1;
 
-    const outline = (poly: readonly (readonly [number, number])[], color: string, dots: boolean) => {
+    // P reaches the neighbors' centers; D stops at the corners. Scale so the
+    // whole construction fits either way.
+    const pSeed = atLimit ? limitSeed(WHEELS.P) : wheelAt("P", v);
+    const centers = pentagonDown(pSeed);
+    const reach = which === "P"
+        ? Math.max(...centers.map(([x, y]) => Math.hypot(x, y))) + Rq
+        : Rq;
+    const S = Math.min(w, h) * 0.44 / reach;               // pixels per lattice unit
+    paper(ctx, w, h, cx, cy, atLimit ? 0 : S);
+
+    const at = (x: number, y: number): [number, number] => [cx + x * S, cy - y * S];
+    const poly = (pts: readonly (readonly [number, number])[], color: string, width: number,
+                  ox = 0, oy = 0, flip = false) => {
         ctx.strokeStyle = color;
-        ctx.fillStyle = color;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = width;
         ctx.lineJoin = "round";
         ctx.beginPath();
-        poly.forEach(([x, y], i) => {
-            const px = cx + R * x / reach, py = cy - R * y / reach;
+        pts.forEach(([x, y], i) => {
+            const [px, py] = at(ox + (flip ? -x : x), oy + (flip ? -y : y));
             if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         });
         ctx.closePath();
         ctx.stroke();
+    };
+    const spokes = (ends: readonly (readonly [number, number])[], color: string, dots: boolean) => {
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (const [x, y] of ends) {
+            const [px, py] = at(x, y);
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(px, py);
+        }
+        ctx.stroke();
         if (!dots) return;
-        for (const [x, y] of poly) {
+        for (const [x, y] of ends) {
+            const [px, py] = at(x, y);
             ctx.beginPath();
-            ctx.arc(cx + R * x / reach, cy - R * y / reach, 3.5, 0, TAU);
+            ctx.arc(px, py, 3.5, 0, TAU);
             ctx.fill();
         }
     };
 
-    // the real pentagon first, at the same circumradius, then the quadrille over it
-    const real: [number, number][] = [];
+    // The real construction underneath: same circumradius, corners at 72°.
+    const realCorners: [number, number][] = [];
     for (let k = 0; k < 5; k++) {
         const a = (90 - k * 72) * Math.PI / 180;
-        real.push([reach * Math.cos(a), reach * Math.sin(a)]);
+        realCorners.push([Rq * Math.cos(a), Rq * Math.sin(a)]);
     }
-    outline(real, REAL, true);
-    outline(pts, QUAD, cell > 6 || atLimit);
+    const realCenters: [number, number][] = [];      // 2r, along the edge normals
+    const rReal = Rq * Math.cos(Math.PI / 5);
+    for (let k = 0; k < 5; k++) {
+        const a = (90 - 36 - k * 72) * Math.PI / 180;
+        realCenters.push([2 * rReal * Math.cos(a), 2 * rReal * Math.sin(a)]);
+    }
+
+    if (which === "P") {
+        for (let k = 0; k < 5; k++) {
+            poly(realCorners, REAL, 1, realCenters[k][0], realCenters[k][1], true);
+            poly(corners, QUAD, 1, centers[k][0], centers[k][1], true);
+        }
+        poly(realCorners, REAL, 1.5);
+        poly(corners, QUAD, 1.5);
+        spokes(realCenters, REAL, false);
+        spokes(centers, QUAD, true);
+    } else {
+        poly(realCorners, REAL, 1.5);
+        poly(corners, QUAD, 1.5);
+        spokes(realCorners, REAL, false);
+        spokes(corners, QUAD, true);
+    }
     axis(ctx, cx, h);
 }
 
@@ -189,7 +246,7 @@ if (wheelCanvas && pentCanvas && slider) {
         if (genOut) genOut.textContent = atLimit ? "limit"
             : v % 2 === 0 ? String(v / 2) : `${(v - 1) / 2}½`;
         drawWheel(wheelCanvas, v, atLimit);
-        drawPentagons(pentCanvas, v, atLimit);
+        drawMeasured(pentCanvas, v, atLimit);
         report(v, atLimit);
     };
     slider.addEventListener("input", render);

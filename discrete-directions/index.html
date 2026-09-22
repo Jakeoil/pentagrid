@@ -47,8 +47,11 @@
     the <b>major</b> one, center to vertex: <b>P</b> is <b>2<i>r</i></b>, the vector
     from one pentagon's center to its neighbor's, which is what the tiling is laid out
     on. <b>D</b> is <b><i>R</i></b>, one pentagon's own radius, center to vertex. The
-    picker swaps them, and penrose-mosaic carries two more (S, pentagon to near diamond;
-    T, two star centers with their feet touching) which are not needed here. <b>Which
+    picker swaps them &mdash; and the figure on the right draws the thing being measured:
+    for P a <b>pentaflake</b>, one pentagon and the five that share its edges, with the
+    five spokes running center to center; for D a single pentagon with its five spokes
+    running center to corner. penrose-mosaic carries two more (S, pentagon to near
+    diamond; T, two star centers with their feet touching) which are not needed here. <b>Which
     wheel you take sets the scale and nothing else</b> &mdash; they share the
     substitution, so they share its dominant eigenvector and land on the same limiting
     directions. Their ratio tends to 2<i>r</i>/<i>R</i>&thinsp;=&thinsp;2&thinsp;cos&thinsp;36&deg;
@@ -63,9 +66,11 @@
         </figure>
         <figure>
             <canvas id="fig-pentagons" width="340" height="340"></canvas>
-            <figcaption>the pentagons overlain &mdash;
-            <b class="k" style="color:#e63946">quadrille</b> on the lattice,
-            <b class="k" style="color:#2a3b6b">real</b> at 72&deg;, same circumradius</figcaption>
+            <figcaption>what it measures &mdash;
+            <b class="k" style="color:#e63946">quadrille</b> over
+            <b class="k" style="color:#2a3b6b">real</b>. <b>P</b>: a pentaflake, the
+            spokes running center to center. <b>D</b>: one pentagon, the spokes running
+            center to corner.</figcaption>
         </figure>
         <div>
             <label>wheel <select id="fig-wheel-pick">

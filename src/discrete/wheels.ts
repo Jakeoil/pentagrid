@@ -146,6 +146,12 @@ export function pentagon(seed: Seed): P[] {
     return [w[0], w[2], w[4], w[6], w[8]];
 }
 
+/** The other five: the point-down set. penrose-mosaic's `Wheel.down`. */
+export function pentagonDown(seed: Seed): P[] {
+    const w = wheel(seed);
+    return [w[5], w[7], w[9], w[1], w[3]];
+}
+
 export const PHI = (1 + Math.sqrt(5)) / 2;
 
 /**

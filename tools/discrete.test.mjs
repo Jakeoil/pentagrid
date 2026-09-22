@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { QUADRILLE, WHEELS, SEED_GENERATION, PHI, inflate, deflate, halfStep, generation, wheelAt, wheel, pentagon, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
+import { QUADRILLE, WHEELS, SEED_GENERATION, PHI, inflate, deflate, halfStep, generation, wheelAt, wheel, pentagon, pentagonDown, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
 
 test("inflate and deflate are exact inverses on integer seeds", () => {
     let s = QUADRILLE;
@@ -174,5 +174,25 @@ test("the wheels differ in scale only: P is the pentagon-to-pentagon vector, D o
     // and both stay on the lattice at every rung, whole or half
     for (const name of ["P", "D"]) for (let v = 0; v < 10; v++) {
         for (const [x, y] of wheel(wheelAt(name, v))) { assert.equal(x, Math.round(x)); assert.equal(y, Math.round(y)); }
+    }
+});
+
+test("what the wheels measure: D's pentagon edge normals are P's down directions, at half the length", () => {
+    // The right-hand figure rests on this: a neighbor pentagon sits across an
+    // edge, so the center-to-center vector (P) runs along the edge normal of
+    // the point-up pentagon (D), which is a point-DOWN direction.
+    for (const g of [4, 6, 8, 10]) {
+        const corners = pentagon(wheelAt("D", g));
+        const mids = corners.map(([x, y], i) => {
+            const [qx, qy] = corners[(i + 1) % 5];
+            return [(x + qx) / 2, (y + qy) / 2];
+        });
+        const down = pentagonDown(wheelAt("P", g));
+        const ang = (p) => ((Math.atan2(p[1], p[0]) * 180 / Math.PI) + 360) % 360;
+        const sorted = (a) => a.map(ang).map((v) => +v.toFixed(3)).sort((x, y) => x - y);
+        assert.deepEqual(sorted(mids), sorted(down), `generation ${g / 2}: the directions must agree`);
+        // and P is about twice the apothem — 2r against r — converging as it grows
+        const rMid = Math.hypot(...mids[0]), rP = Math.hypot(...down.find((p) => Math.abs(ang(p) - ang(mids[0])) < 1e-6));
+        assert.ok(Math.abs(rP / rMid - 2) < 0.2 / (g / 2), `generation ${g / 2}: P/apothem = ${rP / rMid}`);
     }
 });
