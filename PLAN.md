@@ -69,7 +69,7 @@ State of play, 2026-09-17.
 | `sunstar.html` | the uniform family: sun, star, 5-fold, deca; rhomb groups colored | `app/sunstar.ts` |
 | `split.html` | grid on one canvas, dual on the other, one γ, one panel | `app/split.ts` |
 | `wiggle.html` | the acceptance region: drag γ in E⊥ and watch the patch hold or break | `app/wiggle.ts` |
-| `discrete-directions/` | a subproject of its own: penrose-mosaic's integer substitution, its limiting directions, and what a multigrid on them would be (§6, E2) | its own `src/`, `dist/`, test |
+| `discrete-directions/` | penrose-mosaic's integer substitution, its limiting directions, and what a multigrid on them would be (§6, E2) | `src/discrete/`, `tools/discrete.test.mjs` |
 
 Every page carries the top nav and the floating reticulum with its presets
 popup (sun, star, deca; decagon, couple, octagon, 1 thick, 2 thick, 1 thin,
@@ -2228,9 +2228,9 @@ Thought about, recorded, not started. None is scheduled.
   `⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳`, `❶❷❸❹❺❻❼❽❾❿`, `➊➋➌➍➎➏➐➑➒➓`.
 
 - **E2 — dualizing the discrete directions.** STARTED 2026-09-22 as its own
-  subproject, `discrete-directions/` — one page, reached from the index's card,
-  with Home as its only breadcrumb — independent of these pages but for the
-  mathematics and the stylesheet. The directions are settled
+  corner of this project, `discrete-directions/` — one page, reached from the
+  index's card, with Home as its only breadcrumb; the code is `src/discrete/`
+  and builds and tests with everything else. The directions are settled
   there: the substitution and its inverse adapted from penrose-mosaic, the
   limit computed rather than quoted, checked against that project's stated
   results. What remains is the dualization — whether the dual stays two rhomb

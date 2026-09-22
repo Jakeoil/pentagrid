@@ -1,10 +1,13 @@
-# Working notes
+# Working notes — discrete directions
 
-Running record of what we have argued about and what is still unsettled.
-`README.md` says what this subproject *is*; this is the reasoning behind it.
+Running record of what we have argued about in this corner and what is still
+unsettled. Same project as the pentagrid, same build and same tests: the code
+is `src/discrete/`, the test is `tools/discrete.test.mjs`, and this directory
+holds the page and these notes. Fenced off, not split off — Jake: *this is all
+part of the pentagrid project, don't overdo it.*
 
-The house style is the parent project's: American spellings everywhere, in
-prose, identifiers and comments alike.
+The house style is the parent's: American spellings everywhere, in prose,
+identifiers and comments alike.
 
 ---
 

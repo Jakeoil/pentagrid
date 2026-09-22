@@ -104,6 +104,7 @@ else.
 | `geometry/region` | the dual map run backwards; `clipToConvex` | no |
 | `geometry/decor` | arc geometry; `rhombArrows` — the AR-pattern from the indices | no |
 | `geometry/roof` | the Wieringa lift | no |
+| `discrete/wheels` | penrose-mosaic's integer substitution, its inverse and half step, the limiting directions (`discrete-directions/`) | no |
 | `geometry/acceptance` | the perpendicular plane, convex boundaries | no |
 | `view/layers` | `LayerStack` — canvases, z-order, visibility | yes |
 | `view/pentagrid` | `createPentagrid` | yes |

@@ -5,7 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { QUADRILLE, PHI, inflate, deflate, halfStep, generation, wheel, pentagon, limitAngles, discreteDirections, frameOperator } from "../dist/wheels.js";
+import { QUADRILLE, PHI, inflate, deflate, halfStep, generation, wheel, pentagon, limitAngles, discreteDirections, frameOperator } from "../dist/discrete/wheels.js";
 
 test("inflate and deflate are exact inverses on integer seeds", () => {
     let s = QUADRILLE;
