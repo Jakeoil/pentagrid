@@ -47,11 +47,12 @@
     the <b>major</b> one, center to vertex: <b>P</b> is <b>2<i>r</i></b>, the vector
     from one pentagon's center to its neighbor's, which is what the tiling is laid out
     on. <b>D</b> is <b><i>R</i></b>, one pentagon's own radius, center to vertex. The
-    picker swaps them &mdash; and the figure on the right draws the thing being measured:
-    for P a <b>pentaflake</b>, one pentagon and the five that share its edges, with the
-    five spokes running center to center; for D a single pentagon with its five spokes
-    running center to corner. penrose-mosaic carries two more (S, pentagon to near
-    diamond; T, two star centers with their feet touching) which are not needed here. <b>Which
+    picker carries all four penrose-mosaic stores. <b>S</b> is a pentagon's center to the
+    near diamond's, <b>T</b> two star centers with their feet touching. The figure on the
+    right draws the thing being measured: for P a <b>pentaflake</b>, one pentagon and the
+    five that share its edges, spokes running center to center; for S and T the same
+    pentagon with the spokes reaching further out, to where that other figure sits; for D
+    a single pentagon with its five spokes running center to corner. <b>Which
     wheel you take sets the scale and nothing else</b> &mdash; they share the
     substitution, so they share its dominant eigenvector and land on the same limiting
     directions. Their ratio tends to 2<i>r</i>/<i>R</i>&thinsp;=&thinsp;2&thinsp;cos&thinsp;36&deg;
@@ -74,8 +75,10 @@
         </figure>
         <div>
             <label>wheel <select id="fig-wheel-pick">
-                <option value="P" selected>P &mdash; 2r, center to center</option>
-                <option value="D">D &mdash; R, center to vertex</option>
+                <option value="P" selected>P &mdash; 2r, pentagon to pentagon</option>
+                <option value="S">S &mdash; pentagon to near diamond</option>
+                <option value="T">T &mdash; star to star, feet touching</option>
+                <option value="D">D &mdash; R, center to corner</option>
             </select></label>
             <p></p>
             <label><span class="cap">generation <span class="val" id="fig-gen-value">0</span></span><br>
@@ -92,10 +95,12 @@
         </div>
     </div>
 
-    <p>The wheel is ten lattice points: three free seeds and their reflections.
-    Inflation replaces each seed with the sum of three consecutive entries, and because
-    the two reflections act on the two coordinates differently, <b>x and y evolve under
-    two different integer matrices</b>. That asymmetry is the whole story &mdash; a
+    <p>The wheel is ten lattice points, but <b>only the first three are ever stored</b>
+    &mdash; the other seven are those three reflected (negate x, negate y, negate both),
+    so they carry nothing new. Three free seeds, and the reflections fill the turn.
+    <p>Inflation replaces each seed with the sum of three consecutive entries, and
+    because the two reflections act on the two coordinates differently, <b>x and y evolve
+    under two different integer matrices</b>. That asymmetry is the whole story &mdash; a
     similarity would use one matrix for both.</p>
 
     <pre>        ⎡1 0 0⎤              ⎡1 2 0⎤

@@ -107,21 +107,30 @@ for a pentagon's minor radius (inradius, center to edge) and R for the major
 (center to vertex), and following Jake's convention:
 
     P   2r    center to center of two pentagons — what the tiling is laid out on
-    D   R     one pentagon's own radius, center to vertex
-    S         pentagon center to the near diamond      (not used here)
-    T         two star centers, feet touching          (not used here)
+    S         a pentagon's center to the near diamond's
+    T         two star centers, feet touching
+    D   R     one pentagon's own radius, center to corner
 
-P/D tends to 2r/R = 2cos36° = **φ**, which the discrete seeds reach from a
-long way off: 1.3868 at generation 0, then 1.6765, 1.5907, 1.6278, … 1.61807
-by the ninth. That the ratio of two *integer* wheels converges on φ is the
-same fact as the Fibonacci interleave, seen sideways.
+All four are on the picker. A wheel stores **three seeds only**: the other
+seven of its ten points are those three reflected (negate x, negate y, negate
+both) and carry nothing new — worth saying on the page, since the tables print
+all ten.
 
-The index shows P by default, with D on the picker, and the right-hand figure
+**In the limit the four lengths are 1 : φ : φ : φ²** — D, P, S, T. So P and S
+converge on the *same vector* and are two lattice approximations of it,
+distinguishable only at finite generations: S/P runs 1.1662, 1.0225, 1.0033,
+1.0005 by generation 7. P/D tends to 2r/R = 2cos36° = **φ** from a long way
+off — 1.3868 at the seed, then 1.6765, 1.5907, 1.6278, … 1.61807. That the
+ratio of two *integer* wheels converges on φ is the Fibonacci interleave seen
+sideways.
+
+The index shows P by default, and the right-hand figure
 draws what each one measures rather than repeating the wheel: for P a
 **pentaflake** — one pentagon and the five that share its edges — with the
 spokes center to center; for D a single pentagon with its spokes center to
-corner. The pentagon drawn is always the **D** wheel's, since D *is* the
-pentagon's radius, and the P spokes end on the **down** points: a neighbor sits
+corner; S and T take the same pentagon with the spokes reaching further out,
+to where that other figure sits. The pentagon drawn is always the **D** wheel's,
+since D *is* the pentagon's radius, and the spokes end on the **down** points: a neighbor sits
 across an edge, and the edge normals of a point-up pentagon are the point-down
 directions. (Checked: the D pentagon's edge midpoints land exactly on the P
 down directions, at half their length.)

@@ -196,3 +196,38 @@ test("what the wheels measure: D's pentagon edge normals are P's down directions
         assert.ok(Math.abs(rP / rMid - 2) < 0.2 / (g / 2), `generation ${g / 2}: P/apothem = ${rP / rMid}`);
     }
 });
+
+test("four wheels, all on the same limit; three seeds carry the whole ten", () => {
+    assert.deepEqual(Object.keys(WHEELS), ["P", "S", "T", "D"]);
+    assert.deepEqual(WHEELS.S.map(([x, y]) => [x, y]), [[0, 5], [3, 5], [5, 1]]);
+    assert.deepEqual(WHEELS.T.map(([x, y]) => [x, y]), [[0, 8], [5, 8], [8, 2]]);
+    // the limit is the substitution's, not the seed's
+    const p = limitAngles(WHEELS.P).map((a) => +a.toFixed(9));
+    for (const name of ["S", "T", "D"]) {
+        assert.deepEqual(limitAngles(WHEELS[name]).map((a) => +a.toFixed(9)), p, `${name} must share the limit`);
+    }
+    // the seven unstored points are reflections of the three stored ones
+    for (const name of Object.keys(WHEELS)) {
+        const w = wheel(wheelAt(name, 4));
+        const [p0, p1, p2] = [w[0], w[1], w[2]];
+        const same = (a, b) => a[0] === b[0] && a[1] === b[1];
+        assert.ok(same(w[3], [p2[0], -p2[1]]), "w3 = vr p2");
+        assert.ok(same(w[4], [p1[0], -p1[1]]), "w4 = vr p1");
+        assert.ok(same(w[5], [p0[0], -p0[1]]), "w5 = vr p0");
+        assert.ok(same(w[6], [-p1[0], -p1[1]]), "w6 = -p1");
+        assert.ok(same(w[7], [-p2[0], -p2[1]]), "w7 = -p2");
+        assert.ok(same(w[8], [-p2[0], p2[1]]), "w8 = hr p2");
+        assert.ok(same(w[9], [-p1[0], p1[1]]), "w9 = hr p1");
+    }
+    // Ordered by size D < P < S < T at the seed — and in the LIMIT the four
+    // lengths are 1 : phi : phi : phi^2, so S and P converge on the same vector
+    // and are two lattice approximations of it, distinct only at finite
+    // generations. (S/P: 1.1662, 1.0225, 1.0033, 1.0005 by generation 7.)
+    const mag = (n, g = 2) => Math.hypot(...wheelAt(n, g)[1]);
+    assert.ok(mag("D") < mag("P") && mag("P") < mag("S") && mag("S") < mag("T"),
+              `D ${mag("D")} P ${mag("P")} S ${mag("S")} T ${mag("T")}`);
+    const far = 18;
+    assert.ok(Math.abs(mag("S", far) / mag("P", far) - 1) < 1e-3, "S and P converge");
+    assert.ok(Math.abs(mag("P", far) / mag("D", far) - PHI) < 1e-3, "P/D -> phi");
+    assert.ok(Math.abs(mag("T", far) / mag("P", far) - PHI) < 1e-3, "T/P -> phi");
+});

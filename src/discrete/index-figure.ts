@@ -139,13 +139,13 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
     const corners = pentagon(seed);                        // the pentagon, in lattice units
     const Rq = Math.max(...corners.map(([x, y]) => Math.hypot(x, y))) || 1;
 
-    // P reaches the neighbors' centers; D stops at the corners. Scale so the
-    // whole construction fits either way.
-    const pSeed = atLimit ? limitSeed(WHEELS.P) : wheelAt("P", v);
-    const centers = pentagonDown(pSeed);
-    const reach = which === "P"
-        ? Math.max(...centers.map(([x, y]) => Math.hypot(x, y))) + Rq
-        : Rq;
+    // D stops at the pentagon's own corners; P, S and T reach out to another
+    // figure's center, so they need room for it. Scale to whichever it is.
+    const spokeSeed = atLimit ? limitSeed(WHEELS[which]) : wheelAt(which, v);
+    const centers = pentagonDown(spokeSeed);
+    const reach = which === "D"
+        ? Rq
+        : Math.max(...centers.map(([x, y]) => Math.hypot(x, y))) + Rq;
     const S = Math.min(w, h) * 0.44 / reach;               // pixels per lattice unit
     paper(ctx, w, h, cx, cy, atLimit ? 0 : S);
 
@@ -196,20 +196,27 @@ function drawMeasured(canvas: HTMLCanvasElement, v: number, atLimit: boolean) {
         realCenters.push([2 * rReal * Math.cos(a), 2 * rReal * Math.sin(a)]);
     }
 
-    if (which === "P") {
-        for (let k = 0; k < 5; k++) {
-            poly(realCorners, REAL, 1, realCenters[k][0], realCenters[k][1], true);
-            poly(corners, QUAD, 1, centers[k][0], centers[k][1], true);
-        }
-        poly(realCorners, REAL, 1.5);
-        poly(corners, QUAD, 1.5);
-        spokes(realCenters, REAL, false);
-        spokes(centers, QUAD, true);
-    } else {
+    if (which === "D") {
         poly(realCorners, REAL, 1.5);
         poly(corners, QUAD, 1.5);
         spokes(realCorners, REAL, false);
         spokes(corners, QUAD, true);
+    } else {
+        // The neighbor at each spoke's end, drawn light: for P it is the
+        // pentagon across an edge and the flake closes up; for S and T it is
+        // further off — a diamond, a star — and the outline only says how far.
+        const realFar = realCenters.map(([x, y]) => {
+            const m = Math.hypot(...centers[0]) / (Math.hypot(...realCenters[0]) || 1);
+            return [x * m, y * m] as [number, number];
+        });
+        for (let k = 0; k < 5; k++) {
+            poly(realCorners, REAL, 1, realFar[k][0], realFar[k][1], true);
+            poly(corners, QUAD, 1, centers[k][0], centers[k][1], true);
+        }
+        poly(realCorners, REAL, 1.5);
+        poly(corners, QUAD, 1.5);
+        spokes(realFar, REAL, false);
+        spokes(centers, QUAD, true);
     }
     axis(ctx, cx, h);
 }
@@ -251,7 +258,7 @@ if (wheelCanvas && pentCanvas && slider) {
     };
     slider.addEventListener("input", render);
     pick?.addEventListener("change", () => {
-        which = (pick.value === "D" ? "D" : "P");
+        which = (pick.value in WHEELS ? pick.value : "P") as WheelName;
         render();
     });
     // The wheel scrolls the generations, over either canvas. A notch a rung, so

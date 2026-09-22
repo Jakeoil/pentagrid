@@ -35,6 +35,13 @@ export type Seed = readonly (readonly [number, number])[];
  *
  *   P   2r    center to center of two pentagons — the one the tiling is laid on
  *   D   R     center to vertex, one pentagon's own radius
+ *   S   R+R'  a pentagon's center to the near diamond's, its own R plus the
+ *             diamond's (penrose-mosaic: "Pentagon, corner, star")
+ *   T         two star centers with their feet touching ("Star to boat")
+ *
+ * Only three points are ever stored: a wheel is three seeds and their
+ * reflections, so the other seven of its ten are hr, vr and negation of those
+ * three and carry nothing new.
  *
  * THESE SEEDS ARE GENERATION 1, not 0. penrose-mosaic builds `wheels.p[1]`
  * from the seed and `wheels.p[0]` from ONE DEFLATION of it, so that the wheel
@@ -44,11 +51,11 @@ export type Seed = readonly (readonly [number, number])[];
  * generation 1." Anything here that speaks of a generation means the same
  * number that table does — see SEED_GENERATION and wheelAt.
  *
- * penrose-mosaic carries two more, S (pentagon to near diamond) and T (two
- * star centers, feet touching); they are not needed here.
  */
 export const WHEELS = {
     P: [[0, 6], [3, 4], [5, 2]] as Seed,
+    S: [[0, 5], [3, 5], [5, 1]] as Seed,
+    T: [[0, 8], [5, 8], [8, 2]] as Seed,
     D: [[0, 3], [2, 3], [3, 1]] as Seed,
 };
 export type WheelName = keyof typeof WHEELS;
