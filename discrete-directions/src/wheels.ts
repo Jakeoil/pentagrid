@@ -50,6 +50,33 @@ export function deflate(seed: Seed): Seed {
     ];
 }
 
+/**
+ * The HALF step: drop the middle term of the three-term sum.
+ *
+ *     inflate   s_k = w[k−1] + w[k] + w[k+1]      (×φ², the stored generation)
+ *     halfStep  s_k = w[k−1] + w[k+1]             (×φ)
+ *
+ * The stored wheels only ever hold even powers of φ — that is why their
+ * x-components are ALTERNATE Fibonacci numbers, 3, 8, 21, 55, … Interleave the
+ * half steps and the sequence is Fibonacci exactly: 3, 5, 8, 13, 21, 34, 55, 89.
+ * In the real geometry the same drop is w[k−1] + w[k+1] = 2cos36°·w[k] = φ·w[k];
+ * here it is that identity's integer shadow.
+ *
+ * It is a half step on x exactly. On y it is a half step plus the alternating
+ * (0, ±2), (0, ∓2), (0, ±2) — `halfStep(halfStep(s)) − inflate(s)`, flipping
+ * sign each generation. That is My's λ = −1 eigenvalue: the ±2 correction
+ * recorded in penrose-mosaic as an empirical oddity, which is not an anomaly
+ * but an eigenvalue sitting on the unit circle beside the growth. So φ is
+ * reachable in x and reachable-up-to-that-parity in y, and the wheels store
+ * φ² because that is where the two agree.
+ */
+export function halfStep(seed: Seed): Seed {
+    const w = wheel(seed);
+    const add = (a: readonly [number, number], b: readonly [number, number]): [number, number] =>
+        [a[0] + b[0], a[1] + b[1]];
+    return [add(w[9], w[1]), add(w[0], w[2]), add(w[1], w[3])];
+}
+
 /** Generation g, by repeated inflation. Exact while it fits in a double. */
 export function generation(seed: Seed, g: number): Seed {
     let s = seed;
@@ -66,6 +93,15 @@ const neg = ([x, y]: readonly [number, number]): P => [-x, -y];
 export function wheel(seed: Seed): P[] {
     const [p0, p1, p2] = seed;
     return [p0 as P, p1 as P, p2 as P, vr(p2), vr(p1), vr(p0), neg(p1), neg(p2), hr(p2), hr(p1)];
+}
+
+/**
+ * The wheel's `up` set — every other point, which is the PENTAGON of that
+ * wheel. penrose-mosaic's `Wheel.up`; `down` is the other five, point-down.
+ */
+export function pentagon(seed: Seed): P[] {
+    const w = wheel(seed);
+    return [w[0], w[2], w[4], w[6], w[8]];
 }
 
 export const PHI = (1 + Math.sqrt(5)) / 2;

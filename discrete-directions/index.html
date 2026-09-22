@@ -10,6 +10,11 @@
         .sub { border: 1px solid var(--rule); border-radius: 8px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
         .sub h3 { margin: 0 0 6px; }
         .sub .state { font-size: 12px; color: var(--ink-faint); font-family: ui-monospace, Menlo, monospace; }
+        .pair { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; margin: 16px 0 6px; }
+        .pair figure { margin: 0; }
+        .pair canvas { border: 1px solid var(--rule); border-radius: 6px; display: block; }
+        .pair figcaption { font-size: 12px; color: var(--ink-faint); text-align: center; margin-top: 6px; }
+        .pair .k { font-family: ui-monospace, Menlo, monospace; }
     </style>
 </head>
 <body>
@@ -43,6 +48,26 @@
     penrose-mosaic's wheels &mdash; the substitution, its inverse, and the limit
     &mdash; and is checked here against that project's own stated results.</p>
 
+    <div class="pair">
+        <figure>
+            <canvas id="fig-quadrille" width="300" height="300"></canvas>
+            <figcaption><b class="k" style="color:#e63946">quadrille</b> &mdash; corners on the lattice, every generation</figcaption>
+        </figure>
+        <figure>
+            <canvas id="fig-real" width="300" height="300"></canvas>
+            <figcaption><b class="k" style="color:#2a3b6b">real</b> &mdash; 36&deg; apart, on no lattice point but the top</figcaption>
+        </figure>
+        <div>
+            <label><span class="cap">generation <span class="val" id="fig-gen-value">0</span></span><br>
+                <input type="range" id="fig-gen" min="0" max="9" step="1" value="0" style="width: 200px"></label>
+            <p class="hint" style="max-width: 22em">The wheels store only <b>even</b> powers of
+            &phi;, so their x-components are <i>alternate</i> Fibonacci numbers &mdash; 3, 8,
+            21, 55. The half steps are the missing ones, and interleaved the sequence is
+            Fibonacci exactly: 3, 5, 8, 13, 21, 34, 55, 89. See
+            <a href="NOTES.md">NOTES</a>.</p>
+        </div>
+    </div>
+
     <div class="sub">
         <h3><a href="e2.html">E2 &mdash; the wheel, and the directions a discrete multigrid would use</a></h3>
         <p>The first question, and the one everything else waits on: what
@@ -58,6 +83,7 @@
     are rational, so a grid built from them is periodic &mdash; only the limit is
     irrational); and whether the resulting P3 regroups into the discrete P1
     tiles, which would close the construction on itself.</p>
+    <script type="module" src="./dist/index-figure.js"></script>
 </div>
 </body>
 </html>

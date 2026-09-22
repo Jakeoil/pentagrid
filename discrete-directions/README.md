@@ -22,10 +22,23 @@ npm test          # the substitution against penrose-mosaic's stated results
 
 | file | holds |
 |---|---|
-| `src/wheels.ts` | the substitution and its exact inverse, the ten-point wheel, the limit, the five directions, the frame operator |
+| `src/wheels.ts` | the substitution, its exact inverse and the half step; the ten-point wheel and its pentagon; the limit, the five directions, the frame operator |
 | `src/e2.ts` | E2's figure: the discrete wheel against the Euclidean one |
+| `src/index-figure.ts` | the index figure: the quadrille pentagon beside the real one, on quadrille paper |
+| `NOTES.md` | the working notes — the φ² ladder and its missing halves, ψ land below zero |
 | `index.html` | the subproject's front door, pointing at its sub-subprojects |
 | `e2.html` | E2 — the wheel, and the directions a discrete multigrid would use |
+
+## The ladder
+
+The wheels store only **even** powers of φ, so their x-components are alternate
+Fibonacci numbers — 3, 8, 21, 55. The missing half is a two-term sum instead of
+a three-term one (drop the middle), and interleaved the sequence is Fibonacci
+exactly: 3, 5, 8, 13, 21, 34, 55, 89. It is a half step on x term for term and
+on y up to an alternating ±2 — My's λ = −1 eigenvalue, penrose-mosaic's "±2
+correction" — which is why φ² is where the two coordinates agree. Below zero
+there is one more positive half generation, then the conjugate ψ = −1/φ takes
+over. See `NOTES.md`.
 
 ## What is settled
 
