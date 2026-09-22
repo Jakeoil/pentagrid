@@ -2228,8 +2228,9 @@ Thought about, recorded, not started. None is scheduled.
   `⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳`, `❶❷❸❹❺❻❼❽❾❿`, `➊➋➌➍➎➏➐➑➒➓`.
 
 - **E2 — dualizing the discrete directions.** STARTED 2026-09-22 as its own
-  subproject, `discrete-directions/` (index + `e2.html`), independent of these
-  pages but for the mathematics and the stylesheet. The directions are settled
+  subproject, `discrete-directions/` — one page, reached from the index's card,
+  with Home as its only breadcrumb — independent of these pages but for the
+  mathematics and the stylesheet. The directions are settled
   there: the substitution and its inverse adapted from penrose-mosaic, the
   limit computed rather than quoted, checked against that project's stated
   results. What remains is the dualization — whether the dual stays two rhomb

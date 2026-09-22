@@ -23,11 +23,9 @@ npm test          # the substitution against penrose-mosaic's stated results
 | file | holds |
 |---|---|
 | `src/wheels.ts` | the substitution, its exact inverse and the half step; the ten-point wheel and its pentagon; the limit, the five directions, the frame operator |
-| `src/e2.ts` | E2's figure: the discrete wheel against the Euclidean one |
-| `src/index-figure.ts` | the index figure: the quadrille pentagon beside the real one, on quadrille paper |
+| `src/index-figure.ts` | the two figures: the wheel with its angles, and the quadrille pentagon with the real one laid over it, both on quadrille paper |
 | `NOTES.md` | the working notes — the φ² ladder and its missing halves, ψ land below zero |
-| `index.html` | the subproject's front door, pointing at its sub-subprojects |
-| `e2.html` | E2 — the wheel, and the directions a discrete multigrid would use |
+| `index.html` | the whole subproject on one page: the figures, the matrices, and E2's list of what a dualization must rebuild |
 
 ## The ladder
 

@@ -7,82 +7,123 @@
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="stylesheet" href="../site.css">
     <style>
-        .sub { border: 1px solid var(--rule); border-radius: 8px; padding: 14px 18px; margin: 14px 0; background: var(--panel); }
-        .sub h3 { margin: 0 0 6px; }
-        .sub .state { font-size: 12px; color: var(--ink-faint); font-family: ui-monospace, Menlo, monospace; }
-        .pair { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; margin: 16px 0 6px; }
+        .pair { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin: 18px 0 8px; }
         .pair figure { margin: 0; }
         .pair canvas { border: 1px solid var(--rule); border-radius: 6px; display: block; }
-        .pair figcaption { font-size: 12px; color: var(--ink-faint); text-align: center; margin-top: 6px; }
-        .pair .k { font-family: ui-monospace, Menlo, monospace; }
+        .pair figcaption { font-size: 12px; color: var(--ink-faint); text-align: center; margin-top: 6px; max-width: 340px; }
+        .readouts { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.85; }
+        .readouts b { font-family: inherit; color: var(--ink-faint); font-weight: 400; display: block; margin-top: 4px; }
+        .k { font-family: ui-monospace, Menlo, monospace; }
     </style>
 </head>
 <body>
 <nav class="site">
     <span class="brand">Pentagrid</span>
     <a href="../" draggable="false">Home</a>
-    <a href="../method.html" draggable="false">Method</a>
-    <a href="../multigrid.html" draggable="false">Multigrid</a>
-    <a href="./" draggable="false" aria-current="page">Discrete</a>
 </nav>
 <div class="wrap">
     <h1>Discrete directions</h1>
     <h2>A second geometry, and what happens if you dualize it</h2>
 
-    <p>Everything else on this site is <b>de Bruijn's</b>: <i>n</i> families of
-    parallel lines at exactly 2&pi;/<i>n</i>, and a dual tiling in the
-    corresponding cyclotomic field. This corner is about a different object.
-    <a href="https://github.com/Jakeoil/penrose-mosaic">penrose-mosaic</a> builds
-    Penrose tilings on the <b>integer lattice</b>: every vertex has exact integer
-    coordinates at every generation, and inflation is an integer substitution.
-    The natural assumption is that such a construction is a rational approximant
-    &mdash; that as it inflates, its directions converge to the Euclidean 36&deg;
-    and 72&deg;. <b>They do not.</b> The substitution has its own dominant
-    eigenvector, and its limiting slopes are algebraic of degree 2 over
-    &#8474;, in &#8474;(&radic;5) &mdash; a <i>simpler</i> field than the true
-    tangents, which need nested radicals.</p>
+    <p>Everything in the parent project is <b>de Bruijn's</b>: <i>n</i> families of
+    parallel lines at exactly 2&pi;/<i>n</i>, and a dual tiling in the corresponding
+    cyclotomic field. This corner is about a different object.
+    <a href="https://github.com/Jakeoil/penrose-mosaic">penrose-mosaic</a> builds Penrose
+    tilings on the <b>integer lattice</b> &mdash; every vertex has exact integer
+    coordinates at every generation, and inflation is an integer substitution. That mode
+    is called <b>quadrille</b>, and it is drawn here on the paper it belongs to.</p>
 
-    <p>So there are two geometries, not one rounded off. This subproject is
-    independent of the pentagrid pages: it shares the mathematics and the
-    stylesheet, nothing else. The discrete arithmetic is adapted from
-    penrose-mosaic's wheels &mdash; the substitution, its inverse, and the limit
-    &mdash; and is checked here against that project's own stated results.</p>
+    <p>The natural assumption is that such a construction is a rational approximant:
+    that as it inflates its directions converge to the Euclidean 36&deg; and 72&deg;.
+    <b>They do not.</b> The substitution has its own dominant eigenvector, and its
+    limiting slopes are algebraic of degree 2 over &#8474;, in &#8474;(&radic;5) &mdash;
+    a <i>simpler</i> field than the true tangents, which need nested radicals. Two
+    geometries, not one rounded off.</p>
 
     <div class="pair">
         <figure>
-            <canvas id="fig-quadrille" width="300" height="300"></canvas>
-            <figcaption><b class="k" style="color:#e63946">quadrille</b> &mdash; corners on the lattice, every generation</figcaption>
+            <canvas id="fig-wheel" width="340" height="340"></canvas>
+            <figcaption>the wheel &mdash; <b class="k" style="color:#e63946">quadrille</b>
+            over the Euclidean ten, with the free angles written where they fall</figcaption>
         </figure>
         <figure>
-            <canvas id="fig-real" width="300" height="300"></canvas>
-            <figcaption><b class="k" style="color:#2a3b6b">real</b> &mdash; 36&deg; apart, on no lattice point but the top</figcaption>
+            <canvas id="fig-pentagons" width="340" height="340"></canvas>
+            <figcaption>the pentagons overlain &mdash;
+            <b class="k" style="color:#e63946">quadrille</b> on the lattice,
+            <b class="k" style="color:#2a3b6b">real</b> at 72&deg;, same circumradius</figcaption>
         </figure>
         <div>
             <label><span class="cap">generation <span class="val" id="fig-gen-value">0</span></span><br>
-                <input type="range" id="fig-gen" min="0" max="9" step="1" value="0" style="width: 200px"></label>
-            <p class="hint" style="max-width: 22em">The wheels store only <b>even</b> powers of
-            &phi;, so their x-components are <i>alternate</i> Fibonacci numbers &mdash; 3, 8,
-            21, 55. The half steps are the missing ones, and interleaved the sequence is
-            Fibonacci exactly: 3, 5, 8, 13, 21, 34, 55, 89. See
-            <a href="NOTES.md">NOTES</a>.</p>
+                <input type="range" id="fig-gen" min="0" max="10" step="1" value="0" style="width: 210px"></label>
+            <p class="hint" style="margin:6px 0 10px">Whole generations and the half steps
+            between them; past the end, the limit.</p>
+            <div class="readouts">
+                <b>seed</b><span id="fig-seed"></span>
+                <b>wheel, degrees from the vertical</b><span id="fig-angles"></span>
+                <b>gaps</b><span id="fig-gaps"></span>
+                <b>frame operator</b><span id="fig-frame"></span>
+            </div>
         </div>
     </div>
 
-    <div class="sub">
-        <h3><a href="e2.html">E2 &mdash; the wheel, and the directions a discrete multigrid would use</a></h3>
-        <p>The first question, and the one everything else waits on: what
-        <i>are</i> the discrete directions, exactly? The wheel at every
-        generation and at the limit, the exact tangents, and the frame operator
-        &mdash; which is where the trouble starts, because it is not isotropic.</p>
-        <p class="state">state: built &middot; the directions are settled; the dualization is not attempted yet</p>
-    </div>
+    <p>The wheel is ten lattice points: three free seeds and their reflections.
+    Inflation replaces each seed with the sum of three consecutive entries, and because
+    the two reflections act on the two coordinates differently, <b>x and y evolve under
+    two different integer matrices</b>. That asymmetry is the whole story &mdash; a
+    similarity would use one matrix for both.</p>
 
-    <p class="hint">Planned, not started: dualize those five directions and see
-    whether the dual stays two rhomb shapes or splits into ten parallelogram
-    types; whether the result is aperiodic (at any finite generation the slopes
-    are rational, so a grid built from them is periodic &mdash; only the limit is
-    irrational); and whether the resulting P3 regroups into the discrete P1
-    tiles, which would close the construction on itself.</p>
+    <pre>        ⎡1 0 0⎤              ⎡1 2 0⎤
+  Mx =  ⎢1 1 1⎥        My =  ⎢1 1 1⎥
+        ⎣0 1 2⎦              ⎣0 1 0⎦
+
+  char(Mx) = (1−λ)(λ²−3λ+1)      char(My) = (1+λ)(λ²−3λ+1)</pre>
+
+    <p>Both carry &phi;&sup2; and &phi;&#8315;&sup2;, so the growth ratio is
+    &phi;&sup2; &mdash; proved, not measured. Mx carries an extra eigenvalue 1:
+    <i>x</i>&#8320; never moves, which is why the first seed sits on the vertical at
+    every generation. My carries an extra &minus;1: an alternating component that
+    neither grows nor decays, and it is exactly the &plusmn;2 that turns up if you take
+    a half step. The two free angles are</p>
+
+    <p class="hint" id="fig-exact"></p>
+
+    <p><b>The &phi;&sup2; ladder, and its missing halves.</b> The stored wheels hold
+    only <i>even</i> powers of &phi;, so their x-components are <b>alternate</b>
+    Fibonacci numbers &mdash; 3, 8, 21, 55. The half step is a two-term sum instead of a
+    three-term one (drop the middle), and interleaved the sequence is Fibonacci exactly:
+    3, 5, 8, 13, 21, 34, 55, 89. It is a half step on x term for term, and on y up to
+    that alternating &plusmn;2 &mdash; which is why &phi;&sup2; is where the two
+    coordinates agree. Below zero there is one more positive half generation, then the
+    conjugate &psi;&thinsp;=&thinsp;&minus;1/&phi; takes over. See
+    <a href="NOTES.md">NOTES</a>.</p>
+
+    <h3>E2 &mdash; dualizing these directions</h3>
+
+    <p>Five directions, unequally spaced, mirror symmetric about the vertical. Every
+    step of de Bruijn's construction that reads the direction array still works &mdash;
+    crossings, K-tuples, the dual map. What breaks is everything that assumed the
+    spacing was even:</p>
+
+    <ul>
+        <li>The rhomb class <i>min</i>(<i>k</i>&minus;<i>j</i>,
+        <i>n</i>&minus;(<i>k</i>&minus;<i>j</i>)) names a shape only when the families
+        are evenly spread. Here the ten family pairs could give ten parallelogram types
+        rather than two golden rhombs &mdash; and whether they collapse to fewer
+        <i>is the first result</i>.</li>
+        <li>The registration gain <i>n</i>/2 comes from &sum;<b>vv</b>&#7488; =
+        (<i>n</i>/2)<b>I</b>, which needs a tight frame. The discrete frame is diagonal
+        &mdash; the mirror symmetry survives &mdash; but not isotropic, so the dual map
+        is a linear map with two gains rather than a similarity.</li>
+        <li>&sum;<b>v</b><sub><i>j</i></sub> &ne; 0, so &sum;<i>K</i> is not a height
+        function: no Wieringa roof, no index argument, no four levels.</li>
+        <li>At any <i>finite</i> generation the slopes are rational, so a grid built
+        from them is <i>periodic</i> &mdash; only the limit is irrational. Which
+        generation you dualize is part of the question.</li>
+    </ul>
+
+    <p class="hint">None of that is a conclusion about the dual tiling. It is the list
+    of what has to be rebuilt before there is one. Not started.</p>
+
     <script type="module" src="./dist/index-figure.js"></script>
 </div>
 </body>
