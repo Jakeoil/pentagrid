@@ -132,6 +132,45 @@ if (gridHost && tileHost) {
         for (const el of [gridHost, tileHost, byId("dual-grid-panel"), byId("dual-tiles-panel")]) {
             el?.replaceChildren();
         }
+        // The real pentagrid, ghosted behind the grid, because five families of
+        // evenly spaced lines look regular whatever their angles until there is
+        // something to compare them with. Same γ, same spacing, 36° apart: where
+        // the red lines leave the gray ones is the whole of the difference.
+        const ghostLayer = ({ stack, model, getView }: {
+            stack: { add: (spec: unknown) => unknown }; model: { gamma: readonly number[] };
+            getView: () => { scale: number; x: number; y: number };
+        }) => {
+            stack.add({
+                id: "ghost", label: "real grid", z: 8, group: "Pentagrid",
+                visible: () => !!opt("dual-ghost")?.checked,
+                draw: ({ ctx, w, h, cx, cy }: { ctx: CanvasRenderingContext2D; w: number; h: number; cx: number; cy: number }) => {
+                    const v = getView();
+                    const gain = 5 / 2;
+                    const reach = Math.hypot(w, h) / v.scale;
+                    ctx.strokeStyle = "#b9bfcc";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    for (let j = 0; j < 5; j++) {
+                        const a = (2 * Math.PI * j) / 5 + Math.PI / 2;
+                        const ux = Math.cos(a), uy = Math.sin(a);
+                        const mid = (v.x * ux + v.y * uy) / gain;
+                        const lo = Math.floor(mid - reach / gain), hi = Math.ceil(mid + reach / gain);
+                        for (let n = lo; n <= hi; n++) {
+                            const d = gain * (n - (model.gamma[j] ?? 0));
+                            // the line x·u = d, drawn across the canvas
+                            const px = d * ux, py = d * uy;
+                            const tx = -uy * reach, ty = ux * reach;
+                            const A = [cx + (px - tx - v.x) * v.scale, cy - (py - ty - v.y) * v.scale];
+                            const B = [cx + (px + tx - v.x) * v.scale, cy - (py + ty - v.y) * v.scale];
+                            ctx.moveTo(A[0], A[1]);
+                            ctx.lineTo(B[0], B[1]);
+                        }
+                    }
+                    ctx.stroke();
+                },
+            });
+        };
+
         handle = createPentagrid({
             container: gridHost,
             containerP: tileHost,
@@ -139,6 +178,7 @@ if (gridHost && tileHost) {
             panelP: byId("dual-tiles-panel"),
             directions: normals,
             edges,
+            layers: ghostLayer as never,
             features: {
                 gridLines: true, intersectionDots: true, center: true, axes: false,
                 penroseTiles: true, penroseEdges: true,
@@ -177,7 +217,7 @@ if (gridHost && tileHost) {
             : "1  1  1  1  1  — rhombs");
     };
 
-    for (const id of ["dual-geometry", "dual-spacing", "dual-edges"]) {
+    for (const id of ["dual-geometry", "dual-spacing", "dual-edges", "dual-ghost"]) {
         byId(id)?.addEventListener("change", build);
     }
     byId("dual-gen")?.addEventListener("input", build);

@@ -222,6 +222,15 @@ nothing changes, and the pentagrid never notices.
 - **The dual map shears.** Σ v vᵀ is diagonal — the mirror survives — but not
   isotropic, so there are two gains instead of the pentagrid's single n/2.
   The view registers by the mean and the page reports both and the gap.
+- **A grid needs a reference or it reads as regular.** Jake, at generation 1:
+  *the gridlines look perfectly regular.* They are not — the gaps there are
+  43.60, 31.33, 36.87, 36.87, 31.33 against the pentagrid's five 36s, and
+  there is no concurrency (319 crossings, 319 tiles, none stacked) — but five
+  families of evenly spaced lines look like a regular mesh whatever their
+  angles. So the real pentagrid is ghosted behind in gray, same γ and spacing,
+  and the divergence is the picture. Checked first that the slider really
+  reaches the model, since "looks regular" and "is the default grid" are the
+  same symptom: it does.
 - **Generation 1 is 3-4-5.** Jake, on the limit-only version: *this is kind of
   meh. What happens if we make the pentagrid on different generations?* The
   right question. At any finite generation the wheel's points are **lattice

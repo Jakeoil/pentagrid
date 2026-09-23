@@ -356,3 +356,30 @@ test("finite generations are rational and periodic; the angles converge on the l
     }
     assert.ok(last < 0.01, `the last rung should be within a hundredth of a degree, got ${last}`);
 });
+
+test("the ghost layer draws the real pentagrid behind the discrete one", () => {
+    // Five families of evenly spaced lines look regular whatever their angles
+    // until there is something to compare them against — Jake: "at gen 1 the
+    // gridlines look perfectly regular". The ghost is that comparison, so it
+    // has to be there and it has to be the EVEN five.
+    const gaps = (dirs) => {
+        const a = dirs.map(([x, y]) => ((Math.atan2(y, x) * 180 / Math.PI) + 180) % 180).sort((p, q) => p - q);
+        return a.map((v, i) => +(i ? v - a[i - 1] : v + 180 - a[4]).toFixed(2));
+    };
+    const real = [...Array(5).keys()].map((j) => {
+        const t = 2 * Math.PI * j / 5 + Math.PI / 2;
+        return [Math.cos(t), Math.sin(t)];
+    });
+    assert.deepEqual(gaps(real), [36, 36, 36, 36, 36], "the ghost is the even five");
+    // and generation 1 is not: it is the one the eye needs the ghost for
+    const up = pentagon(wheelAt("P", 2));
+    assert.deepEqual(gaps(up), [43.6, 31.33, 36.87, 36.87, 31.33]);
+    // no two families parallel at any rung, so every pair really makes a tile
+    for (const h of [2, 4, 6, 8]) {
+        const d = pentagon(wheelAt("P", h));
+        for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) {
+            const c = Math.abs(d[i][0] * d[j][0] + d[i][1] * d[j][1]) / (Math.hypot(...d[i]) * Math.hypot(...d[j]));
+            assert.ok(c < 1 - 1e-9, `generation ${h / 2}: families ${i},${j} are parallel`);
+        }
+    }
+});
