@@ -106,9 +106,13 @@ if (gridHost && tileHost) {
             ? dirs.map(([x, y], j) => [x * lengths[j], y * lengths[j]] as Vec2)
             : dirs;
 
+        // Clear the PANELS as well as the canvases: createPentagrid appends its
+        // rows to whatever host it is given, so rebuilding without this left a
+        // second G and P cluster behind on every toggle.
         teardown?.();
-        gridHost.replaceChildren();
-        tileHost.replaceChildren();
+        for (const el of [gridHost, tileHost, byId("dual-grid-panel"), byId("dual-tiles-panel")]) {
+            el?.replaceChildren();
+        }
         handle = createPentagrid({
             container: gridHost,
             containerP: tileHost,

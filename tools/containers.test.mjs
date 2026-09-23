@@ -321,6 +321,9 @@ function sizedHost(w, h, attrs = null) {
     });
     el._w = w; el._h = h;
     el.appendChild = (c) => { el.children.push(c); return c; };
+    // matching the appendChild above: both must work on the same array, or a
+    // test cannot tell a host that was cleared from one that was not
+    el.replaceChildren = (...kids) => { el.children.length = 0; el.children.push(...kids); };
     return el;
 }
 
@@ -1663,4 +1666,30 @@ test("by shape: off the pentagrid the rhomb classes wear warm (odd) and cool (ev
     assert.equal(twelve.length, 6, `twelve: six classes (${twelve})`);
     const warm = (c) => { const r = parseInt(c.slice(1, 3), 16), b = parseInt(c.slice(5, 7), 16); return r > b; };
     assert.equal(twelve.filter(warm).length, 3, "three warm, three cool");
+});
+
+test("a page that rebuilds in place must clear its panel hosts, not just its canvases", () => {
+    // dual.html and multigrid.html rebuild the whole view when a switch moves.
+    // createPentagrid APPENDS its rows to whatever host it is given, so a
+    // rebuild that clears only the canvases leaves a second G and P cluster
+    // behind — and a third, and a fourth. Jake saw it on dual.html.
+    const panel = makeStub(), panelP = makeStub();
+    const left = sizedHost(400, 400), right = sizedHost(400, 400);
+    const build = () => {
+        for (const el of [left, right, panel, panelP]) el.replaceChildren();
+        return createPentagrid({
+            container: left, containerP: right, panel, panelP,
+            features: { gridLines: true, penroseTiles: true },
+        });
+    };
+    const rows = (el) => [...panelRows(el).keys()].length;
+    build();
+    const g = rows(panel), p = rows(panelP);
+    assert.ok(g > 0 && p > 0);
+    for (let i = 0; i < 3; i++) build();
+    assert.equal(rows(panel), g, "the G cluster must not multiply");
+    assert.equal(rows(panelP), p, "nor the P cluster");
+    // and the canvases likewise
+    assert.ok(left.children.length < 20 && right.children.length < 20,
+              `canvases: ${left.children.length}, ${right.children.length}`);
 });

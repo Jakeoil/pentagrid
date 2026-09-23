@@ -57,6 +57,13 @@ function makeStub(extra = {}) {
         // Must really remove: code that empties a node by looping on
         // `while (children.length) removeChild(last)` spins forever otherwise,
         // which is a hang rather than a failure and takes a while to recognize.
+        // Pages that rebuild in place call this; without it the stub silently
+        // kept every old child and a "does rebuilding leave rows behind" test
+        // could not tell the difference.
+        replaceChildren: (...kids) => {
+            children.length = 0;
+            for (const k of kids) children.push(k);
+        },
         removeChild: (c) => {
             const i = children.indexOf(c);
             if (i >= 0) children.splice(i, 1);
