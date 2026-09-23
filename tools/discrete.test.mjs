@@ -327,3 +327,32 @@ test("the discrete dual: six rhomb shapes, a frame that is diagonal but not isot
                  "with edges given, spacing alone leaves unit edges");
     assert.ok(sides({ ...pg, edges }).size > 1, "wheel edges give unequal sides");
 });
+
+test("finite generations are rational and periodic; the angles converge on the limit's", () => {
+    const fold = (a) => { a = Math.abs(a) % 180; return +(a > 90 ? 180 - a : a).toFixed(4); };
+    const anglesAt = (halves) => {
+        const up = pentagon(halves < 0 ? limitSeed(WHEELS.P) : wheelAt("P", halves));
+        const out = [];
+        for (let i = 0; i < 5; i++) for (let j = i + 1; j < 5; j++) {
+            out.push(fold((Math.atan2(up[i][1], up[i][0]) - Math.atan2(up[j][1], up[j][0])) * 180 / Math.PI));
+        }
+        return [...new Set(out)].sort((a, b) => a - b);
+    };
+    // generation 1 is 3-4-5 slopes: lattice vectors, so the tiling is periodic
+    const g1 = pentagon(wheelAt("P", 2));
+    assert.deepEqual(g1.map(([x, y]) => [x, y]), [[0, 6], [5, 2], [3, -4], [-3, -4], [-5, 2]]);
+    for (const [x, y] of g1) { assert.equal(x, Math.round(x)); assert.equal(y, Math.round(y)); }
+    assert.deepEqual(anglesAt(2), [31.3287, 36.8699, 43.6028, 68.1986, 73.7398, 74.9315]);
+    // six shapes at every rung, and they crawl in on the limit's six
+    const limit = anglesAt(-1);
+    assert.equal(limit.length, 6);
+    let last = Infinity;
+    for (const g of [2, 4, 6, 8, 12, 16]) {
+        const a = anglesAt(g);
+        assert.equal(a.length, 6, `generation ${g / 2} should still be six shapes`);
+        const err = Math.max(...a.map((v, i) => Math.abs(v - limit[i])));
+        assert.ok(err < last, `generation ${g / 2}: ${err} should beat ${last}`);
+        last = err;
+    }
+    assert.ok(last < 0.01, `the last rung should be within a hundredth of a degree, got ${last}`);
+});

@@ -28,9 +28,18 @@ import type { Vec2 } from "../geometry/types.js";
 const COLORS = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
 const byId = (id: string) => document.getElementById(id) ?? undefined;
 
-/** The five limiting directions as unit normals, and their own lengths. */
-function discreteFrame(): { dirs: Vec2[]; lengths: number[] } {
-    const pts = pentagon(limitSeed(WHEELS.P));
+/**
+ * The five directions at a generation, as unit normals, with their own lengths.
+ *
+ * `halves < 0` means the limit. At any FINITE generation the wheel's points are
+ * lattice vectors, so the slopes are rational and the grid — hence the tiling —
+ * is periodic; the period grows with the generation and only the limit is
+ * aperiodic. Generation 1 is (0,6), (5,2), (3,−4) and mirrors: 3-4-5 slopes,
+ * and its rhombs are 31.33°, 36.87°, 43.60° rather than the limit's 34.64°,
+ * 36.49°, 37.72°.
+ */
+function discreteFrame(halves: number): { dirs: Vec2[]; lengths: number[]; raw: Vec2[] } {
+    const pts = pentagon(halves < 0 ? limitSeed(WHEELS.P) : wheelAt("P", halves));
     const mags = pts.map(([x, y]) => Math.hypot(x, y));
     const min = Math.min(...mags);
     const order = pts
@@ -39,17 +48,18 @@ function discreteFrame(): { dirs: Vec2[]; lengths: number[] } {
     return {
         dirs: order.map(({ p, i }) => [p[0] / mags[i], p[1] / mags[i]] as Vec2),
         lengths: order.map(({ i }) => mags[i] / min),
+        raw: order.map(({ p }) => [p[0], p[1]] as Vec2),
     };
 }
 
 /** The Euclidean five, for the comparison. */
-function realFrame(): { dirs: Vec2[]; lengths: number[] } {
+function realFrame(): { dirs: Vec2[]; lengths: number[]; raw: Vec2[] } {
     const dirs: Vec2[] = [];
     for (let j = 0; j < 5; j++) {
         const a = (2 * Math.PI * j) / 5 + Math.PI / 2;
         dirs.push([Math.cos(a), Math.sin(a)]);
     }
-    return { dirs, lengths: [1, 1, 1, 1, 1] };
+    return { dirs, lengths: [1, 1, 1, 1, 1], raw: dirs };
 }
 
 /** Σ v vᵀ, as [xx, xy, yy] — (n/2)·I exactly when the frame is tight. */
@@ -92,7 +102,16 @@ if (gridHost && tileHost) {
         const real = (byId("dual-geometry") as HTMLSelectElement | undefined)?.value === "real";
         const spaced = !!opt("dual-spacing")?.checked;
         const wheelEdges = !!opt("dual-edges")?.checked;
-        const { dirs, lengths } = real ? realFrame() : discreteFrame();
+        const genSlider = byId("dual-gen") as HTMLInputElement | undefined;
+        const rung = parseInt(genSlider?.value ?? "20", 10);
+        const halves = rung > 16 ? -1 : rung;                 // past the end: the limit
+        const { dirs, lengths, raw } = real ? realFrame() : discreteFrame(halves);
+        const genOut = byId("dual-gen-value");
+        if (genOut) {
+            genOut.textContent = real ? "—"
+                : halves < 0 ? "limit"
+                : halves % 2 === 0 ? String(halves / 2) : `${(halves - 1) / 2}½`;
+        }
 
         // Two independent choices, which one array used to conflate.
         //
@@ -141,6 +160,11 @@ if (gridHost && tileHost) {
         const distinct = [...new Set(angles)];
         const say = (id: string, text: string) => { const el = byId(id); if (el) el.textContent = text; };
         say("dual-shapes", `${distinct.length} — ${distinct.map((a) => a.toFixed(4) + "°").join(", ")}`);
+        const lattice = !real && halves >= 0 && raw.every(([x, y]) => x === Math.round(x) && y === Math.round(y));
+        say("dual-period", lattice
+            ? `rational: ${raw.map(([x, y]) => `(${x},${y})`).join(" ")} — the tiling is PERIODIC`
+            : real ? "irrational — aperiodic (the pentagrid)"
+                   : "irrational — aperiodic (the limit)");
         const sum = dirs.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0]);
         say("dual-sum", `(${sum[0].toFixed(4)}, ${sum[1].toFixed(4)})`
             + (Math.hypot(...sum) < 1e-9 ? "  — zero: ΣK is a height function"
@@ -156,5 +180,6 @@ if (gridHost && tileHost) {
     for (const id of ["dual-geometry", "dual-spacing", "dual-edges"]) {
         byId(id)?.addEventListener("change", build);
     }
+    byId("dual-gen")?.addEventListener("input", build);
     build();
 }

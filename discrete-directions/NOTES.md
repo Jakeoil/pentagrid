@@ -222,6 +222,17 @@ nothing changes, and the pentagrid never notices.
 - **The dual map shears.** Σ v vᵀ is diagonal — the mirror survives — but not
   isotropic, so there are two gains instead of the pentagrid's single n/2.
   The view registers by the mean and the page reports both and the gap.
+- **Generation 1 is 3-4-5.** Jake, on the limit-only version: *this is kind of
+  meh. What happens if we make the pentagrid on different generations?* The
+  right question. At any finite generation the wheel's points are **lattice
+  vectors**, so the slopes are rational and the grid — with it the tiling — is
+  **periodic**; only the limit is aperiodic. Generation 1 is (0,6), (5,2),
+  (3,−4) and mirrors: 3-4-5 slopes, rhombs at 31.33°, 36.87°, 43.60°, nothing
+  like the limit's 34.64°, 36.49°, 37.72°. Winding forward they crawl in —
+  33.69/34.21/39.21, 34.99/35.57/38.88, 34.51/36.86/37.26 — six shapes at
+  every rung, the error falling monotonically. So the page shows
+  quasiperiodicity as **the limit of a sequence of periodic tilings**, with the
+  period growing out of sight, which is worth more than the limit alone.
 - **The index almost survives.** Σvⱼ over the five directions is
   **(0, 0.0012)**: exactly zero across the mirror, only just off it the other
   way. So ΣK is not a height function but drifts from one *slowly* — a more

@@ -66,6 +66,8 @@
         </select></label>
         <label class="check"><input type="checkbox" id="dual-spacing"> wheel spacing</label>
         <label class="check"><input type="checkbox" id="dual-edges"> wheel edges</label>
+        <label><span class="cap">generation <span class="val" id="dual-gen-value">limit</span></span>
+            <input type="range" id="dual-gen" min="2" max="18" step="1" value="18" style="width: 180px"></label>
     </div>
 
     <p class="report">
@@ -73,7 +75,8 @@
         <b>gains of the dual map</b><span id="dual-gains"></span><br>
         <b>spacing &lambda;</b><span id="dual-spacings"></span><br>
         <b>edge lengths</b><span id="dual-edges-out"></span><br>
-        <b>&sum;<b>v</b><sub>j</sub></b><span id="dual-sum"></span>
+        <b>&sum;<b>v</b><sub>j</sub></b><span id="dual-sum"></span><br>
+        <b>directions</b><span id="dual-period"></span>
     </p>
 
     <div class="split">
@@ -114,10 +117,16 @@
     were. The rhomb groups, the arrows and the exact regularity criterion are
     five's, and are not offered.</p>
 
-    <p><b>Periodic at every finite generation.</b> The wheel's slopes are
-    rational until the limit, so a grid built from generation <i>g</i> is
-    periodic with a period that grows with <i>g</i>. The directions used here
-    are the limit; which generation you dualize is a question of its own.</p>
+    <p><b>Periodic at every finite generation &mdash; wind the slider back.</b>
+    The wheel's points are <i>lattice vectors</i> until the limit, so the slopes
+    are rational and the grid, with it the tiling, is <b>periodic</b>. Generation
+    1 is (0,&thinsp;6), (5,&thinsp;2), (3,&thinsp;&minus;4) and their mirrors
+    &mdash; <b>3-4-5 slopes</b> &mdash; and its rhombs are 31.33&deg;,
+    36.87&deg;, 43.60&deg;, nothing like the limit's 34.64&deg;, 36.49&deg;,
+    37.72&deg;. Wind forward and the angles crawl in: 33.69/34.21/39.21 at 2,
+    34.99/35.57/38.88 at 3, 34.51/36.86/37.26 at 4. The quasiperiodicity is the
+    <i>limit</i> of a sequence of periodic tilings, and you can watch the period
+    grow out of sight.</p>
 
     <script type="module" src="../dist/discrete/dual.js"></script>
 </div>
