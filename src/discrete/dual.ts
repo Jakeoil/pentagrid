@@ -147,8 +147,12 @@ if (gridHost && tileHost) {
                     const v = getView();
                     const gain = 5 / 2;
                     const reach = Math.hypot(w, h) / v.scale;
-                    ctx.strokeStyle = "#b9bfcc";
+                    // Dashed and pale: at the limit the two grids agree to about
+                    // two degrees, so solid gray lines read as a doubled grid
+                    // rather than as a reference. Jake: "I'm seeing double lines".
+                    ctx.strokeStyle = "#aab0be";
                     ctx.lineWidth = 1;
+                    ctx.setLineDash([3, 6]);
                     ctx.beginPath();
                     for (let j = 0; j < 5; j++) {
                         const a = (2 * Math.PI * j) / 5 + Math.PI / 2;
@@ -167,6 +171,7 @@ if (gridHost && tileHost) {
                         }
                     }
                     ctx.stroke();
+                    ctx.setLineDash([]);
                 },
             });
         };

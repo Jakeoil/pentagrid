@@ -613,3 +613,29 @@ test("at n = 7 a turn is 1400 units, the marks are the sevenths, a notch is 100 
     const v5 = []; walk(c5, (c) => { if (cls(c).startsWith("ret-value")) v5.push(c); });
     assert.equal(v5[0].textContent, "200");
 });
+
+test("the rim takes the shape of whatever directions it is given, and the labels clear it", () => {
+    // Jake asked whether the reticulum itself has to adjust for the discrete
+    // angles. The rim is built from the axes, so it already does — an irregular
+    // 2n-gon. What does not follow by itself is the label ring: circ(n) is the
+    // REGULAR circumradius and an irregular rim can reach past it.
+    const uneven = [[0, 6], [5, 2], [3, -4], [-3, -4], [-5, 2]]
+        .map(([x, y]) => { const m = Math.hypot(x, y); return [x / m, y / m]; });
+    for (const [name, dirs] of [["regular", dirsFor(5)], ["discrete gen 1", uneven]]) {
+        const r = createReticulum({ count: 5, directions: dirs, colors: COLORS, onChange() {}, onLock() {} });
+        r.sync({ values: [0.2, 0.2, 0.2, 0.2, 0.2], locked: -1, sum: 1 });
+        const rim = pick(r.element, "ret-rim")[0];
+        const cs = rim.getAttribute("points").split(" ").map((s) => s.split(",").map(Number));
+        assert.equal(cs.length, 10, `${name}: ten sides either way`);
+        const far = Math.max(...cs.map((p) => Math.hypot(...p)));
+        const labels = pick(r.element, "ret-label");
+        for (const l of labels) {
+            const d = Math.hypot(+l.getAttribute("x"), +l.getAttribute("y"));
+            assert.ok(d > far, `${name}: a label at ${d.toFixed(3)} must clear the rim's ${far.toFixed(3)}`);
+        }
+        // and the rim really is irregular in the discrete case
+        const spread = far - Math.min(...cs.map((p) => Math.hypot(...p)));
+        if (name === "regular") assert.ok(spread < 1e-4, `a regular rim has one corner distance, spread ${spread}`);
+        else assert.ok(spread > 0.01, `the discrete rim should be visibly irregular, got ${spread}`);
+    }
+});

@@ -230,7 +230,18 @@ nothing changes, and the pentagrid never notices.
   angles. So the real pentagrid is ghosted behind in gray, same γ and spacing,
   and the divergence is the picture. Checked first that the slider really
   reaches the model, since "looks regular" and "is the default grid" are the
-  same symptom: it does.
+  same symptom: it does. The ghost is dashed and off by default — solid gray
+  lines two degrees from the red ones read as a doubled grid rather than as a
+  reference, which is what Jake saw next.
+- **The reticulum already adapts; its label ring did not.** Jake: *does the
+  reticulum itself need to adjust — make the decagon field reflect the new
+  shape to accommodate the new angles?* The rim is built from the axes, so it
+  is an irregular 2n-gon the moment the directions are (corner distances
+  1.039–1.077 at generation 1, against a regular 1.051). Every axis pierces
+  its **own** side at exactly A whatever the shape, so the axes and their
+  chords need nothing. The label ring did: `circ(n)` is the regular
+  circumradius and an irregular rim can reach past it, so it now clears the
+  furthest corner. Tested both ways.
 - **Generation 1 is 3-4-5.** Jake, on the limit-only version: *this is kind of
   meh. What happens if we make the pentagrid on different generations?* The
   right question. At any finite generation the wheel's points are **lattice

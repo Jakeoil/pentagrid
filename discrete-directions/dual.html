@@ -66,7 +66,7 @@
         </select></label>
         <label class="check"><input type="checkbox" id="dual-spacing"> wheel spacing</label>
         <label class="check"><input type="checkbox" id="dual-edges"> wheel edges</label>
-        <label class="check"><input type="checkbox" id="dual-ghost" checked> ghost the real grid</label>
+        <label class="check"><input type="checkbox" id="dual-ghost"> ghost the real grid</label>
         <label><span class="cap">generation <span class="val" id="dual-gen-value">limit</span></span>
             <input type="range" id="dual-gen" min="2" max="18" step="1" value="18" style="width: 180px"></label>
     </div>
@@ -120,8 +120,8 @@
 
     <p><b>They look regular until you have something to compare them with.</b>
     Five families of evenly spaced lines read as a regular mesh whatever their
-    angles, so the real pentagrid is ghosted behind in gray: same &gamma;, same
-    spacing, 36&deg; apart. Where the red lines leave the gray ones is the whole
+    angles, so <b>ghost the real grid</b> draws the pentagrid behind in dashed
+    gray: same &gamma;, same spacing, 36&deg; apart. Where the red lines leave the gray ones is the whole
     of the difference. At the limit the gaps are 34.64, 36.49, 37.72, 36.49,
     34.64; at generation 1 they are <b>43.60, 31.33, 36.87, 36.87, 31.33</b>,
     which is a long way off five 36s.</p>

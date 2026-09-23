@@ -152,6 +152,23 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
         return out;
     }
 
+    /**
+     * How far out the labels must sit to clear the rim.
+     *
+     * The rim is built from the axes, so it already takes the shape of whatever
+     * directions it is given — with the discrete five it is an irregular
+     * 2n-gon, which is the point of showing it. What does NOT follow by itself
+     * is the label ring: `circ(n)` is the regular circumradius, and an
+     * irregular rim can reach further. Every axis pierces its OWN side at
+     * exactly A, regular or not, so the ring has to clear the furthest corner
+     * rather than track each axis.
+     */
+    function labelRing(): number {
+        let far = circ(count);
+        for (const [x, y] of corners()) far = Math.max(far, Math.hypot(x, y));
+        return far;
+    }
+
     /** Corners, as the meeting points of neighboring sides. */
     function corners(): [number, number][] {
         const ns = normals().slice().sort(
@@ -398,7 +415,8 @@ export function createReticulum(opts: ReticulumOptions): Reticulum {
                 x2: u[0] * d + w[0] * hi, y2: u[1] * d + w[1] * hi,
             });
 
-            const labelR = circ(count) + 0.1, valueR = circ(count) + 0.13;
+            const ring = labelRing();
+            const labelR = ring + 0.1, valueR = ring + 0.13;
             attrs(label, { x: u[0] * labelR, y: u[1] * labelR });
             label.setAttribute("class", "ret-label"
                 + (dep ? " dependent" : "") + (isLive ? " live" : ""));
