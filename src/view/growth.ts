@@ -16,6 +16,7 @@ import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency, angleCode } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { zonohedronOf, zonogonAnchor, popcount } from "../geometry/zonohedron.js";
+import { penroseCondition } from "../geometry/gamma.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
 import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
@@ -139,6 +140,16 @@ export interface GrowthState {
      * three, and the depth sort puts the raised cap in front.
      */
     pairGhost: boolean;
+    /**
+     * Keep the reading control inside what a Penrose grid can actually reach.
+     *
+     * The decagon only exists when every γⱼ is an integer, which is a Penrose
+     * grid, and a jiggle that stays Penrose has to leave Σγ alone — so only ten
+     * of its 62 readings are available, one orbit, the deca seed in its ten
+     * placements. Off it the other 52 are resolutions the grid could only reach
+     * by leaving Penrose, which is worth seeing but is not what is there.
+     */
+    stayPenrose: boolean;
 }
 
 export interface GrowthHandle {
@@ -159,7 +170,7 @@ const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
-    solids: false, reading: 0, pick: 0, pairGhost: false,
+    solids: false, reading: 0, pick: 0, pairGhost: false, stayPenrose: true,
     boldEdges: false,
 };
 
@@ -621,9 +632,16 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         const anchor = zonogonAnchor(z, res.outline, res.outlineK, dirs);
                         const [sx, sy] = anchor.origin;
 
-                        const count = z.readings.length;
+                        // On a Penrose grid the reading control is held to what
+                        // the grid can reach without leaving Σγ where it is.
+                        const held = state.stayPenrose
+                            && penroseCondition(model.gamma.reduce((t, g) => t + g, 0),
+                                                dirs.length) === true;
+                        const pool = held && z.penrose.length ? z.penrose
+                            : z.readings.map((_, i) => i);
+                        const count = z.readings.length ? pool.length : 0;
                         const bases = count
-                            ? z.readings[((reading % count) + count) % count]
+                            ? z.readings[pool[((reading % count) + count) % count]]
                             : z.lower;
                         const flips = z.flips(bases);
                         const turn = flips.length
@@ -674,7 +692,8 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
 
                         if (res.families.length > widest) {
                             widest = res.families.length;
-                            const which = count ? ((reading % count) + count) % count : 0;
+                            const slot = count ? ((reading % count) + count) % count : 0;
+                            const which = count ? pool[slot] : 0;
                             // Say what made the reading, not just which one it is:
                             // the nudge that pulls the lines apart into it.
                             const e = count ? z.nudgeOf(which) : null;
@@ -689,7 +708,9 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     return `${f}${arrow}`;
                                 }).join(" ");
                             const at = count
-                                ? `reading ${which + 1}/${count} · ${how}`
+                                ? `reading ${slot + 1}/${count}`
+                                    + `${held && count < z.readings.length ? " Penrose" : ""}`
+                                    + ` · ${how}`
                                 : "lower surface";
                             let pairText = "no flip";
                             if (turn) {

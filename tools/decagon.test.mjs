@@ -87,3 +87,17 @@ test("some jiggles leave an octagon or a hexagon inside the decagon", () => {
     assert.equal(oct.length, 4);
     assert.deepEqual(oct, ["123", "124", "134", "234"]);
 });
+
+test("a Penrose grid is held to the ten, and nothing else is held at all", () => {
+    assert.deepEqual([...z.penrose], [...reach.held].sort((a, b) => a - b));
+    assert.equal(z.penrose.length, 10);
+    // The restriction costs a hexagon and an octagon nothing: every reading of
+    // theirs already has a configuration whose displacements sum to zero.
+    for (const fams of [[0, 1, 2], [0, 1, 2, 3]]) {
+        const y = zonohedronOf(dirs, fams);
+        assert.equal(y.penrose.length, y.readings.length, `k = ${y.k}`);
+    }
+    // And the ten are the orbit, not ten readings scattered over several.
+    const orbit = table.find((t) => t.penrose);
+    assert.deepEqual([...z.penrose], orbit.members);
+});

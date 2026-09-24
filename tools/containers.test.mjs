@@ -1737,3 +1737,33 @@ test("the solids layer draws a zonohedron per singularity, and the reading moves
     v.redraw();
     assert.ok(fills > plain, `pair drew nothing extra (${fills} vs ${plain})`);
 });
+
+test("stay Penrose holds the decagon to its ten readings", () => {
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);          // the sun: every gamma an integer
+    v.set({ grow: 1, fold: 1, solids: true });
+
+    const layer = v.pentagrid.stack.get("solids");
+    const paths = new Set();
+    let path = [];
+    layer.ctx.moveTo = (x, y) => { path.push(`M${x.toFixed(3)},${y.toFixed(3)}`); };
+    layer.ctx.lineTo = (x, y) => { path.push(`L${x.toFixed(3)},${y.toFixed(3)}`); };
+
+    const sweep = () => {
+        paths.clear();
+        for (let r = 0; r < 62; r++) {
+            path = [];
+            v.set({ reading: r });
+            v.redraw();
+            paths.add(path.join("|"));
+        }
+        return paths.size;
+    };
+    // Held, the slider wraps after ten; loose, all 62 are distinct pictures.
+    v.set({ stayPenrose: true });
+    const penrose = sweep();
+    v.set({ stayPenrose: false });
+    const loose = sweep();
+    assert.ok(loose > penrose, `${loose} loose against ${penrose} held`);
+    assert.ok(penrose <= 10, `held showed ${penrose} distinct pictures, over ten`);
+});

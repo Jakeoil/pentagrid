@@ -548,9 +548,13 @@ remembered. Σγ = 0 is one more great circle on that sphere, and it passes
 through ten chambers, all the same shape.
 
 `tools/decagon-stats.mjs` prints the census; `tools/decagon.test.mjs` asserts
-it. Not built: the page does not yet restrict the reading control to orbit C
-when Σγ is an integer, so roof.html will happily show a resolution the grid
-could only reach by leaving Penrose.
+it. **Built the same day**: `zonohedron.penrose` carries the readings with a
+sum-zero configuration, and roof.html's **stay Penrose** switch (on by default)
+holds the reading control to them. It costs a hexagon and an octagon nothing —
+every reading of theirs already has one, so the switch bites only where it
+should, on the decagon, cutting 62 to 10. Off it the other 52 come back, which
+is worth seeing and is honestly labeled: the readout says "Penrose" only while
+the control is actually held.
 
 **Jake's jog, and what survives it (2026-09-24).** His test: sit on the sun —
 γ = 0 0 0 0 0, Σγ = 0 — hold the sum with γ₀ floating, jog the other four by a

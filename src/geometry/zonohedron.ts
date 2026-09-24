@@ -83,6 +83,18 @@ export interface Zonohedron {
      * generator — or null if it leaves a singularity standing.
      */
     readingOf(displacements: readonly number[]): number | null;
+    /**
+     * The readings a Penrose grid can reach: those with a configuration whose
+     * displacements sum to zero, since Σγ is what the Penrose condition fixes.
+     *
+     * Binding only when every family meets — a concurrency of fewer lines can
+     * be paid for out of a family that is not there, and in any case the sum
+     * rule turns out to cost a hexagon and an octagon nothing: all their
+     * readings have a sum-zero configuration. The decagon it cuts from 62 to
+     * **10**, one orbit under the decagon's symmetry — the deca seed in its ten
+     * placements. PLAN §5.0.
+     */
+    penrose: readonly number[];
     /** Which cells of this reading have their whole cap exposed. */
     flips(bases: readonly number[]): ZonoFlip[];
     /** A face's four corners, as generator masks, in order round it. */
@@ -295,6 +307,7 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
 
     const readings: number[][] = [];
     const nudges: (number[] | null)[] = [];
+    const sumZero = new Set<string>();
     if (k <= ENUMERATE_UPTO) {
         // Every configuration of the k lines within two steps either way. That
         // is enough to reach every reading at k <= 5, and the search is small:
@@ -311,6 +324,9 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
                 const bases = nudge(e);
                 if (!bases) return;
                 const key = bases.join(",");
+                let total = 0;
+                for (const v of e) total += v;
+                if (total === 0) sumZero.add(key);
                 const had = found.get(key);
                 if (!had || rank(e) < rank(had)) found.set(key, [...e]);
                 return;
@@ -341,6 +357,9 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
         }
     }
     const nudgeOf = (reading: number) => nudges[reading] ?? null;
+    const penrose = readings
+        .map((b, i) => (sumZero.has(b.join(",")) ? i : -1))
+        .filter((i) => i >= 0);
     const byBases = new Map(readings.map((b, i) => [b.join(","), i]));
     const readingOf = (e: readonly number[]) => {
         const bases = nudge(e);
@@ -402,5 +421,8 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
         return order;
     };
 
-    return { k, fams, pairs, cells, lower, readings, nudgeOf, readingOf, flips, face, route };
+    return {
+        k, fams, pairs, cells, lower, readings, nudgeOf, readingOf, penrose,
+        flips, face, route,
+    };
 }
