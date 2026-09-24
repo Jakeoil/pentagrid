@@ -49,8 +49,14 @@ function classFill(cls: number): string {
     const pal = cls % 2 === 1 ? WARM_FILLS : COOL_FILLS;
     return pal[Math.min(i, pal.length - 1)];
 }
-/** A 2k-gon is neither thick nor thin — it is a stack of both — so it gets its own. */
-const SINGULAR_FILL = "#b48ec4";
+/**
+ * A 2k-gon is neither thick nor thin — it is a stack of both — so it gets its
+ * own color. Two of them: the hexagons are the common case and the ones that
+ * come in a column, so they read pink, and the octagon and the decagon keep the
+ * purple. Jake's split.
+ */
+const SINGULAR_HEX = "#e3a0cb";
+const SINGULAR_BIG = "#b48ec4";
 /** One per Wieringa level. Penrose uses four; the index is taken modulo. */
 /**
  * The height ramp's strength: wieringa-roof's `shadeColor` moves a color by
@@ -109,7 +115,7 @@ export interface TileStyle {
      * The index on the tile face (the `vertexIndex` feature) is the other way
      * to see it, four times per vertex.
      */
-    vertexMark: "dot" | "filled" | "open";
+    vertexMark: "dot" | "index";
     /**
      * Decorate off a Penrose patch too. The index-placed dressings — arrows,
      * curves, pentagons, next-gen, kites — need a corner at the patch's extreme
@@ -179,7 +185,6 @@ export interface Features {
      * the curves, the P1 pentagons and the deflation are all placed by it. Off
      * Penrose it runs 1..5.
      */
-    vertexIndex: boolean;
     /** A small circle on the origin, as sunstar draws it — the point γ is about. */
     center: boolean;
     // The three hover helpers, one per grid/Penrose correspondence. Each works
@@ -679,7 +684,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         penroseDecor: false,
         arrows: false,
         pseudoEdges: false,
-        vertexIndex: false, center: false,
+        center: false,
         hoverVertex: false, hoverEdge: false, hoverTile: false,
     };
 
@@ -912,10 +917,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         id: "penrose-vertices", label: "Vertices", z: PENROSE_Z_FRONT + 3, group: "Penrose",
         // Also runs when only the hover wants vertices, because it populates the
         // pick list; `show` decides whether anything is actually painted.
-        visible: () => features.penroseVertices || features.hoverVertex || features.vertexIndex,
+        visible: () => features.penroseVertices || features.hoverVertex,
         draw: (c) => {
             drawDualVertices(c.ctx, currentRhombs(), c.cx, c.cy, features.penroseVertices);
-            if (features.vertexIndex) drawVertexIndices(c.ctx, currentRhombs(), c.cx, c.cy);
         },
     });
 
@@ -1622,56 +1626,19 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tc.fill();
                     continue;
                 }
-                // ❶ or ①: the index once, on the vertex, in place of the dot.
-                // Off Penrose the index runs to 5, and that fifth level wears the
-                // complementary style — ① among the ❶ — so it stands out. Jake's
-                // idea. (Which level is the fifth is the normalization's choice:
-                // the top one.)
+                // The index once, on the vertex, in place of the dot: a white
+                // disc with the number in it. White throughout — the digit says
+                // which level it is, so a second encoding in the fill only
+                // competed with it, and the black discs went with Jake.
                 const m = vertexIndex(rhomb.kTuples[vi]) - lo + 1;
-                const filled = (mark === "filled") !== (m > 4);
                 tc.beginPath();
                 tc.arc(sx, sy, R, 0, 2 * Math.PI);
-                tc.fillStyle = filled ? "#111" : "#fff";
+                tc.fillStyle = "#fff";
                 tc.fill();
                 tc.strokeStyle = "#111";
                 tc.stroke();
-                tc.fillStyle = filled ? "#fff" : "#111";
+                tc.fillStyle = "#111";
                 tc.fillText(String(m), sx, sy + 0.5);
-            }
-        }
-    }
-
-    /**
-     * The index of every corner, on the tile face just inside it: each tile
-     * writes its own four, pulled a little toward the tile's center so the
-     * label sits on the face rather than on the vertex dot, and the same
-     * vertex reads the same number from every tile around it. Normalized to
-     * the patch minimum, so Penrose is 1..4 — Jake: "for Penrose the index is
-     * always in {1,2,3,4}" — the same number the decorations are placed by.
-     */
-    function drawVertexIndices(
-        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
-    ) {
-        const { lo, hi } = indexRange();
-        const size = Math.max(8, Math.min(13, scale * 0.16));
-        if (size < 8) return;
-        tc.font = `${size}px sans-serif`;
-        tc.textAlign = "center";
-        tc.textBaseline = "middle";
-        for (const rhomb of rhombs) {
-            const V = rhomb.vertices;
-            const mx = (V[0][0] + V[2][0]) / 2, my = (V[0][1] + V[2][1]) / 2;
-            for (let vi = 0; vi < 4; vi++) {
-                const m = vertexIndex(rhomb.kTuples[vi]) - lo + 1;
-                // Toward the center by a fixed fraction of the diagonal, so it
-                // stays inside a thin tile's acute corner too.
-                const t = 0.22;
-                const [sx, sy] = mathToScreen(V[vi][0] + (mx - V[vi][0]) * t,
-                                              V[vi][1] + (my - V[vi][1]) * t, cx, cy);
-                // Extremes dark, the middle levels lighter, so the rhomb-group
-                // centers read at a glance.
-                tc.fillStyle = m === 1 || m === hi - lo + 1 ? "#1a1a1e" : "#6a6a72";
-                tc.fillText(String(m), sx, sy);
             }
         }
     }
@@ -1883,7 +1850,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const k = r.families.length;
             return `rgb(${Math.round(rr / k)},${Math.round(gg / k)},${Math.round(bb / k)})`;
         }
-        return SINGULAR_FILL;
+        return r.families.length === 3 ? SINGULAR_HEX : SINGULAR_BIG;
     }
 
     /**
@@ -2933,33 +2900,21 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // ── Tile vertex ───────────────────────────────────────────────
         {
             const vRow = row(panelFor("Tile vertex"), "Tile vertex");
-            // What marks the vertex: the dot, or the index in a circle, either way
-            // round. Jake could not tell which reads better, so both are here.
-            const mark = document.createElement("select");
-            mark.className = "line-pick";
-            mark.style.width = "62px";
-            mark.title = "The vertex mark: a red dot, or its index in a circle — "
-                + "white on black, or black on white. Off Penrose the fifth level "
-                + "wears the other style.";
-            for (const [value, text] of [["dot", "dot"], ["filled", "\u2776 index"], ["open", "\u2460 index"]] as const) {
-                const o = document.createElement("option");
-                o.value = value;
-                o.textContent = text;
-                mark.appendChild(o);
-            }
-            mark.value = tileStyle.vertexMark;
-            mark.addEventListener("change", () => {
-                tileStyle.vertexMark = mark.value as TileStyle["vertexMark"];
-                if (mark.value !== "dot" && !features.penroseVertices) {
-                    setFeatures({ penroseVertices: true }, { merge: true });
+            // One switch, not three. The vertex is a red dot, or it is its own
+            // de Bruijn index in a white circle — and the circle is live: with
+            // the hover on, pointing at one outlines the K-region that made it.
+            const idx = checkbox(vRow, "index", tileStyle.vertexMark === "index", (v) => {
+                tileStyle.vertexMark = v ? "index" : "dot";
+                if (v) {
+                    setFeatures({ penroseVertices: true, hoverVertex: true },
+                                { merge: true });
                 }
                 draw();
             });
-            vRow.appendChild(mark);
-            const idx = featureToggle(vRow, "vertexIndex", "index");
-            idx.title = "Write each corner's de Bruijn index on the tile face beside it, "
-                + "once per tile corner: 1 to 4 on a Penrose patch, 1 to 5 otherwise; "
-                + "the extremes are the rhomb-group centers.";
+            idx.title = "Mark each dual vertex with its de Bruijn index in a white "
+                + "circle: 1 to 4 on a Penrose patch, 1 to 5 otherwise, and the "
+                + "extremes are the rhomb-group centers. Hover one to see the "
+                + "K-region it came from.";
         }
 
         // The gridline-tiles row was built first, for its hook; it belongs on

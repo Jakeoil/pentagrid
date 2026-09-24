@@ -28,11 +28,12 @@ if (host) {
     ]);
     bindToggles(view, [
         { id: "roof-edges", key: "boldEdges" },
-        { id: "roof-p1", key: "p1" },
         { id: "roof-penta", key: "penta" },
         { id: "roof-nextgen", key: "nextgen" },
         { id: "roof-kites", key: "kites" },
         { id: "roof-offp", key: "offPenrose" },
+        { id: "roof-arcs", key: "arcs" },
+        { id: "roof-index", key: "index" },
         { id: "roof-2kgons", key: "showResolutions" },
         { id: "roof-solids", key: "solids" },
         { id: "roof-pair", key: "pairGhost" },

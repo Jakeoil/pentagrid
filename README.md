@@ -186,7 +186,6 @@ panel to the page that is about it.
 `axes`, `kRegions`, `kLabels`, `intersectionDots`, `penroseTiles`,
 `penroseEdges`, `penroseVertices`, `penroseDecor` (the arcs), `arrows` (the
 AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon),
-`vertexIndex` (each corner's index, 1..4 on Penrose, written on the tile face),
 `center` (a ring on the origin), and the
 three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 
@@ -200,8 +199,9 @@ deflation: thick gold, thin gray, at 1/φ — the next generation once the edges
 are off) or `kites` (P2 on the rhombs, a dart in every thick); plus `isogloss`, `shading` with its `ramp` (the
 Wieringa height ramp, over any color), `boldEdges`, `coloredArrows` (de Bruijn's
 solid arrows along the edges, dot to dot, green doubles and red singles, in place
-of the chevrons), `vertexMark` (the red dot, or the vertex's index in a circle —
-`filled` white on black, `open` black on white), `offPenrose` (dress the tiles at
+of the chevrons), `vertexMark` (`dot`, the red dot, or `index`, the vertex's
+de Bruijn index in a white circle — hover one to see the K-region that made
+it), `offPenrose` (dress the tiles at
 the extreme index levels off a Penrose patch; the middle ones stay bare), and
 `opacity`.
 

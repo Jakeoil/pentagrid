@@ -52,17 +52,18 @@
         <label><span class="cap">band <span class="val" id="roof-band-value">50%</span></span>
             <input type="range" id="roof-band" min="0" max="1" step="0.02" value="0.5"></label>
         <label class="check"><input type="checkbox" id="roof-edges"> bold edges</label>
-        <label class="check"><input type="checkbox" id="roof-p1"> P1</label>
         <label class="check"><input type="checkbox" id="roof-penta"> penta</label>
         <label class="check"><input type="checkbox" id="roof-nextgen"> next-gen</label>
         <label class="check"><input type="checkbox" id="roof-kites"> kites</label>
         <label class="check"><input type="checkbox" id="roof-offp"> off Penrose</label>
-        <label class="check"><input type="checkbox" id="roof-2kgons"> 2k-gons</label>
+        <label class="check"><input type="checkbox" id="roof-arcs"> arcs</label>
+        <label class="check"><input type="checkbox" id="roof-index"> index</label>
+        <label class="check"><input type="checkbox" id="roof-2kgons" checked> 2k-gons</label>
+        <label class="check"><input type="checkbox" id="roof-stackbands" checked> 2kgon-legacy</label>
         <label class="check"><input type="checkbox" id="roof-solids"> solids</label>
         <label><span class="cap">reading <span class="val" id="roof-reading-value">1</span></span>
             <input type="range" id="roof-reading" min="0" max="61" step="1" value="0"></label>
         <label class="check"><input type="checkbox" id="roof-pair"> pair</label>
-        <label class="check"><input type="checkbox" id="roof-stackbands" checked> 2k-gon bands</label>
         <label><span class="cap">flip <span class="val" id="roof-flip-value">1</span></span>
             <input type="range" id="roof-flip" min="0" max="4" step="1" value="0"></label>
     </div>
@@ -75,6 +76,18 @@
     <b>fold</b> at 0 lays the roof flat
     &mdash; the ordinary tiling &mdash; and <b>grow</b> still runs the whole assembly
     from the pentagrid, now in three dimensions.</p>
+
+    <p><b>arcs</b> draws the matching curves over the folded tiles. They need no
+    index at all &mdash; every edge is +<b>v</b><sub><i>j</i></sub> from one of its
+    ends and that orientation is global, so the curves join by construction
+    &mdash; which is why they keep working off a Penrose patch, where the
+    dressings go quiet. <b>index</b> marks every dual vertex with its de Bruijn
+    index in a white circle: 1&ndash;4 on a Penrose patch, 1&ndash;5 otherwise,
+    and the extremes are the rhomb-group centers. The 2<i>k</i>-gons are left out
+    of the count, so a singular preset still reads 1&ndash;4 and <b>penta</b>,
+    <b>next-gen</b> and <b>kites</b> still dress the tiles around a singularity.
+    The one 0 you may find sits at the decagon&rsquo;s center, which carries
+    index 0 and 5 at once.</p>
 
     <h2>The singularities are solids</h2>
 
@@ -131,17 +144,18 @@
     changing the reading re-routes every band. <b>band</b> sets the width; at zero
     the solid is left as a net of edges.</p>
 
-    <p><b>2k-gon bands</b> keeps the older crossing as well: before the solid knew
+    <p><b>2kgon-legacy</b> keeps the older drawing as well: before the solid knew
     what was inside a 2<i>k</i>-gon, a band was run straight across it on the
     family&rsquo;s zone &mdash; in by the side parallel to the family, out by the
     opposite one &mdash; which asserted nothing about the tiling in between because
-    there was no tiling to assert. Now there is. Switch it off and no part of a
-    band is drawn <em>inside</em> a 2<i>k</i>-gon: not the run across it, and not
-    the strips in the superposed tiles either. It still arrives at the polygon and
-    leaves it on the far side &mdash; a family&rsquo;s zone enters by the side
-    parallel to that family and leaves by the opposite one, which the outline fixes
-    and which owes nothing to the tiling inside &mdash; so the band runs up to the
-    2<i>k</i>-gon and the solid says where it went from there.</p>
+    there was no tiling to assert. Now there is. Switch it off and
+    <em>nothing</em> of a superposed tile is drawn: no fill, no edge, no band. What
+    is left inside the outline is the 2<i>k</i>-gon&rsquo;s own color &mdash; pink
+    for a hexagon, purple for the octagon and the decagon &mdash; and the solid if
+    it is on. The band still arrives at the polygon and leaves it on the far side,
+    since a family&rsquo;s zone enters by the side parallel to that family and
+    leaves by the opposite one, which the outline fixes and which owes nothing to
+    the tiling inside.</p>
 
     <p>From a given reading only some of its hexagons can be turned over &mdash;
     three or four, and exactly <b>five</b> at the two extremes. <b>flip</b> chooses

@@ -18,7 +18,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { zonohedronOf, zonogonAnchor, popcount } from "../geometry/zonohedron.js";
 import { penroseCondition } from "../geometry/gamma.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
-import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings } from "../geometry/decor.js";
+import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, rhombArcs } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
 import type { Concurrency, Pentagrid, Rhomb, Vec2 } from "../geometry/types.js";
 
@@ -152,6 +152,17 @@ export interface GrowthState {
      * off when the solid is saying it better.
      */
     stackBands: boolean;
+    /**
+     * The matching arcs on the tiles. Unlike the dressings these need no index
+     * at all — every edge is +vⱼ from one of its ends and that orientation is
+     * global — so they are drawn off a Penrose patch as readily as on one.
+     */
+    arcs: boolean;
+    /**
+     * Each dual vertex marked with its de Bruijn index, in a white circle.
+     * The same 1..4 the dressings are placed by, and 1..5 off Penrose.
+     */
+    index: boolean;
 }
 
 export interface GrowthHandle {
@@ -161,6 +172,9 @@ export interface GrowthHandle {
     /** The pentagrid underneath, for pan/zoom, γ and the layer stack. */
     pentagrid: PentagridHandle;
 }
+
+/** The two loop families of the arc decoration, as on the flat page. */
+const ARC_COLORS = ["#c1440e", "#1b6ca8"];
 
 /** The next-gen palette, shared with the tile style. */
 const NEXTGEN_THICK: [number, number, number] = [247, 208, 88];
@@ -173,6 +187,7 @@ const DEFAULTS: GrowthState = {
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false, stackBands: true,
+    arcs: false, index: false,
     boldEdges: false,
 };
 
@@ -252,6 +267,42 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             out.push({ x: group[0].x0, y: group[0].y0, lines: families.length, families });
         }
         return out;
+    }
+
+    /** A point of the plane in a tile's own (a, b) frame. */
+    function tileLocal(r: Rhomb, dirs: readonly Vec2[], p: Vec2): [number, number] {
+        const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+        const det = vj[0] * vk[1] - vj[1] * vk[0];
+        const x = p[0] - v0[0], y = p[1] - v0[1];
+        return [(x * vk[1] - y * vk[0]) / det, (vj[0] * y - vj[1] * x) / det];
+    }
+
+    /** Which crossings carry a stack of superposed tiles. */
+    function stackKeysOf(rhombs: readonly Rhomb[]): Set<string> {
+        return new Set(stacksOf(rhombs).map((c) => `${c.x.toFixed(6)},${c.y.toFixed(6)}`));
+    }
+    const isOnStack = (keys: Set<string>, r: Rhomb) =>
+        keys.has(`${r.x0.toFixed(6)},${r.y0.toFixed(6)}`);
+
+    /**
+     * The patch's index range, with the stacks left out.
+     *
+     * A 2k-gon's corners carry levels the tiling around it does not — the
+     * decagon's ghost runs 0..5 — so counting them takes a Penrose patch out of
+     * its 1..4 and silences every dressing placed by the index. The same fix the
+     * flat page made in indexRange().
+     */
+    function patchLevels(rhombs: readonly Rhomb[], stacks: Set<string>) {
+        let lo = Infinity, hi = -Infinity;
+        for (const r of rhombs) {
+            if (isOnStack(stacks, r)) continue;
+            for (const K of r.kTuples) {
+                const m = vertexIndex(K);
+                if (m < lo) lo = m;
+                if (m > hi) hi = m;
+            }
+        }
+        return { lo, hi, levels: hi - lo + 1 };
     }
 
     /**
@@ -590,9 +641,17 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
                         });
                         ctx.closePath();
-                        ctx.fillStyle = "rgba(230, 57, 70, 0.10)";
+                        // Pink for a hexagon, purple for the octagon and the
+                        // decagon — the split the flat page uses, since the
+                        // hexagons are the common case and the ones that come in
+                        // a column. With the legacy drawing off this color is
+                        // the whole of what is inside the polygon.
+                        const big = r.families.length > 3;
+                        ctx.fillStyle = big
+                            ? "rgba(140, 90, 175, 0.26)" : "rgba(214, 90, 170, 0.22)";
                         ctx.fill();
-                        ctx.strokeStyle = "rgba(230, 57, 70, 0.85)";
+                        ctx.strokeStyle = big
+                            ? "rgba(122, 72, 160, 0.9)" : "rgba(196, 70, 152, 0.9)";
                         ctx.lineWidth = 1.4;
                         ctx.stroke();
                     }
@@ -816,6 +875,103 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                 },
             });
             stack.add({
+                /**
+                 * The matching arcs, over the folded tiles.
+                 *
+                 * They need no index — every edge is +vⱼ from one of its ends
+                 * and that orientation is global, so the curves join by
+                 * construction — which is why this works off a Penrose patch
+                 * where the dressings go quiet. A circular arc in the plane is
+                 * not a circle once the tile is folded, so it is carried in the
+                 * tile's own (a, b) frame and sampled, which is exact at every
+                 * fold. Not drawn on a superposition: an arc asserts a matching
+                 * that a stack of tiles does not have.
+                 */
+                id: "arcs", label: "Arcs", z: 43, group: "Exploration",
+                visible: () => state.arcs,
+                draw: ({ ctx, cx, cy }) => {
+                    const v = getView();
+                    const dirs = model.directions;
+                    const S = (p: Vec3) => toScreen(p, v, cx, cy);
+                    const rhombs = currentRhombs();
+                    const stacks = stackKeysOf(rhombs);
+                    ctx.lineWidth = 1.6;
+                    ctx.lineCap = "round";
+                    const STEPS = 14;
+                    for (const r of rhombs) {
+                        if (isOnStack(stacks, r)) continue;
+                        for (const arc of rhombArcs(model as Pentagrid, r)) {
+                            let d = arc.a2 - arc.a1;
+                            while (d > Math.PI) d -= 2 * Math.PI;
+                            while (d < -Math.PI) d += 2 * Math.PI;
+                            ctx.strokeStyle = ARC_COLORS[arc.family];
+                            ctx.beginPath();
+                            for (let i = 0; i <= STEPS; i++) {
+                                const a = arc.a1 + (d * i) / STEPS;
+                                const [la, lb] = tileLocal(r, dirs, [
+                                    arc.x + arc.r * Math.cos(a),
+                                    arc.y + arc.r * Math.sin(a),
+                                ]);
+                                const p = S(world(r, dirs, la, lb));
+                                if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+                            }
+                            ctx.stroke();
+                        }
+                    }
+                },
+            });
+            stack.add({
+                /**
+                 * Every dual vertex with its de Bruijn index in a white circle.
+                 *
+                 * Normalized to the patch minimum, so a Penrose patch reads
+                 * 1..4 — the same numbers the dressings are placed by — with the
+                 * stacks left out of the range so a singular preset still does.
+                 * One circle per vertex however many tiles meet there.
+                 */
+                id: "vertex-index", label: "Index", z: 44, group: "Exploration",
+                visible: () => state.index,
+                draw: ({ ctx, cx, cy }) => {
+                    const v = getView();
+                    const dirs = model.directions;
+                    const S = (p: Vec3) => toScreen(p, v, cx, cy);
+                    const rhombs = currentRhombs();
+                    const stacks = stackKeysOf(rhombs);
+                    const { lo } = patchLevels(rhombs, stacks);
+                    if (!Number.isFinite(lo)) return;
+                    const R = Math.max(6, Math.min(10, v.scale * 0.11));
+                    ctx.font = `bold ${Math.round(R * 1.4)}px sans-serif`;
+                    ctx.textAlign = "center";
+                    ctx.textBaseline = "middle";
+                    ctx.lineWidth = 1;
+                    const seen = new Set<string>();
+                    const marks: { x: number; y: number; d: number; m: number }[] = [];
+                    for (const r of rhombs) {
+                        for (let i = 0; i < 4; i++) {
+                            const [a, b] = [[0, 0], [1, 0], [1, 1], [0, 1]][i];
+                            const K = r.kTuples[i];
+                            const key = `${Math.round(r.vertices[i][0] * 1e4)},`
+                                + `${Math.round(r.vertices[i][1] * 1e4)},${vertexIndex(K)}`;
+                            if (seen.has(key)) continue;
+                            seen.add(key);
+                            const p = S(world(r, dirs, a, b));
+                            marks.push({ x: p.x, y: p.y, d: p.d, m: vertexIndex(K) - lo + 1 });
+                        }
+                    }
+                    marks.sort((p, q) => q.d - p.d);          // far first
+                    for (const mk of marks) {
+                        ctx.beginPath();
+                        ctx.arc(mk.x, mk.y, R, 0, 2 * Math.PI);
+                        ctx.fillStyle = "#fff";
+                        ctx.fill();
+                        ctx.strokeStyle = "#111";
+                        ctx.stroke();
+                        ctx.fillStyle = "#111";
+                        ctx.fillText(String(mk.m), mk.x, mk.y + 0.5);
+                    }
+                },
+            });
+            stack.add({
                 id: "growth", label: "Growth", z: 40, group: "Exploration",
                 draw: ({ ctx, cx, cy }) => {
                     const v = getView();
@@ -829,15 +985,15 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         .map((r) => ({ r, d: S(world(r, dirs, 0.5, 0.5)).d }))
                         .sort((p, q) => q.d - p.d);   // far first
 
-                    // With the 2k-gon bands off, nothing of a band is drawn
-                    // INSIDE a 2k-gon: not the run across it, and not the strips
-                    // painted in the superposed tiles either, which is what left
-                    // a rhomb sitting in a hexagon and a mess in the middle of a
-                    // decagon. It still runs up to the polygon and away from it
-                    // on the far side. The tiles themselves stay.
-                    const banded = state.stackBands ? null
-                        : new Set(stacksOf(rhombs)
-                            .map((c) => `${c.x.toFixed(6)},${c.y.toFixed(6)}`));
+                    // Every crossing where tiles are superposed, once. Three
+                    // things have to know about them: the index range (a stack's
+                    // corners carry the 2k-gon's ghost levels and would take the
+                    // dressings out of Penrose), the legacy switch (with it off
+                    // nothing of a stack is drawn at all — the 2k-gon's own color
+                    // is the whole statement), and the arcs, which assert a
+                    // matching a superposition does not have.
+                    const stackKeys = stackKeysOf(rhombs);
+                    const onStack = (r: Rhomb) => isOnStack(stackKeys, r);
 
                     const trace = (r: Rhomb, corners: number[][]) => {
                         ctx.beginPath();
@@ -853,29 +1009,20 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // tile's (a, b) frame by solving p = v0 + a*vj + b*vk, and
                     // `world` then puts it where the tile is, lifted or not.
                     const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
-                    let idxLo = Infinity, idxHi = -Infinity;
-                    if (state.penta || state.nextgen || state.kites) {
-                        for (const r of rhombs) for (const K of r.kTuples) {
-                            let m = 0;
-                            for (const k of K) m += k;
-                            if (m < idxLo) idxLo = m;
-                            if (m > idxHi) idxHi = m;
-                        }
-                    }
-                    const levels = idxHi - idxLo + 1;
+                    const { lo: idxLo, levels } = patchLevels(rhombs, stackKeys);
                     const placeable = levels === 4 || (levels === 5 && state.offPenrose);
                     const readings = (r: Rhomb) => dressingReadings(r, idxLo, levels);
                     const pentaOn = state.penta && placeable;
                     const nextOn = state.nextgen && placeable;
                     const kitesOn = state.kites && placeable;
-                    const toLocal = (r: Rhomb, p: Vec2): [number, number] => {
-                        const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
-                        const det = vj[0] * vk[1] - vj[1] * vk[0];
-                        const x = p[0] - v0[0], y = p[1] - v0[1];
-                        return [(x * vk[1] - y * vk[0]) / det, (vj[0] * y - vj[1] * x) / det];
-                    };
+                    const toLocal = (r: Rhomb, p: Vec2) => tileLocal(r, dirs, p);
 
                     for (const { r } of order) {
+                        // With the legacy drawing off, a superposed tile is not
+                        // drawn at all: no fill, no edges, no bands. What is
+                        // there is the 2k-gon, in the 2k-gon's own color, and
+                        // the solid if it is on.
+                        if (!state.stackBands && onStack(r)) continue;
                         let k = 1;
                         if (shaded) {
                             const A = world(r, dirs, 0, 0);
@@ -964,9 +1111,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                 }
                             }
                         }
-                        const onStack = banded
-                            && banded.has(`${r.x0.toFixed(6)},${r.y0.toFixed(6)}`);
-                        if (band > 0.001 && grow > 0.02 && !onStack) {
+                        if (band > 0.001 && grow > 0.02) {
                             trace(r, [[lo, 0], [hi, 0], [hi, 1], [lo, 1]]);
                             ctx.fillStyle = tint(rgbOf(FAMILY_COLORS[r.j]), k);
                             ctx.fill();

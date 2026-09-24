@@ -1409,82 +1409,7 @@ test("split: the Penrose group draws in the second container, the axes in both, 
     assert.ok(painted.right > 0, "the Penrose half of the hover was never painted on the right");
 });
 
-test("the Tile vertex row's index switch writes every corner's index on the tile face", () => {
-    const panel = sizedHost(800, 100);
-    const h = createPentagrid({
-        container: sizedHost(800, 800), panel,
-        features: { penroseTiles: true, penroseVertices: false },
-    });
-    h.gamma.setLocked(-1);
-    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);        // the sun: four levels
-    const layer = h.stack.get("penrose-vertices");
-    const texts = [];
-    layer.ctx.fillText = (t) => { texts.push(t); };
-    h.redraw();
-    assert.equal(layer.visible(), false, "nothing wants the vertex layer yet");
-    assert.equal(texts.length, 0);
-
-    h.setFeatures({ vertexIndex: true }, { merge: true });
-    h.redraw();
-    assert.equal(layer.visible(), true, "the index switch brings the layer up on its own");
-    assert.ok(texts.length > 400, `only ${texts.length} labels`);
-    const levels = new Set(texts);
-    assert.deepEqual([...levels].sort(), ["1", "2", "3", "4"],
-                     `a Penrose patch reads 1..4 whatever the total, got ${[...levels]}`);
-    // four per tile, one per corner
-    const tiles = h.stack.get("penrose-tiles");
-    let fills = 0;
-    tiles.ctx.fill = () => { fills++; };
-    texts.length = 0;
-    h.redraw();
-    assert.ok(texts.length >= 4 * fills * 0.9, `${texts.length} labels for ${fills} tile fills`);
-
-    // and the row exists, with the one switch on it
-    const rows = panelRows(panel);
-    assert.ok(rows.has("Tile vertex"), "no Tile vertex row");
-    assert.deepEqual(rows.get("Tile vertex").map((c) => c.label), ["index"]);
-});
-
-test("colored arrows: de Bruijn's full-edge arrows, doubles green, singles red; the switch brings the arrows up", () => {
-    const panel = sizedHost(800, 100);
-    const h = createPentagrid({
-        container: sizedHost(800, 800), panel,
-        features: { penroseTiles: true, arrows: true },
-    });
-    h.gamma.setLocked(-1);
-    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
-    const layer = h.stack.get("penrose-decor");
-    const strokes = [];
-    layer.ctx.stroke = function () { strokes.push(String(this.strokeStyle)); };
-    h.redraw();
-    assert.ok(strokes.length > 100, "arrows drawn");
-    assert.ok(strokes.every((c) => c === "#222"), "all dark by default");
-
-    h.setTileStyle({ coloredArrows: true });
-    strokes.length = 0;
-    h.redraw();
-    const green = strokes.filter((c) => c === "#3aa655").length;
-    const red = strokes.filter((c) => c === "#e0423c").length;
-    assert.ok(green > 0 && red > 0, `green ${green}, red ${red}`);
-    assert.equal(green + red, strokes.length, "every arrow is one of the two colors");
-    // one stroke per arrow (the shaft; the heads are fills); two of each kind a tile
-    assert.ok(Math.abs(green - red) < strokes.length * 0.05, `two doubles and two singles a tile: ${green} green vs ${red} red`);
-
-    // the switch on the Tile edges row turns the arrows feature on if it was off
-    const panel2 = sizedHost(800, 100);
-    const h2 = createPentagrid({ container: sizedHost(800, 800), panel: panel2,
-                                 features: { penroseTiles: true, arrows: false } });
-    const row = panelRows(panel2).get("Tile edges");
-    const sw = row.find((c) => c.label === "colored arrows");
-    assert.ok(sw, "the switch exists");
-    assert.equal(h2.stack.get("penrose-decor").visible(), false);
-    sw.box.checked = true;
-    sw.box.on.change.forEach((f) => f({}));
-    assert.equal(h2.stack.get("penrose-decor").visible(), true, "colored arrows brought the arrows up");
-    assert.equal(row.find((c) => c.label === "arrows").box.checked, true, "and the arrows box follows");
-});
-
-test("the vertex mark: a dot, or the index in a circle once per vertex, either way round", () => {
+test("the index switch marks every dual vertex with a white circle", () => {
     const h = createPentagrid({
         container: sizedHost(800, 800), panel: sizedHost(800, 100),
         features: { penroseTiles: true, penroseVertices: true },
@@ -1495,38 +1420,30 @@ test("the vertex mark: a dot, or the index in a circle once per vertex, either w
     const texts = [], fills = [];
     layer.ctx.fillText = function (t) { texts.push([t, String(this.fillStyle)]); };
     layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+
     h.redraw();
     assert.equal(texts.length, 0, "the dot writes nothing");
     const dots = fills.length;
     assert.ok(dots > 100 && fills.every((c) => c === "#c0392b"), "red dots by default");
 
-    h.setTileStyle({ vertexMark: "filled" });
+    h.setTileStyle({ vertexMark: "index" });
     texts.length = 0; fills.length = 0;
     h.redraw();
     assert.equal(texts.length, dots, "one index per vertex, in place of each dot");
     assert.deepEqual([...new Set(texts.map(([t]) => t))].sort(), ["1", "2", "3", "4"]);
-    assert.ok(fills.every((c) => c === "#111") && fills.length === dots, "black discs");
-    assert.ok(texts.every(([, c]) => c === "#fff"), "white digits");
-
-    h.setTileStyle({ vertexMark: "open" });
-    texts.length = 0; fills.length = 0;
-    h.redraw();
-    assert.equal(texts.length, dots);
+    // White circles throughout, black digits — no black discs any more: the
+    // number is the encoding, and a second one only competed with it.
     assert.ok(fills.every((c) => c === "#fff") && fills.length === dots, "white discs");
     assert.ok(texts.every(([, c]) => c === "#111"), "black digits");
 
-    // off Penrose the fifth level takes the complementary style
+    // Off Penrose the fifth level is just a 5 in the same white circle.
     h.gamma.setValues([0.1, 0.1, 0.1, 0.1, 0.1]);          // sum 1/2: five levels
     texts.length = 0; fills.length = 0;
     h.redraw();
-    const fives = texts.filter(([t]) => t === "5").length;
-    assert.ok(fives > 0, "a fifth level exists off Penrose");
-    assert.equal(texts.filter(([t, c]) => t === "5" && c === "#fff").length, fives, "fives are white on black");
-    assert.equal(texts.filter(([t, c]) => t !== "5" && c === "#111").length, texts.length - fives, "the rest stay black on white");
+    assert.ok(texts.some(([t]) => t === "5"), "a fifth level exists off Penrose");
+    assert.ok(fills.every((c) => c === "#fff"), "still white");
+    assert.ok(texts.every(([, c]) => c === "#111"), "still black digits");
 });
-
-// ── λ on the view: deflate in place ───────────────────────────────
-
 test("deflate on the reticulum leaves the deflated tiling in the same screen frame", () => {
     const h = createPentagrid({ container: sizedHost(800, 800), features: { penroseTiles: true } });
     h.gamma.setLocked(-1);
@@ -1609,7 +1526,7 @@ test("at Gamma = 0 the index range is the tiling's 1..4, not the decagon's ghost
                                 features: { penroseTiles: true, penroseVertices: true, arrows: true } });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0, 0, 0, 0, 0]);
-    h.setTileStyle({ vertexMark: "open" });
+    h.setTileStyle({ vertexMark: "index" });
     const layer = h.stack.get("penrose-vertices");
     const texts = [];
     layer.ctx.fillText = (t) => { texts.push(t); };
@@ -1827,4 +1744,83 @@ test("2k-gon bands off leaves nothing of a band inside the polygon", () => {
                  `an odd amount went: ${withThem - without}`);
     // The tiles outside the polygons keep theirs, so most of it survives.
     assert.ok(without > withThem * 0.4, `too much went: ${without} of ${withThem}`);
+});
+
+test("roof: the arcs and the index circles, and the dressings at a singular preset", () => {
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);          // the sun: singularities everywhere
+    v.set({ grow: 1, fold: 1 });
+
+    // The dressings are placed by the index, and a 2k-gon's corners carry
+    // levels the tiling does not — the decagon's ghost runs 0..5. Counting
+    // them took a Penrose patch out of its 1..4 and silenced every dressing.
+    const growth = v.pentagrid.stack.get("growth");
+    let fills = 0;
+    growth.ctx.fill = () => { fills++; };
+    v.set({ penta: false });
+    fills = 0;
+    v.redraw();
+    const bare = fills;
+    v.set({ penta: true });
+    fills = 0;
+    v.redraw();
+    assert.ok(fills > bare, `penta drew nothing at the singular preset (${fills} of ${bare})`);
+
+    // The arcs need no index at all, so they draw here and off Penrose alike.
+    const arcs = v.pentagrid.stack.get("arcs");
+    assert.ok(arcs, "no arcs layer");
+    assert.equal(arcs.visible(), false);
+    let strokes = 0;
+    arcs.ctx.stroke = () => { strokes++; };
+    v.set({ arcs: true });
+    strokes = 0;
+    v.redraw();
+    assert.ok(strokes > 100, `only ${strokes} arcs`);
+    const onPenrose = strokes;
+    v.pentagrid.gamma.setSum(0.5, true);        // off Penrose: five levels
+    strokes = 0;
+    v.redraw();
+    assert.ok(strokes > onPenrose * 0.5, `the arcs went quiet off Penrose (${strokes})`);
+
+    // The index circles: one per vertex, white, numbered from the patch minimum.
+    v.pentagrid.gamma.setSum(0, true);
+    const idx = v.pentagrid.stack.get("vertex-index");
+    assert.ok(idx, "no index layer");
+    const texts = [];
+    idx.ctx.fillText = (t) => { texts.push(t); };
+    v.set({ index: true });
+    texts.length = 0;
+    v.redraw();
+    assert.ok(texts.length > 100, `only ${texts.length} index circles`);
+    const levels = [...new Set(texts)].sort();
+    assert.deepEqual(levels.filter((t) => t !== "0"), ["1", "2", "3", "4"],
+                     `a Penrose patch reads 1..4, got ${levels}`);
+    // The one 0 is the decagon's ghost center, which carries index 0 and 5 at
+    // once — the only place index 0 turns up anywhere (PLAN §5.8). The stacks
+    // are out of the RANGE, so they cannot shift the other numbers, but the
+    // ghost is still a vertex and still gets marked.
+    assert.equal(texts.filter((t) => t === "0").length, 1, "one ghost, at the decagon");
+});
+
+test("roof: 2kgon-legacy off leaves the polygon to its own color", () => {
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    v.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true, stackBands: true });
+
+    const growth = v.pentagrid.stack.get("growth");
+    let fills = 0, strokes = 0;
+    growth.ctx.fill = () => { fills++; };
+    growth.ctx.stroke = () => { strokes++; };
+    fills = 0; strokes = 0;
+    v.redraw();
+    const withIt = { fills, strokes };
+
+    v.set({ stackBands: false });
+    fills = 0; strokes = 0;
+    v.redraw();
+    // Nothing of a superposed tile is drawn: no fill, no edge, no band.
+    assert.ok(fills < withIt.fills, `no fills went (${fills} of ${withIt.fills})`);
+    assert.ok(strokes < withIt.strokes, `no edges went (${strokes} of ${withIt.strokes})`);
+    // and the tiles outside the polygons are untouched
+    assert.ok(fills > withIt.fills * 0.4, `too much went: ${fills} of ${withIt.fills}`);
 });

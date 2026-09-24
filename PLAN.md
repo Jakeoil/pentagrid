@@ -502,6 +502,19 @@ cutting its interior, so each of the C(k,2) face directions turns up at **all**
 2^(k−2) of its positions — 6, 24, 80 distinct rhombs against the 6, 12, 20 on
 the hull. Every face of the dissection is in play, exactly as he said.
 
+**The vertex mark is one switch (2026-09-24).** On method, split and the rest
+the Tile vertex row was a three-way dropdown — a red dot, ❶ white on black, ①
+black on white — plus a separate "index" checkbox that wrote every corner's
+index on the tile face, four times per tile. Jake cut both: the black circles
+go, and the per-tile function goes. What is left is one **index** switch, white
+circles with the number, once per vertex however many tiles meet there. The
+digit is the encoding and a second one in the fill only competed with it. The
+switch also turns the vertex hover on, so pointing at a circle outlines the
+K-region that made it — which was already built and had nothing to point at.
+
+And the 2k-gons split their color: **hexagons pink, octagon and decagon
+purple**.
+
 **The ten rhombs inside the decagon (2026-09-24).** Jake: "I am interested in
 the decagon and the pattern of rhombi inside the decagon. All nearby non
 singularities should not be affected… The secret is jiggle the tiling without
@@ -590,6 +603,35 @@ triple's hexagons lie along a single line through the origin, which is the
 column of singularities Jake reported seeing. The ten triples are two orbits of
 five under rotation alone, and adding the reflection merges nothing further:
 the mirror through family 0 sends 012 to 034, already in its orbit.
+
+**The roof's controls, reworked (2026-09-24).** Jake's list, in one pass.
+
+- **P1 is gone from roof.** The pentagon tiling at the small-rhomb scale had a
+  switch there and nothing to say that `penta` does not say better.
+- **penta, next-gen and kites now work at a singular preset.** They are placed
+  by the index, and the index range was counting the 2k-gons' corners — the
+  decagon's ghost runs 0..5 — which took a Penrose patch out of its 1..4 and
+  silenced every one of them. `patchLevels` leaves the stacks out, which is the
+  fix the flat page already had in `indexRange()`.
+- **arcs**, new, and the only decoration that works off Penrose: the matching
+  curves need no index at all, since every edge is +vⱼ from one of its ends and
+  that orientation is global, so they join by construction. Carried in each
+  tile's own (a, b) frame and sampled, so a circular arc folds correctly into
+  the ellipse arc it becomes on the roof. Not drawn on a superposition, which
+  has no matching to assert.
+- **index**, new: every dual vertex in a white circle with its de Bruijn index,
+  1..4 on a Penrose patch. The one 0 is the decagon's ghost center (§5.8).
+- **2k-gons** is on by default and shaded **pink for a hexagon, purple for the
+  octagon and the decagon** — the common case and the column separated from the
+  two rare ones. The flat page took the same split.
+- **2kgon-legacy**, renamed from "2k-gon bands" and moved between 2k-gons and
+  solids, now suppresses the whole superposed tile rather than only its bands:
+  no fill, no edge, no strip. What is inside the outline with it off is the
+  2k-gon's color and the solid, and nothing else.
+
+The same for grow is planned and not built: it shares the container, so `arcs`,
+`index` and the 2k-gon colors are already in the state — only the checkboxes and
+the page's prose are missing.
 
 **The solid is its edges and its crossings (2026-09-24).** A family's ribbon
 enters a face through the edge parallel to that family and leaves through the
