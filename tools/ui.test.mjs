@@ -7,7 +7,7 @@ import "./domstub.mjs";
 import { createGammaBank } from "../dist/ui/dials.js";
 import { createReticulum } from "../dist/ui/reticulum.js";
 import { createGammaSet } from "../dist/geometry/gamma.js";
-import { mountReticulum } from "../dist/view/controls.js";
+import { mountReticulum, wheelSteps } from "../dist/view/controls.js";
 import { createLoupe } from "../dist/ui/loupe.js";
 
 const COLORS = ["#a", "#b", "#c", "#d", "#e"];
@@ -553,4 +553,41 @@ test("the Sigma strip's wheel snaps to the next tenth, thousandths with a modifi
     assert.ok(Math.abs(set.getSum() - 0.9) < 1e-9, `and two down is 0.9, got ${set.getSum()}`);
     hit.on.wheel[0]({ deltaY: -1, shiftKey: true, preventDefault() {} });
     assert.ok(Math.abs(set.getSum() - 0.901) < 1e-9, `shift: a thousandth, got ${set.getSum()}`);
+});
+
+// ── scrolling a slider ────────────────────────────────────────────
+
+/** A range input, just enough of one to be wheeled. */
+function slider({ value = "5", step = "1", min = "0", max = "10" }) {
+    let fn = null;
+    return {
+        value, step, min, max,
+        addEventListener: (type, f) => { if (type === "wheel") fn = f; },
+        wheel: (deltaY, shiftKey = false) =>
+            fn({ deltaY, shiftKey, preventDefault: () => {} }),
+    };
+}
+
+test("a slider steps under the wheel, and stays on its grid", () => {
+    let applied = 0;
+    const s = slider({ value: "5" });
+    wheelSteps(s, () => { applied++; });
+
+    s.wheel(-100);                               // up is forward
+    assert.equal(s.value, "6");
+    s.wheel(100);
+    assert.equal(s.value, "5");
+    assert.equal(applied, 2);
+
+    s.wheel(-100, true);                         // shift is ten at a time
+    assert.equal(s.value, "10");                 // clamped at max
+    s.wheel(-100);
+    assert.equal(s.value, "10");
+    assert.equal(applied, 3, "a wheel that changes nothing does not redraw");
+
+    // A fine step must not drift: 0.005 a hundred times is 0.5, exactly.
+    const fine = slider({ value: "0", step: "0.005", min: "0", max: "1" });
+    wheelSteps(fine, () => {});
+    for (let i = 0; i < 100; i++) fine.wheel(-100);
+    assert.equal(parseFloat(fine.value), 0.5);
 });

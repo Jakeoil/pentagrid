@@ -616,7 +616,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const { grow, fold, reading, pick, pairGhost } = state;
                     type Facet = {
                         pts: { x: number; y: number }[]; d: number;
-                        fill: string; ghost: boolean;
+                        fill: string; ghost: boolean; band?: boolean;
                     };
                     const facets: Facet[] = [];
                     let report = "";
@@ -648,19 +648,27 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             ? flips[((pick % flips.length) + flips.length) % flips.length]
                             : null;
 
-                        const corner = (mask: number): Vec3 => {
+                        // A point of the solid: a corner mask, plus fractional
+                        // steps along two generators. z stays affine in those —
+                        // every generator raises by RISE — so a band across a
+                        // face is as exact as the face is.
+                        const at = (mask: number, s: number, gs: number,
+                                    t: number, gt: number): Vec3 => {
                             let x = sx, y = sy;
                             for (let l = 0; l < z.k; l++) {
                                 if (!(mask >> l & 1)) continue;
                                 x += dirs[z.fams[l]][0];
                                 y += dirs[z.fams[l]][1];
                             }
+                            x += s * dirs[z.fams[gs]][0] + t * dirs[z.fams[gt]][0];
+                            y += s * dirs[z.fams[gs]][1] + t * dirs[z.fams[gt]][1];
                             return [
                                 (1 - grow) * gain * c.x + grow * x,
                                 (1 - grow) * gain * c.y + grow * y,
-                                fold * grow * RISE * (anchor.index + popcount(mask)),
+                                fold * grow * RISE * (anchor.index + popcount(mask) + s + t),
                             ];
                         };
+                        const corner = (mask: number): Vec3 => at(mask, 0, 0, 0, 0);
                         const facet = (pair: number, masks: readonly number[], ghost: boolean) => {
                             const w = masks.map(corner);
                             const p = w.map(S);
@@ -683,6 +691,41 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
 
                         for (let p = 0; p < z.pairs.length; p++) {
                             facet(p, z.face(bases, p), false);
+                        }
+
+                        // Where the bands cross the solid.
+                        //
+                        // A family's ribbon enters a face through the edge
+                        // parallel to that family and leaves through the
+                        // opposite one, so on the face it is the strip
+                        // s ∈ [lo, hi] along its own generator and the full
+                        // width across. Consecutive faces of the ribbon share
+                        // that edge, so the strips join with nothing between
+                        // them — the band is continuous over the solid by
+                        // construction, and where two bands lie on the same
+                        // face is where they cross.
+                        if (state.band > 0.001) {
+                            const lo = 0.5 - state.band / 2, hi = 0.5 + state.band / 2;
+                            for (let f = 0; f < z.k; f++) {
+                                for (let p = 0; p < z.pairs.length; p++) {
+                                    const [i, j] = z.pairs[p];
+                                    if (i !== f && j !== f) continue;
+                                    const other = i === f ? j : i;
+                                    const m = bases[p];
+                                    const w = [
+                                        at(m, lo, f, 0, other), at(m, hi, f, 0, other),
+                                        at(m, hi, f, 1, other), at(m, lo, f, 1, other),
+                                    ];
+                                    const q = w.map(S);
+                                    facets.push({
+                                        pts: q, ghost: false, band: true,
+                                        // Just in front of its own face, so the
+                                        // painter's order puts it on the right one.
+                                        d: q.reduce((t, r) => t + r.d, 0) / q.length - 1e-3,
+                                        fill: FAMILY_COLORS[z.fams[f]],
+                                    });
+                                }
+                            }
                         }
                         // The partner reading differs in one cell's cap, so only
                         // those three faces are worth drawing twice.
@@ -732,10 +775,11 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
                         });
                         ctx.closePath();
-                        ctx.globalAlpha = f.ghost ? 0.42 : 1;
+                        ctx.globalAlpha = f.ghost ? 0.42 : f.band ? 0.85 : 1;
                         ctx.fillStyle = f.fill;
                         ctx.fill();
                         ctx.globalAlpha = 1;
+                        if (f.band) continue;                 // no outline on a band
                         ctx.lineWidth = f.ghost ? 1.6 : 1.1;
                         ctx.setLineDash(f.ghost ? [4, 3] : []);
                         ctx.strokeStyle = f.ghost

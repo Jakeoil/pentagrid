@@ -1767,3 +1767,37 @@ test("stay Penrose holds the decagon to its ten readings", () => {
     assert.ok(loose > penrose, `${loose} loose against ${penrose} held`);
     assert.ok(penrose <= 10, `held showed ${penrose} distinct pictures, over ten`);
 });
+
+test("the bands cross the solid: one strip per face per family", () => {
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    v.set({ grow: 1, fold: 1, solids: true, band: 0 });
+
+    const layer = v.pentagrid.stack.get("solids");
+    let fills = 0;
+    layer.ctx.fill = () => { fills++; };
+
+    v.redraw();
+    const faces = fills;
+    assert.ok(faces > 30, `only ${faces} faces`);
+
+    v.set({ band: 0.5 });        // set redraws, so zero the count after it
+    fills = 0;
+    v.redraw();
+    // Each face carries two bands, one for each of its generators, so the
+    // count is C(k,2) faces plus k(k-1) = 2*C(k,2) strips: exactly three times.
+    assert.equal(fills, faces * 3, `${fills} against ${faces} faces`);
+
+    // And they follow the grow setting like everything else: at grow 0 the
+    // solid is collapsed onto its crossing, the patch in view is a different
+    // one, and the bands are still one per face per generator.
+    v.set({ grow: 0, band: 0 });
+    fills = 0;
+    v.redraw();
+    const collapsed = fills;
+    assert.ok(collapsed > 0, "nothing drawn at grow 0");
+    v.set({ band: 0.5 });
+    fills = 0;
+    v.redraw();
+    assert.equal(fills, collapsed * 3, `${fills} against ${collapsed} faces at grow 0`);
+});

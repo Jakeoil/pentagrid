@@ -591,6 +591,23 @@ column of singularities Jake reported seeing. The ten triples are two orbits of
 five under rotation alone, and adding the reflection merges nothing further:
 the mirror through family 0 sends 012 to 034, already in its orbit.
 
+**The bands cross the solid, and the sliders take the wheel (2026-09-24).** A
+family's ribbon enters a face through the edge parallel to that family and
+leaves through the opposite one, so on a face it is the strip s ∈ [lo, hi]
+along its own generator and the full width across. Consecutive faces of the
+ribbon share that edge, so the strips join with nothing between them — the band
+is continuous over the solid by construction, and where two bands lie on the
+same rhomb is where they cross. Which faces a band takes is the reading's own
+route (§5.0 above), so changing the reading re-routes every band, which is the
+route control's picture arriving before the control does. Counted: C(k,2) faces
+carry k(k−1) strips, two per face, so the solids layer draws exactly three times
+as many quads with the band up as with it down — which is what the test
+asserts.
+
+And `wheelSteps` puts every growth slider under the wheel: one notch a step,
+shift for ten, snapped back onto the step grid each time so a step of 0.005 does
+not drift over a hundred notches.
+
 Not built: the route control. A single family's 24 routes (above) would make a
 third stepper, and it is the one that reads as motion. Nor are the nudged lines
 themselves drawn, which is the thing that would show, rather than assert, where

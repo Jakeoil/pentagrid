@@ -99,6 +99,30 @@ export function mountGammaControls(
 }
 
 /**
+ * Scroll over a slider to step it.
+ *
+ * A range input ignores the wheel by default, which makes the fine ones — a
+ * reading out of 62, a flip out of 5 — a matter of aiming at the thumb. One
+ * notch is one step, shift is ten, and the value is snapped back onto the step
+ * grid each time so a step of 0.005 does not drift.
+ */
+export function wheelSteps(input: HTMLInputElement, apply: () => void) {
+    input.addEventListener("wheel", (ev: WheelEvent) => {
+        ev.preventDefault();
+        const step = parseFloat(input.step) || 1;
+        const min = parseFloat(input.min), max = parseFloat(input.max);
+        const base = Number.isFinite(min) ? min : 0;
+        const by = (ev.deltaY < 0 ? 1 : -1) * step * (ev.shiftKey ? 10 : 1);
+        let v = base + Math.round(((parseFloat(input.value) || 0) + by - base) / step) * step;
+        if (Number.isFinite(min)) v = Math.max(min, v);
+        if (Number.isFinite(max)) v = Math.min(max, v);
+        if (String(v) === String(input.value)) return;
+        input.value = String(v);
+        apply();
+    }, { passive: false });
+}
+
+/**
  * Bind one range input to an arbitrary setter. `bindSliders` covers a growth
  * view's own state; this is for controls that drive something else — the γ set,
  * say, which the view holds but does not own.
@@ -118,6 +142,7 @@ export function bindRange(
         if (label && format) label.textContent = format(v);
     };
     input.addEventListener("input", apply);
+    wheelSteps(input, apply);
     apply();
 }
 
@@ -134,6 +159,7 @@ export function bindSliders(view: GrowthHandle, specs: readonly SliderSpec[]) {
             if (label && spec.format) label.textContent = spec.format(v);
         };
         input.addEventListener("input", apply);
+        wheelSteps(input, apply);
         apply();
     }
 }
