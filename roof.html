@@ -63,6 +63,7 @@
             <input type="range" id="roof-reading" min="0" max="61" step="1" value="0"></label>
         <label class="check"><input type="checkbox" id="roof-pair"> pair</label>
         <label class="check"><input type="checkbox" id="roof-penrose" checked> stay Penrose</label>
+        <label class="check"><input type="checkbox" id="roof-stackbands" checked> 2k-gon bands</label>
         <label><span class="cap">flip <span class="val" id="roof-flip-value">1</span></span>
             <input type="range" id="roof-flip" min="0" max="4" step="1" value="0"></label>
     </div>
@@ -119,12 +120,24 @@
     for the decagon, against the 20 on the hull. Every face of the solid is in
     play.</p>
 
-    <p>With <b>band</b> up, the ribbons cross the solid too. A family&rsquo;s band
-    enters a face through the edge parallel to that family and leaves through the
-    opposite one, and consecutive faces of its ribbon share that edge &mdash; so
-    the band runs over the solid continuously, with nothing between the strips,
-    and where two bands lie on the same rhomb is where they cross. Which faces it
-    takes depends on the reading, so changing the reading re-routes every band.</p>
+    <p>The solid is drawn as its <b>edges and its crossings</b> rather than as a
+    set of surfaces. A family&rsquo;s band enters a face through the edge parallel
+    to that family and leaves through the opposite one, and consecutive faces of
+    its ribbon share that edge &mdash; so the band runs over the solid
+    continuously, with nothing between the strips. The two bands on a face overlap
+    in one patch, and that patch <em>is</em> the crossing of those two families, so
+    it carries the mixed color the whole face used to be painted in and the rhomb
+    still reads as a rhomb. Which faces a band takes depends on the reading, so
+    changing the reading re-routes every band. <b>band</b> sets the width; at zero
+    the solid is left as a net of edges.</p>
+
+    <p><b>2k-gon bands</b> keeps the older crossing as well: before the solid knew
+    what was inside a 2<i>k</i>-gon, a band was run straight across it on the
+    family&rsquo;s zone &mdash; in by the side parallel to the family, out by the
+    opposite one &mdash; which asserted nothing about the tiling in between because
+    there was no tiling to assert. Now there is. Switch it off and each ribbon
+    simply stops at the 2<i>k</i>-gon and picks up on the far side, leaving the
+    solid to say where it went.</p>
 
     <p>From a given reading only some of its hexagons can be turned over &mdash;
     three or four, and exactly <b>five</b> at the two extremes. <b>flip</b> chooses

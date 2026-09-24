@@ -591,18 +591,29 @@ column of singularities Jake reported seeing. The ten triples are two orbits of
 five under rotation alone, and adding the reflection merges nothing further:
 the mirror through family 0 sends 012 to 034, already in its orbit.
 
-**The bands cross the solid, and the sliders take the wheel (2026-09-24).** A
-family's ribbon enters a face through the edge parallel to that family and
-leaves through the opposite one, so on a face it is the strip s ∈ [lo, hi]
-along its own generator and the full width across. Consecutive faces of the
-ribbon share that edge, so the strips join with nothing between them — the band
-is continuous over the solid by construction, and where two bands lie on the
-same rhomb is where they cross. Which faces a band takes is the reading's own
-route (§5.0 above), so changing the reading re-routes every band, which is the
-route control's picture arriving before the control does. Counted: C(k,2) faces
-carry k(k−1) strips, two per face, so the solids layer draws exactly three times
-as many quads with the band up as with it down — which is what the test
-asserts.
+**The solid is its edges and its crossings (2026-09-24).** A family's ribbon
+enters a face through the edge parallel to that family and leaves through the
+opposite one, so on a face it is the strip s ∈ [lo, hi] along its own
+generator, the full width across. Consecutive faces of a ribbon share that
+edge, so the strips join with nothing between them and the band is continuous
+over the solid by construction. Which faces it takes is the reading's own route
+(above), so changing the reading re-routes every band — the route control's
+picture arriving ahead of the control.
+
+Jake then asked for the surfaces to go: **the face is drawn as its edges, the
+two bands crossing on it, and the patch where they overlap**, that patch taking
+the mixed color the whole face used to carry — because the overlap *is* the
+crossing of those two families, so the rhomb still reads as a rhomb and nothing
+is asserted twice. At band 0 the solid is a net of edges. Counted: C(k,2)
+outlines and three fills apiece.
+
+And **2k-gon bands** keeps or drops the older crossing. Before the solid knew
+what was inside a 2k-gon, a band was run straight across it on the family's
+zone — in by the side parallel to the family, out by the opposite one — which
+asserted nothing about the tiling in between, because there was no tiling to
+assert. Now there is. Switched off, each ribbon stops at the 2k-gon and picks
+up on the far side: the stack nodes are dropped from the ribbon and the existing
+seam check refuses to seal across the hole, so no new geometry was needed.
 
 And `wheelSteps` puts every growth slider under the wheel: one notch a step,
 shift for ten, snapped back onto the step grid each time so a step of 0.005 does

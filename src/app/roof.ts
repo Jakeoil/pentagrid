@@ -37,6 +37,7 @@ if (host) {
         { id: "roof-solids", key: "solids" },
         { id: "roof-pair", key: "pairGhost" },
         { id: "roof-penrose", key: "stayPenrose" },
+        { id: "roof-stackbands", key: "stackBands" },
     ]);
 
     // Nothing draws the solids layer when it is off, so nothing clears its note.

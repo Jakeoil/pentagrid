@@ -1727,15 +1727,18 @@ test("the solids layer draws a zonohedron per singularity, and the reading moves
         assert.notEqual(path.join("|"), first, `reading ${reading} drew the same thing`);
     }
 
-    // The pair ghost adds exactly three more faces per singularity.
-    path = []; fills = 0;
+    // The pair ghost adds three outlines per singularity — an outline now,
+    // since the face itself is no longer filled.
+    let strokes = 0;
+    layer.ctx.stroke = () => { strokes++; };
     v.set({ reading: 0, pairGhost: false });
+    strokes = 0;
     v.redraw();
-    const plain = fills;
-    fills = 0;
+    const plain = strokes;
     v.set({ pairGhost: true });
+    strokes = 0;
     v.redraw();
-    assert.ok(fills > plain, `pair drew nothing extra (${fills} vs ${plain})`);
+    assert.ok(strokes > plain, `pair drew nothing extra (${strokes} vs ${plain})`);
 });
 
 test("stay Penrose holds the decagon to its ten readings", () => {
@@ -1768,36 +1771,63 @@ test("stay Penrose holds the decagon to its ten readings", () => {
     assert.ok(penrose <= 10, `held showed ${penrose} distinct pictures, over ten`);
 });
 
-test("the bands cross the solid: one strip per face per family", () => {
+test("the solid is its edges and the bands crossing on them", () => {
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);
     v.set({ grow: 1, fold: 1, solids: true, band: 0 });
 
     const layer = v.pentagrid.stack.get("solids");
-    let fills = 0;
+    let fills = 0, strokes = 0;
     layer.ctx.fill = () => { fills++; };
+    layer.ctx.stroke = () => { strokes++; };
 
     v.redraw();
-    const faces = fills;
-    assert.ok(faces > 30, `only ${faces} faces`);
+    const faces = strokes;
+    assert.ok(faces > 30, `only ${faces} faces outlined`);
+    assert.equal(fills, 0, "with no band there is nothing to fill: the face is gone");
 
-    v.set({ band: 0.5 });        // set redraws, so zero the count after it
-    fills = 0;
+    v.set({ band: 0.5 });        // set redraws, so zero the counts after it
+    fills = 0; strokes = 0;
     v.redraw();
-    // Each face carries two bands, one for each of its generators, so the
-    // count is C(k,2) faces plus k(k-1) = 2*C(k,2) strips: exactly three times.
+    assert.equal(strokes, faces, "the edges stay");
+    // Two strips per face and the patch where they cross — the crossing keeps
+    // the mixed color the whole face used to carry.
     assert.equal(fills, faces * 3, `${fills} against ${faces} faces`);
 
     // And they follow the grow setting like everything else: at grow 0 the
-    // solid is collapsed onto its crossing, the patch in view is a different
-    // one, and the bands are still one per face per generator.
+    // solid is collapsed onto its crossing and the patch in view is a
+    // different one, but the count per face is the same.
     v.set({ grow: 0, band: 0 });
-    fills = 0;
+    fills = 0; strokes = 0;
     v.redraw();
-    const collapsed = fills;
+    const collapsed = strokes;
     assert.ok(collapsed > 0, "nothing drawn at grow 0");
     v.set({ band: 0.5 });
     fills = 0;
     v.redraw();
     assert.equal(fills, collapsed * 3, `${fills} against ${collapsed} faces at grow 0`);
+});
+
+test("2k-gon bands: the old crossing can be switched off", () => {
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);       // stacks everywhere to run through
+    v.set({ grow: 0.6, fold: 1, band: 0.5 });
+
+    const layer = v.pentagrid.stack.get("growth");
+    let fills = 0;
+    layer.ctx.fill = () => { fills++; };
+
+    v.set({ stackBands: true });
+    fills = 0;
+    v.redraw();
+    const withThem = fills;
+
+    v.set({ stackBands: false });
+    fills = 0;
+    v.redraw();
+    assert.ok(fills < withThem,
+              `switching the 2k-gon bands off drew as much (${fills} of ${withThem})`);
+    // The tiles and their own bands are untouched — only the runs across a
+    // stack go, so most of the drawing survives.
+    assert.ok(fills > withThem * 0.5, `too much went: ${fills} of ${withThem}`);
 });

@@ -150,6 +150,18 @@ export interface GrowthState {
      * by leaving Penrose, which is worth seeing but is not what is there.
      */
     stayPenrose: boolean;
+    /**
+     * Keep running the bands straight across a 2k-gon, the way they did before
+     * the solids knew what was inside one.
+     *
+     * That crossing was drawn on the family's ZONE — enter by the side parallel
+     * to the family, leave by the opposite one — and asserted nothing about the
+     * tiling in between, because there was no tiling to assert. Now there is:
+     * the solid routes each band through the reading's own faces. The old one is
+     * kept because it is what every page but this one still shows, and switched
+     * off when the solid is saying it better.
+     */
+    stackBands: boolean;
 }
 
 export interface GrowthHandle {
@@ -171,6 +183,7 @@ const DEFAULTS: GrowthState = {
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false, stayPenrose: true,
+    stackBands: true,
     boldEdges: false,
 };
 
@@ -502,7 +515,12 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     l.push({ kind: "tile", r });
                 }
             }
-            for (const nodes of byLine.values()) {
+            for (const raw of byLine.values()) {
+                // Dropping the stacks breaks each ribbon at the 2k-gon rather
+                // than routing it through: the seam check below then refuses to
+                // seal across the hole, because the two tiles do not share one.
+                const nodes = state.stackBands
+                    ? raw : raw.filter((nd) => nd.kind === "tile");
                 if (nodes.length < 2) continue;
                 // Order along the line by where each node ENDS UP: a tile by its
                 // final center, a stack by the 2k-gon's. Ordering by the crossing
@@ -614,9 +632,12 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const S = (p: Vec3) => toScreen(p, v, cx, cy);
                     const gain = dirs.length / 2;
                     const { grow, fold, reading, pick, pairGhost } = state;
+                    // edge: the rhomb's outline, which is all that is left of the
+                    // face. band: one family's strip across it. cross: where two
+                    // strips overlap, in the mixed color the whole face used to be.
                     type Facet = {
                         pts: { x: number; y: number }[]; d: number;
-                        fill: string; ghost: boolean; band?: boolean;
+                        kind: "edge" | "band" | "cross" | "ghost"; fill?: string;
                     };
                     const facets: Facet[] = [];
                     let report = "";
@@ -669,68 +690,69 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             ];
                         };
                         const corner = (mask: number): Vec3 => at(mask, 0, 0, 0, 0);
-                        const facet = (pair: number, masks: readonly number[], ghost: boolean) => {
-                            const w = masks.map(corner);
-                            const p = w.map(S);
-                            const [a, b] = z.pairs[pair];
+                        const quad = (w: Vec3[]) => w.map(S);
+                        const depth = (q: { d: number }[]) =>
+                            q.reduce((s, r) => s + r.d, 0) / q.length;
+                        const lambert = (w: Vec3[]) => {
+                            if (!shaded) return 1;
                             const u = [w[1][0] - w[0][0], w[1][1] - w[0][1], w[1][2] - w[0][2]];
                             const t = [w[3][0] - w[0][0], w[3][1] - w[0][1], w[3][2] - w[0][2]];
-                            const nrm = [u[1] * t[2] - u[2] * t[1], u[2] * t[0] - u[0] * t[2],
-                                         u[0] * t[1] - u[1] * t[0]];
-                            const nl = Math.hypot(nrm[0], nrm[1], nrm[2]) || 1;
-                            const k = shaded
-                                ? 0.62 + 0.38 * Math.abs(
-                                    (nrm[0] * 0.35 - nrm[1] * 0.30 + nrm[2] * 0.89) / nl)
-                                : 1;
-                            facets.push({
-                                pts: p, ghost,
-                                d: p.reduce((s, q) => s + q.d, 0) / p.length,
-                                fill: tint(MIX[z.fams[a]][z.fams[b]], k),
-                            });
+                            const n = [u[1] * t[2] - u[2] * t[1], u[2] * t[0] - u[0] * t[2],
+                                       u[0] * t[1] - u[1] * t[0]];
+                            const nl = Math.hypot(n[0], n[1], n[2]) || 1;
+                            return 0.62 + 0.38 * Math.abs(
+                                (n[0] * 0.35 - n[1] * 0.30 + n[2] * 0.89) / nl);
                         };
 
+                        // A face is drawn as its edges, the two bands crossing
+                        // on it, and the crossing itself.
+                        //
+                        // A family's ribbon enters through the edge parallel to
+                        // that family and leaves through the opposite one, so on
+                        // this face it is the strip s ∈ [lo, hi] along its own
+                        // generator, the full width across. Consecutive faces of
+                        // a ribbon share that edge, so the strips join with
+                        // nothing between them and the band runs over the solid
+                        // continuously. The two strips on a face overlap in one
+                        // patch, which IS the crossing of those two families —
+                        // so it takes the mixed color the whole face used to
+                        // carry, and the rhomb reads as a rhomb.
+                        const lo = 0.5 - state.band / 2, hi = 0.5 + state.band / 2;
                         for (let p = 0; p < z.pairs.length; p++) {
-                            facet(p, z.face(bases, p), false);
+                            const [i, j] = z.pairs[p];
+                            const m = bases[p];
+                            const w = z.face(bases, p).map(corner);
+                            const q = quad(w);
+                            const d0 = depth(q);
+                            facets.push({ pts: q, d: d0, kind: "edge" });
+                            if (state.band <= 0.001) continue;
+                            const k = lambert(w);
+                            const strip = (s0: number, s1: number, t0: number, t1: number) =>
+                                quad([at(m, s0, i, t0, j), at(m, s1, i, t0, j),
+                                      at(m, s1, i, t1, j), at(m, s0, i, t1, j)]);
+                            // just in front of their own face, so the painter's
+                            // order lands them on the right one
+                            facets.push({
+                                pts: strip(lo, hi, 0, 1), d: d0 - 1e-3, kind: "band",
+                                fill: tint(rgbOf(FAMILY_COLORS[z.fams[i]]), k),
+                            });
+                            facets.push({
+                                pts: strip(0, 1, lo, hi), d: d0 - 1e-3, kind: "band",
+                                fill: tint(rgbOf(FAMILY_COLORS[z.fams[j]]), k),
+                            });
+                            facets.push({
+                                pts: strip(lo, hi, lo, hi), d: d0 - 2e-3, kind: "cross",
+                                fill: tint(MIX[z.fams[i]][z.fams[j]], k),
+                            });
                         }
 
-                        // Where the bands cross the solid.
-                        //
-                        // A family's ribbon enters a face through the edge
-                        // parallel to that family and leaves through the
-                        // opposite one, so on the face it is the strip
-                        // s ∈ [lo, hi] along its own generator and the full
-                        // width across. Consecutive faces of the ribbon share
-                        // that edge, so the strips join with nothing between
-                        // them — the band is continuous over the solid by
-                        // construction, and where two bands lie on the same
-                        // face is where they cross.
-                        if (state.band > 0.001) {
-                            const lo = 0.5 - state.band / 2, hi = 0.5 + state.band / 2;
-                            for (let f = 0; f < z.k; f++) {
-                                for (let p = 0; p < z.pairs.length; p++) {
-                                    const [i, j] = z.pairs[p];
-                                    if (i !== f && j !== f) continue;
-                                    const other = i === f ? j : i;
-                                    const m = bases[p];
-                                    const w = [
-                                        at(m, lo, f, 0, other), at(m, hi, f, 0, other),
-                                        at(m, hi, f, 1, other), at(m, lo, f, 1, other),
-                                    ];
-                                    const q = w.map(S);
-                                    facets.push({
-                                        pts: q, ghost: false, band: true,
-                                        // Just in front of its own face, so the
-                                        // painter's order puts it on the right one.
-                                        d: q.reduce((t, r) => t + r.d, 0) / q.length - 1e-3,
-                                        fill: FAMILY_COLORS[z.fams[f]],
-                                    });
-                                }
-                            }
-                        }
                         // The partner reading differs in one cell's cap, so only
                         // those three faces are worth drawing twice.
                         if (pairGhost && turn) {
-                            for (const ch of turn.changed) facet(ch.pair, z.face(turn.to, ch.pair), true);
+                            for (const ch of turn.changed) {
+                                const q = quad(z.face(turn.to, ch.pair).map(corner));
+                                facets.push({ pts: q, d: depth(q), kind: "ghost" });
+                            }
                         }
 
                         if (res.families.length > widest) {
@@ -770,22 +792,22 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
 
                     facets.sort((p, q) => q.d - p.d);          // far first
                     for (const f of facets) {
+                        if (f.kind === "ghost") continue;      // outlined on top
                         ctx.beginPath();
                         f.pts.forEach((q, i) => {
                             if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
                         });
                         ctx.closePath();
-                        ctx.globalAlpha = f.ghost ? 0.42 : f.band ? 0.85 : 1;
-                        ctx.fillStyle = f.fill;
+                        if (f.kind === "edge") {
+                            ctx.lineWidth = 1.1;
+                            ctx.strokeStyle = "rgba(28, 34, 44, 0.55)";
+                            ctx.stroke();
+                            continue;
+                        }
+                        ctx.globalAlpha = f.kind === "band" ? 0.85 : 1;
+                        ctx.fillStyle = f.fill!;
                         ctx.fill();
                         ctx.globalAlpha = 1;
-                        if (f.band) continue;                 // no outline on a band
-                        ctx.lineWidth = f.ghost ? 1.6 : 1.1;
-                        ctx.setLineDash(f.ghost ? [4, 3] : []);
-                        ctx.strokeStyle = f.ghost
-                            ? "rgba(230, 57, 70, 0.95)" : "rgba(28, 34, 44, 0.55)";
-                        ctx.stroke();
-                        ctx.setLineDash([]);
                     }
                     // The partner cap is the near one half the time and the far
                     // one the other half; depth alone would hide it whenever the
@@ -796,7 +818,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     ctx.lineWidth = 1.6;
                     ctx.strokeStyle = "rgba(230, 57, 70, 0.95)";
                     for (const f of facets) {
-                        if (!f.ghost) continue;
+                        if (f.kind !== "ghost") continue;
                         ctx.beginPath();
                         f.pts.forEach((q, i) => {
                             if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
