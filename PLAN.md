@@ -391,12 +391,36 @@ zone that would close it.
    its crossing to its place; a zonohedron can open from that same point, which
    is the same animation one dimension up and makes the superposition legible —
    the C(k,2) rhombs separating into the faces of a solid.
-3. **Necker is the control.** A zonohedron in outline has two readings, the
-   upper monotone surface and the lower, and those are exactly the rhombic
-   tilings of the 2k-gon. A **flip** button swapping which surface is drawn is
-   the phason flip made a gesture. Two surfaces per hexagon was measured
-   (§5.12); the dodecahedron and the icosahedron have more, and the count
-   belongs beside the angle code in the readout.
+3. **Necker is the control, and the readings are counted.** A monotone
+   surface of the zonohedron is a rhombic tiling of the 2k-gon, and the
+   readings are the surfaces. A surface is a **down-set of the C(k,3)
+   rhombohedral cells** — which cells lie below it — subject to the
+   consistency condition on every four generators; that is the higher Bruhat
+   order B(k,2), and it is the whole enumeration:
+
+   | 2k-gon | cells | rhombs | **readings** | flips from one reading | bottom→top paths |
+   |---|---|---|---|---|---|
+   | hexagon | 1 | 3 | **2** | 1 | 1 |
+   | octagon | 4 | 6 | **8** | 2 | 2 |
+   | decagon | 10 | 10 | **62** | 3, 4 or 5 | **112** |
+
+   All 62 were built from their cell-sets and checked to tile the decagon
+   exactly — ten distinct rhombs, area to the last digit. Jake had heard ten
+   for the decagon; ten is right but it counts the **cells**, not the
+   readings. Going from the lowest surface to the highest flips all ten, one
+   hexagon at a time, and there are 112 orders in which that can be done. By
+   rank the 62 fall 1, 3, 5, 9, 9, 8, 9, 9, 5, 3, 1.
+
+   And **the five pairs are real**: from a given reading only some hexagons are
+   flippable — 50 of the 62 offer 3, ten offer 4, and exactly **two offer 5**,
+   which are the bottom and top surfaces. So the extreme reading, the one the
+   page will open on, has precisely five flips, each a Necker pair. That is the
+   control: draw the current surface solid, its flip partner ghosted, and let
+   the stepper walk the five (or three, or four). Because two neighboring
+   surfaces differ by exactly one cell, the ghosted part is never the whole
+   figure — it is one rhombohedron's three-rhomb cap against the other three,
+   which is Jake's "z priority to the front band" exactly: the band in front is
+   the cap that is up. The flip is the phason flip.
 4. **The fifth case earns its own note**: at Γ = 0 the icosahedron stands at
    the origin with its poles on the vertical axis, and the flat page's ghost
    center is its top. That is the one place the roof explains something the
