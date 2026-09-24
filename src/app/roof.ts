@@ -36,7 +36,6 @@ if (host) {
         { id: "roof-2kgons", key: "showResolutions" },
         { id: "roof-solids", key: "solids" },
         { id: "roof-pair", key: "pairGhost" },
-        { id: "roof-penrose", key: "stayPenrose" },
         { id: "roof-stackbands", key: "stackBands" },
     ]);
 

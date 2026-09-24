@@ -611,9 +611,25 @@ And **2k-gon bands** keeps or drops the older crossing. Before the solid knew
 what was inside a 2k-gon, a band was run straight across it on the family's
 zone — in by the side parallel to the family, out by the opposite one — which
 asserted nothing about the tiling in between, because there was no tiling to
-assert. Now there is. Switched off, each ribbon stops at the 2k-gon and picks
-up on the far side: the stack nodes are dropped from the ribbon and the existing
-seam check refuses to seal across the hole, so no new geometry was needed.
+assert. Now there is. Switched off, **nothing of a band is drawn INSIDE a
+2k-gon**: not the run across it, and not the strips painted in the superposed
+tiles either, which was leaving a rhomb sitting inside a hexagon and a mess in
+the middle of the decagon. The tile loop skips its own strips on any tile
+sitting on a concurrency, and only the run through the stack is dropped from
+the ribbon.
+
+The band still runs **up to** the polygon, which Jake had to point out: a
+family's zone enters by the side parallel to that family and leaves by the
+opposite one, and that is fixed by the outline — a constant, owing nothing to
+the tiling inside. So the gap quads into and out of a stack are kept whatever
+the switch says, and at grow = 1 the neighboring tile's own edge already lies on
+the polygon. The first version dropped the stack from the ribbon altogether and
+left the band ending a tile short.
+
+The Penrose restriction lost its switch the same day: **Σγ being an integer is
+the criterion**, so the grid already says which readings exist and there is
+nothing for a control to decide. The readout still says *Penrose* while the
+control is held.
 
 And `wheelSteps` puts every growth slider under the wheel: one notch a step,
 shift for ten, snapped back onto the step grid each time so a step of 0.005 does

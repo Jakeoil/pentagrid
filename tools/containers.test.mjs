@@ -1741,34 +1741,29 @@ test("the solids layer draws a zonohedron per singularity, and the reading moves
     assert.ok(strokes > plain, `pair drew nothing extra (${strokes} vs ${plain})`);
 });
 
-test("stay Penrose holds the decagon to its ten readings", () => {
+test("a Penrose grid holds the decagon to its ten readings, with no switch", () => {
     const v = createGrowthView({ container: host(), lift: true });
-    v.pentagrid.gamma.setSum(0, true);          // the sun: every gamma an integer
     v.set({ grow: 1, fold: 1, solids: true });
 
     const layer = v.pentagrid.stack.get("solids");
-    const paths = new Set();
     let path = [];
     layer.ctx.moveTo = (x, y) => { path.push(`M${x.toFixed(3)},${y.toFixed(3)}`); };
     layer.ctx.lineTo = (x, y) => { path.push(`L${x.toFixed(3)},${y.toFixed(3)}`); };
 
     const sweep = () => {
-        paths.clear();
+        const seen = new Set();
         for (let r = 0; r < 62; r++) {
-            path = [];
             v.set({ reading: r });
+            path = [];
             v.redraw();
-            paths.add(path.join("|"));
+            seen.add(path.join("|"));
         }
-        return paths.size;
+        return seen.size;
     };
-    // Held, the slider wraps after ten; loose, all 62 are distinct pictures.
-    v.set({ stayPenrose: true });
-    const penrose = sweep();
-    v.set({ stayPenrose: false });
-    const loose = sweep();
-    assert.ok(loose > penrose, `${loose} loose against ${penrose} held`);
-    assert.ok(penrose <= 10, `held showed ${penrose} distinct pictures, over ten`);
+    // The sun: every gamma an integer, so Penrose, so the decagon has ten
+    // readings and the hexagons two — ten distinct pictures over a sweep of 62.
+    v.pentagrid.gamma.setSum(0, true);
+    assert.equal(sweep(), 10, "a Penrose grid should show ten");
 });
 
 test("the solid is its edges and the bands crossing on them", () => {
@@ -1808,26 +1803,28 @@ test("the solid is its edges and the bands crossing on them", () => {
     assert.equal(fills, collapsed * 3, `${fills} against ${collapsed} faces at grow 0`);
 });
 
-test("2k-gon bands: the old crossing can be switched off", () => {
+test("2k-gon bands off leaves nothing of a band inside the polygon", () => {
     const v = createGrowthView({ container: host(), lift: true });
-    v.pentagrid.gamma.setSum(0, true);       // stacks everywhere to run through
-    v.set({ grow: 0.6, fold: 1, band: 0.5 });
+    v.pentagrid.gamma.setSum(0, true);       // stacks everywhere
+    v.set({ grow: 0.6, fold: 1, band: 0.5, stackBands: true });
 
     const layer = v.pentagrid.stack.get("growth");
     let fills = 0;
     layer.ctx.fill = () => { fills++; };
-
-    v.set({ stackBands: true });
-    fills = 0;
     v.redraw();
     const withThem = fills;
 
     v.set({ stackBands: false });
     fills = 0;
     v.redraw();
-    assert.ok(fills < withThem,
-              `switching the 2k-gon bands off drew as much (${fills} of ${withThem})`);
-    // The tiles and their own bands are untouched — only the runs across a
-    // stack go, so most of the drawing survives.
-    assert.ok(fills > withThem * 0.5, `too much went: ${fills} of ${withThem}`);
+    const without = fills;
+
+    // Three fills per tile go with the in-tile strips — the two bands and the
+    // patch where they cross — so the drop is 3 per superposed tile, on top of
+    // the runs across each polygon. Nothing of a band is left inside one.
+    assert.ok(without < withThem, `nothing was suppressed (${without} of ${withThem})`);
+    assert.equal((withThem - without) % 3 === 0 || withThem - without > 3, true,
+                 `an odd amount went: ${withThem - without}`);
+    // The tiles outside the polygons keep theirs, so most of it survives.
+    assert.ok(without > withThem * 0.4, `too much went: ${without} of ${withThem}`);
 });

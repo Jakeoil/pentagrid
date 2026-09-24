@@ -62,7 +62,6 @@
         <label><span class="cap">reading <span class="val" id="roof-reading-value">1</span></span>
             <input type="range" id="roof-reading" min="0" max="61" step="1" value="0"></label>
         <label class="check"><input type="checkbox" id="roof-pair"> pair</label>
-        <label class="check"><input type="checkbox" id="roof-penrose" checked> stay Penrose</label>
         <label class="check"><input type="checkbox" id="roof-stackbands" checked> 2k-gon bands</label>
         <label><span class="cap">flip <span class="val" id="roof-flip-value">1</span></span>
             <input type="range" id="roof-flip" min="0" max="4" step="1" value="0"></label>
@@ -101,14 +100,15 @@
     4&darr;</code>, a double arrow for twice the step and a dot for a line left
     where it was.</p>
 
-    <p>Not all of those readings are available here, though, and <b>stay
-    Penrose</b> says so. The decagon exists only when every &gamma;<sub><i>j</i></sub>
-    is an integer, which is a Penrose grid, and a jiggle that stays Penrose has to
-    leave &Sigma;&gamma; alone &mdash; so the five displacements must sum to zero,
-    which cuts 62 readings to <b>10</b>. Those ten are one orbit under the
-    decagon's own symmetry: a single pattern in its ten placements, the deca seed.
-    Turn the switch off and the other 52 come back, resolutions the grid could only
-    reach by leaving Penrose. A hexagon and an octagon lose nothing either way.</p>
+    <p>Not all of those readings are available here, though, and the grid decides
+    that rather than a switch. The decagon exists only when every
+    &gamma;<sub><i>j</i></sub> is an integer, which is a Penrose grid, and a jiggle
+    that stays Penrose has to leave &Sigma;&gamma; alone &mdash; so the five
+    displacements must sum to zero, which cuts 62 readings to <b>10</b>. Those ten
+    are one orbit under the decagon&rsquo;s own symmetry: a single pattern in its
+    ten placements, the deca seed. The readout says <i>Penrose</i> while the
+    control is held. A hexagon and an octagon lose nothing: every reading of theirs
+    already has a configuration that sums to zero.</p>
 
     <p>One equal step each way &mdash; the plainest nudge there is &mdash; accounts
     for the hexagon and the octagon completely, but only <b>32</b> of the decagon's
@@ -135,9 +135,13 @@
     what was inside a 2<i>k</i>-gon, a band was run straight across it on the
     family&rsquo;s zone &mdash; in by the side parallel to the family, out by the
     opposite one &mdash; which asserted nothing about the tiling in between because
-    there was no tiling to assert. Now there is. Switch it off and each ribbon
-    simply stops at the 2<i>k</i>-gon and picks up on the far side, leaving the
-    solid to say where it went.</p>
+    there was no tiling to assert. Now there is. Switch it off and no part of a
+    band is drawn <em>inside</em> a 2<i>k</i>-gon: not the run across it, and not
+    the strips in the superposed tiles either. It still arrives at the polygon and
+    leaves it on the far side &mdash; a family&rsquo;s zone enters by the side
+    parallel to that family and leaves by the opposite one, which the outline fixes
+    and which owes nothing to the tiling inside &mdash; so the band runs up to the
+    2<i>k</i>-gon and the solid says where it went from there.</p>
 
     <p>From a given reading only some of its hexagons can be turned over &mdash;
     three or four, and exactly <b>five</b> at the two extremes. <b>flip</b> chooses

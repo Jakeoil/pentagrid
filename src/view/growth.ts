@@ -141,16 +141,6 @@ export interface GrowthState {
      */
     pairGhost: boolean;
     /**
-     * Keep the reading control inside what a Penrose grid can actually reach.
-     *
-     * The decagon only exists when every γⱼ is an integer, which is a Penrose
-     * grid, and a jiggle that stays Penrose has to leave Σγ alone — so only ten
-     * of its 62 readings are available, one orbit, the deca seed in its ten
-     * placements. Off it the other 52 are resolutions the grid could only reach
-     * by leaving Penrose, which is worth seeing but is not what is there.
-     */
-    stayPenrose: boolean;
-    /**
      * Keep running the bands straight across a 2k-gon, the way they did before
      * the solids knew what was inside one.
      *
@@ -182,8 +172,7 @@ const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
-    solids: false, reading: 0, pick: 0, pairGhost: false, stayPenrose: true,
-    stackBands: true,
+    solids: false, reading: 0, pick: 0, pairGhost: false, stackBands: true,
     boldEdges: false,
 };
 
@@ -515,12 +504,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     l.push({ kind: "tile", r });
                 }
             }
-            for (const raw of byLine.values()) {
-                // Dropping the stacks breaks each ribbon at the 2k-gon rather
-                // than routing it through: the seam check below then refuses to
-                // seal across the hole, because the two tiles do not share one.
-                const nodes = state.stackBands
-                    ? raw : raw.filter((nd) => nd.kind === "tile");
+            for (const nodes of byLine.values()) {
                 if (nodes.length < 2) continue;
                 // Order along the line by where each node ENDS UP: a tile by its
                 // final center, a stack by the 2k-gon's. Ordering by the crossing
@@ -654,10 +638,11 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         const [sx, sy] = anchor.origin;
 
                         // On a Penrose grid the reading control is held to what
-                        // the grid can reach without leaving Σγ where it is.
-                        const held = state.stayPenrose
-                            && penroseCondition(model.gamma.reduce((t, g) => t + g, 0),
-                                                dirs.length) === true;
+                        // the grid can reach without leaving Σγ where it is. No
+                        // switch: Σγ being an integer IS the criterion, so the
+                        // grid already says which readings exist.
+                        const held = penroseCondition(
+                            model.gamma.reduce((t, g) => t + g, 0), dirs.length) === true;
                         const pool = held && z.penrose.length ? z.penrose
                             : z.readings.map((_, i) => i);
                         const count = z.readings.length ? pool.length : 0;
@@ -844,6 +829,16 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         .map((r) => ({ r, d: S(world(r, dirs, 0.5, 0.5)).d }))
                         .sort((p, q) => q.d - p.d);   // far first
 
+                    // With the 2k-gon bands off, nothing of a band is drawn
+                    // INSIDE a 2k-gon: not the run across it, and not the strips
+                    // painted in the superposed tiles either, which is what left
+                    // a rhomb sitting in a hexagon and a mess in the middle of a
+                    // decagon. It still runs up to the polygon and away from it
+                    // on the far side. The tiles themselves stay.
+                    const banded = state.stackBands ? null
+                        : new Set(stacksOf(rhombs)
+                            .map((c) => `${c.x.toFixed(6)},${c.y.toFixed(6)}`));
+
                     const trace = (r: Rhomb, corners: number[][]) => {
                         ctx.beginPath();
                         corners.forEach(([a, b], i) => {
@@ -969,7 +964,9 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                 }
                             }
                         }
-                        if (band > 0.001 && grow > 0.02) {
+                        const onStack = banded
+                            && banded.has(`${r.x0.toFixed(6)},${r.y0.toFixed(6)}`);
+                        if (band > 0.001 && grow > 0.02 && !onStack) {
                             trace(r, [[lo, 0], [hi, 0], [hi, 1], [lo, 1]]);
                             ctx.fillStyle = tint(rgbOf(FAMILY_COLORS[r.j]), k);
                             ctx.fill();
@@ -1024,7 +1021,14 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                 // whole way, at every grow — this is the band's
                                 // path across the 2k-gon and it does not close
                                 // up at grow = 1 the way a gap does.
-                                if (nd.kind === "stack") {
+                                // Only the run THROUGH it is optional. The band
+                                // still arrives at the polygon and leaves it on
+                                // the far side: a family's zone enters by the
+                                // side parallel to that family and leaves by the
+                                // opposite one, which is fixed by the outline and
+                                // owes nothing to the tiling inside. The gap
+                                // quads below carry it there either way.
+                                if (nd.kind === "stack" && state.stackBands) {
                                     const chain = stackChain(nd, rib.fam, dirs, lo, hi, rib);
                                     for (let m = 1; m < chain.length; m++) quad(chain[m - 1], chain[m]);
                                 }
