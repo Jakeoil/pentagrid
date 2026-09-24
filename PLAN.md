@@ -315,11 +315,19 @@ vertical: **K ↦ Σ Kⱼ Eⱼ with Eⱼ = vⱼ + ½ẑ embeds the k-cube in the
 3-space as a zonohedron**, with no projection about it. Measured, all three at
 once:
 
-| k | corners in 3-space | in the plane | faces | the solid |
-|---|---|---|---|---|
-| 3 | 8 | 8 | 6 | a **golden rhombohedron** |
-| 4 | 16 | 16 | 12 | **Bilinski's rhombic dodecahedron** |
-| 5 | **32** | **31** | 20 | the **rhombic icosahedron** |
+| k | regions (2^k) | in the plane | corners of the solid | faces | the solid |
+|---|---|---|---|---|---|
+| 3 | 8 | 8 | 8 | 6 | a **golden rhombohedron** |
+| 4 | 16 | 16 | 14 | 12 | **Bilinski's rhombic dodecahedron** |
+| 5 | **32** | **31** | **22** | 20 | the **rhombic icosahedron** |
+
+The two point counts are different things and the difference is the second
+surprise. All 2^k regions land on distinct points of the roof, but not all of
+them are corners: for k=4 two fall strictly inside, for k=5 ten do. The ten
+are exactly the K that pick two *non-adjacent* directions and their
+complements — 10100, 10010, 01010, 01001, 00101 and 11010, 10110, 10101,
+01101, 01011, five of index 2 and five of index 3. A region can be interior to
+its own singularity.
 
 Every edge is √5/2 and every face has diagonal ratio exactly φ — the roof's
 own golden rhombus, the one the whole surface is paved with. So a singularity
@@ -352,6 +360,25 @@ f(𝟙). On the roof those are the icosahedron's two opposite poles, 5·½ apart
 z: 32 corners in space against 31 in the plane. The ghost vertex that can
 never be realised is the solid's far pole, and it looked degenerate only
 because we were looking at the shadow.
+
+**Is the surface a triacontahedron?** No — twenty faces, not thirty. But it is
+a triacontahedron one zone short, and the missing zone is named. Add a sixth
+generator **E₅ = (0, 0, √5/2)**, the pure vertical, and the zonohedron of the
+six is exactly the **rhombic triacontahedron**: 30 golden faces, 32 corners,
+dissecting into 20 rhombohedra, 10 oblate and 10 acute — twice the icosahedron
+in each count. The six are then the six five-fold axes of an icosahedron:
+every pair of them meets at |cos| = 1/√5, the icosahedral angle, measured
+across all fifteen pairs. Which is to say the roof's five generators already
+sit in the icosahedral cone; the vertical is the axis they are cast around.
+
+The pentagrid can never supply that sixth zone, and the reason is exactly why
+the roof and not the plane. A zone is a family of parallel grid lines; this
+one would need plane normal **0** — a family whose lines have no direction,
+which the plane cannot hold. Adding it is the step from Penrose's 5→2 to the
+icosahedral 6→3, and it is the same solid the roof project keeps meeting from
+the other side, where the face normals of a complete cap meet at a
+triacontahedron's center. The singularity is the RT's lower half, missing the
+zone that would close it.
 
 **How to represent it — the plan.** On `roof.html`, beside the 2k-gons switch:
 
