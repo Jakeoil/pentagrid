@@ -57,14 +57,68 @@
         <label class="check"><input type="checkbox" id="roof-nextgen"> next-gen</label>
         <label class="check"><input type="checkbox" id="roof-kites"> kites</label>
         <label class="check"><input type="checkbox" id="roof-offp"> off Penrose</label>
+        <label class="check"><input type="checkbox" id="roof-2kgons"> 2k-gons</label>
+        <label class="check"><input type="checkbox" id="roof-solids"> solids</label>
+        <label><span class="cap">reading <span class="val" id="roof-reading-value">1</span></span>
+            <input type="range" id="roof-reading" min="0" max="61" step="1" value="0"></label>
+        <label class="check"><input type="checkbox" id="roof-pair"> pair</label>
+        <label><span class="cap">flip <span class="val" id="roof-flip-value">1</span></span>
+            <input type="range" id="roof-flip" min="0" max="4" step="1" value="0"></label>
     </div>
     <div id="roof-gamma"></div>
 
     <div class="viewport" id="roof-view"></div>
+    <p class="hint" id="roof-solid-note"></p>
     <p class="hint"><b>Drag to pan, right-drag to spin and tilt</b>, scroll to zoom.
     <b>fold</b> at 0 lays the roof flat
     &mdash; the ordinary tiling &mdash; and <b>grow</b> still runs the whole assembly
     from the pentagrid, now in three dimensions.</p>
+
+    <h2>The singularities are solids</h2>
+
+    <p>Where <i>k</i> grid lines meet at a point, the tiling has no room for the
+    <i>C</i>(<i>k</i>,2) rhombs that crossing makes, and they pile up on the spot.
+    Flat, that is a defect. Folded, it is not: the regions around the point are the
+    2<sup><i>k</i></sup> corners of a <i>k</i>-cube, and because <i>z</i> counts the
+    chosen generators, the cube's own main diagonal stands up as the vertical. The
+    pile becomes a <b>zonohedron</b> made of the roof's own golden rhombus &mdash;
+    three lines a <b>golden rhombohedron</b>, four <b>Bilinski's rhombic
+    dodecahedron</b>, five the <b>rhombic icosahedron</b>. Turn on <b>solids</b> and
+    they grow out of their crossings with everything else.</p>
+
+    <p>A solid seen in outline has more than one reading, the way a Necker cube
+    does, and each reading is one rhombic tiling of the 2<i>k</i>-gon. The way to
+    count them is to get rid of the singularity: nudge each of the <i>k</i> lines a
+    little, up or down, and every pair crosses at a point of its own, which lays
+    the rhombs out in a definite order. Every reading is a configuration of the
+    lines in this sense &mdash; 2 for the hexagon, 8 for the octagon, <b>62</b> for
+    the decagon &mdash; so nothing on the slider is an abstraction over the grid.
+    <b>reading</b> steps through them, least disturbance first, and the readout
+    names the configuration: <code>0&uarr; 1&darr;&darr; 2&middot; 3&uarr;
+    4&darr;</code>, a double arrow for twice the step and a dot for a line left
+    where it was.</p>
+
+    <p>One equal step each way &mdash; the plainest nudge there is &mdash; accounts
+    for the hexagon and the octagon completely, but only <b>32</b> of the decagon's
+    62. Letting a line stay put reaches 42; the last twenty need one line moved
+    twice as far as another. And the readings do not merely use the solid's
+    surface: a reading cuts through its interior, so each of the
+    <i>C</i>(<i>k</i>,2) face directions turns up at all
+    2<sup><i>k</i>&minus;2</sup> of its positions &mdash; <b>80</b> distinct rhombs
+    for the decagon, against the 20 on the hull. Every face of the solid is in
+    play.</p>
+
+    <p>From a given reading only some of its hexagons can be turned over &mdash;
+    three or four, and exactly <b>five</b> at the two extremes. <b>flip</b> chooses
+    which, <b>pair</b> draws that one turned as well, and since only a single
+    cell's cap differs, what you see is three rhombs against three with the raised
+    cap in front. That flip is the phason flip.</p>
+
+    <p>The decagon keeps one secret the plane cannot show. At &Sigma;&gamma;&thinsp;=&thinsp;0
+    the five directions sum to zero, so the icosahedron's bottom and top corners
+    cast the same shadow &mdash; 32 corners in space, 31 in the plane. The ghost
+    center that carries index 0 and 5 at once is simply the far pole, and tilting
+    the roof pulls the two apart.</p>
 
     <p>Because <i>z</i> is affine in a tile's own coordinates, each face stays
     exactly planar and the surface is a height field, so the faces can simply be

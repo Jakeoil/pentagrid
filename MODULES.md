@@ -278,6 +278,7 @@ The growth pages add, in the same stack:
 
 | z | id | label | group | switched by |
 |---|---|---|---|---|
+| 42 | `solids` | Solids | Exploration | growth state |
 | 41 | `resolutions` | 2k-gons | Exploration | growth state |
 | 40 | `growth` | Growth | Exploration | growth state |
 <!-- layerchart:end -->

@@ -80,11 +80,11 @@ overloading one page. There is no explorations index; the nav is it.
 
 Nothing here blocks anything. Ordered by how likely they are to be wanted.
 
-1. **The singularities as zonohedra on the roof.** §5.0: where k lines meet,
-   the k-cube of surrounding regions embeds in the roof's 3-space as a golden
-   zonohedron — rhombohedron, Bilinski dodecahedron, rhombic icosahedron. The
-   hypothesis is verified and the representation is planned there; nothing
-   built.
+1. **The band's route as a control.** §5.0: one family's ribbon crosses the
+   other k−1 once each, and every one of the (k−1)! orders occurs — 24 for the
+   decagon. Stepping one colored band through its routes is coarser than
+   stepping the 62 readings and is the version that reads as motion. The solids
+   themselves are built; this stepper is not.
 2. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
    turned; count whether the de Bruijn resolutions of the decagon are exactly
    the ten orientations, against the 62 rhombic tilings the zonogon admits, and
@@ -447,6 +447,151 @@ zone that would close it.
    the origin with its poles on the vertical axis, and the flat page's ghost
    center is its top. That is the one place the roof explains something the
    plane cannot.
+
+**Built, 2026-09-24.** `geometry/zonohedron.ts` holds the solid and its
+readings; roof.html carries **solids**, **reading**, **flip** and **pair**
+beside a new **2k-gons** switch. Positions are carried as generator MASKS
+rather than points — a corner is the subset of generators summed to reach it —
+so its height is RISE·(index + popcount) exactly, with no floating-point
+identification of vertices anywhere, and the solid grows out of its crossing by
+the same law the tiles use. Reading 0 is always the lower surface, and both
+steppers wrap against each singularity's own count, so the one control drives a
+hexagon and a decagon at once.
+
+One thing had to be learned the hard way. The solid is anchored to the polygon
+`resolve.ts` already draws, and the obvious anchor — the outline corner of
+least index — is **wrong at k = 5**: the five directions sum to zero, so mask 0
+is not a corner of the decagon at all but its center, sharing its shadow with
+mask 31. That is the ghost of §5.8 turning up as a placement bug, and it put
+the whole solid half a decagon out of position until the anchor was derived
+instead: across one singularity each K_j takes exactly two values, so a
+corner's mask is K minus the componentwise minimum, which fixes origin and
+index together. A test now checks every corner's height against the K-tuple the
+tiling gives it.
+
+**And the readings are counted the way Jake counts them (same day).** He
+looked at the built control, said he could not see a real difference, and
+proposed the enumeration: "each gridline moved up and down a tiny amount so
+there are no singularities and count that as a route." That is the right
+enumeration and the control now uses it. Nudge the k lines apart, every pair
+crosses at a point of its own, and the rhomb there sits at the corner its
+crossing reads off — nothing assumed, the tiling measured off the perturbed
+grid.
+
+Then he pushed back on the criterion — "maybe that's not a valid criteria, I
+think all the faces of the n-skewb-topes are in play" — and he was right twice
+over. Measured:
+
+| | hexagon | octagon | decagon |
+|---|---|---|---|
+| one equal step each way | 2 | 8 | 32 |
+| a line allowed to stay put | 2 | 8 | 42 |
+| one line moved twice as far | 2 | 8 | **62** |
+| readings in total | 2 | 8 | 62 |
+
+So **every** reading is a real configuration of the lines; none is an
+abstraction over the grid. The equal single step was a restriction of mine, not
+a fact about the tiling, and it was restrictive in two ways at once — it forced
+every line to move, and forced the moves to be the same size. Two steps either
+way reaches all 62 at k ≤ 5, which is what `NUDGE_REACH` is set to, and the
+readings are now ordered by least disturbance so the readout can name the
+configuration that makes each one.
+
+And the faces: a reading is not a half of the solid's boundary but a surface
+cutting its interior, so each of the C(k,2) face directions turns up at **all**
+2^(k−2) of its positions — 6, 24, 80 distinct rhombs against the 6, 12, 20 on
+the hull. Every face of the dissection is in play, exactly as he said.
+
+**The ten rhombs inside the decagon (2026-09-24).** Jake: "I am interested in
+the decagon and the pattern of rhombi inside the decagon. All nearby non
+singularities should not be affected… The secret is jiggle the tiling without
+disturbing the actual fixed rhombs in the region." The jiggle is free to be as
+small as one likes, because **the pattern depends only on the ratios of the
+five displacements, not their size** — scale-invariant, tested. So nothing
+outside the decagon ever moves: every other crossing keeps its tile.
+
+That makes the space of jiggles projective, and worth picturing. Displacing all
+five lines by eⱼ = t·vⱼ only slides the concurrency sideways, which kills two
+dimensions, and scale kills a third — leaving a **sphere**. On it each of the
+ten triples draws a great circle where that triple stays concurrent. The
+chambers are the patterns, and there are 62 of them; the circles are the
+jiggles that leave a **hexagon** standing inside the decagon; the circles'
+crossings leave an **octagon**, or two hexagons. All four turn up in the
+census, which answers "sometimes an octagon or hexagon within the target
+decagon" — they are the walls of the arrangement, not curiosities.
+
+Up to the decagon's own symmetry — D10, order **20**, since a line has no sign
+and a turn of 36° carries the five directions to themselves — the 62 patterns
+are **six**:
+
+| orbit | size | turn | mirror | flips | Penrose |
+|---|---|---|---|---|---|
+| A | 2 | 5-fold | yes | 5 | — |
+| B | 10 | none | yes | 3 | — |
+| C | 10 | none | yes | 4 | **yes** |
+| D | 10 | none | yes | 3 | — |
+| E | 10 | none | yes | 3 | — |
+| F | 20 | none | **no** | 3 | — |
+
+Jake guessed they would all be mirror symmetric. Most are: **42 of 62**, but
+twenty are not, and the chiral ones are exactly one orbit — the only orbit of
+twenty, the only pattern with no symmetry at all. A is the star and the
+anti-star, the only two readings with a turn of their own and the only two with
+five flips.
+
+And his last claim is exactly right. **Holding the sum — staying Penrose —
+reaches precisely ten readings, and they are exactly orbit C**: one pattern in
+its ten placements, mirror-symmetric, four flips. That is the deca seed, and
+"always a rotation of the deca seed" is a theorem rather than an impression.
+Off Penrose all 62 appear, six patterns instead of one — the variety he
+remembered. Σγ = 0 is one more great circle on that sphere, and it passes
+through ten chambers, all the same shape.
+
+`tools/decagon-stats.mjs` prints the census; `tools/decagon.test.mjs` asserts
+it. Not built: the page does not yet restrict the reading control to orbit C
+when Σγ is an integer, so roof.html will happily show a resolution the grid
+could only reach by leaving Penrose.
+
+**Jake's jog, and what survives it (2026-09-24).** His test: sit on the sun —
+γ = 0 0 0 0 0, Σγ = 0 — hold the sum with γ₀ floating, jog the other four by a
+thousandth, and see what is left. He expected the decagon and the octagons to
+go and the hexagons to stay. **Nothing stays.** Over thirty trials each way,
+with the sum held and with the sum shaken too, the grid comes out completely
+regular — no decagon, no octagon, no hexagon. Measured with
+`tools/singularity-stats.mjs`; asserted in `tools/singularity.test.mjs`.
+
+The reason is exact, and it is the whole census law. Three lines are concurrent
+when their 3×3 system drops rank, and with five-fold directions the determinant
+reads sin72·(a + c) = sin144·b with a, b, c the rationals nⱼ − γⱼ. The ratio
+sin144/sin72 is **1/φ**, irrational, so both sides must vanish separately:
+
+> a triple meets **iff the odd family's offset is an integer and the other
+> two sum to an integer** — the odd family being the one outside the closest
+> pair, the middle of a consecutive run and the loner of a spread one.
+
+Two exact conditions per triple, which is why a random jog wipes everything
+out, and why the survivors that do turn up are the jogs that happened to leave
+an offset where it was. The rule was checked against the scan on every trial
+and every structured offset tried, and never disagreed. It also explains the
+structured moves at a glance: **move one offset and the decagon becomes an
+octagon** — the other four lines still meet — with exactly four hexagon
+families left; move two oppositely and two families survive; move two pairs by
+*different* amounts and nothing does; move all five together and the grid is
+regular.
+
+The census at the sun itself, counted in a DISK (a rectangle biases it badly),
+is one decagon and two orbits of five: every consecutive triple 2r − 2 inside
+radius r, every spread triple about r. **Linear in r, not square** — so each
+triple's hexagons lie along a single line through the origin, which is the
+column of singularities Jake reported seeing. The ten triples are two orbits of
+five under rotation alone, and adding the reflection merges nothing further:
+the mirror through family 0 sends 012 to 034, already in its orbit.
+
+Not built: the route control. A single family's 24 routes (above) would make a
+third stepper, and it is the one that reads as motion. Nor are the nudged lines
+themselves drawn, which is the thing that would show, rather than assert, where
+a reading comes from — the readout names the configuration, the picture does
+not yet.
 
 Not built. To check before starting: `Resolution` carries `families`, so the
 generator set is already there in the right order.

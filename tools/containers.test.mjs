@@ -1693,3 +1693,47 @@ test("a page that rebuilds in place must clear its panel hosts, not just its can
     assert.ok(left.children.length < 20 && right.children.length < 20,
               `canvases: ${left.children.length}, ${right.children.length}`);
 });
+
+test("the solids layer draws a zonohedron per singularity, and the reading moves it", () => {
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);          // all five lines through the origin
+    v.set({ grow: 1, fold: 1 });
+
+    const layer = v.pentagrid.stack.get("solids");
+    assert.ok(layer, "the solids layer is not registered");
+    assert.equal(layer.visible(), false, "it should start off");
+
+    // Capture the path, so a change of reading has to move real geometry.
+    let path = [];
+    let fills = 0;
+    layer.ctx.moveTo = (x, y) => { path.push(`M${x.toFixed(3)},${y.toFixed(3)}`); };
+    layer.ctx.lineTo = (x, y) => { path.push(`L${x.toFixed(3)},${y.toFixed(3)}`); };
+    layer.ctx.fill = () => { fills++; };
+
+    v.redraw();
+    assert.equal(fills, 0, "it drew while switched off");
+
+    v.set({ solids: true });
+    v.redraw();
+    const first = path.join("|");
+    // Every face is four points; 54 hexagons and a decagon are in view at Σγ = 0.
+    assert.ok(fills > 30, `only ${fills} faces drawn`);
+    assert.equal(path.length % 4, 0, "a face is four points");
+
+    for (const reading of [1, 2, 7]) {
+        path = [];
+        v.set({ reading });
+        v.redraw();
+        assert.notEqual(path.join("|"), first, `reading ${reading} drew the same thing`);
+    }
+
+    // The pair ghost adds exactly three more faces per singularity.
+    path = []; fills = 0;
+    v.set({ reading: 0, pairGhost: false });
+    v.redraw();
+    const plain = fills;
+    fills = 0;
+    v.set({ pairGhost: true });
+    v.redraw();
+    assert.ok(fills > plain, `pair drew nothing extra (${fills} vs ${plain})`);
+});

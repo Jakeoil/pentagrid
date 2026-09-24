@@ -11,11 +11,20 @@ import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("roof-view");
 if (host) {
-    const view = createGrowthView({ container: host, lift: true, ribbons: "quads" });
+    // The solids layer reports what it drew; the note under the viewport says it.
+    const note = document.getElementById("roof-solid-note");
+    const view = createGrowthView({
+        container: host, lift: true, ribbons: "quads",
+        onReadout: (text) => { if (note) note.textContent = text; },
+    });
     bindSliders(view, [
         { id: "roof-t", key: "grow", format: (v) => v.toFixed(2) },
         { id: "roof-fold", key: "fold", format: (v) => `${Math.round(v * 100)}%` },
         { id: "roof-band", key: "band", format: (v) => `${Math.round(v * 100)}%` },
+        // Both wrap per singularity against its own count — a hexagon has two
+        // readings, a decagon 62 — so one control drives every solid on screen.
+        { id: "roof-reading", key: "reading", format: (v) => `${v + 1}` },
+        { id: "roof-flip", key: "pick", format: (v) => `${v + 1}` },
     ]);
     bindToggles(view, [
         { id: "roof-edges", key: "boldEdges" },
@@ -24,7 +33,16 @@ if (host) {
         { id: "roof-nextgen", key: "nextgen" },
         { id: "roof-kites", key: "kites" },
         { id: "roof-offp", key: "offPenrose" },
+        { id: "roof-2kgons", key: "showResolutions" },
+        { id: "roof-solids", key: "solids" },
+        { id: "roof-pair", key: "pairGhost" },
     ]);
+
+    // Nothing draws the solids layer when it is off, so nothing clears its note.
+    const solids = document.getElementById("roof-solids") as HTMLInputElement | null;
+    solids?.addEventListener("change", () => {
+        if (!solids.checked && note) note.textContent = "";
+    });
 
     // Σγ shifts the de Bruijn index range, so here it also changes how many
     // levels the surface stands on — see the note under the viewport.

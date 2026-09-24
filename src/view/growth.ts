@@ -13,8 +13,9 @@
 import { createPentagrid } from "./pentagrid.js";
 import type { PentagridHandle } from "./pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
-import { resolveConcurrency } from "../geometry/resolve.js";
+import { resolveConcurrency, angleCode } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
+import { zonohedronOf, zonogonAnchor, popcount } from "../geometry/zonohedron.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
 import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
@@ -57,6 +58,12 @@ export interface GrowthConfig {
     shaded?: boolean;
     /** Right-drag to spin and tilt. Defaults on wherever there is a lift to see. */
     orbit?: boolean;
+    /**
+     * A line of text about the solid under the reading controls, pushed on each
+     * draw — the biggest singularity in view, its reading and the cell the pair
+     * control is turning. Empty when there is nothing to say.
+     */
+    onReadout?: (text: string) => void;
 }
 
 export interface GrowthState {
@@ -109,6 +116,29 @@ export interface GrowthState {
      * they do — so you can watch them separate and fill it.
      */
     showResolutions: boolean;
+    /**
+     * Draw the solid each singularity stands up into: the zonohedron of its k
+     * generators, one golden rhombic face per pair of lines. §5.0.
+     */
+    solids: boolean;
+    /**
+     * Which reading of that solid — which monotone surface, which rhombic tiling
+     * of the 2k-gon. Wrapped per singularity against its own count, 2 for a
+     * hexagon, 8 for an octagon, 62 for a decagon, so one control drives them
+     * all and 0 is always the lower surface.
+     */
+    reading: number;
+    /**
+     * Which of the current reading's flips the pair control is showing. Wrapped
+     * the same way: 3, 4 or 5 are available, and exactly 5 at the extremes.
+     */
+    pick: number;
+    /**
+     * Draw that flip's partner too — the same solid read the other way round.
+     * Only one cell's cap differs, so what appears is three rhombs against
+     * three, and the depth sort puts the raised cap in front.
+     */
+    pairGhost: boolean;
 }
 
 export interface GrowthHandle {
@@ -129,8 +159,12 @@ const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
+    solids: false, reading: 0, pick: 0, pairGhost: false,
     boldEdges: false,
 };
+
+/** What a rhombohedron's angle code means, at n = 5. PLAN §5.0. */
+const CELL_SHAPE: Record<string, string> = { "122": "oblate", "113": "acute" };
 
 /**
  * The same world-to-screen mapping the renderer uses, exposed so it can be
@@ -549,6 +583,164 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         ctx.lineWidth = 1.4;
                         ctx.stroke();
                     }
+                },
+            });
+            stack.add({
+                /**
+                 * The singularity as a solid.
+                 *
+                 * Over the 2k-gon, because it is the same space seen with its
+                 * missing dimension put back: the outline is the shadow, this is
+                 * what casts it. Faces are carried as generator MASKS, so a
+                 * corner's height is RISE*(m0 + popcount) exactly and the whole
+                 * thing grows out of the crossing by the law its tiles use.
+                 */
+                id: "solids", label: "Solids", z: 42, group: "Exploration",
+                visible: () => state.solids,
+                draw: ({ ctx, cx, cy }) => {
+                    const v = getView();
+                    const dirs = model.directions;
+                    const S = (p: Vec3) => toScreen(p, v, cx, cy);
+                    const gain = dirs.length / 2;
+                    const { grow, fold, reading, pick, pairGhost } = state;
+                    type Facet = {
+                        pts: { x: number; y: number }[]; d: number;
+                        fill: string; ghost: boolean;
+                    };
+                    const facets: Facet[] = [];
+                    let report = "";
+                    let widest = 0;
+
+                    for (const c of stacksOf(currentRhombs())) {
+                        const res = resolveConcurrency(model as Pentagrid, c);
+                        if (!res) continue;
+                        const z = zonohedronOf(dirs, res.families);
+
+                        // Anchored to the polygon the 2k-gons layer draws, so the
+                        // two cannot disagree.
+                        const anchor = zonogonAnchor(z, res.outline, res.outlineK, dirs);
+                        const [sx, sy] = anchor.origin;
+
+                        const count = z.readings.length;
+                        const bases = count
+                            ? z.readings[((reading % count) + count) % count]
+                            : z.lower;
+                        const flips = z.flips(bases);
+                        const turn = flips.length
+                            ? flips[((pick % flips.length) + flips.length) % flips.length]
+                            : null;
+
+                        const corner = (mask: number): Vec3 => {
+                            let x = sx, y = sy;
+                            for (let l = 0; l < z.k; l++) {
+                                if (!(mask >> l & 1)) continue;
+                                x += dirs[z.fams[l]][0];
+                                y += dirs[z.fams[l]][1];
+                            }
+                            return [
+                                (1 - grow) * gain * c.x + grow * x,
+                                (1 - grow) * gain * c.y + grow * y,
+                                fold * grow * RISE * (anchor.index + popcount(mask)),
+                            ];
+                        };
+                        const facet = (pair: number, masks: readonly number[], ghost: boolean) => {
+                            const w = masks.map(corner);
+                            const p = w.map(S);
+                            const [a, b] = z.pairs[pair];
+                            const u = [w[1][0] - w[0][0], w[1][1] - w[0][1], w[1][2] - w[0][2]];
+                            const t = [w[3][0] - w[0][0], w[3][1] - w[0][1], w[3][2] - w[0][2]];
+                            const nrm = [u[1] * t[2] - u[2] * t[1], u[2] * t[0] - u[0] * t[2],
+                                         u[0] * t[1] - u[1] * t[0]];
+                            const nl = Math.hypot(nrm[0], nrm[1], nrm[2]) || 1;
+                            const k = shaded
+                                ? 0.62 + 0.38 * Math.abs(
+                                    (nrm[0] * 0.35 - nrm[1] * 0.30 + nrm[2] * 0.89) / nl)
+                                : 1;
+                            facets.push({
+                                pts: p, ghost,
+                                d: p.reduce((s, q) => s + q.d, 0) / p.length,
+                                fill: tint(MIX[z.fams[a]][z.fams[b]], k),
+                            });
+                        };
+
+                        for (let p = 0; p < z.pairs.length; p++) {
+                            facet(p, z.face(bases, p), false);
+                        }
+                        // The partner reading differs in one cell's cap, so only
+                        // those three faces are worth drawing twice.
+                        if (pairGhost && turn) {
+                            for (const ch of turn.changed) facet(ch.pair, z.face(turn.to, ch.pair), true);
+                        }
+
+                        if (res.families.length > widest) {
+                            widest = res.families.length;
+                            const which = count ? ((reading % count) + count) % count : 0;
+                            // Say what made the reading, not just which one it is:
+                            // the nudge that pulls the lines apart into it.
+                            const e = count ? z.nudgeOf(which) : null;
+                            // "2↑ 3↓↓ 4·" — which way each line slid, and how far.
+                            const how = e === null
+                                ? "beyond the nudges enumerated"
+                                : z.fams.map((f, l) => {
+                                    const v = e[l];
+                                    const arrow = v === 0
+                                        ? "\u00b7"
+                                        : (v > 0 ? "\u2191" : "\u2193").repeat(Math.abs(v));
+                                    return `${f}${arrow}`;
+                                }).join(" ");
+                            const at = count
+                                ? `reading ${which + 1}/${count} · ${how}`
+                                : "lower surface";
+                            let pairText = "no flip";
+                            if (turn) {
+                                const fams = turn.cell.map((l) => z.fams[l]);
+                                const code = angleCode(model as Pentagrid, fams);
+                                const shape = CELL_SHAPE[code] ?? code;
+                                const at = ((pick % flips.length) + flips.length) % flips.length;
+                                pairText = `pair ${at + 1}/${flips.length} turns the ${shape}`
+                                    + ` cell K${code}`;
+                            }
+                            report = `${res.name} · ${at} · ${pairText}`;
+                        }
+                    }
+
+                    facets.sort((p, q) => q.d - p.d);          // far first
+                    for (const f of facets) {
+                        ctx.beginPath();
+                        f.pts.forEach((q, i) => {
+                            if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+                        });
+                        ctx.closePath();
+                        ctx.globalAlpha = f.ghost ? 0.42 : 1;
+                        ctx.fillStyle = f.fill;
+                        ctx.fill();
+                        ctx.globalAlpha = 1;
+                        ctx.lineWidth = f.ghost ? 1.6 : 1.1;
+                        ctx.setLineDash(f.ghost ? [4, 3] : []);
+                        ctx.strokeStyle = f.ghost
+                            ? "rgba(230, 57, 70, 0.95)" : "rgba(28, 34, 44, 0.55)";
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                    }
+                    // The partner cap is the near one half the time and the far
+                    // one the other half; depth alone would hide it whenever the
+                    // current reading is the upper. So its outline goes on top —
+                    // the fill still loses to whatever is in front of it, which
+                    // is the z priority the front band is supposed to have.
+                    ctx.setLineDash([4, 3]);
+                    ctx.lineWidth = 1.6;
+                    ctx.strokeStyle = "rgba(230, 57, 70, 0.95)";
+                    for (const f of facets) {
+                        if (!f.ghost) continue;
+                        ctx.beginPath();
+                        f.pts.forEach((q, i) => {
+                            if (i === 0) ctx.moveTo(q.x, q.y); else ctx.lineTo(q.x, q.y);
+                        });
+                        ctx.closePath();
+                        ctx.stroke();
+                    }
+                    ctx.setLineDash([]);
+                    config.onReadout?.(report);
                 },
             });
             stack.add({
