@@ -426,7 +426,7 @@ zone that would close it.
    which is Jake's "z priority to the front band" exactly: the band in front is
    the cap that is up. The flip is the phason flip.
 
-   **And one colour at a time is coarser and more legible.** A single family's
+   **And one color at a time is coarser and more legible.** A single family's
    ribbon crosses the other k−1 exactly once each, so its route through the
    2k-gon is the order in which it meets them — and **every** order occurs:
 
