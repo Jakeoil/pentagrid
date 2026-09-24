@@ -404,8 +404,12 @@ zone that would close it.
    | octagon | 4 | 6 | **8** | 2 | 2 |
    | decagon | 10 | 10 | **62** | 3, 4 or 5 | **112** |
 
-   All 62 were built from their cell-sets and checked to tile the decagon
-   exactly — ten distinct rhombs, area to the last digit. Jake had heard ten
+   The 62 were found geometrically, not from the algebra: start at the
+   zonohedron's true lower surface and walk every legal hexagon flip, where a
+   flip is legal only when a cell's whole cap is exposed. Every state is a
+   tiling by construction, the walk closes at 62, and the flip degrees below
+   come out of the same walk. (An area check is no check at all here — the ten
+   rhombs have the same ten areas wherever they sit.) Jake had heard ten
    for the decagon; ten is right but it counts the **cells**, not the
    readings. Going from the lowest surface to the highest flips all ten, one
    hexagon at a time, and there are 112 orders in which that can be done. By
@@ -421,6 +425,24 @@ zone that would close it.
    figure — it is one rhombohedron's three-rhomb cap against the other three,
    which is Jake's "z priority to the front band" exactly: the band in front is
    the cap that is up. The flip is the phason flip.
+
+   **And one colour at a time is coarser and more legible.** A single family's
+   ribbon crosses the other k−1 exactly once each, so its route through the
+   2k-gon is the order in which it meets them — and **every** order occurs:
+
+   | 2k-gon | routes for one family | of |
+   |---|---|---|
+   | hexagon | **2** | 2 |
+   | octagon | **6** | 6 |
+   | decagon | **24** | 24 |
+
+   (k−1)!, measured for all five families, which must agree and do. A route
+   does not pin the reading down — the 62 fall over family 0's 24 routes as
+   8, 8, then six 3s, twelve 2s and four 1s — so "step the green band through
+   its 24 routes" is a genuinely coarser control than "step the 62 readings",
+   and it is the one that reads as motion: one ribbon wandering while the rest
+   of the figure keeps still. The lower surface has every band crossing the
+   others at relative offsets +2, +1, +4, +3, and the upper the reverse.
 4. **The fifth case earns its own note**: at Γ = 0 the icosahedron stands at
    the origin with its poles on the vertical axis, and the flat page's ghost
    center is its top. That is the one place the roof explains something the
