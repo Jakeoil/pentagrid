@@ -449,6 +449,57 @@ sliver cases being those that miss it but stay close. Not derived.
 Until that is known, `by-your-bootstraps.html` will happily draw a five that does
 not tile, and says nothing about it. That is the next thing the page needs.
 
+### Big rhombs, small rhombs, and the rung between
+
+**Jake, 2026-09-25:** *How about big rhombs and small rhombs.*
+
+Big and small are **one whole generation apart**, φ², which is what
+`goThick(wheels, exp)` at exp 0 and 1 means and what
+[[penrose-mosaic-rhomb-groups]] settled. What the half-step ladder adds is the
+rung *between* them — the Robinson level the φ² P1 construction skips. There is
+a genuine rhomb at every φ step:
+
+    gen    0     0.5     1     1.5      2     2.5      3
+    edge  2.83   6.71   9.43  12.81  22.20  38.28  60.47
+
+**The low rungs give out, and not together.** At generation 0 the thick rhomb is
+a **square**, 90° all round. At generation ½ the thin one has collapsed to a
+**straight line**, 180° and 0°, with no interior. So the thin's floor is a half
+rung above the thick's — the same lopsidedness the wheel ladder has going down,
+and worth knowing before trusting any figure built below generation 1.
+
+### The rhomb angles are the discrete ones, measured on the tiles
+
+Carried far enough the angles settle, and to six decimals they are
+
+    thick acute  →  69.287628°  =  2 × 34.643814°
+    thin  acute  →  37.724519°  =  180° − 2 × 71.137740°
+
+    Euclidean P3 would be 72° and 36°.
+
+    rung    thick acute    thin acute
+      6     69.336242      37.807728
+     10     69.288662      37.726290
+     14     69.287650      37.724557
+     20     69.287628      37.724520
+
+34.643814° and 71.137740° are exactly this construction's own limiting
+directions, from the E2 work in this same corner. Both rhomb angles are fixed by
+those two — as they must be, since a rhomb's edges are wheel vectors — but this
+is the first time it has been measured on the **tiles** rather than on the
+directions.
+
+So [[discrete-p1-own-geometry]]'s central claim is confirmed from a second
+direction: the quadrille is not a rational approximant creeping toward Penrose.
+Its rhombs converge on their own angles and stay there, and the miss is not
+small — nearly 3° on the thick and nearly 2° on the thin.
+
+Tested at rung 20, with the Euclidean values asserted *not* to match, so the
+claim cannot quietly rot into "close enough to 72".
+
+The page's rhomb overlay has a **rhomb rung** slider offsetting it from the tiles
+it sits on, in halves, so big, small and the level between are all visible.
+
 ### What is constructed, and what is still borrowed
 
 **Constructed:** P, off the pentaflake. The pentagon, as D at stride 2. The

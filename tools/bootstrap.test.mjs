@@ -20,6 +20,18 @@ import {
     BOAT, DIAMOND, PENTA, STAR, THICK, THIN, anchorFor, closes, pentagon,
     rhombus, starOutline, turn, vertices,
 } from "../dist/bootstrap/walk.js";
+
+/** The smallest interior angle of a quadrilateral, in degrees. */
+const acuteOf = (q) => {
+    const a = [];
+    for (let i = 0; i < 4; i++) {
+        const u = [q[(i + 3) % 4][0] - q[i][0], q[(i + 3) % 4][1] - q[i][1]];
+        const v = [q[(i + 1) % 4][0] - q[i][0], q[(i + 1) % 4][1] - q[i][1]];
+        a.push(Math.acos((u[0] * v[0] + u[1] * v[1])
+            / (Math.hypot(...u) * Math.hypot(...v))) * 180 / Math.PI);
+    }
+    return Math.min(...a);
+};
 import { pWheelFromFlake, pentaflake, sharedEdge } from "../dist/bootstrap/flake.js";
 import { starPolygon, starTips } from "../dist/bootstrap/star.js";
 import { WALK_OF, expand, outlineOf } from "../dist/bootstrap/patch.js";
@@ -438,6 +450,55 @@ test("the two phi-squared wheels differ only by the alternating term", () => {
     const gap = inflate(d).map((v, i) => [v[0] - t[i][0], v[1] - t[i][1]]);
     assert.ok(gap.every(([x]) => x === 0), "the gap is in y alone");
     assert.deepEqual(gap.map(([, y]) => y), [-1, 1, -1, 1, -1, 1, -1, 1, -1, 1]);
+});
+
+test("the rhomb angles converge on the DISCRETE limits, not 72 and 36", () => {
+    // The quadrille is not a rational approximant creeping toward Penrose. Its
+    // rhombs settle on angles fixed by its own two limiting directions,
+    // 34.643814 and 71.137740, and stay there:
+    //
+    //     thick acute -> 2 x 34.643814          = 69.287628
+    //     thin  acute -> 180 - 2 x 71.137740    = 37.724519
+    //
+    // Measured on the tiles here; the E2 work measured the directions.
+    const DIR1 = 34.643814, DIR2 = 71.137740;
+    const w = wheelsAt(PENTA_UP, 20);
+    const inflated = inflate(w.d);
+    const thick = acuteOf(rhombus(THICK, w.t, inflated, 0, "t"));
+    const thin = acuteOf(rhombus(THIN, w.t, inflated, 0, "t"));
+    assert.ok(Math.abs(thick - 2 * DIR1) < 1e-5, `thick acute ${thick}`);
+    assert.ok(Math.abs(thin - (180 - 2 * DIR2)) < 1e-5, `thin acute ${thin}`);
+    assert.ok(Math.abs(thick - 72) > 2, "thick should NOT be the Euclidean 72");
+    assert.ok(Math.abs(thin - 36) > 1, "thin should NOT be the Euclidean 36");
+});
+
+test("the rhomb ladder takes half rungs too", () => {
+    // A rhomb at every phi step, so the level between big and small -- the one
+    // the phi^2 P1 construction skips -- is generable.
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    const edge = (g) => {
+        const w = wheelsAt(PENTA_UP, g);
+        const q = rhombus(THICK, w.t, inflate(w.d), 0, "t");
+        return Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
+    };
+    for (let g = 6; g <= 12; g += 0.5) {
+        const r = edge(g + 0.5) / edge(g);
+        assert.ok(Math.abs(r - PHI) < 0.02, `rung ${g} to ${g + 0.5}: x${r}`);
+    }
+});
+
+test("the low rungs degenerate, and not together", () => {
+    // gen 0's thick is a square; gen 1/2's thin has collapsed to a line. So the
+    // thin's floor sits a half rung above the thick's -- the same lopsidedness
+    // the wheel ladder has going down.
+    const at = (spec, g) => {
+        const w = wheelsAt(PENTA_UP, g);
+        return acuteOf(rhombus(spec, w.t, inflate(w.d), 0, "t"));
+    };
+    assert.ok(Math.abs(at(THICK, 0) - 90) < 1e-9, `gen 0 thick should be a square`);
+    assert.ok(at(THIN, 0.5) < 1e-9, `gen 0.5 thin should be degenerate`);
+    // and both are healthy a rung or two up
+    assert.ok(at(THICK, 2) > 50 && at(THIN, 2) > 20);
 });
 
 test("large rhombs are the small ones one generation up", () => {

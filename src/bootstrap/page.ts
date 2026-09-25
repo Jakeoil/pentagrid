@@ -31,6 +31,8 @@ let seed: SeedType = "Sun";
 let gen = 2;
 let spelling: Spelling = "t";
 let showRhombs = false;
+/** Half-generation offset of the rhomb overlay from the tiles it sits on. */
+let rhombOffset = 0;
 let dragging = -1;
 /** Which rung the input figure shows. The five points themselves are rung 1. */
 let rung = 1;
@@ -299,7 +301,10 @@ function drawTiling(): void {
     }
 
     if (showRhombs) {
-        const { d, t } = wheelsAt(points, gen);
+        // Big and small rhombs are one WHOLE generation apart, phi^2, and the
+        // ladder reaches the half rungs between them -- the level the phi^2 P1
+        // construction skips.
+        const { d, t } = wheelsAt(points, gen + rhombOffset);
         const inflated = inflate(d);
         ctx.strokeStyle = "rgba(20,20,30,0.75)";
         ctx.lineWidth = Math.max(0.7, k * 0.05);
@@ -313,7 +318,8 @@ function drawTiling(): void {
         }
     }
 
-    note(`${tiles.length} tiles · generation ${gen} · ${seed}`);
+    note(`${tiles.length} tiles · generation ${gen} · ${seed}`
+        + (showRhombs ? ` · rhombs at ${gen + rhombOffset}` : ""));
 }
 
 const note = (s: string): void => {
@@ -407,6 +413,15 @@ if (rhombBox) rhombBox.addEventListener("change", () => {
 });
 
 const SPELLINGS: readonly Spelling[] = ["t", "inflated", "legacy"];
+const rhombRungPick = byId("boot-rhomb-rung") as HTMLInputElement | null;
+const rhombRungOut = byId("boot-rhomb-rung-value");
+if (rhombRungPick) rhombRungPick.addEventListener("input", () => {
+    rhombOffset = parseInt(rhombRungPick.value, 10) / 2;    // the slider counts halves
+    if (rhombRungOut) rhombRungOut.textContent =
+        rhombOffset > 0 ? `+${rhombOffset}` : String(rhombOffset);
+    drawTiling();
+});
+
 const spellPick = byId("boot-spelling") as HTMLSelectElement | null;
 if (spellPick) spellPick.addEventListener("change", () => {
     const v = spellPick.value as Spelling;

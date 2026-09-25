@@ -127,6 +127,10 @@
             inflation, &phi;&sup2; &mdash; two deflations of the rhomb
             substitution. Tile counts go as &phi;&#8308;.</p>
             <p><label><input type="checkbox" id="boot-rhombs"> rhomb overlay</label><br>
+            <label><span class="cap">rhomb rung
+                <span class="val" id="boot-rhomb-rung-value">0</span></span><br>
+                <input type="range" id="boot-rhomb-rung" min="-2" max="2" step="1" value="0"
+                       style="width: 200px"></label><br>
             <label>spelled in <select id="boot-spelling">
                 <option value="t">T</option>
                 <option value="inflated">D + P</option>
@@ -272,6 +276,36 @@
     patch, and a coin toss (60/60) on a Star patch. The information is not local to
     the diamond; it comes from whichever parent placed it. Whether a local rule
     exists at all is open.</p>
+
+    <h3>Big rhombs, small rhombs, and the rung between</h3>
+
+    <p>Big and small rhombs are <b>one whole generation apart</b> &mdash; &phi;&sup2;,
+    two Penrose deflations &mdash; which is what <code>goThick(wheels, exp)</code> at
+    <i>exp</i> 0 and 1 means. With the ladder in halves, the rung <i>between</i> them
+    is reachable too: the Robinson level the &phi;&sup2; construction skips. There is
+    a genuine rhomb at every &phi; step. The <b>rhomb rung</b> slider above offsets
+    the overlay from the tiles it sits on.</p>
+
+    <p>The low rungs give out, and not together. At generation 0 the thick rhomb is a
+    <b>square</b>; at generation &frac12; the thin one has collapsed to a
+    <b>straight line</b>, 180&deg; and 0&deg;, with no interior at all. So the thin's
+    floor sits a half rung above the thick's &mdash; the same lopsidedness the wheel
+    ladder has on the way down.</p>
+
+    <p><b>And the angles do not converge on Penrose's.</b> Carried out far enough they
+    settle, to six decimals, on</p>
+
+    <pre>  thick acute  &rarr;  69.287628&deg;   =  2 &times; 34.643814&deg;
+  thin  acute  &rarr;  37.724519&deg;   =  180&deg; &minus; 2 &times; 71.137740&deg;
+
+  Euclidean P3 would be 72&deg; and 36&deg;.</pre>
+
+    <p>34.643814&deg; and 71.137740&deg; are exactly this construction's own limiting
+    directions. Both rhomb angles are fixed by those two, as they must be since a
+    rhomb's edges are wheel vectors &mdash; but it is the first time that has been
+    measured on the <i>tiles</i> rather than on the directions. The quadrille is not
+    a rational approximant creeping toward Penrose. Its rhombs settle on their own
+    angles and stay there.</p>
 
     <h3>What is constructed, and what is still borrowed</h3>
 
