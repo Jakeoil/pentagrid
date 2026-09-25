@@ -13,8 +13,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    PENTA_UP, comb, deflate, eWheel, inflate, ladderTo, m10, pWheel, sWheel,
-    stride, tWheel, wheelFromPoints, wheelsAt,
+    PENTA_UP, comb, deflate, eWheel, halfDown, halfUp, inflate, ladderTo, m10,
+    pWheel, pair, sWheel, stride, tWheel, wheelFromPoints, wheelsAt,
 } from "../dist/bootstrap/wheel.js";
 import {
     BOAT, DIAMOND, PENTA, STAR, THICK, THIN, anchorFor, closes, pentagon,
@@ -93,6 +93,69 @@ test("the stride family is one operator", () => {
     // and 1 and 3 are exact inverses, in both orders
     assert.ok(eq(inflate(deflate(d)), d));
     assert.ok(eq(deflate(inflate(d)), d));
+});
+
+test("the two-term family is 2cos(36k)", () => {
+    // pair(w, k) scales by 2cos(36k): phi, 1/phi, -1/phi, -phi for k = 1..4.
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    let far = wheelFromPoints(PENTA_UP);
+    for (let i = 0; i < 10; i++) far = inflate(far);
+    for (const [k, want] of [[1, PHI], [2, 1 / PHI], [3, -1 / PHI], [4, -PHI]]) {
+        const got = Math.hypot(...pair(far, k)[1]) / Math.hypot(...far[1]);
+        assert.ok(Math.abs(got - Math.abs(want)) < 1e-3,
+            `pair k=${k}: ${got} against ${Math.abs(want)}`);
+    }
+    assert.deepEqual(halfUp(far).map((v) => [...v]), pair(far, 1).map((v) => [...v]));
+    assert.deepEqual(halfDown(far).map((v) => [...v]), pair(far, 2).map((v) => [...v]));
+});
+
+test("half steps do not compose, which is why rungs anchor on the seed", () => {
+    const d = wheelFromPoints(PENTA_UP);
+    // If these were true the ladder could be walked by half steps. They are not:
+    // both miss by My's lambda = -1 term, and the error would accumulate.
+    assert.ok(!eq(halfDown(halfUp(d)), d));
+    assert.ok(!eq(halfUp(halfUp(d)), inflate(d)));
+    // the gap is exactly the alternating term
+    const gap = halfUp(halfUp(d)).map((v, i) => [v[0] - inflate(d)[i][0], v[1] - inflate(d)[i][1]]);
+    assert.ok(gap.every(([x]) => x === 0), "the gap is in y alone");
+    assert.deepEqual(gap.map(([, y]) => y), [1, -1, 1, -1, 1, -1, 1, -1, 1, -1]);
+});
+
+test("the ladder takes half rungs, and the half rung above D is P", () => {
+    for (const pts of [PENTA_UP, [[-1, -3], [3, -1], [2, 3], [-2, 3], [-3, -1]]])
+        for (const g of [0, 1, 2, 3]) {
+            // D at generation g + 1/2 is exactly the P wheel at generation g
+            assert.ok(eq(wheelsAt(pts, g + 0.5).d, wheelsAt(pts, g).p),
+                `generation ${g}: the half rung is not P`);
+        }
+});
+
+test("whole rungs are unchanged by taking halves", () => {
+    // The half-step index must not move any generation that already existed.
+    for (let g = 0; g <= 5; g++) {
+        const viaHalves = wheelsAt(PENTA_UP, g);
+        let d = wheelFromPoints(PENTA_UP);
+        for (let i = 1; i < g; i++) d = inflate(d);
+        for (let i = 1; i > g; i--) d = deflate(d);
+        assert.ok(eq(viaHalves.d, d), `generation ${g} moved`);
+    }
+});
+
+test("the ladder runs negative, exactly, into psi land", () => {
+    // Downward it reaches a floor and changes character rather than mirroring
+    // the way up. Generation 1/2 is the last rung every coordinate stays
+    // positive on; below, one seed collapses onto the origin and then the signs
+    // alternate. All of it exact integer arithmetic.
+    const half = wheelsAt(PENTA_UP, 0.5).d;
+    assert.ok(half.slice(0, 3).every(([x, y]) => x >= 0 && y <= 0),
+        `generation 1/2 should still read as a figure: ${show(half.slice(0, 3))}`);
+    const hinge = wheelsAt(PENTA_UP, -0.5).d;
+    assert.ok(hinge.slice(0, 3).some(([x, y]) => x === 0 && y === 0),
+        `generation -1/2 should have a seed on the origin: ${show(hinge.slice(0, 3))}`);
+    for (const g of [-3, -2.5, -2, -1.5, -1])
+        for (const v of wheelsAt(PENTA_UP, g).d)
+            assert.ok(Number.isInteger(v[0]) && Number.isInteger(v[1]),
+                `generation ${g} left the lattice`);
 });
 
 test("T = S + D, and the next D = D + P", () => {

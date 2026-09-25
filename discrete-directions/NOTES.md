@@ -24,6 +24,53 @@ The program is `src/bootstrap/`, the page is `by-your-bootstraps.html`, and
 `tools/bootstrap.test.mjs` checks every claim below against penrose-mosaic,
 which is the reference and is not imported.
 
+### The ladder in half steps, and below zero
+
+**Jake, 2026-09-25:** *Is your wheel in half steps? A generation corresponds to
+two deflations in the penrose sense.* It was not — `ladderTo` stepped whole
+generations — but the half step was already there, sideways.
+
+`pair(w, k) = W[t−k] + W[t+k]` completes the operator family: it is
+**2cos(36k°)**, giving φ, φ⁻¹, −φ⁻¹, −φ for k = 1..4, alongside the three-term
+`stride(w, k) = 1 + 2cos(36k°)` giving φ², φ, φ⁻², −φ⁻¹. Eight operators, all
+integer, covering ±φ^{±1} and ±φ^{±2}.
+
+`wheelsAt(pts, gen)` now takes halves and negatives, on E2's convention
+(`src/discrete/wheels.ts`, `wheelAt(name, halves)`) so the two corners agree:
+
+    gen   D seeds (tenths 0,1,2)       |D[1]|
+    -1    (0,1)   (1,-1)   (0,-1)       1.414
+   -0.5   (0,-2)  (0,0)    (1,0)        0.000   a seed on the origin
+      0   (0,-1)  (1,-1)   (1,-1)       1.414
+    0.5   (0,-2)  (1,-2)   (2,0)        2.236   last rung all-positive
+      1   (0,-3)  (2,-3)   (3,-1)       3.606   the five points
+    1.5   (0,-6)  (3,-4)   (5,-2)       5.000   = the P wheel at generation 1
+      2   (0,-9)  (5,-7)   (8,-3)       8.602
+    2.5   (0,-14) (8,-12) (13,-4)      14.422
+
+**The half rung above D is P, exactly.** So the four wheels were always three
+consecutive half rungs of one ladder — D, P/S, T at φ⁰, φ¹, φ² — and naming them
+separately is what hid it. Verified at four generations and on an asymmetric five.
+
+**Rungs anchor on the seed, never on each other.** Whole rungs by
+inflate/deflate from the seed, half rungs by one `halfUp` from the whole rung
+below. Composing half steps is wrong and the test says so: `halfUp` twice is not
+`inflate`, and `halfDown(halfUp(w))` is not the identity. Both miss by the
+alternating (0, ±1) that is My's λ = −1 — the same gap that makes T and the next
+generation's D two different integer wheels on one rung. Walking the ladder by
+half steps would pile that error up.
+
+Downward it is two-sided but **not symmetric**, which the E2 notes already had
+for the P wheel and which now holds on D: generation ½ is the last rung that
+reads as a figure, at −½ a seed collapses onto the origin — the deflation running
+out of wheel, not a numerical accident — and below that ψ = −1/φ takes over and
+the pentagon turns inside out. Exact on the lattice the whole way down; it just
+stops being a pentagon.
+
+The input figure on the page has a rung slider stepping in halves from −3 to 5.
+Handles appear only at rung 1, since that is the rung the five points live on and
+a derived pentagon has nothing to write back to.
+
 ### Step 1 is the pentaflake, and P is measured off it
 
 **Jake, 2026-09-24, correcting a first pass that went too fast:** *The first step

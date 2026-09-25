@@ -7,6 +7,7 @@
 
 import { PENTA_UP, eWheel, inflate, ladderTo, m10, wheelFromPoints, wheelsAt,
          type Pt, type Wheel } from "./wheel.js";
+import { pentagon } from "./walk.js";
 import { THICK, THIN, rhombus, type Spelling } from "./walk.js";
 import { expand, isSeedType, outlineOf, type Placement, type SeedType } from "./patch.js";
 import { pentaflake, sharedEdge } from "./flake.js";
@@ -31,6 +32,8 @@ let gen = 2;
 let spelling: Spelling = "t";
 let showRhombs = false;
 let dragging = -1;
+/** Which rung the input figure shows. The five points themselves are rung 1. */
+let rung = 1;
 
 /** Square graph paper, matching the index figure. */
 function paper(ctx: CanvasRenderingContext2D, w: number, h: number,
@@ -73,32 +76,53 @@ function drawInput(): void {
     const cx = w / 2, cy = h / 2;
     paper(ctx, w, h, cx, cy, CELL);
 
-    // the pentagon the five points close, and the edge wheel it generates
     const e = eWheel(wheelFromPoints(points));
+
+    // The pentagon at the chosen rung, scaled so it fills the same frame however
+    // far up or down the ladder it sits. At rung 1 this IS the five points.
+    const shown = pentagon(wheelsAt(points, rung).d, 0);
+    const reach = Math.max(1, ...shown.map((v) => Math.hypot(v[0], v[1])));
+    const k = rung === 1 ? CELL : (Math.min(w, h) * 0.34) / reach;
+
+    if (rung !== 1) {
+        // the five as a faint reference, so the ladder step is visible
+        ctx.strokeStyle = "rgba(230,57,70,0.22)";
+        ctx.lineWidth = 1;
+        poly(ctx, points, cx, cy, CELL);
+        ctx.stroke();
+    }
     ctx.strokeStyle = HOT;
     ctx.lineWidth = 2;
-    poly(ctx, points, cx, cy, CELL);
+    poly(ctx, shown, cx, cy, k);
     ctx.stroke();
 
-    // spokes to each point, so the ordering is visible
+    // spokes to each corner, so the ordering is visible
     ctx.strokeStyle = "rgba(230,57,70,0.35)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (const p of points) { ctx.moveTo(cx, cy); ctx.lineTo(cx + p[0] * CELL, cy + p[1] * CELL); }
+    for (const p of shown) { ctx.moveTo(cx, cy); ctx.lineTo(cx + p[0] * k, cy + p[1] * k); }
     ctx.stroke();
 
-    // the handles, numbered in order
+    // Handles only at rung 1: that is the rung the points live on, and dragging
+    // a derived pentagon would have nothing to write back to.
     ctx.font = "600 11px ui-monospace, Menlo, monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    points.forEach((p, i) => {
-        const x = cx + p[0] * CELL, y = cy + p[1] * CELL;
-        ctx.fillStyle = i === dragging ? INK : HOT;
-        ctx.beginPath();
-        ctx.arc(x, y, 8, 0, TAU);
-        ctx.fill();
-        ctx.fillStyle = "#fff";
-        ctx.fillText(String(i), x, y + 0.5);
+    shown.forEach((p, i) => {
+        const x = cx + p[0] * k, y = cy + p[1] * k;
+        if (rung === 1) {
+            ctx.fillStyle = i === dragging ? INK : HOT;
+            ctx.beginPath();
+            ctx.arc(x, y, 8, 0, TAU);
+            ctx.fill();
+            ctx.fillStyle = "#fff";
+            ctx.fillText(String(i), x, y + 0.5);
+        } else {
+            ctx.fillStyle = HOT;
+            ctx.beginPath();
+            ctx.arc(x, y, 3.5, 0, TAU);
+            ctx.fill();
+        }
     });
 
     // the origin
@@ -108,6 +132,15 @@ function drawInput(): void {
     ctx.fill();
 
     report(e);
+
+    const rungOut = byId("boot-rung-read");
+    if (rungOut) {
+        const d = wheelsAt(points, rung).d;
+        rungOut.innerHTML = `<b>pentagon at generation ${rung}</b>`
+            + `<span>${d.slice(0, 3).map((v) => `(${v[0]}, ${v[1]})`).join("  ")}</span>`
+            + (rung === 1 ? "" : "<b>the five, for reference</b>"
+                + `<span>${points.map((v) => `(${v[0]}, ${v[1]})`).join("  ")}</span>`);
+    }
 }
 
 /** Lattice coordinates under the pointer. */
@@ -319,6 +352,7 @@ const redraw = (): void => { drawInput(); drawFlake(); drawTiling(); };
 
 if (inputCanvas) {
     inputCanvas.addEventListener("pointerdown", (ev) => {
+        if (rung !== 1) return;          // only the five themselves are editable
         const at = pick(ev);
         let best = -1, bestD = 2.5;
         points.forEach((p, i) => {
@@ -339,6 +373,15 @@ if (inputCanvas) {
     inputCanvas.addEventListener("pointerup", drop);
     inputCanvas.addEventListener("pointercancel", drop);
 }
+
+const rungPick = byId("boot-rung") as HTMLInputElement | null;
+const rungOutValue = byId("boot-rung-value");
+if (rungPick) rungPick.addEventListener("input", () => {
+    // the slider counts HALF generations, so that phi steps are reachable
+    rung = parseInt(rungPick.value, 10) / 2;
+    if (rungOutValue) rungOutValue.textContent = String(rung);
+    drawInput();
+});
 
 const genPick = byId("boot-gen") as HTMLInputElement | null;
 const genOut = byId("boot-gen-value");
@@ -378,5 +421,6 @@ if (resetBtn) resetBtn.addEventListener("click", () => {
 });
 
 if (genOut) genOut.textContent = String(gen);
+if (rungOutValue) rungOutValue.textContent = String(rung);
 redraw();
 console.log(`by-your-bootstraps — build id ${BUILD_ID}`);

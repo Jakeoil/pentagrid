@@ -91,8 +91,38 @@ export function comb(w: Wheel, offsets: readonly number[]): Wheel {
  */
 export const stride = (w: Wheel, k: number): Wheel => comb(w, [-k, 0, k]);
 
-/** One generation: ×φ². */
+/** One generation: ×φ². Two Penrose deflations. */
 export const inflate = (w: Wheel): Wheel => stride(w, 1);
+
+/**
+ * The two-term members of the same family: `W[t−k] + W[t+k]` is `2cos(36k°)`.
+ *
+ *     k = 1    2cos36°  =  φ         half a generation up
+ *     k = 2    2cos72°  =  φ⁻¹       half a generation down
+ *     k = 3    2cos108° = −φ⁻¹
+ *     k = 4    2cos144° = −φ
+ *
+ * so the stride picks the scale here exactly as it does for the three-term sums,
+ * and between them the eight operators cover ±φ^{±1} and ±φ^{±2}.
+ */
+export const pair = (w: Wheel, k: number): Wheel => comb(w, [-k, k]);
+
+/** Half a generation up: ×φ. */
+export const halfUp = (w: Wheel): Wheel => pair(w, 1);
+
+/**
+ * Half a generation down: ×φ⁻¹.
+ *
+ * NOT the inverse of `halfUp` — `halfDown(halfUp(w)) ≠ w`, and
+ * `halfUp(halfUp(w)) ≠ inflate(w)` either. Both miss by My's λ = −1 term, the
+ * alternating (0, ±1) that separates T from the next generation's D. A φ step is
+ * exact in x and exact-up-to-that-parity in y, which is the structural reason
+ * the wheels are stored at φ² — it is where the two coordinates agree.
+ *
+ * So a half-step ladder cannot be built by composing half steps; the gap would
+ * compound. `wheelsAt` anchors every rung on the seed instead.
+ */
+export const halfDown = (w: Wheel): Wheel => pair(w, 2);
 
 /** Its exact inverse: ×φ⁻². `inflate(deflate(w)) === w` on every wheel. */
 export const deflate = (w: Wheel): Wheel => stride(w, 3);
@@ -138,11 +168,32 @@ export interface WheelSet {
 /** The seed sits at generation 1, matching penrose-mosaic and measurements.html. */
 export const SEED_GENERATION = 1;
 
-/** Every wheel at generation `gen`, from the five points and nothing else. */
+/**
+ * Every wheel at generation `gen`, from the five points and nothing else.
+ *
+ * `gen` counts P1 generations, the seed at 1, and it may be a **half** and may
+ * be **negative**. Halves are rounded to the nearest 0.5; anything finer has no
+ * meaning, since φ is the smallest step the lattice can take exactly.
+ *
+ * A whole rung is reached by inflating or deflating from the seed, and a half
+ * rung is one `halfUp` from the whole rung below it. Never by composing half
+ * steps: `halfUp` twice is not one generation, and the error would accumulate.
+ *
+ * Downward the ladder is two-sided but not symmetric. Generation ½ is the last
+ * rung that reads as a figure — every coordinate still positive — and at
+ * generation −1 one seed collapses onto the origin, which is the deflation
+ * running out of wheel rather than a numerical accident. Below that the
+ * conjugate root ψ = −1/φ takes over, coordinates alternate in sign and the
+ * wheel turns inside out. It stays arithmetically exact the whole way; it just
+ * stops being a pentagon.
+ */
 export function wheelsAt(pts: readonly Pt[], gen: number): WheelSet {
+    const halves = Math.round(gen * 2);
+    const whole = Math.floor(halves / 2);
     let d = wheelFromPoints(pts);
-    for (let g = SEED_GENERATION; g < gen; g++) d = inflate(d);
-    for (let g = SEED_GENERATION; g > gen; g--) d = deflate(d);
+    for (let g = SEED_GENERATION; g < whole; g++) d = inflate(d);
+    for (let g = SEED_GENERATION; g > whole; g--) d = deflate(d);
+    if (halves % 2 !== 0) d = halfUp(d);
     return { d, p: pWheel(d), s: sWheel(d), t: tWheel(d), e: eWheel(d) };
 }
 
