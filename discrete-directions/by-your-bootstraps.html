@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>By your bootstraps</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="../site.css">
+    <style>
+        .pair { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin: 18px 0 8px; }
+        .pair figure { margin: 0; }
+        .pair canvas { border: 1px solid var(--rule); border-radius: 6px; display: block; touch-action: none; }
+        .pair figcaption { font-size: 12px; color: var(--ink-faint); text-align: center; margin-top: 6px; max-width: 340px; }
+        .readouts { font-family: ui-monospace, Menlo, monospace; font-size: 12px; line-height: 1.8; }
+        .readouts b { font-family: inherit; color: var(--ink-faint); font-weight: 400; display: block; margin-top: 5px; }
+        .pair select, .pair button { font: inherit; font-size: 12px; padding: 2px 5px; }
+        .k { font-family: ui-monospace, Menlo, monospace; }
+        table.ops { border-collapse: collapse; font-size: 13px; margin: 14px 0; }
+        table.ops td, table.ops th { border-bottom: 1px solid var(--rule); padding: 5px 14px 5px 0; text-align: left; }
+        table.ops code { font-size: 12px; }
+    </style>
+</head>
+<body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="../" draggable="false">Home</a>
+</nav>
+<div class="wrap">
+    <h1>By your bootstraps</h1>
+    <h2>Generate a whole Penrose tiling from a single tile</h2>
+
+    <p><a href="https://github.com/Jakeoil/penrose-mosaic">penrose-mosaic</a> holds
+    four wheels and eight tile outlines, every one of them found by hand on quadrille
+    paper in the 1990s and typed in as coordinates. This page keeps <b>five ordered
+    lattice points</b> &mdash; the corners of one pentagon &mdash; and derives the
+    rest. Drag a corner and the tiling follows, because nothing downstream holds a
+    coordinate of its own.</p>
+
+    <p>The five points are the pentagon <code>pentaUp</code>, and they are
+    <b>ordered</b>. That is the whole lever: the order <i>is</i> the rotation
+    operator, so a rotation is an index shift and nothing else. There is no
+    reflection anywhere in the derivation &mdash; no <code>vr</code>, no
+    <code>hr</code>, no table of stored rotations &mdash; which is what lets the
+    five points be asymmetric. Move one and the figure stops being mirror
+    symmetric; everything still works.</p>
+
+    <h3>Step 1 &mdash; the pentaflake, and measuring P off it</h3>
+
+    <p>The wheels are not given. They are <b>measured off a figure you build</b>,
+    and this is the figure. Jake's construction:</p>
+
+    <blockquote class="hint">Copy 1&nbsp;2&nbsp;3&nbsp;4&nbsp;5. Rotate the copy
+    180&deg; through O. Put it so that edge <b>12</b> touches <b>21</b>; the next
+    copy so <b>23</b> touches <b>32</b>, then <b>34</b>&ndash;<b>43</b>,
+    <b>45</b>&ndash;<b>54</b>, and <b>51</b> touches <b>15</b>. That is a
+    pentaflake. All the copies are yellow. The first value of your P wheel (gen 1)
+    will be O to O<sub>1</sub>, O to O<sub>2</sub>, etc.</blockquote>
+
+    <p>Rotating 180&deg; through O sends corner <i>j</i> to &minus;pts[<i>j</i>].
+    For the copy's edge (<i>k</i>+1&nbsp;&rarr;&nbsp;<i>k</i>) to land on the
+    original's edge (<i>k</i>&nbsp;&rarr;&nbsp;<i>k</i>+1), the copy must move by
+    <b>T</b>, and <i>both</i> corners give the same T &mdash; which is what makes
+    the edges <i>coincide</i> rather than merely abut:</p>
+
+    <pre>  &minus;pts[k+1] + T = pts[k]        and        &minus;pts[k] + T = pts[k+1]
+
+  so   O_k  =  pts[k] + pts[k+1]</pre>
+
+    <p><b>A P vector is the two corners of the shared edge, added.</b> That is the
+    measurement, and it needs no wheel, no formula and no reflection &mdash; only
+    that the list is ordered.</p>
+
+    <div class="pair">
+        <figure>
+            <canvas id="boot-flake" width="380" height="380"></canvas>
+            <figcaption>the pentaflake &mdash; the middle pentagon, the five
+            180&deg; copies, the <b class="k" style="color:#e63946">shared
+            edges</b>, and the dashed spokes O&nbsp;&rarr;&nbsp;O<sub>k</sub> that
+            are the P wheel</figcaption>
+        </figure>
+        <div class="readouts" id="boot-flake-read"></div>
+    </div>
+
+    <p>The five leaf centers land on the <b>odd</b> tenths of P &mdash; the down
+    half &mdash; because a leaf is the 180&deg; copy and faces the other way. The
+    even tenths are the same construction run on a leaf, which is the flake seen
+    from one of its own petals. Ten directions, one figure.</p>
+
+    <p>And this is why <code>P[t] = D[t&minus;1] + D[t+1]</code> holds: at an odd
+    tenth, that stride-1 pair <i>is</i> the two corners of a shared edge. The
+    formula is the pentaflake written down, not an algebraic coincidence.</p>
+
+    <h3>The whole thing, from five draggable points</h3>
+
+    <div class="pair">
+        <figure>
+            <canvas id="boot-input" width="340" height="340"></canvas>
+            <figcaption>the input &mdash; five ordered points, <b>draggable</b>,
+            and the pentagon they close. Everything else is derived.</figcaption>
+        </figure>
+        <figure>
+            <canvas id="boot-out" width="420" height="420"></canvas>
+            <figcaption>the output &mdash; <span id="boot-note"></span></figcaption>
+        </figure>
+        <div>
+            <label>patch <select id="boot-seed">
+                <option value="Sun" selected>Sun</option>
+                <option value="Star">Star</option>
+                <option value="Deca">Deca</option>
+                <option value="Pe5">Pe5 &mdash; one blue pentagon</option>
+                <option value="St5">St5 &mdash; one star</option>
+            </select></label>
+            <p></p>
+            <label><span class="cap">generation <span class="val" id="boot-gen-value">2</span></span><br>
+                <input type="range" id="boot-gen" min="1" max="5" step="1" value="2" style="width: 200px"></label>
+            <p class="hint" style="margin:6px 0 10px">Each generation is one P1
+            inflation, &phi;&sup2; &mdash; two deflations of the rhomb
+            substitution. Tile counts go as &phi;&#8308;.</p>
+            <p><label><input type="checkbox" id="boot-rhombs"> rhomb overlay</label><br>
+            <label>spelled in <select id="boot-spelling">
+                <option value="t">T</option>
+                <option value="inflated">D + P</option>
+                <option value="legacy">penrose-mosaic's mix</option>
+            </select></label></p>
+            <p><button id="boot-reset">reset the five</button></p>
+            <div class="readouts" id="boot-wheels"></div>
+            <p class="hint k" id="boot-lengths" style="margin-top:8px"></p>
+        </div>
+    </div>
+
+    <h3>What comes out of the five</h3>
+
+    <p>Three unit vectors a turn apart sum to (1&nbsp;+&nbsp;2cos&thinsp;turn) times
+    the middle one, and on a ten-wheel the turn is the <b>stride</b>. So one
+    operator, <code>W[t&minus;k] + W[t] + W[t+k]</code>, gives the whole ladder:</p>
+
+    <table class="ops">
+        <tr><th>stride</th><th>factor</th><th>what it is</th></tr>
+        <tr><td>1</td><td>1 + 2cos&thinsp;36&deg; = &phi;&sup2;</td><td>inflate &mdash; one generation</td></tr>
+        <tr><td>2</td><td>1 + 2cos&thinsp;72&deg; = &phi;</td><td>the <b>S</b> wheel</td></tr>
+        <tr><td>3</td><td>1 + 2cos&thinsp;108&deg; = &phi;&#8315;&sup2;</td><td><b>deflate</b> &mdash; exactly inverse to stride 1</td></tr>
+        <tr><td>4</td><td>1 + 2cos&thinsp;144&deg; = &minus;&phi;&#8315;&sup1;</td><td>the conjugate root, &psi;</td></tr>
+    </table>
+
+    <p>Drop the middle term of the stride-1 sum and 2cos&thinsp;36&deg;&thinsp;=&thinsp;&phi;
+    gives <b>P</b>; <i>difference</i> the same pair instead of summing it and you get
+    <b>E</b>, the tile edges &mdash; which for the quadrille seed come out as the
+    (4,&thinsp;0), (3,&thinsp;2), (1,&thinsp;4) basis the whole construction was
+    doodled from. <b>T</b> is <code>S + D</code>. Four hand-built arrays, one line
+    each, and every one of them checked against penrose-mosaic's own numbers at
+    generations 0, 1 and 2.</p>
+
+    <h3>Tiles are closed walks</h3>
+
+    <p>A tile outline is a list of <i>tenths</i> in E, not a list of coordinates.
+    Rotating it is adding to every entry. That is why the eight stored arrays
+    collapse to four:</p>
+
+    <pre>  penta     1 3 5 7 9          star      2 0 4 2 6 4 8 6 0 8
+  boat      2 0 4 5 6 0 8      diamond   2 3 7 8
+
+  boatWon = turn(boat, 1)      diamondWon = turn(diamond, 1)
+  boatToo = turn(boat, 2)      diamondToo = turn(diamond, 2)</pre>
+
+    <p>The shift is exact in the <i>index</i>. It is not exact in the metric:
+    <code>boatWon</code> has a &radic;13 edge where <code>boatUp</code> has a 4,
+    because the wheel's ten spokes are not the same length. That is the quadrille's
+    character in one line &mdash; <b>the combinatorics are exact and the metric is
+    whatever the lattice can manage at that angle</b>.</p>
+
+    <h3>The rhombs, and a spelling that matters</h3>
+
+    <p>The P3 overlay walks in the wheels rather than in E. penrose-mosaic builds it
+    as three steps from a corner, the fourth closing &mdash; in real geometry every
+    step is a <b>T</b> vector. In quadrille its first step is spelled
+    <code>P&nbsp;+&nbsp;D</code> instead, which is <code>inflate(D)</code>: also
+    &times;&phi;&sup2;, but the <i>other</i> integer representative of that rung. The
+    two differ by the alternating (0,&nbsp;&plusmn;1) that is
+    M<sub>y</sub>'s &lambda;&thinsp;=&thinsp;&minus;1 eigenvalue.</p>
+
+    <p>Because <code>W[k+5] = &minus;W[k]</code>, a figure spelled in <b>one</b>
+    wheel has its first and third steps exactly opposite and its closing edge
+    exactly opposite its second &mdash; an exact parallelogram, for any five points,
+    and a true rhomb wherever the wheel's spokes agree. Mixing the two spellings
+    loses even that:</p>
+
+    <pre>  real, all four on T              1.000 1.000 1.000 1.000   rhomb
+  quadrille, all four on T         9.434 9.434 9.434 9.434   rhomb at this tenth
+  quadrille, all four on D + P     8.602 8.602 8.602 8.602   rhomb at this tenth
+  quadrille, penrose-mosaic's mix  8.602 9.434 9.434 8.602   kite</pre>
+
+    <p>The overlay switch above draws all three. penrose-mosaic's own source flags
+    the line &mdash; the comment above <code>goThickReal</code> wonders whether the
+    modes can be unified &ldquo;if the real of d&nbsp;+&nbsp;p&nbsp;==&nbsp;t&rdquo;.
+    They cannot, and this is what the difference does. <b>Which spelling the tiling
+    actually wants is not settled here</b>; the kite may be registering against the
+    P1 pentagons deliberately.</p>
+
+    <h3>Generations, and the diamond space</h3>
+
+    <p>A single tile is <b>gen 1</b>; the pentaflake above is a <b>Pe5 gen 2</b>.
+    A figure's generation is its parts' plus one, which agrees with the wheel
+    numbering &mdash; the seed at index 1. Measured:</p>
+
+    <pre>  Pe5 gen 2  =  1 Pe5 + 5 Pe3                        the pentaflake
+  Pe3 gen 2  =  1 Pe5 + 3 Pe3 + 2 Pe1 + 1 St1        three yellow, two orange
+  Pe1 gen 2  =  1 Pe5 + 1 Pe3 + 4 Pe1 + 2 St1
+  St1 gen 2  =  1 St5 + 1 Pe1 + 1 St3</pre>
+
+    <p>A Pe3 gen 2 is the smallest figure with a <b>diamond-shaped hole</b> in it,
+    between its two orange pentagons. Place the tiles and the hole is
+    (0,&thinsp;3) (1,&thinsp;7) (0,&thinsp;11) (&minus;1,&thinsp;7) &mdash; and the
+    St1 the substitution puts there is <i>that polygon exactly</i>. <b>The space
+    and the tile coincide</b>, so the diamond can be measured rather than
+    transcribed.</p>
+
+    <p>All four of its sides are &radic;17: it is a genuine <b>rhombus</b>, and a
+    rhombus has a symmetry that swaps its two tips. So the outline alone cannot
+    say which tip carries the tile's reference point &mdash; the tips really do
+    look alike, and looking harder will not help. What is true at every diamond
+    tested, on a skew seed as well, is that the reference lies on the long
+    diagonal splitting it</p>
+
+    <pre>  |p[gen&minus;1]| : |p[gen]|      2 : 6 at generation 2,  &rarr;  1 : &phi;&sup2;</pre>
+
+    <p>&mdash; never the midpoint and never a corner. Counting how many pentagons
+    meet at each tip does <i>not</i> settle it: right 40 times out of 40 on a Pe5
+    patch, and a coin toss (60/60) on a Star patch. The information is not local to
+    the diamond; it comes from whichever parent placed it. Whether a local rule
+    exists at all is open.</p>
+
+    <h3>What is constructed, and what is still borrowed</h3>
+
+    <p><b>Constructed:</b> P, off the pentaflake. The pentagon outline, as
+    <code>D[t], D[t+2], D[t+4], D[t+6], D[t+8]</code> &mdash; the D wheel at stride
+    2 about its center, which needs no stored walk and gives exactly two polygons
+    over the ten tenths, the five points and their negatives. The anchors, which
+    are <code>D[t]</code> for a pentagon and <code>P[t]</code> for the whole star
+    family. And the diamond space, as the measured gap.</p>
+
+    <p><b>Still borrowed:</b> the star, boat and diamond walks, and the
+    <code>twist</code>/<code>diamond</code> substitution lists saying how a Pe3
+    breaks into its children &mdash; now the largest transcribed thing in the
+    module. S and T are verified identities but have no figure behind them the way
+    P does; until they do they are description rather than derivation. See
+    <a href="NOTES.md">NOTES</a>.</p>
+
+    <p class="hint">Everything drawn here is checked against penrose-mosaic in
+    <code>tools/bootstrap.test.mjs</code> &mdash; the wheels at three generations,
+    all eight stored tile arrays, the rhomb spellings, and the 55 and 35 rhomb
+    counts of the Sun and Star patches.</p>
+
+    <script type="module" src="../dist/bootstrap/page.js"></script>
+</div>
+</body>
+</html>
