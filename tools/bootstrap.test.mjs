@@ -13,12 +13,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    PENTA_UP, comb, deflate, eWheel, halfDown, halfUp, inflate, ladderTo, m10,
-    pWheel, pair, sWheel, stride, tWheel, wheelFromPoints, wheelsAt,
+    PENTA_UP, PRESETS, REAL_PENTA, comb, deflate, eWheel, halfDown, halfUp,
+    inflate, ladderTo, m10, pWheel, pair, sWheel, stride, tWheel,
+    wheelFromPoints, wheelsAt,
 } from "../dist/bootstrap/wheel.js";
 import {
     BOAT, DIAMOND, PENTA, STAR, THICK, THIN, anchorFor, closes, pentagon,
-    rhombus, starOutline, turn, vertices,
+    rhombGroup, rhombus, starOutline, turn, vertices,
 } from "../dist/bootstrap/walk.js";
 
 /** The smallest interior angle of a quadrilateral, in degrees. */
@@ -705,4 +706,364 @@ test("no tile substitution leaves an interior hole", () => {
         for (let k = 0; k < W * H; k++) if (!cov[k] && !seen[k]) hole++;
         assert.equal(hole, 0, `${seed} gen 2 has ${hole} cells of interior hole`);
     }
+});
+
+// ── the rhomb overlay sits on its tiles ───────────────────────────────────
+//
+// Two versions of this overlay shipped wrong: one scaled the rhombs by the
+// PATCH's generation (phi^4 too big at generation 3), one by the tile's own
+// (still phi^2 too big). Both passed every test in this file and were obviously
+// broken the moment anyone drew them. These tests are the numeric version of
+// looking at it.
+
+test("a rhomb group has the right membership", () => {
+    // penrose-mosaic's drawRhombusPattern: Pe5 five thick, Pe3 three thick and
+    // one thin, Pe1 one thick and two thin.
+    const count = (type) => {
+        const g = rhombGroup(type, 0);
+        return {
+            thick: g.filter((m) => m.spec === THICK).length,
+            thin: g.filter((m) => m.spec === THIN).length,
+        };
+    };
+    assert.deepEqual(count("Pe5"), { thick: 5, thin: 0 });
+    assert.deepEqual(count("Pe3"), { thick: 3, thin: 1 });
+    assert.deepEqual(count("Pe1"), { thick: 1, thin: 2 });
+});
+
+test("the group's turns are the tile's angle plus even tenths", () => {
+    for (const type of ["Pe5", "Pe3", "Pe1"])
+        for (const t of [0, 3, 7])
+            for (const { turn } of rhombGroup(type, t))
+                assert.equal(m10(turn - t) % 2, 0,
+                    `${type} at ${t}: turn ${turn} is not an even step from it`);
+});
+
+test("rhombs are drawn one generation below the tiles they sit on", () => {
+    // The overlay hangs on leaf tiles, which are drawn at generation 1, so the
+    // group that belongs there is the SMALL one -- wheels index 0. If the rhomb
+    // edge is not commensurate with the pentagon it decorates, it is the wrong
+    // rung, and that is exactly how this went wrong twice.
+    const tileR = Math.max(...PENTA_UP.map((v) => Math.hypot(v[0], v[1])));
+    const edgeAt = (g) => {
+        const w = wheelsAt(PENTA_UP, g);
+        const q = rhombus(THICK, w.t, inflate(w.d), 0, "t");
+        return Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]);
+    };
+    const ratio = edgeAt(0) / tileR;
+    assert.ok(ratio > 0.5 && ratio < 1.5,
+        `the small rhomb should be tile-sized: edge ${edgeAt(0)} against R ${tileR}`);
+    // and the rungs either side are plainly the wrong size for a leaf tile
+    assert.ok(edgeAt(1) / tileR > 2, "generation 1 is the large group, a level up");
+});
+
+
+// ── the rhomb oracle ──────────────────────────────────────────────────────
+//
+// penrose-mosaic COMPUTES these; there was never a reason to re-derive them and
+// then argue about the result from screenshots. shape-modes.js imports only
+// wheels.js and point.js -- no DOM -- so its `quadrille.thickRhomb` and
+// `thinRhomb` can be read straight out and used as ground truth. Exported
+// verbatim below, all ten tenths at both stored generations.
+//
+// This is what settled the spelling: the two tidy spellings that close as exact
+// parallelograms match 0 of 40 shapes; the mixture that closes as a kite matches
+// all 40. The kite is the real geometry.
+
+const MOSAIC_RHOMBS = {
+    thickRhomb: [
+        [
+            [[0,0], [-2,-3], [0,-5], [2,-3]],
+            [[0,0], [0,-3], [3,-5], [3,-1]],
+            [[0,0], [2,-3], [5,-1], [3,1]],
+            [[0,0], [2,3], [5,1], [3,-1]],
+            [[0,0], [0,3], [3,5], [3,1]],
+            [[0,0], [-2,3], [0,5], [2,3]],
+            [[0,0], [0,3], [-3,5], [-3,1]],
+            [[0,0], [-2,3], [-5,1], [-3,-1]],
+            [[0,0], [-2,-3], [-5,-1], [-3,1]],
+            [[0,0], [0,-3], [-3,-5], [-3,-1]],
+        ],
+        [
+            [[0,0], [-5,-7], [0,-15], [5,-7]],
+            [[0,0], [0,-9], [8,-11], [8,-3]],
+            [[0,0], [5,-7], [13,-5], [8,3]],
+            [[0,0], [5,7], [13,5], [8,-3]],
+            [[0,0], [0,9], [8,11], [8,3]],
+            [[0,0], [-5,7], [0,15], [5,7]],
+            [[0,0], [0,9], [-8,11], [-8,3]],
+            [[0,0], [-5,7], [-13,5], [-8,-3]],
+            [[0,0], [-5,-7], [-13,-5], [-8,3]],
+            [[0,0], [0,-9], [-8,-11], [-8,-3]],
+        ],
+    ],
+    thinRhomb: [
+        [
+            [[0,0], [3,1], [0,3], [-3,1]],
+            [[0,0], [2,3], [-1,1], [-3,-1]],
+            [[0,0], [0,3], [-2,1], [-2,-3]],
+            [[0,0], [0,-3], [-2,-1], [-2,3]],
+            [[0,0], [2,-3], [-1,-1], [-3,1]],
+            [[0,0], [3,-1], [0,-3], [-3,-1]],
+            [[0,0], [-2,-3], [1,-1], [3,1]],
+            [[0,0], [0,-3], [2,-1], [2,3]],
+            [[0,0], [0,3], [2,1], [2,-3]],
+            [[0,0], [-2,3], [1,1], [3,-1]],
+        ],
+        [
+            [[0,0], [8,3], [0,5], [-8,3]],
+            [[0,0], [5,7], [-3,5], [-8,-3]],
+            [[0,0], [0,9], [-5,1], [-5,-7]],
+            [[0,0], [0,-9], [-5,-1], [-5,7]],
+            [[0,0], [5,-7], [-3,-5], [-8,3]],
+            [[0,0], [8,-3], [0,-5], [-8,-3]],
+            [[0,0], [-5,-7], [3,-5], [8,3]],
+            [[0,0], [0,-9], [5,-1], [5,7]],
+            [[0,0], [0,9], [5,1], [5,-7]],
+            [[0,0], [-5,7], [3,5], [8,-3]],
+        ],
+    ],
+};
+
+test("the rhombs are penrose-mosaic's, at every tenth and both generations", () => {
+    const key = (a) => a.map((v) => `${v[0] + 0},${v[1] + 0}`).join(" ");
+    // shapeWheel builds tenths 3,4,5,8,9 by reflection, which reverses the
+    // winding; this module builds them by rotation, which does not. Same
+    // polygon either way, so compare as a closed outline.
+    const sameLoop = (a, b) => {
+        if (a.length !== b.length) return false;
+        for (const seq of [a, [a[0], ...a.slice(1).reverse()]])
+            if (key(seq) === key(b)) return true;
+        return false;
+    };
+    for (let g = 0; g < 2; g++) {
+        const w = wheelsAt(PENTA_UP, g);
+        const inflated = inflate(w.d);
+        for (let t = 0; t < 10; t++)
+            for (const [name, spec] of [["thickRhomb", THICK], ["thinRhomb", THIN]]) {
+                const mine = rhombus(spec, w.t, inflated, t, "mixed");
+                assert.ok(sameLoop(mine, MOSAIC_RHOMBS[name][g][t]),
+                    `${name}[${g}] tenth ${t}: ${key(mine)} against ${key(MOSAIC_RHOMBS[name][g][t])}`);
+            }
+    }
+});
+
+test("the tidy spellings do NOT match, which is why mixed is the default", () => {
+    const key = (a) => a.map((v) => `${v[0] + 0},${v[1] + 0}`).join(" ");
+    const w = wheelsAt(PENTA_UP, 0);
+    const inflated = inflate(w.d);
+    for (const spelling of ["t", "inflated"])
+        assert.notEqual(key(rhombus(THICK, w.t, inflated, 0, spelling)),
+            key(MOSAIC_RHOMBS.thickRhomb[0][0]),
+            `spelling ${spelling} unexpectedly matches -- re-check the default`);
+});
+
+
+// ── the real preset ───────────────────────────────────────────────────────
+//
+// The lattice was never a requirement, only what the quadrille uses. Given a
+// REGULAR pentagon the same code should land on Euclidean Penrose -- and it
+// should land there at once, since a regular pentagon is the substitution's
+// fixed point.
+
+test("the real preset is regular, side 4, centered on the origin", () => {
+    const side = (ps, i) => Math.hypot(ps[(i + 1) % 5][0] - ps[i][0],
+                                       ps[(i + 1) % 5][1] - ps[i][1]);
+    for (let i = 0; i < 5; i++)
+        assert.ok(Math.abs(side(REAL_PENTA, i) - 4) < 1e-12,
+            `side ${i} is ${side(REAL_PENTA, i)}`);
+    const R = 4 / (2 * Math.sin(Math.PI / 5));
+    for (const p of REAL_PENTA)
+        assert.ok(Math.abs(Math.hypot(p[0], p[1]) - R) < 1e-12);
+    assert.deepEqual(PRESETS.real, REAL_PENTA);
+    assert.deepEqual(PRESETS.quadrille, PENTA_UP);
+});
+
+test("the real preset gives 72 and 36 exactly, at every generation", () => {
+    const acute = (q) => {
+        const a = [];
+        for (let i = 0; i < 4; i++) {
+            const u = [q[(i + 3) % 4][0] - q[i][0], q[(i + 3) % 4][1] - q[i][1]];
+            const v = [q[(i + 1) % 4][0] - q[i][0], q[(i + 1) % 4][1] - q[i][1]];
+            a.push(Math.acos((u[0] * v[0] + u[1] * v[1])
+                / (Math.hypot(...u) * Math.hypot(...v))) * 180 / Math.PI);
+        }
+        return Math.min(...a);
+    };
+    for (const g of [1, 2, 3, 5, 8]) {
+        const w = wheelsAt(REAL_PENTA, g);
+        const inflated = inflate(w.d);
+        assert.ok(Math.abs(acute(rhombus(THICK, w.t, inflated, 0, "mixed")) - 72) < 1e-9,
+            `generation ${g} thick`);
+        assert.ok(Math.abs(acute(rhombus(THIN, w.t, inflated, 0, "mixed")) - 36) < 1e-9,
+            `generation ${g} thin`);
+    }
+});
+
+test("the real pentagon has one edge length, the quadrille three", () => {
+    const lengths = (pts) => new Set(eWheel(wheelFromPoints(pts))
+        .map((p) => Math.hypot(p[0], p[1]).toFixed(6)));
+    assert.equal(lengths(REAL_PENTA).size, 1);
+    assert.deepEqual([...lengths(REAL_PENTA)], ["4.000000"]);
+    assert.equal(lengths(PENTA_UP).size, 3);
+});
+
+test("the pentaflake identity holds off the lattice too", () => {
+    // O_k = pts[k] + pts[k+1], and for a regular pentagon that is 2r = 2R cos36.
+    const [, ...leaves] = pentaflake(REAL_PENTA);
+    const R = 4 / (2 * Math.sin(Math.PI / 5));
+    for (const leaf of leaves)
+        assert.ok(Math.abs(Math.hypot(...leaf.center) - 2 * R * Math.cos(Math.PI / 5)) < 1e-12,
+            `|O_${leaf.edge}| = ${Math.hypot(...leaf.center)}`);
+});
+
+test("a real patch holds together, same as an integer one", () => {
+    for (const g of [1, 2]) {
+        const L = ladderTo(REAL_PENTA, g + 2);
+        const tiles = expand("Pe5", 0, [0, 0], g, L);
+        const { over } = doubled(tiles, L[1]);
+        assert.equal(over, 0, `real Pe5 gen ${g}: ${over} samples covered twice`);
+    }
+});
+
+
+// ── self-intersection, and the fill rule ──────────────────────────────────
+
+/**
+ * Number of non-adjacent edge pairs that PROPERLY cross.
+ *
+ * Collinear is not crossing. A first version of this returned `Math.sign(...)`
+ * and treated a zero — three points in a line — as a difference, which reported
+ * twelve self-intersections in the real preset that were not there. Several of a
+ * star's vertices share a y, so the false positives were not rare. Drawing both
+ * fill rules side by side gave identical pictures, which is what caught it.
+ */
+function selfCrossings(poly) {
+    const side = (p, q, r) => {
+        const v = (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+        return Math.abs(v) < 1e-9 ? 0 : Math.sign(v);
+    };
+    const crosses = (a, b, c, d) => {
+        const d1 = side(c, d, a), d2 = side(c, d, b);
+        const d3 = side(a, b, c), d4 = side(a, b, d);
+        return d1 !== 0 && d2 !== 0 && d3 !== 0 && d4 !== 0 && d1 !== d2 && d3 !== d4;
+    };
+    const n = poly.length;
+    let count = 0;
+    for (let i = 0; i < n; i++)
+        for (let j = i + 1; j < n; j++) {
+            if (j === i || (j + 1) % n === i || (i + 1) % n === j) continue;
+            if (crosses(poly[i], poly[(i + 1) % n], poly[j], poly[(j + 1) % n])) count++;
+        }
+    return count;
+}
+
+test("no tile outline self-intersects, on either preset", () => {
+    // Tiles are filled even-odd anyway, because it is the rule that stays
+    // correct if a walk is ever changed and costs nothing when it is not. But
+    // the claim to hold onto is this one: as built, every outline is simple, so
+    // the two fill rules agree on every tile this module currently draws.
+    for (const [name, pts] of [["quadrille", PENTA_UP], ["real", REAL_PENTA],
+                               ["skew", [[-1, -3], [3, -1], [2, 3], [-2, 3], [-3, -1]]]]) {
+        const L = ladderTo(pts, 6);
+        for (let g = 1; g <= 5; g++)
+            for (let t = 0; t < 10; t++)
+                for (const [kind, poly] of [
+                    ["Pe", pentagon(L[g].d, t)],
+                    ["St5", starPolygon("St5", L[g], L[g - 1], t)],
+                    ["St3", starPolygon("St3", L[g], L[g - 1], t)],
+                    ["St1", starPolygon("St1", L[g], L[g - 1], t)],
+                ])
+                    assert.equal(selfCrossings(poly), 0,
+                        `${name} ${kind} generation ${g} tenth ${t} crosses itself`);
+    }
+});
+
+test("collinear vertices are not crossings", () => {
+    // The bug the test above was written around: a square with an extra point
+    // in the middle of one side is simple, not self-intersecting.
+    assert.equal(selfCrossings([[0, 0], [2, 0], [4, 0], [4, 4], [0, 4]]), 0);
+    // and a genuine crossing is still found
+    assert.ok(selfCrossings([[0, 0], [4, 4], [4, 0], [0, 4]]) > 0);
+});
+
+
+// ── adopting a derived pentagon ───────────────────────────────────────────
+//
+// The rung slider shows the pentagon at generation x.x, and "use this pentagon"
+// takes it as the new five. That is only sound if re-basing is exact.
+
+/**
+ * Two wheels equal within a relative tolerance.
+ *
+ * String comparison of fixed decimals is not safe here: the real preset is
+ * irrational, and `0` against `-0` prints differently while being the same
+ * number. That has now caught three tests in this file, so compare numerically.
+ */
+const sameWheel = (a, b, tol = 1e-9) => {
+    if (a.length !== b.length) return false;
+    const scale = Math.max(1, ...a.map((v) => Math.hypot(v[0], v[1])));
+    return a.every((v, i) =>
+        Math.hypot(v[0] - b[i][0], v[1] - b[i][1]) <= tol * scale);
+};
+
+test("an adopted pentagon reads back as the rung it was taken from", () => {
+    for (const pts of [PENTA_UP, REAL_PENTA,
+                       [[-1, -3], [3, -1], [2, 3], [-2, 3], [-3, -1]]])
+        for (const r of [-1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3]) {
+            const adopted = pentagon(wheelsAt(pts, r).d, 0);
+            assert.ok(sameWheel(wheelsAt(adopted, 1).d, wheelsAt(pts, r).d),
+                `rung ${r} does not re-base`);
+        }
+});
+
+const isHalf = (r) => Math.round(r * 2) % 2 !== 0;
+
+test("halfUp twice is inflate only when the pentagon is regular", () => {
+    // They are different operators -- halfUp^2 is s^-2 + 2 + s^2 while inflate
+    // is s^-1 + 1 + s -- but on a REGULAR wheel both scale by exactly phi^2,
+    // because 2cos72 + 2 = 1 + 2cos36. So they agree on the real pentagon and
+    // diverge on any irregular one. The gap is a property of the geometry, not
+    // of the operators.
+    const d = (pts) => wheelFromPoints(pts);
+    assert.ok(sameWheel(halfUp(halfUp(d(REAL_PENTA))), inflate(d(REAL_PENTA))));
+    for (const pts of [PENTA_UP, [[-1, -3], [3, -1], [2, 3], [-2, 3], [-3, -1]]])
+        assert.ok(!sameWheel(halfUp(halfUp(d(pts))), inflate(d(pts))));
+    assert.ok(Math.abs((2 * Math.cos(2 * Math.PI / 5) + 2)
+        - (1 + 2 * Math.cos(Math.PI / 5))) < 1e-12);
+});
+
+test("stepping on from an adopted pentagon agrees, except for the half-step gap", () => {
+    // Adopting rung `taken` and walking to `then` lands on rung taken+then-1 of
+    // the original. On an irregular pentagon that fails when BOTH are half
+    // rungs, because it composes halfUp twice. On a regular one it never fails.
+    for (const [name, pts, regular] of [
+        ["quadrille", PENTA_UP, false],
+        ["real", REAL_PENTA, true],
+        ["skew", [[-1, -3], [3, -1], [2, 3], [-2, 3], [-3, -1]], false],
+    ]) {
+        let diverged = 0;
+        for (const taken of [0, 1, 1.5, 2, 2.5])
+            for (const then of [1, 2, 2.5, 3]) {
+                const adopted = pentagon(wheelsAt(pts, taken).d, 0);
+                const same = sameWheel(wheelsAt(adopted, then).d,
+                    wheelsAt(pts, taken + then - 1).d);
+                if (regular || !(isHalf(taken) && isHalf(then)))
+                    assert.ok(same, `${name}: adopt ${taken} then ${then} should agree`);
+                else if (!same) diverged++;
+            }
+        if (!regular) assert.ok(diverged > 0, `${name} should show the half-step gap`);
+    }
+});
+
+test("adopting from the quadrille stays on the lattice, even at half rungs", () => {
+    // Every wheel operator is an integer combination, so a derived quadrille
+    // pentagon is still a lattice pentagon and snapping stays safe.
+    for (const r of [-1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3])
+        for (const v of pentagon(wheelsAt(PENTA_UP, r).d, 0))
+            assert.ok(Number.isInteger(v[0]) && Number.isInteger(v[1]),
+                `rung ${r} left the lattice: (${v})`);
+    // and adopting from the real preset does not, which is why snap follows it
+    assert.ok(!pentagon(wheelsAt(REAL_PENTA, 0.5).d, 0)
+        .every((v) => Number.isInteger(v[0]) && Number.isInteger(v[1])));
 });

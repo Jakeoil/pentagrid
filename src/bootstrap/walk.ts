@@ -154,8 +154,22 @@ export interface RhombSpec {
 export const THICK: RhombSpec = { steps: [9, 1, 4] };
 export const THIN: RhombSpec = { steps: [3, 7, 8] };
 
-/** Which wheel each step is taken in. */
-export type Spelling = "t" | "inflated" | "legacy";
+/**
+ * Which wheel each step is taken in.
+ *
+ * **`mixed` is the real geometry and the default.** Checked against
+ * penrose-mosaic's own computed `thickRhomb`/`thinRhomb` arrays — not against a
+ * picture — it reproduces all ten tenths at both generations, differing only in
+ * winding on the five that `shapeWheel` builds by reflection.
+ *
+ * An earlier note here reasoned that `t` and `inflated` were preferable because
+ * each closes as an exact parallelogram while the mixture closes as a kite, and
+ * left open "whether the kite is deliberate or a slip". **It is deliberate.**
+ * The kite is what registers the rhombs against the P1 pentagons; the tidy
+ * parallelograms do not tile with them at all. The two tidy spellings match
+ * penrose-mosaic at 0 of 40 shapes, the mixture at all 40.
+ */
+export type Spelling = "mixed" | "t" | "inflated";
 
 /**
  * Walk a rhomb out. `t` is the T wheel, `inflated` is `inflate(D)` — both ×φ²,
@@ -163,17 +177,55 @@ export type Spelling = "t" | "inflated" | "legacy";
  */
 export function rhombus(
     spec: RhombSpec, t: Wheel, inflated: Wheel, n: number,
-    spelling: Spelling = "t",
+    spelling: Spelling = "mixed",
 ): Pt[] {
     const wheelFor = (i: number): Wheel =>
         spelling === "t" ? t
         : spelling === "inflated" ? inflated
-        : i === 0 ? inflated : t;          // legacy: first step only
+        : i === 0 ? inflated : t;          // mixed: D+P opens, T runs
     const out: Pt[] = [[0, 0]];
     spec.steps.forEach((k, i) => {
         const w = wheelFor(i)[m10(k + n)];
         const prev = out[out.length - 1];
         out.push([prev[0] + w[0], prev[1] + w[1]]);
     });
+    return out;
+}
+
+/** One rhomb of a group: which shape, and how far round from the tile's angle. */
+export interface GroupMember {
+    readonly spec: RhombSpec;
+    readonly turn: number;
+}
+
+/**
+ * The rhomb group a pentagon carries, from penrose-mosaic's
+ * `drawRhombusPattern`. It loops i = 0..4 and draws at tenth `angle + 2i`:
+ *
+ *     Pe5   thick at every i                  5 thick
+ *     Pe3   thin at i=0, thick at i=0,1,4     3 thick + 1 thin
+ *     Pe1   thick at i=0, thin at i=1,4       1 thick + 2 thin
+ *
+ * Transcribed, not derived — it belongs with the `twist`/`diamond` tables as
+ * something still taken on penrose-mosaic's word.
+ *
+ * Note the rhombs are ONE PER GROUP, not one per tile: a Pe5 carries five. The
+ * first version of the overlay drew a single rhomb per pentagon and at the
+ * patch's generation rather than the tile's, so they came out φ⁴ too large and
+ * scattered. Rendered, that was obvious; measured, it was invisible.
+ */
+export function rhombGroup(type: "Pe5" | "Pe3" | "Pe1", tenth: number): GroupMember[] {
+    const out: GroupMember[] = [];
+    for (let i = 0; i < 5; i++) {
+        const turn = m10(tenth + 2 * i);
+        if (type === "Pe5") { out.push({ spec: THICK, turn }); continue; }
+        if (type === "Pe3") {
+            if (i === 0) out.push({ spec: THIN, turn });
+            if (i === 0 || i === 1 || i === 4) out.push({ spec: THICK, turn });
+            continue;
+        }
+        if (i === 0) out.push({ spec: THICK, turn });
+        else if (i === 1 || i === 4) out.push({ spec: THIN, turn });
+    }
     return out;
 }

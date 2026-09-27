@@ -265,10 +265,14 @@ that:
 
 penrose-mosaic's own source flags the line: the comment above `goThickReal` asks
 whether the modes can be unified "if the real of d + p == t". They cannot, and
-this is what the difference does. **Open, and Jake's call:** whether the kite is
-deliberate — registering against the P1 pentagons — or a slip. The page draws
-all three spellings so they can be compared; nothing in penrose-mosaic has been
-touched.
+this is what the difference does.
+
+**Settled 2026-09-25: the kite is deliberate, and it is the real geometry.** The
+mixture registers the rhombs against the P1 pentagons; the tidy parallelograms
+do not tile with them at all. Checked against penrose-mosaic's own computed
+arrays, the two tidy spellings match **0 of 40** shapes and the mixture matches
+**all 40**. `mixed` is now the default and the others are kept only for
+comparison.
 
 Large and small rhombs are the same walk one generation apart, as
 [[penrose-mosaic-rhomb-groups]] records: `wheels.t[1]` and `wheels.t[0]`, and
@@ -497,8 +501,203 @@ small — nearly 3° on the thick and nearly 2° on the thin.
 Tested at rung 20, with the Euclidean values asserted *not* to match, so the
 claim cannot quietly rot into "close enough to 72".
 
-The page's rhomb overlay has a **rhomb rung** slider offsetting it from the tiles
-it sits on, in halves, so big, small and the level between are all visible.
+### The overlay itself, got wrong twice
+
+**Jake, 2026-09-25:** *The rhombs don't look so good. They're all over.* They
+were. Two mistakes, and the same root cause both times — the overlay was never
+rendered, only measured.
+
+- **A rhomb group is not one rhomb.** `drawRhombusPattern` loops i = 0..4 and
+  draws at tenth `angle + 2i`: Pe5 gets five thick, Pe3 three thick and one
+  thin, Pe1 one thick and two thin. The first version drew a single rhomb per
+  pentagon.
+- **Rhombs sit one generation BELOW the tiles they decorate.** penrose-mosaic
+  draws the small group where the recursion bottoms out at gen 0, and the large
+  group where it *short-circuits* at gen 1 — replacing a whole flake, not
+  decorating one tile. The overlay hangs on leaf tiles, so the group that
+  belongs there is the **small** one, wheels index 0. The first version scaled
+  by the patch's generation (φ⁴ too big at generation 3); the second by the
+  tile's own (still φ²).
+
+Both passed every test in `tools/bootstrap.test.mjs` and were obviously broken
+the moment they were drawn. Three tests now stand in for looking: group
+membership, the turns being even steps from the tile's angle, and the rhomb edge
+being commensurate with the pentagon it decorates — which is the one that
+catches a wrong rung.
+
+`rhombGroup()` is transcribed, not derived. It belongs with the
+`twist`/`diamond` tables as something still taken on penrose-mosaic's word.
+
+The page's slider now names the **rhomb generation** outright, default 0 (the
+small group), so what it is showing is not left to inference.
+
+### Use penrose-mosaic as an oracle, not as a memory
+
+**Jake, 2026-09-25:** *penrose mosaic implements the computations! What is the
+problem, why do I have to paste pictures. They have small and large rhomb
+options.* Fair, and the fix is a one-liner that should have been found on day
+one:
+
+    import { quadrille } from "penrose-mosaic/shape-modes.js";
+    quadrille.thickRhomb[0]   // all ten tenths, computed
+
+`shape-modes.js` imports only `wheels.js` and `point.js` — **no DOM** — so it
+runs under plain node and every shape it computes can be read out and diffed.
+There was never a reason to re-derive a shape and then argue about the result
+from screenshots.
+
+Doing that settled in one run what three renders had not:
+
+    spelling t          0/40 match
+    spelling inflated   0/40 match
+    spelling mixed     40/40 match
+
+and the only differences within `mixed` are winding on tenths 3, 4, 5, 8, 9,
+which `shapeWheel` builds by reflection and this module builds by rotation. Same
+polygons.
+
+So the overlay's fault was never the rung — generation 0 for small and 1 for
+large was right from the start — it was the **spelling**, defaulted to `t` on
+the strength of an argument about which shape was tidier. The tidy one is wrong.
+
+`tools/bootstrap.test.mjs` now carries the computed arrays as a fixture, so the
+question cannot be reopened by eye. **Where penrose-mosaic computes something,
+diff against it; do not re-derive and compare pictures.**
+
+Group membership went the other way: penrose-mosaic's `drawRhombusPattern`
+emits **5 thick** from a Pe5, not 5 thick and 5 thin, and rendering both against
+Jake's reference confirms it — the extra thins at a star vertex come from the
+neighboring groups, not from the Pe5. That matches
+[[wieringa-cluster-definitions]]'s "star = 5 thick".
+
+### The real preset: a regular pentagon, side 4
+
+**Jake, 2026-09-25:** *Now presets. We have done the quadrille preset, I want a
+real preset. A regular pentagon centered on the origin with unit side 4.*
+
+Side 4 is the normalization that makes the two comparable: the quadrille's three
+edge lengths are 4, √13 and √17, and this is the regular pentagon they are
+approximating. Circumradius `4 / (2 sin 36°) = 3.402603` against the quadrille's
+3.
+
+    quadrille  (0,-3)      (3,-1)          (2,3)      (-2,3)     (-3,-1)
+    real       (0,-3.403)  (3.236,-1.051)  (2,2.753)  (-2,2.753) (-3.236,-1.051)
+
+    sides      quadrille  3.606  4.123  4.000  4.123  3.606
+               real       4.000  4.000  4.000  4.000  4.000
+
+**Nothing in the module needed changing.** The wheels, the walks, the
+substitution and the rhombs are arithmetic on pairs of numbers; the lattice was
+never a requirement, only what the quadrille happens to use. That is worth
+stating plainly because penrose-mosaic keeps real as a *separate geometry* built
+from sines, cosines and φ, needing no wheels at all — here it is the same
+construction with a different five.
+
+Fed through, it lands on Euclidean Penrose **exactly and at once**: thick 72°,
+thin 36°, at generations 1, 2, 3, 5 and 8 alike, to 1e-9, with no convergence —
+because a regular pentagon is already the substitution's fixed point. The
+quadrille has to climb, and arrives at 69.287628° and 37.724519° instead.
+
+The edge wheel says the same thing in one number: **the real pentagon has one
+edge length, the quadrille three.** That single fact is the whole difference
+between the two geometries, and it is visible at generation 1 without any
+limit-taking.
+
+The pentaflake identity survives off the lattice too: `O_k = pts[k] + pts[k+1]`,
+and for a regular pentagon that is exactly `2r = 2R cos36°`.
+
+Two wiring notes, both Jake's asks:
+
+- **Snap is a toggle**, on for the quadrille and off for the real preset,
+  overridable either way. Rounding an irrational pentagon's corners onto the
+  paper on the first drag would silently turn it back into a quadrille, which is
+  the kind of thing that goes unnoticed for a week. Off, the handles land on a
+  1/256 grid, fine enough not to matter and coarse enough to stay exact in
+  binary.
+- **The output has a viewport** — scroll to zoom, drag to pan, double-click or
+  the button to fit. The zoom is a multiplier on the automatic fit rather than a
+  replacement, so changing seed or generation still frames the figure and the
+  viewport rides along. Zoom is anchored on the pointer; checked separately that
+  the point under the cursor drifts by under 4e-15 over a sequence of zooms, and
+  that a pan translates the world by exactly the pixel delta.
+
+### Fill rule, and a measurement that was wrong
+
+**Jake, 2026-09-25:** *When filling self intersecting pentagons, e.g. star, fill
+it using the even odd method. Also add a fill setting on/transparent/off.*
+
+Both done. Tiles fill with `ctx.fill("evenodd")` and the renderer writes
+`fill-rule="evenodd"`; the page has a fill picker with solid, transparent and
+outlines-only.
+
+**But the premise does not hold here, and the first measurement said it did.** A
+sweep reported twelve self-intersecting outlines in the real preset — every St5
+at generation 2 — and that was a bug in the sweep, not a property of the stars.
+The crossing test used `Math.sign` and treated a **zero** (three points in a
+line) as a sign difference. A star has several vertices sharing a y, so the
+false positives were not rare.
+
+Drawing both fill rules side by side is what caught it: the two pictures were
+identical. With a corrected predicate — a proper crossing needs all four
+orientations non-zero and the pairs strictly opposite — the count is **0 of 200**
+on both presets and on a skew one, over five generations and all ten tenths.
+
+So even-odd changes nothing this module currently draws. It stays because it
+costs nothing and is the rule that stays correct if a walk is ever changed: a
+star written as a {5/2} pentagram rather than a rim walk would need it. The test
+now asserts the honest thing — that every outline is **simple** — plus a
+regression case pinning that collinear vertices are not crossings.
+
+Worth keeping: the sign-of-zero trap is the same shape as the `-0` one that bit
+the pentagon test earlier. Orientation predicates need an explicit epsilon and an
+explicit zero case.
+
+### "Use this pentagon", and where the half-step gap lives
+
+**Jake, 2026-09-25:** *Create a use button next to the input polygon. When you
+create/derive a pentagon through generation interpolation allow it to be numbered
+and used.*
+
+Done. Corners are numbered at every rung now, not only at rung 1 — the order
+*is* the rotation operator, so a derived pentagon is unusable if you cannot see
+which corner is which. **Use this pentagon** adopts whatever is shown as the new
+five and returns the slider to 1, so the ladder generates seeds rather than only
+displaying them. Snap follows what was taken: adopting from the quadrille stays
+on the lattice at every rung, half rungs included, because every wheel operator
+is an integer combination; adopting from the real preset does not, and the box
+turns itself off.
+
+Re-basing is **exact**: the adopted five read back at rung 1 give exactly the
+wheel they were taken from, at every rung tested and on all three seeds.
+
+**The caveat, which is the interesting part.** Stepping on from an adopted
+pentagon lands on rung `taken + then − 1` of the original — except when *both*
+the adoption and the step are half rungs, where it composes `halfUp` twice, and
+two φ steps are not one generation.
+
+But that failure depends on the *geometry*, not the operators:
+
+    halfUp²  = σ⁻² + 2 + σ²        inflate = σ⁻¹ + 1 + σ
+
+genuinely different operators, yet `2cos72° + 2 = 1 + 2cos36° = φ²`, so on a
+**regular** wheel both scale by φ² and agree exactly (checked: they differ by
+2e-15 on the real preset). On the quadrille and on a skew five they cannot, and
+differ by My's λ = −1 term. **The half-step gap is a property of the discrete
+geometry, not of the ladder.** That is also why `wheelsAt` anchors every rung on
+the seed instead of composing half steps.
+
+### A note on comparing wheels
+
+Three tests in this file have now been caught by the same class of bug:
+`-0` failing `deepEqual` against `0`, a sign-of-zero counted as a crossing, and
+`toFixed(9)` printing `0.000000000` against `-0.000000000`. All three looked
+like real findings first — the last one nearly went in the notes as "the real
+preset diverges at rung 2.5", which it does not; the relative difference is
+1.3e-16.
+
+There is now a `sameWheel(a, b, tol)` helper that compares numerically against a
+relative tolerance, and it should be used for anything involving the real
+preset. **Do not compare irrational geometry by formatted strings.**
 
 ### What is constructed, and what is still borrowed
 

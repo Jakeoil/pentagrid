@@ -13,6 +13,10 @@
 // their neighbors, and no test in this repo caught it until the picture did.
 //
 // penrose-mosaic's colors: blue Pe5 and the star family, yellow Pe3, orange Pe1.
+//
+// Filled even-odd, matching the page. No outline this module builds actually
+// self-intersects, so it changes nothing today; it is the rule that stays right
+// if one ever does.
 
 import { PENTA_UP, ladderTo } from "../dist/bootstrap/wheel.js";
 import { expand, outlineOf } from "../dist/bootstrap/patch.js";
@@ -55,7 +59,8 @@ const out = [
 ];
 for (const t of tiles)
     out.push(`<polygon points="${t.poly.map((v) => `${px(v)},${py(v)}`).join(" ")}"`
-        + ` fill="${FILL[t.type] ?? "#999999"}" stroke="#333333" stroke-width="1"/>`);
+        + ` fill="${FILL[t.type] ?? "#999999"}" fill-rule="evenodd"`
+        + ` stroke="#333333" stroke-width="1"/>`);
 out.push("</svg>");
 console.log(out.join("\n"));
 console.error(`render: ${seed} generation ${gen} — ${tiles.length} tiles`

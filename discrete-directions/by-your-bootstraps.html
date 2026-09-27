@@ -101,16 +101,23 @@
                 <span class="val" id="boot-rung-value">1</span></span><br>
                 <input type="range" id="boot-rung" min="-6" max="10" step="1" value="2"
                        style="width: 300px"></label></p>
+            <p style="margin:6px 0 0"><button id="boot-use">use this pentagon</button></p>
             <p class="hint" style="margin:4px 0 0; max-width:340px">The five points
             <i>are</i> generation 1. The slider steps in <b>halves</b>, because a
             generation is &phi;&sup2; &mdash; two Penrose deflations &mdash; and
-            &phi; is the half. Handles appear only at 1; elsewhere the pentagon is
-            derived and the five show faintly behind it.</p>
+            &phi; is the half. Corners are numbered at every rung, since the order
+            <i>is</i> the rotation operator; handles drag only at 1, where the five
+            actually live, and elsewhere the five show faintly behind.
+            <b>Use this pentagon</b> adopts whatever is shown as the new five and
+            returns the slider to 1, so the ladder is a generator and not only a
+            view.</p>
             <div class="readouts" id="boot-rung-read" style="max-width:340px"></div>
         </figure>
         <figure>
             <canvas id="boot-out" width="420" height="420"></canvas>
-            <figcaption>the output &mdash; <span id="boot-note"></span></figcaption>
+            <figcaption>the output &mdash; <span id="boot-note"></span><br>
+            <b>scroll to zoom, drag to pan</b>, double-click to fit
+            <button id="boot-fit">fit</button></figcaption>
         </figure>
         <div>
             <label>patch <select id="boot-seed">
@@ -127,20 +134,61 @@
             inflation, &phi;&sup2; &mdash; two deflations of the rhomb
             substitution. Tile counts go as &phi;&#8308;.</p>
             <p><label><input type="checkbox" id="boot-rhombs"> rhomb overlay</label><br>
-            <label><span class="cap">rhomb rung
+            <label><span class="cap">rhomb generation
                 <span class="val" id="boot-rhomb-rung-value">0</span></span><br>
-                <input type="range" id="boot-rhomb-rung" min="-2" max="2" step="1" value="0"
+                <input type="range" id="boot-rhomb-rung" min="-2" max="4" step="1" value="0"
                        style="width: 200px"></label><br>
             <label>spelled in <select id="boot-spelling">
-                <option value="t">T</option>
-                <option value="inflated">D + P</option>
-                <option value="legacy">penrose-mosaic's mix</option>
+                <option value="mixed" selected>D + P, then T &mdash; the real one</option>
+                <option value="t">T throughout</option>
+                <option value="inflated">D + P throughout</option>
             </select></label></p>
-            <p><button id="boot-reset">reset the five</button></p>
+            <p><label>preset <select id="boot-preset">
+                <option value="quadrille" selected>quadrille &mdash; the integer five</option>
+                <option value="real">real &mdash; regular, side 4</option>
+            </select></label>
+            <button id="boot-reset">reset</button><br>
+            <label><input type="checkbox" id="boot-snap" checked> snap to the lattice</label><br>
+            <label>fill <select id="boot-fill">
+                <option value="solid" selected>solid</option>
+                <option value="transparent">transparent</option>
+                <option value="off">off &mdash; outlines only</option>
+            </select></label></p>
             <div class="readouts" id="boot-wheels"></div>
             <p class="hint k" id="boot-lengths" style="margin-top:8px"></p>
         </div>
     </div>
+
+    <h3>The other preset: a regular pentagon</h3>
+
+    <p>Nothing here needs the lattice. The wheels, the walks, the substitution and
+    the rhombs are arithmetic on pairs of numbers, and the integers are only what
+    the quadrille happens to use. So the second preset is the <b>regular</b>
+    pentagon, centered on the origin with <b>side 4</b> &mdash; the normalization
+    that makes it comparable, since the quadrille's three edge lengths are 4,
+    &radic;13 and &radic;17 and this is what they are approximating. Its
+    circumradius is 4&thinsp;/&thinsp;(2&thinsp;sin&thinsp;36&deg;) = 3.402603,
+    against the quadrille's 3.</p>
+
+    <pre>  quadrille  (0,-3)      (3,-1)      (2,3)      (-2,3)      (-3,-1)
+  real       (0,-3.403)  (3.236,-1.051)  (2,2.753)  (-2,2.753)  (-3.236,-1.051)
+
+  sides      quadrille  3.606  4.123  4.000  4.123  3.606
+             real       4.000  4.000  4.000  4.000  4.000</pre>
+
+    <p>Fed through the same code it lands on Euclidean Penrose <b>exactly and at
+    once</b> &mdash; thick 72&deg;, thin 36&deg;, at every generation, with no
+    convergence at all, because a regular pentagon is already the substitution's
+    fixed point. The quadrille has to climb toward 69.287628&deg; and
+    37.724519&deg; and never reaches 72&deg;. The edge wheel tells the same story
+    in one number: the real pentagon has <b>one</b> edge length, the quadrille
+    three.</p>
+
+    <p class="hint"><b>Snap to the lattice</b> is on for the quadrille and off for
+    the real preset &mdash; rounding an irrational pentagon's corners onto the
+    paper on the first drag would silently turn it back into a quadrille. The box
+    is yours to override either way. The output pans and zooms: scroll over it,
+    drag it, double-click to fit.</p>
 
     <h3>The ladder, in half steps and below zero</h3>
 

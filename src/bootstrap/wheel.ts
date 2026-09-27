@@ -40,6 +40,38 @@ export const PENTA_UP: readonly Pt[] = [
 ];
 
 /**
+ * The **real** pentagon: regular, centered on the origin, side 4.
+ *
+ * Side 4 is the normalization that makes it comparable to the quadrille seed,
+ * whose three edge lengths are 4, √13 and √17 — this is the regular pentagon
+ * those are approximating. Its circumradius is `4 / (2 sin 36°) = 3.402603`
+ * against the quadrille's 3.
+ *
+ * Nothing in this module cares that its coordinates are irrational. The wheels,
+ * the walks, the substitution and the rhombs are arithmetic on pairs of numbers;
+ * the lattice was never a requirement, only what the quadrille happens to use.
+ * penrose-mosaic keeps real geometry as a separate mode built from sines,
+ * cosines and φ, needing no wheels at all. Here it is the same construction with
+ * a different five.
+ *
+ * Fed through, it lands on Euclidean Penrose exactly and at once: thick 72°,
+ * thin 36°, at every generation, with no convergence, because a regular pentagon
+ * is already the substitution's fixed point. The quadrille has to climb to
+ * 69.287628° and 37.724519° and never reaches 72 at all.
+ */
+export const REAL_PENTA: readonly Pt[] = (() => {
+    const side = 4, r = side / (2 * Math.sin(Math.PI / 5));
+    return [0, 1, 2, 3, 4].map((k) =>
+        [r * Math.sin(2 * Math.PI * k / 5), -r * Math.cos(2 * Math.PI * k / 5)] as Pt);
+})();
+
+/** The two geometries, by name. Any five ordered points would do. */
+export const PRESETS: Record<string, readonly Pt[]> = {
+    quadrille: PENTA_UP,
+    real: REAL_PENTA,
+};
+
+/**
  * Five ordered points become ten directions: the five given occupy the even
  * tenths, their negatives the odd ones, placed so index order is angular order.
  *

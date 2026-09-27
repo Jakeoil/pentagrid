@@ -5,7 +5,7 @@
 // wheels, the tile outlines, and whichever patch is chosen. Move a point and
 // the whole tiling follows, because nothing downstream holds a coordinate.
 
-import { PENTA_UP, eWheel, inflate, ladderTo, m10, wheelFromPoints, wheelsAt,
+import { PENTA_UP, PRESETS, eWheel, inflate, ladderTo, m10, wheelFromPoints, wheelsAt,
          type Pt, type Wheel } from "./wheel.js";
 import { pentagon } from "./walk.js";
 import { THICK, THIN, rhombus, type Spelling } from "./walk.js";
@@ -29,13 +29,43 @@ const FILL: Record<string, string> = {
 let points: Pt[] = PENTA_UP.map((p) => [p[0], p[1]] as Pt);
 let seed: SeedType = "Sun";
 let gen = 2;
-let spelling: Spelling = "t";
+let spelling: Spelling = "mixed";
 let showRhombs = false;
 /** Half-generation offset of the rhomb overlay from the tiles it sits on. */
 let rhombOffset = 0;
 let dragging = -1;
 /** Which rung the input figure shows. The five points themselves are rung 1. */
 let rung = 1;
+/** Snap the input's handles to the lattice. Off for the real preset. */
+let snapToLattice = true;
+
+/**
+ * How tiles are filled.
+ *
+ * Tiles are filled **even-odd**, not nonzero — the rule that gives a
+ * self-intersecting outline the figure it actually is, rather than flooding the
+ * crossing.
+ *
+ * As built, no tile outline self-intersects: checked over both presets and a
+ * skew one, five generations and all ten tenths, every outline is simple, so the
+ * two rules agree on everything this module currently draws. Even-odd is here
+ * because it costs nothing and stays correct if a walk is ever changed — a star
+ * written as a {5/2} pentagram instead of a rim walk would need it.
+ */
+type FillMode = "solid" | "transparent" | "off";
+let fillMode: FillMode = "solid";
+
+/**
+ * The output's viewport: a zoom and a pan on top of the automatic fit.
+ *
+ * Kept as a multiplier on the fit rather than replacing it, so changing seed or
+ * generation still frames the figure sensibly and the viewport rides along.
+ */
+const view = { zoom: 1, panX: 0, panY: 0 };
+let panning = false;
+let panFrom: [number, number] = [0, 0];
+/** The last automatic fit, so zoom can be anchored on the pointer. */
+let fit = { k0: 1, mx: 0, my: 0, w: 1, h: 1 };
 
 /** Square graph paper, matching the index figure. */
 function paper(ctx: CanvasRenderingContext2D, w: number, h: number,
@@ -110,21 +140,17 @@ function drawInput(): void {
     ctx.font = "600 11px ui-monospace, Menlo, monospace";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    // Numbered at every rung: the order is the rotation operator, so a derived
+    // pentagon is only usable if you can see which corner is which. Handles are
+    // draggable at rung 1 only, where the five actually live.
     shown.forEach((p, i) => {
         const x = cx + p[0] * k, y = cy + p[1] * k;
-        if (rung === 1) {
-            ctx.fillStyle = i === dragging ? INK : HOT;
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, TAU);
-            ctx.fill();
-            ctx.fillStyle = "#fff";
-            ctx.fillText(String(i), x, y + 0.5);
-        } else {
-            ctx.fillStyle = HOT;
-            ctx.beginPath();
-            ctx.arc(x, y, 3.5, 0, TAU);
-            ctx.fill();
-        }
+        ctx.fillStyle = rung === 1 && i === dragging ? INK : HOT;
+        ctx.beginPath();
+        ctx.arc(x, y, rung === 1 ? 8 : 7, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = "#fff";
+        ctx.fillText(String(i), x, y + 0.5);
     });
 
     // the origin
@@ -139,19 +165,25 @@ function drawInput(): void {
     if (rungOut) {
         const d = wheelsAt(points, rung).d;
         rungOut.innerHTML = `<b>pentagon at generation ${rung}</b>`
-            + `<span>${d.slice(0, 3).map((v) => `(${v[0]}, ${v[1]})`).join("  ")}</span>`
+            + `<span>${d.slice(0, 3).map((v) => `(${num(v[0])}, ${num(v[1])})`).join("  ")}</span>`
             + (rung === 1 ? "" : "<b>the five, for reference</b>"
-                + `<span>${points.map((v) => `(${v[0]}, ${v[1]})`).join("  ")}</span>`);
+                + `<span>${points.map((v) => `(${num(v[0])}, ${num(v[1])})`).join("  ")}</span>`);
     }
 }
 
-/** Lattice coordinates under the pointer. */
+/**
+ * Coordinates under the pointer, snapped to the lattice when `snapToLattice` is
+ * on. It goes off with the real preset: rounding an irrational pentagon's
+ * corners onto the paper on the first drag would silently turn it back into a
+ * quadrille, which is the kind of thing that goes unnoticed for a week.
+ */
 function pick(ev: { clientX: number; clientY: number }): Pt {
     const r = inputCanvas!.getBoundingClientRect();
     const sx = inputCanvas!.width / r.width, sy = inputCanvas!.height / r.height;
-    const x = (ev.clientX - r.left) * sx - inputCanvas!.width / 2;
-    const y = (ev.clientY - r.top) * sy - inputCanvas!.height / 2;
-    return [Math.round(x / CELL), Math.round(y / CELL)];
+    const x = ((ev.clientX - r.left) * sx - inputCanvas!.width / 2) / CELL;
+    const y = ((ev.clientY - r.top) * sy - inputCanvas!.height / 2) / CELL;
+    return snapToLattice ? [Math.round(x), Math.round(y)]
+                         : [Math.round(x * 256) / 256, Math.round(y * 256) / 256];
 }
 
 // ── step 1: the pentaflake ────────────────────────────────────────────────
@@ -250,7 +282,7 @@ function drawFlake(): void {
     const out = byId("boot-flake-read");
     if (out) out.innerHTML = leaves.slice(1).map((l) =>
         `<b>O${l.edge} = pts[${l.edge}] + pts[${(l.edge + 1) % 5}] = P[${l.tenth}]</b>`
-        + `<span>(${l.center[0]}, ${l.center[1]})</span>`).join("");
+        + `<span>(${num(l.center[0])}, ${num(l.center[1])})</span>`).join("");
 }
 
 // ── the tiling ────────────────────────────────────────────────────────────
@@ -285,18 +317,29 @@ function drawTiling(): void {
     });
     if (!outlines.length) { note("nothing to draw"); return; }
 
+    // Fit the figure, then apply the viewport on top of it.
     const span = Math.max(hi[0] - lo[0], hi[1] - lo[1]) || 1;
-    const k = (Math.min(w, h) - 24) / span;
-    const cx = w / 2 - ((lo[0] + hi[0]) / 2) * k;
-    const cy = h / 2 - ((lo[1] + hi[1]) / 2) * k;
+    const k0 = (Math.min(w, h) - 24) / span;
+    const mx = (lo[0] + hi[0]) / 2, my = (lo[1] + hi[1]) / 2;
+    fit = { k0, mx, my, w, h };
+    const k = k0 * view.zoom;
+    const cx = w / 2 - mx * k + view.panX;
+    const cy = h / 2 - my * k + view.panY;
 
     ctx.lineJoin = "round";
+    ctx.lineWidth = Math.max(0.4, k * 0.06);
     for (const o of outlines) {
+        const color = FILL[o.type] ?? "#999";
         poly(ctx, o.pts, cx, cy, k);
-        ctx.fillStyle = FILL[o.type] ?? "#999";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,0.55)";
-        ctx.lineWidth = Math.max(0.4, k * 0.06);
+        if (fillMode !== "off") {
+            ctx.globalAlpha = fillMode === "transparent" ? 0.42 : 1;
+            ctx.fillStyle = color;
+            ctx.fill("evenodd");          // NOT nonzero -- see FillMode
+            ctx.globalAlpha = 1;
+        }
+        // Unfilled tiles need their own outline or the figure disappears;
+        // filled ones get the usual white seam.
+        ctx.strokeStyle = fillMode === "off" ? color : "rgba(255,255,255,0.55)";
         ctx.stroke();
     }
 
@@ -329,8 +372,11 @@ const note = (s: string): void => {
 
 // ── readouts ──────────────────────────────────────────────────────────────
 
+/** Integers print as integers; the real preset needs decimals. */
+const num = (v: number): string => Number.isInteger(v) ? String(v) : v.toFixed(3);
+
 const fmtW = (w: Wheel, n = 3) =>
-    w.slice(0, n).map((p) => `(${p[0]}, ${p[1]})`).join("  ");
+    w.slice(0, n).map((p) => `(${num(p[0])}, ${num(p[1])})`).join("  ");
 
 function report(e: Wheel): void {
     const set = wheelsAt(points, 1);
@@ -389,6 +435,128 @@ if (rungPick) rungPick.addEventListener("input", () => {
     drawInput();
 });
 
+// ── the output's viewport ─────────────────────────────────────────────────
+
+/** Where a canvas point sits, in the tiling's own coordinates. */
+function toWorld(sx: number, sy: number): [number, number] {
+    const k = fit.k0 * view.zoom;
+    return [(sx - (fit.w / 2 - fit.mx * k + view.panX)) / k,
+            (sy - (fit.h / 2 - fit.my * k + view.panY)) / k];
+}
+
+/** Zoom about a canvas point, so whatever is under the pointer stays there. */
+function zoomAt(sx: number, sy: number, factor: number): void {
+    const [wx, wy] = toWorld(sx, sy);
+    view.zoom = Math.min(120, Math.max(0.2, view.zoom * factor));
+    const k = fit.k0 * view.zoom;
+    view.panX = sx - wx * k - fit.w / 2 + fit.mx * k;
+    view.panY = sy - wy * k - fit.h / 2 + fit.my * k;
+    drawTiling();
+}
+
+/** Canvas coordinates of a pointer event. */
+function atCanvas(ev: { clientX: number; clientY: number }): [number, number] {
+    const r = outCanvas!.getBoundingClientRect();
+    return [(ev.clientX - r.left) * (outCanvas!.width / r.width),
+            (ev.clientY - r.top) * (outCanvas!.height / r.height)];
+}
+
+const resetView = (): void => {
+    view.zoom = 1; view.panX = 0; view.panY = 0;
+    drawTiling();
+};
+
+if (outCanvas) {
+    outCanvas.addEventListener("wheel", (ev) => {
+        ev.preventDefault();
+        const [sx, sy] = atCanvas(ev);
+        zoomAt(sx, sy, Math.exp(-(ev.deltaY ?? 0) * 0.0015));
+    }, { passive: false });
+
+    outCanvas.addEventListener("pointerdown", (ev) => {
+        panning = true;
+        panFrom = atCanvas(ev);
+        outCanvas.setPointerCapture(ev.pointerId);
+    });
+    outCanvas.addEventListener("pointermove", (ev) => {
+        if (!panning) return;
+        const [sx, sy] = atCanvas(ev);
+        view.panX += sx - panFrom[0];
+        view.panY += sy - panFrom[1];
+        panFrom = [sx, sy];
+        drawTiling();
+    });
+    const endPan = (): void => { panning = false; };
+    outCanvas.addEventListener("pointerup", endPan);
+    outCanvas.addEventListener("pointercancel", endPan);
+    outCanvas.addEventListener("dblclick", resetView);
+}
+
+const fitBtn = byId("boot-fit");
+if (fitBtn) fitBtn.addEventListener("click", resetView);
+
+const FILL_MODES: readonly FillMode[] = ["solid", "transparent", "off"];
+const fillPick = byId("boot-fill") as HTMLSelectElement | null;
+if (fillPick) fillPick.addEventListener("change", () => {
+    const v = fillPick.value as FillMode;
+    if (FILL_MODES.includes(v)) fillMode = v;
+    drawTiling();
+});
+
+/**
+ * Adopt the pentagon currently shown on the input figure as the new five.
+ *
+ * Derived rungs are real pentagons in their own right, so the ladder is a
+ * generator and not only a view: walk to a rung, take it, and carry on from
+ * there. Re-basing is exact — the adopted five read back at rung 1 give exactly
+ * the wheel they were taken from, at every rung and on every preset.
+ *
+ * One caveat, recorded because it will look like a bug otherwise: stepping on
+ * from an adopted pentagon lands on `taken + then − 1` of the original ladder
+ * **unless both the adoption and the step are half rungs**, on an *irregular*
+ * pentagon. Then it composes `halfUp` twice, which is not one generation.
+ *
+ * That it depends on regularity is the interesting part. `halfUp²` and `inflate`
+ * are genuinely different operators, but `2cos72° + 2 = 1 + 2cos36° = φ²`, so on
+ * a regular wheel both scale by φ² and agree exactly; on the quadrille they
+ * cannot, and differ by My's λ = −1 term. The gap belongs to the geometry, not
+ * to the operators — which is also why `wheelsAt` anchors every rung on the seed
+ * rather than composing half steps.
+ */
+const useShown = (): void => {
+    const taken = pentagon(wheelsAt(points, rung).d, 0);
+    points = taken.map((p) => [p[0], p[1]] as Pt);
+    rung = 1;
+    if (rungPick) rungPick.value = "2";                 // the slider counts halves
+    if (rungOutValue) rungOutValue.textContent = "1";
+    // Snapping an adopted pentagon that is not on the lattice would wreck it on
+    // the first drag, so follow what was actually taken.
+    snapToLattice = points.every((p) => Number.isInteger(p[0]) && Number.isInteger(p[1]));
+    if (snapBox) snapBox.checked = snapToLattice;
+    redraw();
+};
+
+const useBtn = byId("boot-use");
+if (useBtn) useBtn.addEventListener("click", useShown);
+
+const snapBox = byId("boot-snap") as HTMLInputElement | null;
+if (snapBox) snapBox.addEventListener("change", () => {
+    snapToLattice = snapBox.checked;
+});
+
+const presetPick = byId("boot-preset") as HTMLSelectElement | null;
+const loadPreset = (name: string): void => {
+    const preset = PRESETS[name];
+    if (!preset) return;
+    points = preset.map((p) => [p[0], p[1]] as Pt);
+    // The quadrille lives on the paper; the real pentagon does not. The box
+    // stays the user's to override.
+    snapToLattice = name !== "real";
+    if (snapBox) snapBox.checked = snapToLattice;
+    redraw();
+};
+if (presetPick) presetPick.addEventListener("change", () => loadPreset(presetPick.value));
+
 const genPick = byId("boot-gen") as HTMLInputElement | null;
 const genOut = byId("boot-gen-value");
 if (genPick) genPick.addEventListener("input", () => {
@@ -412,7 +580,7 @@ if (rhombBox) rhombBox.addEventListener("change", () => {
     drawTiling();
 });
 
-const SPELLINGS: readonly Spelling[] = ["t", "inflated", "legacy"];
+const SPELLINGS: readonly Spelling[] = ["mixed", "t", "inflated"];
 const rhombRungPick = byId("boot-rhomb-rung") as HTMLInputElement | null;
 const rhombRungOut = byId("boot-rhomb-rung-value");
 if (rhombRungPick) rhombRungPick.addEventListener("input", () => {
@@ -430,10 +598,8 @@ if (spellPick) spellPick.addEventListener("change", () => {
 });
 
 const resetBtn = byId("boot-reset");
-if (resetBtn) resetBtn.addEventListener("click", () => {
-    points = PENTA_UP.map((p) => [p[0], p[1]] as Pt);
-    redraw();
-});
+if (resetBtn) resetBtn.addEventListener("click", () =>
+    loadPreset(presetPick?.value ?? "quadrille"));
 
 if (genOut) genOut.textContent = String(gen);
 if (rungOutValue) rungOutValue.textContent = String(rung);
