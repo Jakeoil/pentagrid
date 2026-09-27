@@ -3,9 +3,14 @@
 // Ported from penrose-mosaic's `penrose-screen.js` and reduced to tenths. Two
 // things fell out in the reduction and are worth recording:
 //
-//  - `isHeads` never reaches a tile outline. It is threaded through every call
-//    in the original and consulted only by layers that are not the P1 tiles, so
-//    the shape is a function of the tenth alone. It is gone here.
+//  - `isHeads` never reaches a P1 tile OUTLINE — the shape is a function of the
+//    tenth alone. An earlier pass took that to mean it carried nothing and
+//    dropped it, which was wrong: penrose-mosaic's `renderers.js` uses it for a
+//    rhomb's fill gradient and, more to the point, for `drawDihedralStroke`,
+//    where it decides which two edges are ridges and which are valleys. That is
+//    the Wieringa fold parity, and it is real per-tile information. It is
+//    carried on every Placement again, flipping at each level exactly as the
+//    original does.
 //
 //  - `deca()` branches on `angle.isDown` and reads `wheel.up[f]` or
 //    `wheel.down[f]` accordingly, sometimes swapping which. Every one of those
@@ -26,6 +31,11 @@ export interface Placement {
     readonly type: TileType;
     readonly tenth: number;
     readonly loc: Pt;
+    /**
+     * Convex or concave aspect, flipped at every level of the recursion. Does
+     * not change the outline; decides a rhomb's ridge and valley edges.
+     */
+    readonly heads: boolean;
 }
 
 /** The outline each tile type walks. */
@@ -74,52 +84,61 @@ const tr = (a: Pt, b: Pt): Pt => [a[0] + b[0], a[1] + b[1]];
 /**
  * Expand `type` at `tenth` about `loc`, down to single tiles.
  *
- * `gen` counts P1 generations; at 0 the figure is one tile and is emitted.
+ * `floor` stops the recursion early and emits whatever it has reached, which is
+ * penrose-mosaic's short-circuit: `penta()` bails at `gen == 1` and draws the
+ * large rhomb group there instead of recursing. The result covers the SAME area
+ * as a full expansion but with φ⁴ fewer, larger figures — which is not at all
+ * the same as expanding one generation less, since that gives a patch φ² smaller
+ * overall. Getting those two confused is what put the big rhombs in a huddle in
+ * the middle of the figure.
  */
 export function expand(
     type: SeedType, tenth: number, loc: Pt, gen: number, ladder: Ladder,
+    heads = true, floor = 0,
 ): Placement[] {
     const out: Placement[] = [];
-    walk(type, m10(tenth), loc, gen);
+    walk(type, m10(tenth), loc, gen, heads);
     return out;
 
-    function walk(ty: SeedType, a: number, at: Pt, g: number): void {
+    function walk(ty: SeedType, a: number, at: Pt, g: number, h: boolean): void {
         switch (ty) {
-            case "Sun": return sun(a, at, g);
-            case "Star": return starPatch(a, at, g);
-            case "Deca": return deca(a, at, g);
+            case "Sun": return sun(a, at, g, h);
+            case "Star": return starPatch(a, at, g, h);
+            case "Deca": return deca(a, at, g, h);
         }
         if (!isPenta(ty) && !isStar(ty)) throw new Error(`not a tile type: ${ty}`);
-        if (g <= 0) { out.push({ type: ty, tenth: a, loc: at }); return; }
-        return isPenta(ty) ? penta(ty, a, at, g) : star(ty, a, at, g);
+        if (g <= floor) { out.push({ type: ty, tenth: a, loc: at, heads: h }); return; }
+        return isPenta(ty) ? penta(ty, a, at, g, h) : star(ty, a, at, g, h);
     }
 
-    function penta(ty: "Pe5" | "Pe3" | "Pe1", a: number, at: Pt, g: number): void {
+    function penta(ty: "Pe5" | "Pe3" | "Pe1", a: number, at: Pt, g: number,
+                   h: boolean): void {
         const { p, s } = ladder[g];
         const { twist, diamond } = PENTA_RULE[ty];
 
-        walk("Pe5", m10(a + 5), at, g - 1);
+        walk("Pe5", m10(a + 5), at, g - 1, !h);
 
         for (let i = 0; i < 5; i++) {
             const sh = m10(a + 2 * i);
             walk(twist[i] === 0 ? "Pe3" : "Pe1", m10(sh + 2 * twist[i]),
-                 tr(at, p[sh]), g - 1);
+                 tr(at, p[sh]), g - 1, !h);
             if (diamond.includes(i))
-                walk("St1", m10(sh + 5), tr(at, s[m10(sh + 5)]), g - 1);
+                walk("St1", m10(sh + 5), tr(at, s[m10(sh + 5)]), g - 1, h);
         }
     }
 
-    function star(ty: "St5" | "St3" | "St1", a: number, at: Pt, g: number): void {
+    function star(ty: "St5" | "St3" | "St1", a: number, at: Pt, g: number,
+                  h: boolean): void {
         const { s, t } = ladder[g];
         const arms = STAR_ARMS[ty];
 
-        walk("St5", m10(a + 5), at, g - 1);
+        walk("St5", m10(a + 5), at, g - 1, h);
 
         for (let i = 0; i < 5; i++) {
             if (!arms[i]) continue;
             const sh = m10(a + 2 * i);
-            walk("Pe1", m10(sh + 5), tr(at, s[sh]), g - 1);
-            walk("St3", sh, tr(at, t[sh]), g - 1);
+            walk("Pe1", m10(sh + 5), tr(at, s[sh]), g - 1, h);
+            walk("St3", sh, tr(at, t[sh]), g - 1, !h);
         }
     }
 
@@ -133,18 +152,18 @@ export function expand(
      *
      * Rhomb count 55 = 5 (Pe5) + 5x4 (Pe3) + 10x3 (Pe1); the St1 emit none.
      */
-    function sun(a: number, at: Pt, g: number): void {
+    function sun(a: number, at: Pt, g: number, h: boolean): void {
         if (g <= 0) return;
         const { p, s } = ladder[g];
 
-        walk("Pe5", a, at, g);
+        walk("Pe5", a, at, g, h);
 
         for (let i = 0; i < 5; i++) {
             const sh = m10(a + 2 * i);
             const locPe3 = tr(at, p[sh]);
             for (const [off, tw] of [[3, 2], [2, 3]] as const)
                 walk("Pe1", m10(sh + 2 * tw + 5),
-                     tr(locPe3, p[m10(sh + 2 * off + 5)]), g - 1);
+                     tr(locPe3, p[m10(sh + 2 * off + 5)]), g - 1, !h);
             // The diamond in the crack between this Pe3 and the next.
             //
             // penrose-mosaic put these on the T wheel, "a ring further out …
@@ -156,7 +175,7 @@ export function expand(
             // this is the one that also seats all twenty corners on vertices the
             // rest of the figure already has.
             const crack = m10(a + 2 * i + 1);
-            walk("St1", crack, tr(at, s[crack]), g - 1);
+            walk("St1", crack, tr(at, s[crack]), g - 1, h);
         }
     }
 
@@ -168,17 +187,17 @@ export function expand(
      *
      * Rhomb count 35 = 5x3 (Pe1) + 5x4 (Pe3); St5 and St3 emit none.
      */
-    function starPatch(a: number, at: Pt, g: number): void {
+    function starPatch(a: number, at: Pt, g: number, h: boolean): void {
         if (g <= 0) return;
         const { s, t } = ladder[g];
 
-        walk("St5", a, at, g - 1);
+        walk("St5", a, at, g - 1, h);
 
         for (let j = 0; j < 5; j++) {
             const up = m10(2 * j + a), down = m10(5 + 2 * j + a);
-            walk("Pe1", up, tr(at, s[down]), g - 1);
-            walk("Pe3", down, tr(at, t[up]), g - 1);
-            walk("St3", down, tr(at, t[down]), g - 1);
+            walk("Pe1", up, tr(at, s[down]), g - 1, h);
+            walk("Pe3", down, tr(at, t[up]), g - 1, !h);
+            walk("St3", down, tr(at, t[down]), g - 1, !h);
         }
     }
 
@@ -186,16 +205,16 @@ export function expand(
      * The decagon — a type unto itself: a yellow pentagon, two diamonds, two
      * orange pentagons and a boat. Every up/down branch in the original is `+5`.
      */
-    function deca(a: number, at: Pt, g: number): void {
+    function deca(a: number, at: Pt, g: number, h: boolean): void {
         if (g <= 0) return;
         const { p, s } = ladder[g];
 
-        walk("Pe3", a, at, g - 1);
-        walk("St1", m10(a + 6), tr(at, s[m10(a + 2)]), g - 1);
-        walk("St1", m10(a + 4), tr(at, s[m10(a + 8)]), g - 1);
-        walk("Pe1", m10(a + 9), tr(at, p[m10(a + 1)]), g - 1);
-        walk("Pe1", m10(a + 1), tr(at, p[m10(a + 9)]), g - 1);
-        walk("St3", m10(a + 5), tr(at, tr(p[m10(a + 9)], s[m10(a + 1)])), g - 1);
+        walk("Pe3", a, at, g - 1, !h);
+        walk("St1", m10(a + 6), tr(at, s[m10(a + 2)]), g - 1, h);
+        walk("St1", m10(a + 4), tr(at, s[m10(a + 8)]), g - 1, h);
+        walk("Pe1", m10(a + 9), tr(at, p[m10(a + 1)]), g - 1, !h);
+        walk("Pe1", m10(a + 1), tr(at, p[m10(a + 9)]), g - 1, !h);
+        walk("St3", m10(a + 5), tr(at, tr(p[m10(a + 9)], s[m10(a + 1)])), g - 1, h);
     }
 }
 

@@ -699,6 +699,110 @@ There is now a `sameWheel(a, b, tol)` helper that compares numerically against a
 relative tolerance, and it should be used for anything involving the real
 preset. **Do not compare irrational geometry by formatted strings.**
 
+### Big rhombs were hanging on the wrong level
+
+**Jake, 2026-09-27:** *Big rhombs is wrong, it's making too many lines.*
+
+They were, by φ⁴. penrose-mosaic draws the large group where the recursion
+**short-circuits** at generation 1 — replacing a whole flake rather than
+decorating a tile — and the overlay was hanging a large group on every leaf.
+
+The first fix was also wrong, and the render caught it: expanding one generation
+*less* gives the right count but a patch φ² **smaller**, so the big rhombs
+huddled in the middle of the figure. Those two are not the same thing:
+
+    gen 3   leaves            271 figures, span 104
+            floor 1            41 figures, span  94      <- the same patch, stopped early
+            one generation less 41 figures, span  36     <- a smaller patch
+
+`expand()` now takes a `floor` that stops the recursion early and emits what it
+has reached, which is the short-circuit written down. Tested on both counts:
+φ⁴ fewer figures than the leaves, and a span that still covers the patch.
+
+### One style pair for both canvases
+
+**Jake:** *Show pentagons and style are covered by input.* So the separate
+"show pentas" checkbox and "penta style" select are gone. A **face** is one
+tile's polygon, pentagon or star, and there is a single pair of controls —
+face (none / transparent / solid) and edges (none / thin / thick) — governing
+the input pentagon and the output tiles alike. `face: none` is what the show
+checkbox used to do. Two sets that could disagree was not worth keeping in step.
+
+Other input corrections, all his:
+
+- **A preset resets extrapolate to 0.** It is a fresh start.
+- **Snap follows integrality**, not the preset's name, and toggling it never
+  rewrites a coordinate — it only decides where the next drag lands.
+- **Extrapolate is a view, not an edit.** Off 0 the corners are unnumbered and
+  undraggable; `use` is what turns one into the five, and then it numbers,
+  drags and reaches the output like any other. Stepping up and back returns the
+  original exactly, because reading a rung is a pure function of the seed and
+  never touches `points` — there is a test for that now.
+
+### The grid
+
+Emphasized every 4th line, then every 20th, then every 100th, each level drawn
+over the last and anchored on the **origin** rather than the canvas edge, so the
+emphasis lands on multiples of the step wherever the figure has been panned.
+The 100s carry the axes through 0.
+
+### The orange shadows
+
+**Jake:** *I'm seeing shadows of pentagons appearing as very light orange lines
+on the input grid. Why.*
+
+Mine. When extrapolate is not 0 the input figure draws the five points faintly
+behind the extrapolated pentagon, as a reference for the ladder step. It was
+`rgba(230,57,70,0.22)` — the fill red at 22% — and over the pale blue paper that
+reads as a light orange ghost of a pentagon rather than as a deliberate guide.
+Now dashed and neutral gray, which is what it was always meant to look like.
+
+### What "rhomb spelling" is
+
+Jake asked, and the name was doing no work. It is now **rhomb wheels** on the
+page, and the answer is:
+
+A rhomb is three steps from a corner, the fourth closing. Which *wheel* each step
+is taken in is a choice, because two different integer wheels sit on the same φ²
+rung — **T**, and **D + P** which is `inflate(D)`. They differ by the alternating
+(0, ±1) that is My's λ = −1.
+
+    D + P then T     penrose-mosaic's own, and the only one that fits
+    T throughout     closes as a tidy parallelogram, and does not tile
+    D + P throughout ditto
+
+Checked against penrose-mosaic's computed arrays, the mixed one matches all 40
+shapes and the two tidy ones match none. The mixture closes as a **kite** and
+that is exactly what registers the rhombs against the P1 pentagons. The other
+two are kept only so the difference can be looked at; there is no reason to
+choose them.
+
+### The Sun's diamonds: not reproducible here
+
+**Jake, 2026-09-27:** *`sun` has an error in the initial orientation of its St1
+polygons. Wrong center, 180 degrees off.*
+
+Not found, and not for want of looking. The Sun is clean by every test available:
+no overlap and no interior hole at **all ten** seed tenths, and at generations 1,
+2 and 3. Searching every wheel, offset and turn for a five-diamond ring with
+neither overlap nor hole returns exactly one ring — the one in the code.
+
+What the tests **cannot** see is which end of a diamond carries its reference. A
+rhombus is centrally symmetric, so the same gap is filled by two different tiles:
+one whose reference is the inner tip and one whose reference is the outer. They
+draw identically and differ only in what the tile *is*, which matters a
+generation later.
+
+Measured, the alternative is real but not clean: the 180° placement giving the
+identical outline sits at a point that is **not a wheel value** from the Sun's
+center — for the first crack, (5,−7), where the current one is `s[1] = (3,−5)`.
+It is `p[0] + s[2]`, i.e. reached from the neighboring **Pe3** rather than from
+the center. So it would mean the crack diamonds belong to the petals, not to the
+Sun.
+
+Left alone pending Jake saying which end should carry it, since changing it on a
+guess would move a tile that currently tiles correctly.
+
 ### What is constructed, and what is still borrowed
 
 **Constructed:** P, off the pentaflake. The pentagon, as D at stride 2. The

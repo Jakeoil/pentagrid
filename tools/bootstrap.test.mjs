@@ -1067,3 +1067,108 @@ test("adopting from the quadrille stays on the lattice, even at half rungs", () 
     assert.ok(!pentagon(wheelsAt(REAL_PENTA, 0.5).d, 0)
         .every((v) => Number.isInteger(v[0]) && Number.isInteger(v[1])));
 });
+
+
+// ── heads and tails ───────────────────────────────────────────────────────
+//
+// An earlier pass dropped `isHeads` on the grounds that it "never reaches a
+// tile outline". True of the outline, false of the tile: penrose-mosaic's
+// renderers.js uses it for a rhomb's fill gradient and for drawDihedralStroke,
+// which decides ridges from valleys. That is the Wieringa fold parity.
+
+test("every placement carries a heads flag", () => {
+    const L = ladderTo(PENTA_UP, 5);
+    for (const seed of ["Pe5", "St5", "Sun", "Deca"])
+        for (const t of expand(seed, 0, [0, 0], 2, L))
+            assert.equal(typeof t.heads, "boolean", `${seed} tile without heads`);
+});
+
+test("the seed's parity flips the whole patch", () => {
+    const L = ladderTo(PENTA_UP, 5);
+    const a = expand("Pe5", 0, [0, 0], 2, L, true);
+    const b = expand("Pe5", 0, [0, 0], 2, L, false);
+    assert.equal(a.length, b.length);
+    for (let i = 0; i < a.length; i++) {
+        // same tile, same place, opposite aspect
+        assert.equal(a[i].type, b[i].type);
+        assert.deepEqual([...a[i].loc], [...b[i].loc]);
+        assert.equal(a[i].heads, !b[i].heads, `tile ${i} did not flip`);
+    }
+});
+
+test("heads does not move or reshape anything", () => {
+    // It is an aspect, not a geometry. If this ever fails, something is using
+    // it to place a tile, which is not what it means.
+    const L = ladderTo(PENTA_UP, 5);
+    const key = (ts) => ts.map((t) => `${t.type}:${t.tenth}:${t.loc}`).join("|");
+    assert.equal(key(expand("Sun", 0, [0, 0], 2, L, true)),
+                 key(expand("Sun", 0, [0, 0], 2, L, false)));
+});
+
+test("both parities occur in any patch worth the name", () => {
+    const L = ladderTo(PENTA_UP, 5);
+    const tiles = expand("Pe5", 0, [0, 0], 3, L);
+    assert.ok(tiles.some((t) => t.heads) && tiles.some((t) => !t.heads),
+        "a patch with only one parity means the flip is not propagating");
+});
+
+
+// ── the recursion floor, and what big rhombs hang on ──────────────────────
+
+test("a floored expansion covers the same area with phi^4 fewer figures", () => {
+    // Big rhombs go where penrose-mosaic short-circuits: the SAME patch stopped
+    // one level early. Expanding one generation less instead gives a patch phi^2
+    // smaller, which is how the big rhombs ended up huddled in the middle.
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    const L = ladderTo(PENTA_UP, 6);
+    const spanOf = (ts) => {
+        let lo = Infinity, hi = -Infinity;
+        for (const t of ts) { lo = Math.min(lo, t.loc[0]); hi = Math.max(hi, t.loc[0]); }
+        return hi - lo;
+    };
+    for (const g of [2, 3, 4]) {
+        const leaves = expand("Pe5", 0, [0, 0], g, L);
+        const floored = expand("Pe5", 0, [0, 0], g, L, true, 1);
+        const smaller = expand("Pe5", 0, [0, 0], g - 1, L);
+
+        // same count as a shorter expansion...
+        assert.equal(floored.length, smaller.length, `generation ${g} count`);
+        // ...but the area of the full one, not the shorter one
+        assert.ok(spanOf(floored) > spanOf(smaller) * 2,
+            `generation ${g}: floored span ${spanOf(floored)} against ${spanOf(smaller)}`);
+        // Span is measured on tile CENTERS, and a floored figure is a bigger
+        // object, so its centers reach less far than the leaves' while its drawn
+        // extent does not. 0.6 clears that and still fails hard on the wrong
+        // thing, which sits at 0.28.
+        assert.ok(spanOf(floored) > spanOf(leaves) * 0.6,
+            `generation ${g}: floored ${spanOf(floored)} vs leaves ${spanOf(leaves)}`);
+        assert.ok(spanOf(smaller) < spanOf(leaves) * 0.45,
+            `generation ${g}: the shorter expansion should be plainly smaller`);
+        // and phi^4 fewer figures than the leaves
+        const ratio = leaves.length / floored.length;
+        assert.ok(Math.abs(ratio - PHI ** 4) < 0.5,
+            `generation ${g}: ratio ${ratio} against ${PHI ** 4}`);
+    }
+});
+
+test("floor 0 is the ordinary expansion", () => {
+    const L = ladderTo(PENTA_UP, 5);
+    const key = (ts) => ts.map((t) => `${t.type}:${t.tenth}:${t.loc}`).join("|");
+    assert.equal(key(expand("Sun", 0, [0, 0], 3, L, true, 0)),
+                 key(expand("Sun", 0, [0, 0], 3, L)));
+});
+
+// ── extrapolating is non-destructive ──────────────────────────────────────
+
+test("stepping extrapolate up and back returns the original five exactly", () => {
+    // The page holds the five and derives the shown pentagon from them, so
+    // walking the ladder must never touch them. This is the invariant behind
+    // that: reading a rung is a pure function of the seed.
+    for (const pts of [PENTA_UP, REAL_PENTA]) {
+        const before = pentagon(wheelsAt(pts, 1).d, 0);
+        for (const detour of [0.5, -0.5, 2, -2, 3.5]) void wheelsAt(pts, 1 + detour);
+        const after = pentagon(wheelsAt(pts, 1).d, 0);
+        assert.ok(sameWheel(before, after), "reading a rung changed the seed");
+        assert.ok(sameWheel(before, pts.map((v) => [...v])), "rung 0 is not the five");
+    }
+});

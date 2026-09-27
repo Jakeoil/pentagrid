@@ -427,6 +427,9 @@ nav.site a { color: var(--ink-soft); text-decoration: none; font-size: 14px;
     -webkit-user-drag: none; user-drag: none; }
 nav.site a[aria-current="page"] { color: var(--ink); font-weight: 600; }
 nav.site a:hover { text-decoration: underline; }
+/* A corner of the project rather than another page of it: set off by a rule. */
+nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
+    font-style: italic; }
 
 /* The readout of a named slider: fixed width and tabular digits, so a value
    changing length cannot reflow the row and move the slider under the pointer. */
