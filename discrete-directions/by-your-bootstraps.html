@@ -7,10 +7,17 @@
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="stylesheet" href="../site.css">
     <style>
-        /* One measure for the whole page: the rig's width is the text's width,
-           so nothing hugs the left edge while the figures run wide. */
+        /* One measure for the whole page. The rig sets the width; site.css caps
+           prose at 68ch, which left it pinned to the left edge of a page this
+           wide. Centering the measure puts it under the middle of the rig
+           instead, and every block below the controls shares it. */
         .wrap { max-width: 1120px; }
-        .wrap > * { max-width: 1120px; margin-left: auto; margin-right: auto; }
+        .wrap > p, .wrap > pre, .wrap > ul, .wrap > h1, .wrap > h2,
+        .wrap > h3, .wrap > blockquote, .wrap > table {
+            margin-left: auto; margin-right: auto;
+        }
+        .wrap > pre, .wrap > ul, .wrap > table { max-width: 72ch; }
+        .wrap > blockquote { max-width: 68ch; }
         .log { border-top: 1px solid var(--rule); padding-top: 12px;
                margin: 0 0 26px; display: grid; gap: 4px; }
         .rig { display: grid; grid-template-columns: 1fr 2fr; gap: 20px;
@@ -73,6 +80,7 @@
                     <select id="boot-preset">
                         <option value="quadrille" selected>classic</option>
                         <option value="real">real</option>
+                        <option value="custom">custom</option>
                     </select></div>
                 <div><span class="grp">extrapolate</span>
                     <button id="boot-extrapolate-down" title="half a generation down">&minus;</button>
@@ -110,19 +118,14 @@
                         <option value="Sun">Sun</option>
                         <option value="Star">Star</option>
                     </select>
-                    <select id="boot-updown">
-                        <option value="up" selected>up</option>
-                        <option value="down">down</option>
-                    </select></div>
+                    <label><input type="radio" name="boot-updown" id="boot-up" checked> up</label>
+                    <label><input type="radio" name="boot-updown" id="boot-down"> down</label></div>
                 <div><span class="grp">fifths</span>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-0" checked> 0</label>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-1"> 1</label>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-2"> 2</label>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-3"> 3</label>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-4"> 4</label></div>
-                <div><span class="grp">aspect</span>
-                    <label><input type="radio" name="boot-heads" id="boot-heads-h" checked> heads</label>
-                    <label><input type="radio" name="boot-heads" id="boot-heads-t"> tails</label></div>
                 <div><span class="grp">gen</span>
                     <button id="boot-gen-down">&minus;</button>
                     <span class="step" id="boot-gen-value">2</span>

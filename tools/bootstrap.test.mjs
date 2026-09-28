@@ -635,6 +635,36 @@ test("no tile substitution covers a point twice", () => {
         }
 });
 
+test("the Sun is a subset of Pe5 one generation up", () => {
+    // Jake: the composites are subsets of a higher generation -- the Sun of Pe5,
+    // the Star of St5 -- and the Sun "does not follow the rules". This is the
+    // test that found its five diamonds: 16 of its 21 tiles were already inside
+    // Pe5 and the five that were not were exactly those. They are placed the way
+    // Pe5 places them now, and the whole figure sits inside it at every
+    // generation. If this ever fails, the composite has drifted from the
+    // substitution again.
+    const key = (t) => `${t.type}:${t.tenth}:${t.loc[0]},${t.loc[1]}`;
+    const L = ladderTo(PENTA_UP, 7);
+    for (const g of [1, 2, 3]) {
+        const sun = expand("Sun", 0, [0, 0], g, L);
+        const host = new Set(expand("Pe5", 5, [0, 0], g + 1, L).map(key));
+        const inside = sun.filter((t) => host.has(key(t))).length;
+        assert.equal(inside, sun.length,
+            `generation ${g}: ${sun.length - inside} of ${sun.length} outside Pe5`);
+    }
+});
+
+test("the Star is NOT yet, and is the next one to do the same way", () => {
+    // Recorded so fixing it fails this test and says so.
+    const key = (t) => `${t.type}:${t.tenth}:${t.loc[0]},${t.loc[1]}`;
+    const L = ladderTo(PENTA_UP, 5);
+    const star = expand("Star", 0, [0, 0], 1, L);
+    const host = new Set(expand("St5", 0, [0, 0], 2, L).map(key));
+    const inside = star.filter((t) => host.has(key(t))).length;
+    assert.ok(inside < star.length,
+        "the Star now sits inside St5 -- good; move it into the test above");
+});
+
 test("the Sun no longer overlaps itself", () => {
     // Its five diamonds were on the T wheel, "a ring further out", and stabbed
     // into the yellow pentagons. They belong on S at the odd tenths, which is

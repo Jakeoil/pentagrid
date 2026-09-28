@@ -19,7 +19,7 @@
 //
 // Each generation is one P1 inflation, ×φ², which is two Robinson deflations.
 
-import { m10, type Pt, type Wheel, type WheelSet } from "./wheel.js";
+import { inflate, m10, type Pt, type Wheel, type WheelSet } from "./wheel.js";
 import { BOAT, DIAMOND, PENTA, STAR, pentagon, starOutline, type Walk } from "./walk.js";
 
 /** The six P1 tile types, plus the three composite seeds that are not tiles. */
@@ -166,16 +166,19 @@ export function expand(
                      tr(locPe3, p[m10(sh + 2 * off + 5)]), g - 1, !h);
             // The diamond in the crack between this Pe3 and the next.
             //
-            // penrose-mosaic put these on the T wheel, "a ring further out …
-            // halfway between the Pe3 directions", and they came out stabbing
-            // into the yellow pentagons with gaps beside them. They belong on
-            // the S wheel at the odd tenths — the same wheel and the same rung
-            // penta() already uses for its own diamonds. Found by searching
-            // every wheel at three generations for a ring that overlaps nothing:
-            // this is the one that also seats all twenty corners on vertices the
-            // rest of the figure already has.
+            // Jake: the Sun is a composite like the Deca but does not follow the
+            // rules -- it is a SUBSET of a higher generation of Pe5, as the Star
+            // is of St5. That is the test that found this: of the Sun's 21 tiles,
+            // 16 already appear in `Pe5` at tenth a+5, one generation up, and the
+            // five that did not were exactly these diamonds.
+            //
+            // penrose-mosaic put them on the T wheel; a search then put them on S
+            // at the odd tenths, which tiles but is the wrong TILE -- a rhombus is
+            // centrally symmetric, so the same gap is filled by two diamonds whose
+            // references are opposite ends, and only one of them is the one Pe5
+            // places. It is this one: the far tenth, on the inflated D wheel.
             const crack = m10(a + 2 * i + 1);
-            walk("St1", crack, tr(at, s[crack]), g - 1, h);
+            walk("St1", m10(crack + 5), tr(at, inflate(ladder[g].d)[crack]), g - 1, h);
         }
     }
 

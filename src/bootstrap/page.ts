@@ -385,10 +385,15 @@ function drawTiling(): void {
     if (!ctx) return;
     const w = outCanvas.width, h = outCanvas.height;
 
-    const ladder = ladderTo(points, gen + 1);
+    const ladder = ladderTo(points, Math.min(gen, MAX_GEN) + 1);
     let tiles: Placement[] = [];
+    let drawnGen = gen;
     try {
         tiles = expand(seed, seedTenth(), [0, 0], gen, ladder, heads);
+        while (tiles.length > TILE_LIMIT && drawnGen > 1) {
+            drawnGen -= 1;
+            tiles = expand(seed, seedTenth(), [0, 0], drawnGen, ladder, heads);
+        }
     } catch {
         tiles = [];
     }
@@ -454,7 +459,7 @@ function drawTiling(): void {
         // generation less: same area, phi^4 fewer and larger figures.
         const big = rhombSize === "big";
         const hosts = big
-            ? expand(seed, seedTenth(), [0, 0], gen, ladder, heads, 1)
+            ? expand(seed, seedTenth(), [0, 0], drawnGen, ladder, heads, 1)
             : tiles;
         const { d, t } = wheelsAt(points, big ? 1 : 0);
         hostCount = hosts.length;
@@ -492,7 +497,9 @@ function drawTiling(): void {
         }
     }
 
-    note(`${tiles.length} tiles · generation ${gen} · ${seed}`
+    note(`${tiles.length} tiles · generation ${drawnGen}`
+        + (drawnGen === gen ? "" : ` (${gen} asked, capped at ${TILE_LIMIT} tiles)`)
+        + ` · ${seed}`
         + (rhombSize === "none" ? "" : ` · ${rhombSize} rhombs on ${hostCount}`)
         + (view.zoom === 1 ? "" : ` · ${view.zoom.toFixed(1)}×`));
 }
@@ -553,6 +560,7 @@ if (inputCanvas) {
         const at = pick(ev);
         if (at[0] === points[dragging][0] && at[1] === points[dragging][1]) return;
         points = points.map((p, i) => (i === dragging ? at : p));
+        syncPreset();
         redraw();
     });
     const drop = (): void => { if (dragging >= 0) { dragging = -1; redraw(); } };
@@ -651,8 +659,9 @@ if (edgePick) edgePick.addEventListener("change", () => {
     redraw();
 });
 
-for (const [id, v] of [["boot-heads-h", true], ["boot-heads-t", false]] as const)
-    byId(id)?.addEventListener("change", () => { heads = v; drawTiling(); });
+// heads/tails has no control: it decides a rhomb's ridges from its valleys, and
+// there is nothing on this page that shows a fold. The parity is still carried
+// on every Placement, so a page that wants it has it.
 
 for (let f = 0; f < 5; f++)
     byId(`boot-fifths-${f}`)?.addEventListener("change", () => {
@@ -660,11 +669,8 @@ for (let f = 0; f < 5; f++)
         drawTiling();
     });
 
-const updownPick = byId("boot-updown") as HTMLSelectElement | null;
-if (updownPick) updownPick.addEventListener("change", () => {
-    isDown = updownPick.value === "down";
-    drawTiling();
-});
+for (const [id, v] of [["boot-up", false], ["boot-down", true]] as const)
+    byId(id)?.addEventListener("change", () => { isDown = v; drawTiling(); });
 
 /**
  * Adopt the pentagon currently shown on the input figure as the new five.
@@ -694,6 +700,7 @@ const useShown = (): void => {
     // Snapping an adopted pentagon that is not on the lattice would wreck it on
     // the first drag, so follow what was actually taken.
     setSnapFromPoints();
+    syncPreset();
     redraw();
 };
 
@@ -701,6 +708,22 @@ const useBtn = byId("boot-use");
 if (useBtn) useBtn.addEventListener("click", useShown);
 
 const snapBox = byId("boot-snap") as HTMLInputElement | null;
+/**
+ * Keep the preset picker honest. Once the five have been dragged or adopted they
+ * are usually no longer either preset, and leaving the old name selected meant
+ * having to toggle away and back to reload one.
+ */
+function syncPreset(): void {
+    if (!presetPick) return;
+    const same = (a: readonly Pt[]): boolean =>
+        a.length === points.length
+        && a.every((v, i) => Math.abs(v[0] - points[i][0]) < 1e-9
+                          && Math.abs(v[1] - points[i][1]) < 1e-9);
+    for (const [name, preset] of Object.entries(PRESETS))
+        if (same(preset)) { presetPick.value = name; return; }
+    presetPick.value = "custom";
+}
+
 /** Snapping is only safe where the five are already integers. */
 function setSnapFromPoints(): void {
     snapToLattice = points.every((p) => Number.isInteger(p[0]) && Number.isInteger(p[1]));
@@ -713,7 +736,7 @@ if (snapBox) snapBox.addEventListener("change", () => {
 const presetPick = byId("boot-preset") as HTMLSelectElement | null;
 const loadPreset = (name: string): void => {
     const preset = PRESETS[name];
-    if (!preset) return;
+    if (!preset) return;                    // "custom" is a label, not a preset
     points = preset.map((p) => [p[0], p[1]] as Pt);
     // A preset is a fresh start, so the extrapolation goes back to the five.
     extrapolate = 0;
@@ -726,8 +749,19 @@ const loadPreset = (name: string): void => {
 if (presetPick) presetPick.addEventListener("change", () => loadPreset(presetPick.value));
 
 const genOut = byId("boot-gen-value");
+/**
+ * The slider stops at 6, but what actually matters is the tile COUNT, and that
+ * depends on the seed as much as the generation: at generation 5 a Pe5 is 12,161
+ * tiles and a Sun is 42,376. Capping the generation alone let the Sun through at
+ * half a second a redraw, which locks the tab.
+ *
+ * So the generation is clamped down until the count is drawable, and the note
+ * says when that has happened rather than silently ignoring the control.
+ */
+const MAX_GEN = 6;
+const TILE_LIMIT = 15000;
 const stepGen = (by: number): void => {
-    gen = Math.min(6, Math.max(0, gen + by));
+    gen = Math.min(MAX_GEN, Math.max(0, gen + by));
     if (genOut) genOut.textContent = String(gen);
     drawTiling();
 };

@@ -803,6 +803,56 @@ Sun.
 Left alone pending Jake saying which end should carry it, since changing it on a
 guess would move a tile that currently tiles correctly.
 
+### The wheel is set in stone in x, and only in x
+
+**Jake, 2026-09-27:** *Not quite understanding drift of central point. The wheel
+is set in stone no matter where it gets initialized. Each tenth is a Fibonacci
+sequence.*
+
+Half right, and the half that is wrong is exactly where the drift lives. Laying
+the D wheel out along the half-rung ladder, tenth 1:
+
+    rung    0   0.5     1   1.5     2   2.5     3   3.5     4   4.5     5
+       x    1     1     2     3     5     8    13    21    34    55    89
+       y   -1    -2    -3    -4    -7   -12   -19   -30   -49   -80  -129
+
+**x is exactly Fibonacci at every rung, whole and half.** Set in stone, as he
+says. **y is not.** It satisfies the recurrence on the whole rungs and misses by
+±1 on the halves.
+
+That is not a choice of operator gone wrong. Both operators that scale by φ were
+tried as the half step — P = `W[t−1] + W[t+1]` and S = `W[t−2] + W[t] + W[t+2]`
+— and they agree on the whole rungs and straddle the Fibonacci value by ±1 on the
+halves. Neither makes y satisfy the recurrence throughout, and none of the four
+combinations (P/P, P/S, S/P, S/S) closes a round trip.
+
+So the half rung carries **one bit in y** that the arithmetic does not fix.
+
+### What the drift actually is
+
+Measured across a down-use-up-use round trip:
+
+    clicks   1     3     5     7        2     4     6
+    dx       0     0     0     0        0     0     0
+    dy      -1    -1    -1    -1        0     0     0
+
+**x closes exactly, always. y is off by exactly −1 for any odd number of half
+steps and 0 for any even one** — one bit, not an accumulating error, and the same
+whether the detour was 1 click or 7. Uniform across all five points, which is why
+it reads as the center moving.
+
+And the drifted pentagon is not a translate of the original: as a *wheel* it
+differs (tenth 1 is (2,−3) against (2,−2)), because the odd tenths are negations
+rather than translations. It is a genuinely different seed — but a good one. Same
+three edge lengths, 4, √13 and √17, and it tiles with zero overlap. It is the
+other seed on the same rung.
+
+**Not fixed, on purpose.** Nothing here is wrong; the ±1 is the same λ = −1 that
+makes T differ from `inflate(D)` and makes the quadrille rhombs kites. Choosing
+one of the two would be a gauge convention, and which one to prefer is Jake's
+call, not arithmetic's. On the real preset the bit is zero and the round trip
+closes.
+
 ### What is constructed, and what is still borrowed
 
 **Constructed:** P, off the pentaflake. The pentagon, as D at stride 2. The
