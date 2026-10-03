@@ -1940,3 +1940,57 @@ test("big rhombs is the generation above: every vertex of it is a vertex of this
     const miss = inside.filter((p) => !have.has(p));
     assert.equal(miss.length, 0, `${miss.length} of ${inside.length} are not tiling vertices`);
 });
+
+test("Kowalewski: ten band-pair types to five colors, a thin with its opposite thick", () => {
+    // c = 3(a+b) mod 5, which is a+b ≡ 2c: the thin {c-1, c+1} and the thick
+    // {c-2, c+2} share c, and both are symmetric about family c's direction.
+    const color = (a, b) => (3 * (a + b)) % 5;
+    const byColor = new Map();
+    for (let a = 0; a < 5; a++) {
+        for (let b = a + 1; b < 5; b++) {
+            const sep = Math.min(b - a, 5 - (b - a));
+            const c = color(a, b);
+            if (!byColor.has(c)) byColor.set(c, []);
+            byColor.get(c).push({ a, b, thick: sep === 1 });
+        }
+    }
+    assert.equal(byColor.size, 5, "five colors");
+    for (const [c, pairs] of byColor) {
+        assert.equal(pairs.length, 2, `color ${c} has ${pairs.length} orientations`);
+        assert.equal(pairs.filter((p) => p.thick).length, 1, `color ${c}: one thick`);
+        assert.equal(pairs.filter((p) => !p.thick).length, 1, `color ${c}: one thin`);
+        // Jake's boxed identity, and the reason the two are each other's
+        // opposite: neither pair touches family c, and both are symmetric
+        // about it.
+        for (const p of pairs) {
+            assert.notEqual(p.a, c, `color ${c} touches its own family`);
+            assert.notEqual(p.b, c, `color ${c} touches its own family`);
+            assert.equal((p.a + p.b) % 5, (2 * c) % 5, "a + b = 2c");
+        }
+        const thin = pairs.find((p) => !p.thick), thick = pairs.find((p) => p.thick);
+        assert.deepEqual([thin.a, thin.b].sort(), [(c + 4) % 5, (c + 1) % 5].sort());
+        assert.deepEqual([thick.a, thick.b].sort(), [(c + 3) % 5, (c + 2) % 5].sort());
+    }
+
+    // And the view paints it: five family colors, nothing else.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { color: "kowalewski" },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+    const layer = h.stack.get("penrose-tiles");
+    const fills = [];
+    layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    h.redraw();
+    const FAMILY = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
+    const used = new Set(fills);
+    assert.ok(fills.length > 100, `only ${fills.length} tiles`);
+    for (const f of used) {
+        assert.ok(FAMILY.includes(f) || f === "#b48ec4" || f === "#e3a0cb",
+                  `${f} is not a family color (or a 2k-gon's)`);
+    }
+    assert.equal(FAMILY.filter((f) => used.has(f)).length, 5,
+                 `all five colors appear: ${[...used]}`);
+});

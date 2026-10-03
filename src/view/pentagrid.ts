@@ -84,8 +84,10 @@ export interface TileStyle {
     /**
      * The color SYSTEM: what a bare tile is painted by.
      *
-     * `type` thick/thin · `pair` the two families that made it, blended —
-     * Kowalewski's coloring, a tile named by its pair of edge directions ·
+     * `type` thick/thin · `kowalewski` the family the rhomb is symmetric
+     * about, five colors over the ten band-pair types, each on one thin
+     * orientation and the thick one opposite it (see `kowalewski`) · `pair` the
+     * two families that made it, blended ·
      * `bands` the same two as CROSSED BANDS, exactly as grow.html draws them,
      * each `band` wide as a fraction of the edge with the composite square
      * where they cross (at 100% it reads as `pair`, below that as two gridlines
@@ -96,7 +98,7 @@ export interface TileStyle {
      * no longer alternatives: they were one dropdown until Jake split them,
      * which is also how roof.html and grow.html have always had it.
      */
-    color: "type" | "pair" | "bands" | "groups";
+    color: "type" | "pair" | "bands" | "groups" | "kowalewski";
     /**
      * The index-placed dressings, each over whatever system is chosen.
      *
@@ -2012,6 +2014,31 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const NO_GROUP = "#ececec";
 
     /** What color a tile takes, under the current style. */
+    /**
+     * Kowalewski's color for a rhomb: the family it is symmetric about.
+     *
+     * A rhomb is an unordered pair of families {a, b}, and the ten pairs fall
+     * into two classes of five — {i, i+1} thick (72°, adjacent) and {i, i+2}
+     * thin. A Kowalewski color identifies one thin orientation with one thick
+     * one, and the pairing is fixed by the floret: for color c,
+     *
+     *     (c+1) + (c−1)  ≡  (c+2) + (c−2)   (mod 5)
+     *
+     * so the thin {c−1, c+1} and the thick {c−2, c+2} share c — and both are
+     * symmetric about the direction of family c, which is what makes them each
+     * other's opposite. Taking the sums, a + b ≡ 2c (mod 5), and since 2·3 ≡ 1
+     * the color is just **c = 3(a + b) mod 5**: the ten band-pair types collapse
+     * to five, each color on exactly one thin orientation and the thick
+     * orientation opposite it.
+     *
+     * The two pairs of a color partition the four families other than c, so c
+     * is also the one family neither rhomb touches. Jake's scheme; the color
+     * drawn is family c's own, since c is the axis.
+     */
+    function kowalewski(a: number, b: number): number {
+        return (3 * (a + b)) % 5;
+    }
+
     function tileFill(rhomb: Rhomb): string {
         if (tileStyle.color === "groups") {
             const kind = groupOf(rhomb);
@@ -2021,6 +2048,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             // The two ribbons it belongs to, blended — so at full coverage the
             // tiling wears all n family colors at once.
             return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
+        }
+        if (tileStyle.color === "kowalewski" && model.n === 5) {
+            return COLORS[kowalewski(rhomb.j, rhomb.k)];
         }
         return classFill(rhomb.cls);
     }
@@ -2979,14 +3009,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.className = "line-pick";
             sel.style.width = "96px";
             sel.title = "What a bare tile is painted by. thick/thin · rhomb groups, "
-                + "Pe5/Pe3/Pe1 in sun-star's colors · Kowalewski, the tile named by "
-                + "its pair of edge directions · the same two as crossed bands, "
-                + "`band` wide. A 2k-gon follows the same choice. The dressings are "
-                + "separate switches, not alternatives to these.";
+                + "Pe5/Pe3/Pe1 in sun-star's colors · Kowalewski: the family the rhomb "
+                + "is symmetric about, five colors over the ten band-pair types, each "
+                + "on one thin orientation and the thick one opposite it · the two "
+                + "families as crossed bands, `band` wide. A 2k-gon follows the same "
+                + "choice. The dressings are separate switches, not alternatives.";
             const systems = model.n === 5
                 ? [["type", "thick/thin"], ["groups", "rhomb groups"],
-                   ["pair", "Kowalewski"], ["bands", "bands (families2)"]] as const
-                : [["type", "by shape"], ["pair", "Kowalewski"],
+                   ["kowalewski", "Kowalewski"], ["bands", "bands (families2)"]] as const
+                : [["type", "by shape"], ["pair", "families"],
                    ["bands", "bands (families2)"]] as const;
             for (const [value, text] of systems) {
                 const opt = document.createElement("option");

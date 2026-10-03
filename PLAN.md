@@ -625,9 +625,8 @@ in, and whether anything in view is singular.
 
 **And the system is no longer an alternative to a dressing.** `tileStyle.color`
 held nine values, three colorings and six dressings, so choosing P1 meant giving
-up thick/thin. It is now four systems — thick/thin, rhomb groups, **Kowalewski**
-(the tile named by its pair of edge directions: Jake's name for what the code
-called `pair`), bands — with `curves`, `penta`, `nextgen`, `kites` as switches
+up thick/thin. It is now four systems — thick/thin, rhomb groups, **Kowalewski**,
+bands — with `curves`, `penta`, `nextgen`, `kites` as switches
 over whichever is chosen, and `p1` and `bigRhombs` on a row of their own because
 they are placed by the GROUPS rather than by one tile's index. Which is also how
 roof.html and grow.html have always had it; the flat page was the odd one.
@@ -645,6 +644,29 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
+
+**Kowalewski's coloring (2026-10-03).** Not what I first took it for. I had
+mapped Jake's "Kowalewski" onto the existing `pair` — the two families blended —
+and he wrote the real rule out. A rhomb is an unordered pair of families and the
+ten pairs fall into two classes of five, {i, i+1} thick and {i, i+2} thin. A
+Kowalewski color identifies one thin orientation with one thick one, and the
+floret fixes which: for color c,
+
+> (c+1) + (c−1) ≡ (c+2) + (c−2)  (mod 5)
+
+so the thin {c−1, c+1} and the thick {c−2, c+2} share c. Taking the sums,
+**a + b ≡ 2c (mod 5)**, and since 2·3 ≡ 1 the color is just **c = 3(a+b) mod 5**
+— ten band-pair types collapsing to five, each color on exactly one thin
+orientation and the thick orientation opposite it.
+
+Two things make it more than a lookup table. The two pairs of a color partition
+the four families other than c, so **c is the one family neither rhomb touches**;
+and both pairs are symmetric about the direction of family c — {c−1, c+1} and
+{c−2, c+2} are each mirror-symmetric about vc — so **a Kowalewski color is an
+axis**, which is what "a thick rhomb and its opposite thin rhomb" means. That is
+why the color drawn is family c's own. Asserted both ways in the tests: the
+combinatorics of the ten pairs, and that the view paints exactly the five family
+colors and no others.
 
 **The panel reads in three sections (2026-10-03).** Jake: method's controls in
 split's order — view/reticulum, grid lines, Penrose lines — three sections

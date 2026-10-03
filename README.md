@@ -198,10 +198,11 @@ AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon),
 three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 
 **Tile style** is not a feature set but a dressing. `color` is the **system** —
-what a bare tile is painted by: `type` (thick/thin), `pair` (Kowalewski: the
-tile named by its pair of edge directions, blended), `bands` (families2 — the
-two families as crossed bands, `band` wide), `groups` (the rhomb groups in
-sun-star's colors). The **dressings** are independent switches over whatever
+what a bare tile is painted by: `type` (thick/thin), `kowalewski` (the family
+the rhomb is symmetric about: c = 3(a+b) mod 5, five colors over the ten
+band-pair types, each on one thin orientation and the thick one opposite it),
+`pair` (the two families blended), `bands` (families2 — the two families as
+crossed bands, `band` wide), `groups` (the rhomb groups in sun-star's colors). The **dressings** are independent switches over whatever
 system is chosen, rather than alternatives to it: `curves` (the matching curves
 as filled regions, dark at the arrow corner), `penta` (P1 at the scale where
 every thick rhomb holds one whole — the big rhombs), `nextgen` (the deflation,
