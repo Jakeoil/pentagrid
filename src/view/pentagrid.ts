@@ -50,6 +50,19 @@ function classFill(cls: number): string {
     return pal[Math.min(i, pal.length - 1)];
 }
 /**
+ * The five Kowalewski colors, and they are arbitrary.
+ *
+ * Deliberately NOT the family palette. A Kowalewski color classifies a rhomb by
+ * its own axis, while the family colors belong to the ribbons — and `bands`
+ * already uses those, giving the ten composites of the parallel pairs. Painting
+ * a rhomb in family c's color for being symmetric about family c would read as
+ * "this rhomb is family c", which it is not: c is the one family it does not
+ * touch. So: five colors, at the lightness of the other fills, meaning nothing
+ * but "these five classes".
+ */
+const KOWALEWSKI_FILLS = ["#e4a05c", "#7fbf9b", "#8e9bd4", "#d98ba8", "#b5b35c"];
+
+/**
  * A 2k-gon is neither thick nor thin — it is a stack of both — so it gets its
  * own color. Two of them: the hexagons are the common case and the ones that
  * come in a column, so they read pink, and the octagon and the decagon keep the
@@ -84,10 +97,16 @@ export interface TileStyle {
     /**
      * The color SYSTEM: what a bare tile is painted by.
      *
-     * `type` thick/thin · `kowalewski` the family the rhomb is symmetric
-     * about, five colors over the ten band-pair types, each on one thin
-     * orientation and the thick one opposite it (see `kowalewski`) · `pair` the
-     * two families that made it, blended ·
+     * Four classifications, not four palettes: what is being distinguished is
+     * the point, and every palette is assignable.
+     *
+     * `type` — **2 types**, thick and thin, which are shapes rather than
+     * colors and Penrose-agnostic (off n = 5 they are the shape classes, as
+     * many as there are) · `groups` — **3**, Pe5/Pe3/Pe1 · `kowalewski` —
+     * **5**, by the rhomb's own axis, each color on one thin orientation and
+     * the thick one opposite it (see `kowalewski`) · `bands` — **10**, the
+     * composite of the two PARALLEL colors, drawn as the crossed bands
+     * themselves · `pair`, the same ten as a flat blend ·
      * `bands` the same two as CROSSED BANDS, exactly as grow.html draws them,
      * each `band` wide as a fraction of the edge with the composite square
      * where they cross (at 100% it reads as `pair`, below that as two gridlines
@@ -2032,8 +2051,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * orientation opposite it.
      *
      * The two pairs of a color partition the four families other than c, so c
-     * is also the one family neither rhomb touches. Jake's scheme; the color
-     * drawn is family c's own, since c is the axis.
+     * is also the one family neither rhomb touches — and both pairs are
+     * mirror-symmetric about vc. Measured: the thin's short diagonal (1/φ) and
+     * the thick's long one (φ) both lie exactly along the line of vc, in ratio
+     * φ². So the color is the rhomb's own AXIS, which is Jake's "angle /
+     * perpendicular", and why a thick and a thin share it.
+     *
+     * The five colors themselves are arbitrary — see KOWALEWSKI_FILLS.
      */
     function kowalewski(a: number, b: number): number {
         return (3 * (a + b)) % 5;
@@ -2050,7 +2074,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
         }
         if (tileStyle.color === "kowalewski" && model.n === 5) {
-            return COLORS[kowalewski(rhomb.j, rhomb.k)];
+            return KOWALEWSKI_FILLS[kowalewski(rhomb.j, rhomb.k)];
         }
         return classFill(rhomb.cls);
     }
@@ -3008,12 +3032,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const sel = document.createElement("select");
             sel.className = "line-pick";
             sel.style.width = "96px";
-            sel.title = "What a bare tile is painted by. thick/thin · rhomb groups, "
-                + "Pe5/Pe3/Pe1 in sun-star's colors · Kowalewski: the family the rhomb "
-                + "is symmetric about, five colors over the ten band-pair types, each "
-                + "on one thin orientation and the thick one opposite it · the two "
-                + "families as crossed bands, `band` wide. A 2k-gon follows the same "
-                + "choice. The dressings are separate switches, not alternatives.";
+            sel.title = "How a bare tile is classified — the palettes are assignable, "
+                + "the distinction is the point. thick/thin: 2 TYPES, shapes rather "
+                + "than colors · rhomb groups: 3, Pe5/Pe3/Pe1 · Kowalewski: 5, by the "
+                + "rhomb's own axis (its diagonal direction), each color on one thin "
+                + "orientation and the thick one opposite it · bands: 10, the composite "
+                + "of the two parallel colors, drawn as the bands themselves, `band` "
+                + "wide. A 2k-gon follows the same choice. The dressings are separate "
+                + "switches, not alternatives.";
             const systems = model.n === 5
                 ? [["type", "thick/thin"], ["groups", "rhomb groups"],
                    ["kowalewski", "Kowalewski"], ["bands", "bands (families2)"]] as const

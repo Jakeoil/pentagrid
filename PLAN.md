@@ -659,12 +659,22 @@ so the thin {c−1, c+1} and the thick {c−2, c+2} share c. Taking the sums,
 — ten band-pair types collapsing to five, each color on exactly one thin
 orientation and the thick orientation opposite it.
 
+And the systems are **classifications, not palettes** (Jake, same day): thick
+and thin are Penrose-agnostic shape *types* that happen to be drawn in two
+colors and could be drawn in others; the counts are what distinguish the four —
+**2** types, **3** groups, **5** Kowalewski axes, **10** band composites. Which
+settled the palette question too: Kowalewski gets five colors of its own rather
+than the family five, because the family colors belong to the ribbons and
+`bands` is already their ten composites. Painting a rhomb in family c's color
+for being symmetric about family c would read as "this rhomb is family c", and
+c is the one family it does not touch.
+
 Two things make it more than a lookup table. The two pairs of a color partition
 the four families other than c, so **c is the one family neither rhomb touches**;
-and both pairs are symmetric about the direction of family c — {c−1, c+1} and
-{c−2, c+2} are each mirror-symmetric about vc — so **a Kowalewski color is an
-axis**, which is what "a thick rhomb and its opposite thin rhomb" means. That is
-why the color drawn is family c's own. Asserted both ways in the tests: the
+and both pairs are symmetric about the direction of family c — measured, the thin's SHORT diagonal (1/φ) and
+the thick's LONG one (φ) both lie exactly along the line of vc, in ratio φ² — so
+**a Kowalewski color is an axis**, Jake's "angle / perpendicular", which is what
+"a thick rhomb and its opposite thin rhomb" means. Asserted both ways in the
 combinatorics of the ten pairs, and that the view paints exactly the five family
 colors and no others.
 

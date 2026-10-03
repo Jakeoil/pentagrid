@@ -197,12 +197,16 @@ AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon),
 `center` (a ring on the origin), and the
 three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 
-**Tile style** is not a feature set but a dressing. `color` is the **system** —
-what a bare tile is painted by: `type` (thick/thin), `kowalewski` (the family
-the rhomb is symmetric about: c = 3(a+b) mod 5, five colors over the ten
-band-pair types, each on one thin orientation and the thick one opposite it),
-`pair` (the two families blended), `bands` (families2 — the two families as
-crossed bands, `band` wide), `groups` (the rhomb groups in sun-star's colors). The **dressings** are independent switches over whatever
+**Tile style** is not a feature set but a dressing. `color` is the **system**: four classifications, not four palettes — what is
+being distinguished is the point, and the palettes are assignable. `type` is
+**2 types**, thick and thin, which are shapes rather than colors and
+Penrose-agnostic (off n = 5, as many classes as there are shapes); `groups` is
+**3**, Pe5/Pe3/Pe1 in sun-star's colors; `kowalewski` is **5**, by the rhomb's
+own axis — c = 3(a+b) mod 5, each color on one thin orientation and the thick
+one opposite it, in five colors of its own rather than the ribbons'; `bands` is
+**10**, the composite of the two PARALLEL colors, drawn as the crossed bands
+themselves, `band` wide (`pair` is the same ten as a flat blend).
+The **dressings** are independent switches over whatever
 system is chosen, rather than alternatives to it: `curves` (the matching curves
 as filled regions, dark at the arrow corner), `penta` (P1 at the scale where
 every thick rhomb holds one whole — the big rhombs), `nextgen` (the deflation,

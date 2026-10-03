@@ -1972,7 +1972,8 @@ test("Kowalewski: ten band-pair types to five colors, a thin with its opposite t
         assert.deepEqual([thick.a, thick.b].sort(), [(c + 3) % 5, (c + 2) % 5].sort());
     }
 
-    // And the view paints it: five family colors, nothing else.
+    // And the view paints it in five colors of its own — not the family
+    // palette, which belongs to the ribbons and is what `bands` composites.
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
@@ -1984,13 +1985,15 @@ test("Kowalewski: ten band-pair types to five colors, a thin with its opposite t
     const fills = [];
     layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
     h.redraw();
+    const KOW = ["#e4a05c", "#7fbf9b", "#8e9bd4", "#d98ba8", "#b5b35c"];
     const FAMILY = ["#e63946", "#457b9d", "#2a9d8f", "#d4a017", "#9b5de5"];
     const used = new Set(fills);
     assert.ok(fills.length > 100, `only ${fills.length} tiles`);
     for (const f of used) {
-        assert.ok(FAMILY.includes(f) || f === "#b48ec4" || f === "#e3a0cb",
-                  `${f} is not a family color (or a 2k-gon's)`);
+        assert.ok(KOW.includes(f) || f === "#b48ec4" || f === "#e3a0cb",
+                  `${f} is neither a Kowalewski color nor a 2k-gon's`);
+        assert.ok(!FAMILY.includes(f), `${f} is a family color: those are the ribbons'`);
     }
-    assert.equal(FAMILY.filter((f) => used.has(f)).length, 5,
+    assert.equal(KOW.filter((f) => used.has(f)).length, 5,
                  `all five colors appear: ${[...used]}`);
 });
