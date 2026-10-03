@@ -13,9 +13,9 @@ import type { ClusterKind, P1Pentagon } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
-import { createGammaSet, penroseCondition } from "../geometry/gamma.js";
+import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI } from "../geometry/decor.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
@@ -82,21 +82,50 @@ function shade(hex: string, t: number): string {
  */
 export interface TileStyle {
     /**
-     * thick/thin, the two families that made it, its rhomb group (Pe5, Pe3, Pe1
-     * in sun-star's palette; bare when it belongs to none, or when the patch is
-     * not Penrose and groups are undefined), the P1 tiling it carries, the
-     * matching curves as filled regions (Wikipedia's rhombus-with-arcs), the P1
-     * pentagons at the scale where every thick rhomb holds one whole, the next
-     * generation (the deflation: thick gold, thin gray, at scale 1/φ), the
-     * kites and darts (P2 at the same scale, per de Bruijn's Fig. 4) — or
-     * `bands`: the two families as CROSSED BANDS, exactly as grow.html draws
-     * them. Each band runs across the tile in its family's color, `band` wide as
-     * a fraction of the edge, and the square where they cross is the composite.
-     * At 100% the crossing covers the whole tile and it looks like `pair`;
-     * below that the tile reads as two gridlines passing through. A 2k-gon takes
-     * no color under it.
+     * The color SYSTEM: what a bare tile is painted by.
+     *
+     * `type` thick/thin · `pair` the two families that made it, blended —
+     * Kowalewski's coloring, a tile named by its pair of edge directions ·
+     * `bands` the same two as CROSSED BANDS, exactly as grow.html draws them,
+     * each `band` wide as a fraction of the edge with the composite square
+     * where they cross (at 100% it reads as `pair`, below that as two gridlines
+     * passing through) · `groups` its rhomb group, Pe5/Pe3/Pe1 in sun-star's
+     * palette, bare when it belongs to none or the patch is not Penrose.
+     *
+     * The DRESSINGS are separate switches below, so a system and a dressing are
+     * no longer alternatives: they were one dropdown until Jake split them,
+     * which is also how roof.html and grow.html have always had it.
      */
-    color: "type" | "pair" | "bands" | "groups" | "p1" | "curves" | "pentagons" | "nextgen" | "kites";
+    color: "type" | "pair" | "bands" | "groups";
+    /**
+     * The index-placed dressings, each over whatever system is chosen.
+     *
+     * `curves` the matching curves as filled regions (Wikipedia's
+     * rhombus-with-arcs) · `penta` the P1 pentagons at the scale where every
+     * thick rhomb holds one whole, the big rhombs · `nextgen` the deflation,
+     * thick gold and thin gray at 1/φ, which with the edges off IS the next
+     * generation · `kites` P2 on the rhombs, a dart in every thick.
+     */
+    curves: boolean;
+    penta: boolean;
+    nextgen: boolean;
+    kites: boolean;
+    /**
+     * The two that are placed by the rhomb GROUPS rather than by a single
+     * tile's index: `p1`, a pentagon on every group with blue between (the
+     * small rhombs), and `bigRhombs`, the generation ABOVE this one — the
+     * inflation, γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λ·φ — outlined over the patch, which is
+     * next-gen read the other way.
+     */
+    p1: boolean;
+    bigRhombs: boolean;
+    /**
+     * Outline each face from the tile layer, so the edges can be seen with the
+     * `edges` feature off. The edge layer carries the arrows, the arcs and the
+     * pseudo edges with it; this is the outline alone, which is what examining
+     * penta or kites wants.
+     */
+    faceEdges: boolean;
     /** Band width for `bands`, 0..1 of the edge. */
     band: number;
     /** Contour lines across each tile. */
@@ -695,12 +724,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
+        curves: false, penta: false, nextgen: false, kites: false,
+        p1: false, bigRhombs: false, faceEdges: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
     };
 
     /** Panel rows by label, so a page can choose which are worth exposing. */
     const panelRows = new Map<string, HTMLElement>();
+    /** Where each row was first appended, so sectioning can lift it out again. */
+    const rowParent = new Map<string, HTMLElement>();
     const featureOnListeners: ((key: keyof Features) => void)[] = [];
 
     // ── The rhomb cache ───────────────────────────────────────────────
@@ -884,6 +917,54 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         draw: (c) => {
             drawRhombs(c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy, true);
             drawResolutions(c.ctx, c.cx, c.cy, true);
+        },
+    });
+    stack.add({
+        /**
+         * The generation ABOVE this one, outlined over the patch.
+         *
+         * next-gen reads downward — the deflation, γ″ⱼ = −(γⱼ₊₂+γⱼ₊₃) at λ/φ,
+         * drawn inside each tile. This reads upward: the INFLATION, which is
+         * the Penrose-preserving pre-image γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λ·φ. It is a
+         * grid in its own right, so it is collected as one and its coordinates
+         * multiplied by φ to land in this tiling's units. Measured: every
+         * inflated vertex well inside the patch is a vertex of the patch —
+         * 209 of 209 at the sun — which is what makes it the generation above
+         * rather than a figure laid on top.
+         *
+         * Placed by the groups, not by one tile's index, which is why it sits
+         * with P1 in the panel rather than with the per-tile dressings.
+         */
+        id: "big-rhombs", label: "Big rhombs", z: PENROSE_Z_FRONT + 4, group: "Penrose",
+        visible: () => tileStyle.bigRhombs && model.n === 5,
+        draw: (c) => {
+            const n = model.n;
+            const gp = model.gamma.map((_, j) =>
+                model.gamma[(j - 1 + n) % n] + model.gamma[(j + 1) % n]);
+            const base = computeRect();
+            const up: Pentagrid = {
+                n, directions: model.directions, gamma: gp, edges: model.edges,
+            };
+            const rhombs = geoCollectRhombs(up, {
+                xMin: base.xMin / PHI, xMax: base.xMax / PHI,
+                yMin: base.yMin / PHI, yMax: base.yMax / PHI,
+            }, { gain: gridGain() });
+            for (const r of rhombs) {
+                c.ctx.beginPath();
+                r.vertices.forEach(([vx, vy], i) => {
+                    const [sx, sy] = mathToScreen(vx * PHI, vy * PHI, c.cx, c.cy);
+                    if (i === 0) c.ctx.moveTo(sx, sy); else c.ctx.lineTo(sx, sy);
+                });
+                c.ctx.closePath();
+                c.ctx.save();
+                c.ctx.globalAlpha = 0.16;
+                c.ctx.fillStyle = r.thick ? THICK_FILL : THIN_FILL;
+                c.ctx.fill();
+                c.ctx.restore();
+                c.ctx.strokeStyle = "#8c2d4a";
+                c.ctx.lineWidth = 2.2;
+                c.ctx.stroke();
+            }
         },
     });
     stack.add({
@@ -1185,6 +1266,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         for (const [label, el] of panelRows) {
             el.hidden = labels !== null && !labels.includes(label);
         }
+        // A section with nothing left in it would be a heading over a gap.
+        for (const sec of sectionEls) sec.el.hidden = sec.rows.every((r) => r.hidden);
     }
 
     // ── View transforms ───────────────────────────────────────────────
@@ -1836,11 +1919,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function resolutionBase(r: Resolution): string | null {
         if (tileStyle.color === "bands") return null;      // Jake: not the 2k-gons
         if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
-        if (tileStyle.color === "p1") return NO_GROUP;      // and carries no P1
-        if (tileStyle.color === "curves") return CURVE_FACE; // a bare face
-        if (tileStyle.color === "pentagons") return NO_GROUP; // no indices to place by
-        if (tileStyle.color === "nextgen") return NO_GROUP;
-        if (tileStyle.color === "kites") return NO_GROUP;
+        // A dressing is placed by the index and a stack has no one index, so a
+        // 2k-gon takes the bare face under whichever dressing is on.
+        if (tileStyle.curves) return CURVE_FACE;
+        if (tileStyle.penta || tileStyle.nextgen || tileStyle.kites || tileStyle.p1) {
+            return NO_GROUP;
+        }
         if (tileStyle.color === "pair") {
             let rr = 0, gg = 0, bb = 0;
             for (const j of r.families) {
@@ -2209,24 +2293,29 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (fill) {
                 tc.save();
                 tc.globalAlpha = tileStyle.opacity;
+                // The system first — what a bare tile is — and then every
+                // dressing that is on, over it. One dropdown used to hold both
+                // and they were alternatives; they are not.
                 if (tileStyle.color === "bands") {
                     drawBands(tc, rhomb, sv, cx, cy);
-                } else if (tileStyle.color === "p1") {
-                    drawP1(tc, rhomb, sv, cx, cy);
-                } else if (tileStyle.color === "curves") {
-                    drawCurves(tc, rhomb, sv, cx, cy);
-                } else if (tileStyle.color === "pentagons") {
-                    drawPentagons(tc, rhomb, sv, cx, cy);
-                } else if (tileStyle.color === "nextgen") {
-                    drawNextGen(tc, rhomb, sv, cx, cy);
-                } else if (tileStyle.color === "kites") {
-                    drawKites(tc, rhomb, sv, cx, cy);
                 } else {
                     tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
                     tc.fill();
                 }
+                if (tileStyle.curves) drawCurves(tc, rhomb, sv, cx, cy);
+                if (tileStyle.penta) drawPentagons(tc, rhomb, sv, cx, cy);
+                if (tileStyle.nextgen) drawNextGen(tc, rhomb, sv, cx, cy);
+                if (tileStyle.kites) drawKites(tc, rhomb, sv, cx, cy);
+                if (tileStyle.p1) drawP1(tc, rhomb, sv, cx, cy);
                 tc.restore();
                 if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
+                if (tileStyle.faceEdges) {
+                    // The outline alone, from the tile layer, so a face can be
+                    // read with the edge layer off.
+                    tc.strokeStyle = tileStyle.boldEdges ? "#222" : "#777";
+                    tc.lineWidth = tileStyle.boldEdges ? 2 : 1;
+                    tc.stroke();
+                }
             } else {
                 tc.strokeStyle = dotted ? "#999" : (tileStyle.boldEdges ? "#222" : "#777");
                 tc.lineWidth = tileStyle.boldEdges && !dotted ? 2 : 1;
@@ -2511,6 +2600,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // Every layer decides for itself whether it is wanted; see the specs above.
         stack.drawAll();
         viewStats?.();          // pan and zoom change it, not just the panel
+        updatePenroseStatus();
         updateMeter();
         if (loupe.view) { loupe.redraw(); drawFootprint(); }
     }
@@ -2523,20 +2613,99 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * Which panel a row belongs in. One panel is the usual case; with `panelP`
      * the Penrose rows — the P side of the G/P split — go there instead.
      */
-    const P_ROWS = new Set(["Penrose", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons"]);
+    const P_ROWS = new Set([
+        "Penrose", "Penrose hover", "system", "face shade", "penrose face", "for groups",
+        "edge style", "vertex style", "ribbons", "singularities",
+    ]);
     function panelFor(title: string): HTMLElement {
         return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
     }
 
-    function row(parent: HTMLElement, title: string): HTMLElement {
+    /**
+     * The panel's reading order, in three sections.
+     *
+     * A row is built where its code lives, which is not the order anyone wants
+     * to read it in, so the order is declared here and applied once at the end
+     * of the build. The three sections are the page's own argument: what you
+     * are looking at, then the grid, then its dual. With `panelP` the third
+     * section is the whole of the right panel and the first two are the left —
+     * which is split.html's layout, and now method.html's order as well, so the
+     * two pages cannot drift apart.
+     */
+    const SECTIONS: { title: string; rows: readonly string[] }[] = [
+        { title: "view", rows: ["View", "settings"] },
+        { title: "grid", rows: ["Pentagrid", "Hover", "style"] },
+        {
+            title: "Penrose",
+            rows: ["Penrose", "Penrose hover", "system", "face shade", "penrose face",
+                   "for groups", "edge style", "vertex style", "ribbons",
+                   "singularities"],
+        },
+    ];
+    const sectionEls: { el: HTMLElement; rows: HTMLElement[] }[] = [];
+    /** The Penrose heading, which carries the state of the patch beside its name. */
+    let penroseStatus: HTMLElement | null = null;
+
+    /** Lay the built rows out in SECTIONS order, in whichever panel each is in. */
+    function sectionPanel() {
+        for (const panel of [layerPanelDiv, config.panelP].filter(Boolean) as HTMLElement[]) {
+            for (const spec of SECTIONS) {
+                const mine = spec.rows
+                    .filter((label) => panelFor(label) === panel)
+                    .filter((label) => panelRows.has(label));
+                if (!mine.length) continue;
+                const box = document.createElement("div");
+                box.className = "panel-section";
+                const head = document.createElement("div");
+                head.className = "panel-section-title";
+                head.textContent = spec.title;
+                if (spec.title === "Penrose") {
+                    // What the patch IS, beside the heading of the section that
+                    // draws it: whether Σγ meets de Bruijn's condition, which
+                    // local-isomorphism class that puts it in, and whether any
+                    // lines are concurrent in view. Three facts about γ that
+                    // every control below depends on and none of them states.
+                    penroseStatus = document.createElement("span");
+                    penroseStatus.className = "panel-section-state";
+                    head.appendChild(penroseStatus);
+                }
+                box.appendChild(head);
+                const rows: HTMLElement[] = [];
+                for (const label of mine) {
+                    const el = panelRows.get(label)!;
+                    // Lifted out of wherever it was built, not just re-appended:
+                    // the DOM would move it, a stub would not, and a test that
+                    // walks the panel has to see one of each.
+                    rowParent.get(label)?.removeChild(el);
+                    box.appendChild(el);
+                    rows.push(el);
+                }
+                panel.appendChild(box);
+                sectionEls.push({ el: box, rows });
+            }
+        }
+    }
+
+    /**
+     * One row of the panel. `title` keys it; `display` is what the label reads,
+     * and may be empty — the correspondence rows are named by their section
+     * heading, but they keep the label column so their cells line up with the
+     * labeled rows below them.
+     */
+    function row(parent: HTMLElement, title: string, display = title): HTMLElement {
         const wrap = document.createElement("div");
         wrap.className = "panel-row";
+        // The key, on the element: a row's label may be empty (the
+        // correspondence rows are named by their section), so anything looking
+        // for a row by name — a test, a page exposing a subset — needs this.
+        if (title) wrap.dataset.row = title;
         if (title) {
             const t = document.createElement("span");
             t.className = "panel-label";
-            t.textContent = title;
+            t.textContent = display;
             wrap.appendChild(t);
             panelRows.set(title, wrap);      // so a page can expose a subset
+            rowParent.set(title, parent);    // and sectionPanel can re-home it
         }
         parent.appendChild(wrap);
         return wrap;
@@ -2759,16 +2928,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // thing, its counterpart, and the helper that shows you one from the
         // other. Rendering only — none of it changes the tiling.
         const CORRESPONDENCE = [
-            { grid: ["kRegions", "K-region"], hover: "hoverVertex", pen: ["penroseVertices", "vertex"] },
-            { grid: ["gridLines", "gridline"], hover: "hoverEdge", pen: ["penroseEdges", "edge"] },
-            { grid: ["intersectionDots", "intersections"], hover: "hoverTile", pen: ["penroseTiles", "tile"] },
+            { grid: ["kRegions", "regions"], hover: "hoverVertex", pen: ["penroseVertices", "vertices"] },
+            { grid: ["gridLines", "segments"], hover: "hoverEdge", pen: ["penroseEdges", "edges"] },
+            { grid: ["intersectionDots", "intersections"], hover: "hoverTile", pen: ["penroseTiles", "faces"] },
         ] as const;
 
         const corrRow = (
             label: string,
             pick: (c: typeof CORRESPONDENCE[number]) => readonly [keyof Features, string],
         ) => {
-            const r = row(panelFor(label), label);
+            const r = row(panelFor(label), label, "");
             for (const c of CORRESPONDENCE) {
                 const cell = document.createElement("span");
                 cell.className = "corr-cell";     // fixed width, so columns line up
@@ -2782,43 +2951,44 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // is about. The view reports; it does not decide.
         onFeatureOnKeys.add("kRegions");
 
+        // Each side gets its own hover row, under its own objects. The three
+        // switches are the same three — a hover reads both ways, a grid element
+        // lighting its Penrose counterpart and a Penrose element lighting the
+        // region that made it — so the two rows are two views of one set and
+        // syncPanel keeps them together. Jake wanted the pairing readable down
+        // a column in each section rather than across one table.
         corrRow("Pentagrid", (c) => c.grid);
-        corrRow("Hover", (c) => [c.hover, ""] as const);
+        corrRow("Hover", (c) => [c.hover, "hover"] as const);
         corrRow("Penrose", (c) => c.pen);
+        corrRow("Penrose hover", (c) => [c.hover, "hover"] as const);
 
         // K-labels belong with the regions rather than on their own row.
         // G only — the counterpart of Tile style. The Penrose dressings are on
         // that row, and "Penrose in front" has no control any more: it is
         // always in front.
-        const extras = row(layerPanelDiv, "Grid style");
+        const extras = row(layerPanelDiv, "style");
         featureToggle(extras, "kLabels", "K-labels");
         slider(extras, "gridline width", "How thick the grid lines are drawn.",
             { min: 0.5, max: 4, step: 0.5 }, gridLineWidth, (v) => v.toFixed(1),
             (v) => { gridLineWidth = v; draw(); });
 
-        // ── Tile style ────────────────────────────────────────────────
+        // ── Penrose: the system, then the dressings over it ───────────
         {
-            const sRow = row(panelFor("Tile style"), "Tile style");
+            const sRow = row(panelFor("system"), "system");
             const sel = document.createElement("select");
             sel.className = "line-pick";
-            sel.style.width = "84px";
-            sel.title = "thick/thin · the families that made it · the two as crossed bands "
-                + "· its rhomb group, Pe5/Pe3/Pe1 in sun-star's colors · the P1 tiling: "
-                + "a pentagon on every group, blue between (the small rhombs) · the "
-                + "matching curves as filled regions, dark at the arrow corner · "
-                + "pentagons: P1 at the scale where every thick rhomb holds a whole "
-                + "one (the big rhombs) · next-gen: the deflation, thick gold and thin "
-                + "gray at 1/φ — switch the edges off and it is the next generation · "
-                + "kites & darts: P2 on the rhombs, a dart in every thick. "
-                + "A 2k-gon follows the same choice.";
-            // The Penrose dressings are pentagrid facts — rhomb groups, P1, the
-            // matching curves, the deflation, P2 — and are not offered off it.
-            const general = [["type", model.n === 5 ? "thick/thin" : "by shape"], ["pair", "families"], ["bands", "families2"]] as const;
-            const penrose = [
-                ["groups", "rhomb groups"], ["p1", "P1"], ["curves", "curves"],
-                ["pentagons", "pentagons"], ["nextgen", "next-gen"], ["kites", "kites & darts"],
-            ] as const;
-            for (const [value, text] of model.n === 5 ? [...general, ...penrose] : general) {
+            sel.style.width = "96px";
+            sel.title = "What a bare tile is painted by. thick/thin · rhomb groups, "
+                + "Pe5/Pe3/Pe1 in sun-star's colors · Kowalewski, the tile named by "
+                + "its pair of edge directions · the same two as crossed bands, "
+                + "`band` wide. A 2k-gon follows the same choice. The dressings are "
+                + "separate switches, not alternatives to these.";
+            const systems = model.n === 5
+                ? [["type", "thick/thin"], ["groups", "rhomb groups"],
+                   ["pair", "Kowalewski"], ["bands", "bands (families2)"]] as const
+                : [["type", "by shape"], ["pair", "Kowalewski"],
+                   ["bands", "bands (families2)"]] as const;
+            for (const [value, text] of systems) {
                 const opt = document.createElement("option");
                 opt.value = value;
                 opt.textContent = text;
@@ -2840,18 +3010,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             bandWrap.hidden = tileStyle.color !== "bands";
             sRow.appendChild(sel);
             sRow.appendChild(bandWrap);   // re-append: it must follow the select
-            const offP = checkbox(sRow, "off Penrose", tileStyle.offPenrose, (v) => {
-                tileStyle.offPenrose = v;
-                draw();
-            });
-            offP.title = "Draw the index-placed dressings — arrows, curves, pentagons, next-gen, "
-                + "kites — off a Penrose patch too: the tiles touching the top or bottom index "
-                + "level get theirs, and the middle ones, which could go either way, get both "
-                + "readings at half strength.";
 
-            // Second row: how the fill is shaded.
-            const shadeRow = row(panelFor("Tile shade"), "Tile shade");
-            const iso = checkbox(shadeRow, "isogloss", tileStyle.isogloss, (v) => {
+            // How the fill is shaded.
+            const shadeRow = row(panelFor("face shade"), "face shade");
+            const iso = checkbox(shadeRow, "isoglosses", tileStyle.isogloss, (v) => {
                 tileStyle.isogloss = v;
                 draw();
             });
@@ -2871,14 +3033,65 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 { min: 0, max: 1, step: 0.05 }, tileStyle.ramp, (v) => `${Math.round(v * 100)}%`,
                 (v) => { tileStyle.ramp = v; draw(); });
             rampWrap.hidden = !tileStyle.shading;
-
-            slider(sRow, "opacity", "Tile transparency. Edges and decoration stay solid.",
+            slider(shadeRow, "opacity", "Tile transparency. Edges and decoration stay solid.",
                 { min: 0.1, max: 1, step: 0.05 }, tileStyle.opacity, (v) => `${Math.round(v * 100)}%`,
                 (v) => { tileStyle.opacity = v; draw(); });
 
-            // Third row: the edge dressings — P, not G.
-            const edgeRow = row(panelFor("Tile edges"), "Tile edges");
-            const bold = checkbox(edgeRow, "bold edges", tileStyle.boldEdges, (v) => {
+            // The dressings, each over the system rather than instead of it.
+            if (model.n === 5) {
+                const fRow = row(panelFor("penrose face"), "penrose face");
+                const dress = (
+                    key: "penta" | "nextgen" | "kites" | "curves",
+                    label: string, title: string,
+                ) => {
+                    const cb = checkbox(fRow, label, tileStyle[key], (v) => {
+                        tileStyle[key] = v;
+                        draw();
+                    });
+                    cb.title = title;
+                };
+                dress("penta", "penta", "The P1 pentagons at the scale where every thick "
+                    + "rhomb holds one whole — the big rhombs.");
+                dress("nextgen", "next-gen", "The deflation: thick gold and thin gray at "
+                    + "1/φ. Switch the face edges off and it IS the next generation.");
+                dress("kites", "kites", "P2 on the rhombs: kites light, a dart in every thick.");
+                dress("curves", "curves", "The matching curves as filled regions, dark at "
+                    + "the arrow corner.");
+                const fe = checkbox(fRow, "face edges", tileStyle.faceEdges, (v) => {
+                    tileStyle.faceEdges = v;
+                    draw();
+                });
+                fe.title = "Outline each face from the tile layer, so the edges can be seen "
+                    + "with the edge layer off — which is what examining penta or kites wants.";
+                const offP = checkbox(fRow, "off Penrose", tileStyle.offPenrose, (v) => {
+                    tileStyle.offPenrose = v;
+                    draw();
+                });
+                offP.title = "Draw the index-placed dressings — arrows, curves, penta, next-gen, "
+                    + "kites — off a Penrose patch too: the tiles touching the top or bottom index "
+                    + "level get theirs, and the middle ones, which could go either way, get both "
+                    + "readings at half strength.";
+
+                // The two that are placed by the GROUPS rather than by one tile.
+                const gRow = row(panelFor("for groups"), "for groups");
+                const p1b = checkbox(gRow, "P1", tileStyle.p1, (v) => {
+                    tileStyle.p1 = v;
+                    draw();
+                });
+                p1b.title = "The P1 tiling: a pentagon on every rhomb group, blue between "
+                    + "— the small rhombs. Placed by the groups, which is why it is here.";
+                const big = checkbox(gRow, "big rhombs", tileStyle.bigRhombs, (v) => {
+                    tileStyle.bigRhombs = v;
+                    draw();
+                });
+                big.title = "The generation ABOVE this one: the inflation, gamma' = "
+                    + "gamma(j-1) + gamma(j+1) at lambda times phi, outlined over the patch. "
+                    + "next-gen read the other way.";
+            }
+
+            // The edge dressings — P, not G.
+            const edgeRow = row(panelFor("edge style"), "edge style");
+            const bold = checkbox(edgeRow, "bold", tileStyle.boldEdges, (v) => {
                 tileStyle.boldEdges = v;
                 draw();
             });
@@ -2894,12 +3107,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 colored.title = "De Bruijn's arrows: solid, along the edge from dot to dot — "
                     + "green doubles, red singles.";
             }
-            featureToggle(edgeRow, "pseudoEdges", "pseudo edges");
+
+            // The superposed tiles inside a 2k-gon: its own row, since a
+            // singularity is its own subject.
+            const singRow = row(panelFor("singularities"), "singularities");
+            featureToggle(singRow, "pseudoEdges", "pseudo edges");
         }
 
         // ── Tile vertex ───────────────────────────────────────────────
         {
-            const vRow = row(panelFor("Tile vertex"), "Tile vertex");
+            const vRow = row(panelFor("vertex style"), "vertex style");
             // One switch, not three. The vertex is a red dot, or it is its own
             // de Bruijn index in a white circle — and the circle is live: with
             // the hover on, pointing at one outlines the K-region that made it.
@@ -2917,9 +3134,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "K-region it came from.";
         }
 
-        // The gridline-tiles row was built first, for its hook; it belongs on
-        // the P side, under Tile style. Re-appending moves it.
-        panelFor("ribbons").appendChild(tilesRow);
+        // The family controls fold away: five dropdowns and five line numbers
+        // is the widest row in the panel, and it is a thing you set once.
+        {
+            const fold = document.createElement("details");
+            fold.className = "row-fold";
+            const head = document.createElement("summary");
+            head.textContent = "families";
+            fold.appendChild(head);
+            for (const kid of Array.from(tilesRow.children).slice(1)) {
+                tilesRow.removeChild(kid);
+                fold.appendChild(kid as HTMLElement);
+            }
+            tilesRow.appendChild(fold);
+        }
 
         // Collapsed settings — set once, then forgotten
         const det = document.createElement("details");
@@ -2963,6 +3191,28 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // a fact about the frame, and the reticulum is where the frame is seen.
 
         layerPanelDiv.appendChild(det);
+        // Registered like a row, so sectionPanel lifts it into the view
+        // section and exposeRows can hide it with the rest.
+        det.dataset.row = "settings";
+        panelRows.set("settings", det);
+        rowParent.set("settings", layerPanelDiv);
+
+        // Every row exists now, so the panel can be laid out in reading order.
+        sectionPanel();
+        updatePenroseStatus();
+    }
+
+    /** The three facts in the Penrose heading. Refreshed with every draw. */
+    function updatePenroseStatus() {
+        if (!penroseStatus) return;
+        const sum = gammaSet.getSum();
+        const ok = penroseCondition(sum, model.n);
+        const singular = currentResolutions().length > 0;
+        const tick = (on: boolean) => (on ? "\u2713" : "\u2013");
+        penroseStatus.textContent = model.n === 5
+            ? ` ${tick(ok === true)} Σγ≡0 · LI ${describeSum(sum, false, false, model.n)}`
+                + ` · ${tick(singular)} singular`
+            : ` ${tick(singular)} singular`;
     }
 
     // ── Loupe ─────────────────────────────────────────────────────────

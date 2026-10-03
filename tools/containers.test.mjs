@@ -5,6 +5,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { handlers, makeStub } from "./domstub.mjs";
 import { createGrowthView } from "../dist/view/growth.js";
 import { createRegionPanel } from "../dist/view/region-panel.js";
@@ -320,10 +321,9 @@ function sizedHost(w, h, attrs = null) {
         getAttribute: (n) => (attrs ? (attrs[n] ?? null) : null),
     });
     el._w = w; el._h = h;
-    el.appendChild = (c) => { el.children.push(c); return c; };
-    // matching the appendChild above: both must work on the same array, or a
-    // test cannot tell a host that was cleared from one that was not
-    el.replaceChildren = (...kids) => { el.children.length = 0; el.children.push(...kids); };
+    // appendChild, removeChild and replaceChildren all work on `el.children`:
+    // the stub reads base.children at call time, so handing our own array in
+    // above is enough and the three cannot disagree.
     return el;
 }
 
@@ -1037,7 +1037,7 @@ test("the P1 style paints blue and then the pentagons, clipped to each tile", ()
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { color: "p1" },
+        tileStyle: { p1: true },
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);      // the sun
@@ -1090,7 +1090,7 @@ test("tile style is a setting, not a feature flag", () => {
         }
     };
     walk(panel);
-    assert.ok(labels.includes("Tile style"), `rows: ${labels.join(", ")}`);
+    assert.ok(labels.includes("system"), `rows: ${labels.join(", ")}`);
     h2.redraw();
 });
 
@@ -1131,15 +1131,18 @@ test("a superposed rhomb gets no fill and no arc, but keeps its edges", () => {
 
 // ── the panel, after the 2026-09-13 restructuring ─────────────────
 
-/** Row label -> the switch labels on it. */
+/** Row name -> the switch labels on it. Keyed by data-row, since a row's
+ *  visible label may be empty: the correspondence rows are named by the section
+ *  heading above them. */
 function panelRows(panel) {
     const rows = new Map();
     let current = null;
     const walk = (n) => {
         if (!n.children) return;
         for (const c of n.children) {
-            if (c.className === "panel-label" && c.textContent) {
-                current = c.textContent;
+            const name = c.dataset?.row;
+            if (typeof name === "string" && name) {
+                current = name;
                 if (!rows.has(current)) rows.set(current, []);
             }
             // The collapsed settings have unlabeled rows; they belong to no row.
@@ -1171,15 +1174,18 @@ test("the panel separates what the tiling IS from how it is drawn", () => {
     // then the viewport
     assert.ok(rows.get("View").some((c) => c.label === "axes"));
 
-    // then the correspondence as a table: three columns, three rows, aligned
+    // then the correspondence, three columns down each section: the grid
+    // objects over their hovers, the Penrose objects over theirs.
     assert.deepEqual(rows.get("Pentagrid").map((c) => c.label),
-                     ["K-region", "gridline", "intersections"]);
-    assert.deepEqual(rows.get("Hover").map((c) => c.label), ["", "", ""]);
+                     ["regions", "segments", "intersections"]);
+    assert.deepEqual(rows.get("Hover").map((c) => c.label), ["hover", "hover", "hover"]);
     assert.deepEqual(rows.get("Penrose").map((c) => c.label),
-                     ["vertex", "edge", "tile"]);
+                     ["vertices", "edges", "faces"]);
+    assert.deepEqual(rows.get("Penrose hover").map((c) => c.label),
+                     ["hover", "hover", "hover"]);
 
     // the columns line up because each cell is its own fixed-width box
-    for (const label of ["Pentagrid", "Hover", "Penrose"]) {
+    for (const label of ["Pentagrid", "Hover", "Penrose", "Penrose hover"]) {
         assert.equal(rows.get(label).length, 3, `${label} is not three columns`);
     }
 });
@@ -1382,8 +1388,10 @@ test("split: the Penrose group draws in the second container, the axes in both, 
 
     // the panel: G rows left, P rows right
     const gRows = [...panelRows(gPanel).keys()], pRows = [...panelRows(pPanel).keys()];
-    for (const r of ["Pentagrid", "Hover", "Grid style"]) assert.ok(gRows.includes(r), `${r} should be on the G side`);
-    for (const r of ["Penrose", "Tile style", "Tile edges"]) assert.ok(pRows.includes(r), `${r} should be on the P side`);
+    for (const r of ["Pentagrid", "Hover", "style"]) assert.ok(gRows.includes(r), `${r} should be on the G side`);
+    for (const r of ["Penrose", "Penrose hover", "system", "penrose face", "edge style"]) {
+        assert.ok(pRows.includes(r), `${r} should be on the P side`);
+    }
     for (const r of pRows) assert.ok(!gRows.includes(r), `${r} is on both sides`);
 
     // input surfaces on both sides, and a hover on the LEFT paints on the RIGHT:
@@ -1490,7 +1498,7 @@ test("off Penrose is a switch: nothing dressed with it off, the extreme-level ti
     h.setTileStyle({ offPenrose: true });
     strokes = 0; h.redraw();
     assert.ok(strokes > 50, `with the switch on the extreme-level tiles carry arrows (${strokes})`);
-    h.setTileStyle({ color: "kites" });
+    h.setTileStyle({ kites: true });
     const tiles = h.stack.get("penrose-tiles");
     let fills = 0; tiles.ctx.fill = () => { fills++; };
     h.redraw();
@@ -1561,7 +1569,9 @@ test("the multigrid: createPentagrid at n = 8 builds, the reticulum has sixteen 
     assert.ok(sel, "the tile style select exists");
     assert.deepEqual(sel.children.map((o) => o.value), ["type", "pair", "bands"]);
     const rows = panelRows(panel);
-    assert.ok(!rows.get("Tile edges").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
+    assert.ok(!rows.get("edge style").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
+    assert.ok(!rows.has("penrose face"), "no index-placed dressings off the pentagrid");
+    assert.ok(!rows.has("for groups"), "and no rhomb groups to place them on");
     assert.equal(rows.get("ribbons").length, 8, `eight family controls: ${rows.get("ribbons").map((c) => c.label)}`);
 });
 
@@ -1823,4 +1833,110 @@ test("roof: 2kgon-legacy off leaves the polygon to its own color", () => {
     assert.ok(strokes < withIt.strokes, `no edges went (${strokes} of ${withIt.strokes})`);
     // and the tiles outside the polygons are untouched
     assert.ok(fills > withIt.fills * 0.4, `too much went: ${fills} of ${withIt.fills}`);
+});
+
+test("the panel reads in three sections, and split puts the third on the right", () => {
+    // What you are looking at, then the grid, then its dual. One column on
+    // method, two on split — same order either way, so the pages cannot drift.
+    const read = (panel) => {
+        const out = [];
+        const walk = (el) => {
+            for (const c of el.children ?? []) {
+                if (c.className === "panel-section-title") out.push(`== ${c.textContent}`);
+                else if (c.dataset?.row) out.push(c.dataset.row);
+                walk(c);
+            }
+        };
+        walk(panel);
+        return out;
+    };
+    const GRID = ["== view", "View", "settings", "== grid",
+                  "Pentagrid", "Hover", "style"];
+    const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
+                 "penrose face", "for groups", "edge style", "vertex style",
+                 "ribbons", "singularities"];
+
+    const panel = sizedHost(800, 200);
+    createPentagrid({ container: sizedHost(800, 800), panel });
+    assert.deepEqual(read(panel), [...GRID, ...PEN], "method: one column, three sections");
+
+    const left = sizedHost(800, 200), right = sizedHost(800, 200);
+    createPentagrid({
+        container: sizedHost(800, 800), containerP: sizedHost(800, 800),
+        panel: left, panelP: right,
+    });
+    assert.deepEqual(read(left), GRID, "split: view and the grid on the left");
+    assert.deepEqual(read(right), PEN, "split: the Penrose rows on the right");
+});
+
+test("exposing a subset of rows takes its section heading with it", () => {
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({ container: sizedHost(800, 800), panel });
+    const live = () => {
+        const out = [];
+        const walk = (el) => {
+            for (const c of el.children ?? []) {
+                if (c.className === "panel-section" && c.hidden !== true) {
+                    out.push(c.children[0].textContent);
+                }
+                walk(c);
+            }
+        };
+        walk(panel);
+        return out;
+    };
+    h.exposeRows(["View"]);
+    assert.deepEqual(live(), ["view"], "a heading over nothing is worse than no heading");
+    h.exposeRows(null);
+    assert.deepEqual(live(), ["view", "grid", "Penrose"]);
+});
+
+test("method shows the whole panel on every step", () => {
+    // The per-step row lists never moved anything in a browser — an author
+    // display rule beats the UA's [hidden] — so the page has always shown every
+    // row, and the CSS saying it outright must not change that.
+    const src = readFileSync(new URL("../src/app/method-steps.ts", import.meta.url), "utf8");
+    const calls = src.match(/exposeRows\(([^)]*)\)/g) ?? [];
+    assert.ok(calls.length > 4, `only ${calls.length} exposeRows calls found`);
+    assert.deepEqual([...new Set(calls)], ["exposeRows(null)"],
+                     "a step that prunes rows would hide the Penrose section");
+});
+
+test("big rhombs is the generation above: every vertex of it is a vertex of this one", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { bigRhombs: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("big-rhombs");
+    assert.ok(layer, "no big-rhombs layer");
+    assert.equal(layer.visible(), true);
+
+    // Capture what it draws, and what the tiles draw, in screen coordinates.
+    const big = [], tiles = [];
+    layer.ctx.moveTo = (x, y) => { big.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
+    layer.ctx.lineTo = (x, y) => { big.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
+    const tl = h.stack.get("penrose-tiles");
+    tl.ctx.moveTo = (x, y) => { tiles.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
+    tl.ctx.lineTo = (x, y) => { tiles.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
+    h.redraw();
+
+    assert.ok(big.length > 40, `only ${big.length} big-rhomb corners`);
+    // There are fewer of them, by about phi squared.
+    assert.ok(big.length * 2 < tiles.length,
+              `${big.length} big corners against ${tiles.length} tile corners`);
+    // And they sit on the tiling's own vertices — the inflation is a pre-image,
+    // not a figure laid on top. Only the ones well inside: a corner near the
+    // edge has its counterpart outside what was collected.
+    const have = new Set(tiles);
+    const inside = big.filter((p) => {
+        const [x, y] = p.split(",").map(Number);
+        return x > 150 && x < 650 && y > 150 && y < 650;
+    });
+    assert.ok(inside.length > 20, `only ${inside.length} corners well inside`);
+    const miss = inside.filter((p) => !have.has(p));
+    assert.equal(miss.length, 0, `${miss.length} of ${inside.length} are not tiling vertices`);
 });

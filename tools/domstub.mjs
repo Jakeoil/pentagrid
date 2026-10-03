@@ -48,10 +48,19 @@ function makeStub(extra = {}) {
         },
         // Like the DOM: appending a node that is already a child MOVES it to the
         // end rather than adding a second entry.
+        //
+        // All three child methods read `base.children` at call time rather than
+        // closing over the array, because a caller may hand its own in through
+        // `extra` — every host helper in the tests does — and then half the
+        // methods were working on one array and half on another. That is how
+        // removeChild came to be a no-op on a sizedHost: a factory that lifts a
+        // row out of one parent and into another looked like it had left a copy
+        // behind, and only in the stub.
         appendChild: (c) => {
-            const i = children.indexOf(c);
-            if (i >= 0) children.splice(i, 1);
-            children.push(c);
+            const kids = base.children;
+            const i = kids.indexOf(c);
+            if (i >= 0) kids.splice(i, 1);
+            kids.push(c);
             return c;
         },
         // Must really remove: code that empties a node by looping on
@@ -61,12 +70,13 @@ function makeStub(extra = {}) {
         // kept every old child and a "does rebuilding leave rows behind" test
         // could not tell the difference.
         replaceChildren: (...kids) => {
-            children.length = 0;
-            for (const k of kids) children.push(k);
+            base.children.length = 0;
+            for (const k of kids) base.children.push(k);
         },
         removeChild: (c) => {
-            const i = children.indexOf(c);
-            if (i >= 0) children.splice(i, 1);
+            const kids = base.children;
+            const i = kids.indexOf(c);
+            if (i >= 0) kids.splice(i, 1);
             return c;
         },
         addEventListener: (type, fn) => {

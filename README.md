@@ -170,6 +170,14 @@ panel to the page that is about it.
 | `containerP` | a second container: the Penrose group draws there, the grid here, the axes in both — one model on two canvases (split) |
 | `controls`, `panel` | optional hosts for the meter and the layer panel; omit for a bare viewport |
 | `panelP` | with `containerP`: the Penrose rows of the panel go here |
+
+The panel is laid out in three sections, in reading order: **view** (the
+viewport and the reticulum button), **grid lines** (the pentagrid rows and the
+hovers), **Penrose lines** (the dual and every dressing on it). A row is built
+wherever its code lives and ordered once at the end, so the order is declared in
+one place. With `panelP` the third section is the whole of the right panel and
+the first two are the left — which is split.html, and method.html is the same
+order in one column.
 | `features` | starting feature set (see below). A page's `enter` usually imposes its own |
 | `tileStyle` | how the tiles are dressed (see below) |
 | `gamma` | starting offsets. Omitted means the sun, uniform 1/5 |
@@ -189,14 +197,21 @@ AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon),
 `center` (a ring on the origin), and the
 three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
 
-**Tile style** is not a feature set but a dressing: `color` is one of `type`
-(thick/thin), `pair` (the two families, blended), `bands` (families2 — the two
-families as crossed bands, `band` wide), `groups` (the rhomb groups in sun-star's
-colors), `p1` (the pentagon tiling on the groups — the small rhombs), `curves`
-(Penrose's matching curves as filled regions) `pentagons` (P1 at the scale
-where every thick rhomb holds one whole — the big rhombs) `nextgen` (the
-deflation: thick gold, thin gray, at 1/φ — the next generation once the edges
-are off) or `kites` (P2 on the rhombs, a dart in every thick); plus `isogloss`, `shading` with its `ramp` (the
+**Tile style** is not a feature set but a dressing. `color` is the **system** —
+what a bare tile is painted by: `type` (thick/thin), `pair` (Kowalewski: the
+tile named by its pair of edge directions, blended), `bands` (families2 — the
+two families as crossed bands, `band` wide), `groups` (the rhomb groups in
+sun-star's colors). The **dressings** are independent switches over whatever
+system is chosen, rather than alternatives to it: `curves` (the matching curves
+as filled regions, dark at the arrow corner), `penta` (P1 at the scale where
+every thick rhomb holds one whole — the big rhombs), `nextgen` (the deflation,
+thick gold and thin gray at 1/φ; the next generation when the edges are off),
+`kites` (P2 on the rhombs, a dart in every thick), and two placed by the rhomb
+GROUPS rather than by one tile's index: `p1` (a pentagon on every group, blue
+between) and `bigRhombs` (the generation above — the inflation γ′ⱼ = γⱼ₋₁ +
+γⱼ₊₁ at λ·φ, outlined over the patch). Plus `faceEdges` (outline each face from
+the tile layer, so edges can be seen with the edge layer off), `isogloss`,
+`shading` with its `ramp` (the
 Wieringa height ramp, over any color), `boldEdges`, `coloredArrows` (de Bruijn's
 solid arrows along the edges, dot to dot, green doubles and red singles, in place
 of the chevrons), `vertexMark` (`dot`, the red dot, or `index`, the vertex's

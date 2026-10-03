@@ -264,10 +264,11 @@ Front to back. z decides the order; the group is where the switch lives.
 | z | id | label | group | switched by |
 |---|---|---|---|---|
 | 70 | `axes` | Axes | Axes | `axes` |
-| 34 | `penrose-vertices` | Vertices | Penrose | `penroseVertices` |
-| 33 | `penrose-decor` | Arcs | Penrose | `penroseDecor` |
-| 32 | `penrose-pseudo` | Pseudo edges | Penrose | `pseudoEdges` |
-| 31 | `penrose-edges` | Edges | Penrose | `penroseEdges` |
+| 35 | `penrose-vertices` | Vertices | Penrose | `penroseVertices` |
+| 34 | `penrose-decor` | Arcs | Penrose | `penroseDecor` |
+| 33 | `penrose-pseudo` | Pseudo edges | Penrose | `pseudoEdges` |
+| 32 | `penrose-edges` | Edges | Penrose | `penroseEdges` |
+| 31 | `big-rhombs` | Big rhombs | Penrose |  |
 | 30 | `penrose-tiles` | Tiles | Penrose | `penroseTiles` |
 | 29 | `dots` | Dots | Pentagrid | `intersectionDots` |
 | 28 | `klabels` | K-labels | Pentagrid | `kLabels` |

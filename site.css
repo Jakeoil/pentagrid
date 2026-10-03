@@ -367,6 +367,37 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     border: 1px solid #ccc;
     border-radius: 3px;
 }
+/* The panel reads in three sections — what you are looking at, the grid, its
+   dual — so each gets a quiet heading and a rule above it. On the two-panel
+   split the third section is the whole right panel, so its heading is the only
+   one there and the rule above it would float: hence :not(:first-child). */
+.panel-section + .panel-section { margin-top: 10px; }
+.panel-section-title {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #9a9aa2;
+    margin: 0 0 2px;
+}
+.panel-section:not(:first-child) > .panel-section-title {
+    border-top: 1px solid #e6e6ea;
+    padding-top: 8px;
+}
+/* An author `display` rule beats the UA's `[hidden] { display: none }`, so a
+   hidden row has to be told to go. .panel-row has display:flex, and until this
+   was written exposeRows() moved nothing in a browser at all. */
+.panel-row[hidden], .panel-section[hidden] { display: none; }
+.row-fold { font-size: 12px; }
+.row-fold summary { cursor: pointer; color: #777; outline: none; width: max-content; }
+.row-fold[open] summary { color: #444; }
+.row-fold[open] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+/* The state of the patch, beside the heading of the section that draws it. */
+.panel-section-state {
+    font-weight: normal;
+    letter-spacing: 0;
+    text-transform: none;
+    color: #8a8a92;
+}
 .panel-row {
     display: flex;
     gap: 12px;

@@ -604,6 +604,68 @@ column of singularities Jake reported seeing. The ten triples are two orbits of
 five under rotation alone, and adding the reflection merges nothing further:
 the mirror through family 0 sends 012 to 034, already in its orbit.
 
+**The panel, rebuilt to Jake's layout (2026-10-03).** His spec, section by
+section, for method and split alike.
+
+**VIEW** is one line: the viewport row and the collapsed settings, which now
+live in the section rather than trailing off the end of the panel.
+
+**GRID** reads down a column — `regions segments intersections`, then
+`hover hover hover`, then `style` with the K-labels and the gridline width. The
+correspondence rows lost their labels (the heading names them) but kept the
+label column, so the cells still line up with the labeled rows below.
+
+**PENROSE** gets its own hover row. A hover reads both ways already — a grid
+element lights its Penrose counterpart and a Penrose element lights the region
+that made it — so the two rows are two views of one set of three switches, and
+`syncPanel` keeps them together. Jake wanted the pairing legible down a column
+in each section rather than across one table. The heading carries the state of
+the patch: whether Σγ meets de Bruijn's condition, which LI class that puts it
+in, and whether anything in view is singular.
+
+**And the system is no longer an alternative to a dressing.** `tileStyle.color`
+held nine values, three colorings and six dressings, so choosing P1 meant giving
+up thick/thin. It is now four systems — thick/thin, rhomb groups, **Kowalewski**
+(the tile named by its pair of edge directions: Jake's name for what the code
+called `pair`), bands — with `curves`, `penta`, `nextgen`, `kites` as switches
+over whichever is chosen, and `p1` and `bigRhombs` on a row of their own because
+they are placed by the GROUPS rather than by one tile's index. Which is also how
+roof.html and grow.html have always had it; the flat page was the odd one.
+
+Two new things in it. **face edges** outlines each face from the tile layer, so
+the edges can be seen with the edge layer (and its arrows, arcs and pseudo
+edges) off — which is what examining penta or kites wants. **big rhombs** draws
+the generation ABOVE this one: next-gen reads downward, the deflation inside
+each tile, and this reads upward, the Penrose-preserving pre-image
+γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λ·φ. It is a grid in its own right, so it is collected as
+one and its coordinates multiplied by φ to land in this tiling's units. Measured
+at the sun: **every** inflated vertex well inside the patch is a vertex of the
+patch, 209 of 209, which is what makes it the generation above rather than a
+figure laid on top. A test asserts the same thing in screen coordinates.
+
+The ribbons row folds away — five dropdowns and five line numbers is the widest
+row in the panel and it is set once.
+
+**The panel reads in three sections (2026-10-03).** Jake: method's controls in
+split's order — view/reticulum, grid lines, Penrose lines — three sections
+rather than two columns, and on split the first two on the left with Penrose on
+the right. Rows are built where their code lives, which is not the order anyone
+reads them in, so `SECTIONS` declares the order and `sectionPanel()` applies it
+once at the end of the build. Method's "Penrose" row had been sitting ahead of
+"Grid style", which was the actual complaint. With `panelP` the third section is
+the whole right panel and the first two are the left, so the two pages share one
+order and cannot drift. `exposeRows` hides a section whose rows have all gone —
+a heading over a gap is worse than no heading.
+
+One stub bug fell out of it. `makeStub`'s `appendChild` and `replaceChildren`
+had been rewritten by every test host to work on the array handed in through
+`extra`, but `removeChild` still closed over the stub's own array, so removing a
+node from a host did nothing. A factory that lifts a row out of one parent and
+into another therefore looked like it had left a copy behind — only in the stub,
+and the first version of this change "failed" two tests that were right. All
+three now read `base.children` at call time. Same family as the missing
+`replaceChildren` that hid the duplicate-panel bug on dual.html.
+
 **The roof's controls, reworked (2026-09-24).** Jake's list, in one pass.
 
 - **P1 is gone from roof.** The pentagon tiling at the small-rhomb scale had a

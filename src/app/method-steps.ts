@@ -32,7 +32,17 @@ export const METHOD_PAGES: Page[] = [
             pg.setGridAlpha(0.6);
             // Only what this page is about. The rest is still reachable from the
             // panel; it is just not shouted about here.
-            pg.exposeRows(["Pentagrid", "Grid style", "View"]);
+            // The whole panel, on every step.
+            //
+            // Each step used to name the rows it wanted and the rest were set
+            // hidden — except that never moved anything in a browser: an author
+            // `display` rule beats the UA's `[hidden] { display: none }`, and
+            // .panel-row is display:flex, so the page has always shown every
+            // row at every step. The CSS says it outright now, and rather than
+            // make a years-old intention suddenly bite and take the Penrose
+            // controls away from the early steps, the steps ask for all of it.
+            // Jake: "Method does not show the Penrose section."
+            pg.exposeRows(null);
         },
     },
     {
@@ -50,7 +60,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, intersectionDots: true, hoverTile: true });
             pg.setGridAlpha(0.6);
-            pg.exposeRows(["Pentagrid", "Hover", "Grid style", "View"]);
+            pg.exposeRows(null);
         },
     },
     {
@@ -76,7 +86,7 @@ export const METHOD_PAGES: Page[] = [
                 gridLines: true, kRegions: true, kLabels: true, hoverVertex: true,
             });
             pg.setGridAlpha(0.4);
-            pg.exposeRows(["Pentagrid", "Hover", "Grid style", "View"]);
+            pg.exposeRows(null);
         },
     },
     {
@@ -96,7 +106,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseVertices: true, hoverVertex: true });
             pg.setGridAlpha(0.28);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons", "View"]);
+            pg.exposeRows(null);
         },
     },
     {
@@ -121,7 +131,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseEdges: true, hoverTile: true });
             pg.setGridAlpha(0.24);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons", "View"]);
+            pg.exposeRows(null);
         },
     },
     {
@@ -148,7 +158,7 @@ export const METHOD_PAGES: Page[] = [
         enter: (pg) => {
             pg.setFeatures({ gridLines: true, penroseTiles: true, penroseEdges: true });
             pg.setGridAlpha(0.18);
-            pg.exposeRows(null);     // the last page opens everything up
+            pg.exposeRows(null);
         },
     },
     {
@@ -196,7 +206,7 @@ export const METHOD_PAGES: Page[] = [
                              penroseEdges: true, penroseVertices: true, pseudoEdges: true });
             pg.gamma.setSum(0, true);            // the page is about the singular point
             pg.setGridAlpha(0.5);
-            pg.exposeRows(["Pentagrid", "Hover", "Penrose", "Grid style", "Tile style", "Tile shade", "Tile edges", "Tile vertex", "ribbons", "View"]);
+            pg.exposeRows(null);
         },
     },
 ];

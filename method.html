@@ -322,6 +322,33 @@
             flex-wrap: wrap;
             margin: 4px 0;
         }
+        /* The panel reads in three sections — what you are looking at, the grid,
+           its dual — each with a quiet heading and a rule above it. [hidden] on
+           its own is not enough here: an author `display` rule beats the UA's
+           `[hidden] { display: none }`, so hiding a row needs saying outright. */
+        .panel-section + .panel-section { margin-top: 10px; }
+        .panel-section-title {
+            font-size: 11px;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #9a9aa2;
+            margin: 0 0 2px;
+        }
+        .panel-section:not(:first-child) > .panel-section-title {
+            border-top: 1px solid #e6e6ea;
+            padding-top: 8px;
+        }
+        .panel-row[hidden], .panel-section[hidden] { display: none; }
+        .row-fold { font-size: 12px; }
+        .row-fold summary { cursor: pointer; color: #777; outline: none; width: max-content; }
+        .row-fold[open] summary { color: #444; }
+        .row-fold[open] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+        .panel-section-state {
+            font-weight: normal;
+            letter-spacing: 0;
+            text-transform: none;
+            color: #8a8a92;
+        }
         .panel-label {
             font-size: 12px;
             color: #888;
