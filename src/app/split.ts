@@ -25,7 +25,8 @@ if (gridHost && tileHost) {
         features: {
             gridLines: true, kRegions: true, intersectionDots: true, axes: false, center: true,
             penroseVertices: true, penroseEdges: true, penroseTiles: true,
-            hoverVertex: true, hoverEdge: true, hoverTile: true,
+            hoverRegion: true, hoverSegment: true, hoverCrossing: true,
+            hoverVertex: true, hoverEdge: true, hoverFace: true,
         },
     });
 

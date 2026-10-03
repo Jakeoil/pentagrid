@@ -195,7 +195,18 @@ order in one column.
 `penroseEdges`, `penroseVertices`, `penroseDecor` (the arcs), `arrows` (the
 AR-pattern), `pseudoEdges` (the superposed tiles' edges inside a 2k-gon),
 `center` (a ring on the origin), and the
-three hover helpers `hoverVertex`, `hoverEdge`, `hoverTile`.
+**six hovers**, each ONE WAY. Grid in, Penrose out: `hoverRegion` (a region to
+its dual vertex), `hoverSegment` (a gridline segment to the edge it becomes),
+`hoverCrossing` (an intersection to its tile). Penrose in, grid out:
+`hoverVertex` (a dual vertex to the region that made it), `hoverEdge` (a tile
+edge to its gridline segment), `hoverFace` (a face to the crossing that made
+it). The two sides are separate switches and do not synchronize — one screen is
+the input, the other the output. A hover only detects what is DRAWN, so each is
+gated on its own object's layer; and with `containerP` the grid hovers answer
+only on the grid canvas and the Penrose hovers only on the Penrose one. The
+readout splits the same way: what was detected on the screen it came from, what
+it dualizes to on the screen that draws it, one box each when the sides have
+their own canvas and one box with both when they share.
 
 **Tile style** is not a feature set but a dressing. `color` is the **system**: four classifications, not four palettes — what is
 being distinguished is the point, and the palettes are assignable. `type` is

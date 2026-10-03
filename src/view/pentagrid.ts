@@ -237,12 +237,34 @@ export interface Features {
      */
     /** A small circle on the origin, as sunstar draws it — the point γ is about. */
     center: boolean;
-    // The three hover helpers, one per grid/Penrose correspondence. Each works
-    // both ways and each overrides an "off" on the thing it is helping with —
-    // the point of a helper is to show you the object, not to respect a switch.
-    hoverVertex: boolean;   // K-region  <-> Penrose vertex
-    hoverEdge: boolean;     // gridline segment <-> Penrose edge
-    hoverTile: boolean;     // intersection <-> Penrose tile
+    /*
+     * The hovers. SIX, not three, and each one runs ONE WAY.
+     *
+     * A hover takes an element on one side, finds its counterpart on the other,
+     * and highlights it there. That is a direction, not a relation, so the grid
+     * side and the Penrose side are separate switches and do not synchronize:
+     * one screen is the input and the other the output. They were three
+     * two-way switches until Jake set it straight.
+     *
+     * Two consequences, both deliberate. A hover only detects what is actually
+     * DRAWN — no regions on screen, no region to point at, and the switch does
+     * nothing — so each is gated on its own object's layer. And an element
+     * lives on its own canvas: with `containerP` the grid hovers answer only on
+     * the grid canvas and the Penrose hovers only on the Penrose one. Sharing a
+     * canvas, both answer on it.
+     */
+    /** Grid in, Penrose out: the region under the pointer, to its dual vertex. */
+    hoverRegion: boolean;
+    /** Grid in: a gridline segment, to the Penrose edge it becomes. */
+    hoverSegment: boolean;
+    /** Grid in: an intersection, to the tile it becomes. */
+    hoverCrossing: boolean;
+    /** Penrose in, grid out: a dual vertex, to the region that made it. */
+    hoverVertex: boolean;
+    /** Penrose in: a tile edge, to the gridline segment it came from. */
+    hoverEdge: boolean;
+    /** Penrose in: a face, to the crossing that made it. */
+    hoverFace: boolean;
 }
 
 export interface ViewState {
@@ -673,42 +695,93 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (config.panelP) config.panelP.style.maxWidth = `${canvas.w}px`;
     }
 
-    // Tooltip for K-tuple display
-    const tooltip = document.createElement("div");
-    // Opaque and light: the translucent black was unreadable over a dark canvas.
-    // Solid and light, with dark text: the readout sits over the busiest part of
-    // the picture and has to be legible against any of it. Jake: the equation
-    // was not readable — the numbers were still styled for the old black box.
-    tooltip.style.cssText = "position:fixed;padding:7px 11px;background:#fbfbfd;color:#111;"
+    // ── The readout ───────────────────────────────────────────────────
+    //
+    // Two boxes, not one. A hover detects something on one screen and shows
+    // what it dualizes to on the other, so each half of the readout belongs
+    // with the thing it describes: the detection on the screen it came from,
+    // the dualization on the screen that draws it. Sharing one canvas, the two
+    // halves go in one box.
+    //
+    // Translucent, and light with dark text. Jake: the data must not have a
+    // practically opaque background — it sits over the busiest part of the
+    // picture and the picture has to show through — but the old translucent
+    // BLACK was unreadable, and so were numbers still styled for it.
+    const TIP_CSS = "position:fixed;padding:7px 11px;"
+        + "background:rgba(252,252,254,0.72);color:#111;"
         + "font:600 13.5px/1.45 ui-monospace,Menlo,Consolas,monospace;"
-        + "border:1.5px solid #555;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,0.25);"
+        + "border:1.5px solid rgba(85,85,85,0.85);border-radius:4px;"
+        + "box-shadow:0 2px 8px rgba(0,0,0,0.18);backdrop-filter:blur(2px);"
         + "pointer-events:none;display:none;z-index:10;";
+    const tooltip = document.createElement("div");
+    tooltip.style.cssText = TIP_CSS;
+    /** The second box, for the Penrose screen. Unused when there is only one. */
+    const tooltipP = document.createElement("div");
+    tooltipP.style.cssText = TIP_CSS;
     /** Readout accents: an enabled family's number, a disabled one's, a name. */
     const TIP_ON = "#111", TIP_OFF = "#9a9aa2", TIP_NAME = "#b3550f";
 
     /**
-     * Where the hover readout goes: pinned in the canvas corner, or riding the
-     * pointer. Pinned by default — Jake: the statistics were landing on the very
-     * thing being hovered. Upper right: the bottom-left gutter was out of view.
+     * Where a readout goes: pinned in its canvas's corner, or riding the
+     * pointer. Pinned by default — Jake: the statistics were landing on the
+     * very thing being hovered. Upper right: the bottom-left gutter was out of
+     * view. With two canvases it is always pinned, one box to each, since two
+     * boxes riding one pointer would sit on top of each other.
      */
     let hoverBox: "corner" | "pointer" = config.hoverBox ?? "corner";
-    function placeTooltip(e: { clientX: number; clientY: number }, lift = 28) {
-        tooltip.style.display = "block";
-        if (hoverBox === "pointer") {
-            tooltip.style.bottom = "auto";
-            tooltip.style.right = "auto";
-            tooltip.style.left = (e.clientX + 12) + "px";
-            tooltip.style.top = (e.clientY - lift) + "px";
+    function placeTip(
+        el: HTMLElement, anchor: HTMLElement, e: { clientX: number; clientY: number },
+        lift: number, ride: boolean,
+    ) {
+        el.style.display = "block";
+        if (ride && hoverBox === "pointer") {
+            el.style.bottom = "auto";
+            el.style.right = "auto";
+            el.style.left = (e.clientX + 12) + "px";
+            el.style.top = (e.clientY - lift) + "px";
             return;
         }
-        const r = config.container.getBoundingClientRect();
-        tooltip.style.bottom = "auto";
-        tooltip.style.top = (r.top + 8) + "px";
+        const r = anchor.getBoundingClientRect();
+        el.style.bottom = "auto";
+        el.style.top = (r.top + 8) + "px";
         // Anchor by the right edge so a wider readout grows leftward, on-canvas.
-        tooltip.style.left = "auto";
-        tooltip.style.right = (window.innerWidth - r.right + 8) + "px";
+        el.style.left = "auto";
+        el.style.right = (window.innerWidth - r.right + 8) + "px";
     }
+    function placeTooltip(e: { clientX: number; clientY: number }, lift = 28) {
+        placeTip(tooltip, config.container, e, lift, true);
+    }
+    /**
+     * Show the two halves of a hover: what was detected on the grid side, and
+     * what it is on the Penrose side. Either may be empty.
+     */
+    function showReadout(
+        gridHtml: string, penHtml: string,
+        e: { clientX: number; clientY: number }, lift = 28,
+    ) {
+        if (config.containerP) {
+            if (gridHtml) {
+                tooltip.innerHTML = gridHtml;
+                placeTip(tooltip, config.container, e, lift, false);
+            } else tooltip.style.display = "none";
+            if (penHtml) {
+                tooltipP.innerHTML = penHtml;
+                placeTip(tooltipP, config.containerP, e, lift, false);
+            } else tooltipP.style.display = "none";
+            return;
+        }
+        const both = [gridHtml, penHtml].filter(Boolean).join("<br>");
+        if (!both) { hideReadout(); return; }
+        tooltip.innerHTML = both;
+        placeTooltip(e, lift);
+    }
+    function hideReadout() {
+        tooltip.style.display = "none";
+        tooltipP.style.display = "none";
+    }
+
     document.body.appendChild(tooltip);
+    document.body.appendChild(tooltipP);
 
     // ── Layers ────────────────────────────────────────────────────────
 
@@ -735,7 +808,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         arrows: false,
         pseudoEdges: false,
         center: false,
-        hoverVertex: false, hoverEdge: false, hoverTile: false,
+        hoverRegion: false, hoverSegment: false, hoverCrossing: false,
+        hoverVertex: false, hoverEdge: false, hoverFace: false,
     };
 
     let features: Features = { ...NO_FEATURES, ...config.features };
@@ -1051,6 +1125,18 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         for (const c of eventCanvases) c.addEventListener(type, (e) => handler(e, c), opts);
     }
+    /**
+     * Which surface is the grid's and which the Penrose group's.
+     *
+     * An element lives on its own canvas: a region is on the grid and a face is
+     * on the tiling, so a hover answers only where its target is drawn. With
+     * one container they are the same surface and both sides answer on it.
+     */
+    const gridSurface = eventCanvases[Math.max(0, stack.containers.indexOf(config.container))];
+    const penSurface = config.containerP
+        ? eventCanvases[stack.containers.indexOf(config.containerP)]
+        : gridSurface;
+
     function setCursor(cursor: string) {
         for (const c of eventCanvases) c.style.cursor = cursor;
     }
@@ -2982,9 +3068,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // thing, its counterpart, and the helper that shows you one from the
         // other. Rendering only — none of it changes the tiling.
         const CORRESPONDENCE = [
-            { grid: ["kRegions", "regions"], hover: "hoverVertex", pen: ["penroseVertices", "vertices"] },
-            { grid: ["gridLines", "segments"], hover: "hoverEdge", pen: ["penroseEdges", "edges"] },
-            { grid: ["intersectionDots", "intersections"], hover: "hoverTile", pen: ["penroseTiles", "faces"] },
+            { grid: ["kRegions", "regions"], gridHover: "hoverRegion",
+              pen: ["penroseVertices", "vertices"], penHover: "hoverVertex" },
+            { grid: ["gridLines", "segments"], gridHover: "hoverSegment",
+              pen: ["penroseEdges", "edges"], penHover: "hoverEdge" },
+            { grid: ["intersectionDots", "intersections"], gridHover: "hoverCrossing",
+              pen: ["penroseTiles", "faces"], penHover: "hoverFace" },
         ] as const;
 
         const corrRow = (
@@ -3005,16 +3094,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // is about. The view reports; it does not decide.
         onFeatureOnKeys.add("kRegions");
 
-        // Each side gets its own hover row, under its own objects. The three
-        // switches are the same three — a hover reads both ways, a grid element
-        // lighting its Penrose counterpart and a Penrose element lighting the
-        // region that made it — so the two rows are two views of one set and
-        // syncPanel keeps them together. Jake wanted the pairing readable down
-        // a column in each section rather than across one table.
+        // Each side gets its own hover row, under its own objects, and they are
+        // DIFFERENT switches: the grid row takes a grid element and lights its
+        // Penrose counterpart, the Penrose row takes a Penrose element and
+        // lights the grid one. One screen in, the other out; nothing
+        // synchronizes.
         corrRow("Pentagrid", (c) => c.grid);
-        corrRow("Hover", (c) => [c.hover, "hover"] as const);
+        corrRow("Hover", (c) => [c.gridHover, "hover"] as const);
         corrRow("Penrose", (c) => c.pen);
-        corrRow("Penrose hover", (c) => [c.hover, "hover"] as const);
+        corrRow("Penrose hover", (c) => [c.penHover, "hover"] as const);
 
         // K-labels belong with the regions rather than on their own row.
         // G only — the counterpart of Tile style. The Penrose dressings are on
@@ -3582,9 +3670,235 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     /** Clip polygon to the half-plane a*x + b*y + c ≥ 0 (or > 0 if strict, but we use ≥ for robustness) */
 
+    // ── The six hovers, one way each ──────────────────────────────────
+    //
+    // Each takes the pointer, finds its target on ITS OWN side, and highlights
+    // the counterpart on the other. Each returns whether it found anything, so
+    // the handler can try the next. The readout is split the same way: what was
+    // detected goes on the screen it was detected on, and what it dualizes to
+    // on the screen that shows it — one box each when the two sides have their
+    // own canvas, one box with both when they share.
+
+    /** A dual vertex under the pointer, and the region that made it. */
+    function hoverPenroseVertex(
+        e: MouseEvent, sx: number, sy: number, cx: number, cy: number,
+    ): boolean {
+        let best: DualVertex | null = null;
+        let bestDist = 12;
+        for (const dv of dualVertices) {
+            const d = Math.hypot(dv.sx - sx, dv.sy - sy);
+            if (d < bestDist) { bestDist = d; best = dv; }
+        }
+        if (!best) return false;
+        clearHighlight();
+        const terms = best.K.map((v, j) => {
+            const color = gammaSet.familyEnabled(j) ? TIP_ON : TIP_OFF;
+            return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
+        });
+        showReadout(formatKTooltip(best.K),
+                    `<span style="color:${TIP_NAME}">f</span> = ${terms.join(" + ")}`, e);
+        hlP.fillStyle = "#fc0";
+        hlP.beginPath();
+        hlP.arc(best.sx, best.sy, 5, 0, 2 * Math.PI);
+        hlP.fill();
+        withView(gridView(), () => highlightRegion(best!.K, cx, cy, best!.sx, best!.sy));
+        return true;
+    }
+
+    /** Distance from a screen point to a screen segment. */
+    function distToSegment(
+        px: number, py: number, ax: number, ay: number, bx: number, by: number,
+    ): number {
+        const dx = bx - ax, dy = by - ay;
+        const len2 = dx * dx + dy * dy;
+        const t = len2 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2)) : 0;
+        return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    }
+
+    /**
+     * A tile edge under the pointer, and the gridline segment it came from.
+     *
+     * An edge parallel to v_j separates two regions differing in K_j, so it is
+     * dual to a segment of family j — and the rhomb already remembers which
+     * line of that family made it.
+     */
+    function hoverPenroseEdge(
+        e: MouseEvent, sx: number, sy: number, cx: number, cy: number,
+    ): boolean {
+        let best: { fam: number; n: number } | null = null;
+        let bestD = 10;
+        for (const r of currentRhombs()) {
+            if (isStacked(r)) continue;
+            const pts = r.vertices.map(([x, y]) => mathToScreen(x, y, cx, cy));
+            for (let i = 0; i < 4; i++) {
+                const a = pts[i], b = pts[(i + 1) % 4];
+                const d = distToSegment(sx, sy, a[0], a[1], b[0], b[1]);
+                if (d >= bestD) continue;
+                // Which family the edge runs along: i even is one, odd the other.
+                const fam = i % 2 === 0 ? r.j : r.k;
+                bestD = d;
+                best = { fam, n: fam === r.j ? r.nj : r.nk };
+            }
+        }
+        if (!best) return false;
+        const reach = Math.max(4, 40 / Math.max(scale * gridGain(), 1e-6));
+        const [mx, my] = screenToGrid(sx, sy, cx, cy);
+        const seg = segmentAt(model, best.fam, best.n, mx, my, reach);
+        if (!seg) return false;
+        clearHighlight();
+        highlightSegment(seg, cx, cy);
+        const sub = SUBSCRIPTS[seg.j] ?? `_${seg.j}`;
+        showReadout(
+            `line <span style="color:${COLORS[seg.j % COLORS.length]}">`
+            + `${seg.nj} of family ${seg.j}</span>`
+            + `<br>${formatKTooltip(seg.K1)}<br>${formatKTooltip(seg.K2)}`,
+            `<span style="color:${TIP_NAME}">edge</span> = v${sub}`, e, 40);
+        return true;
+    }
+
+    /** A face under the pointer, and the crossing that made it. */
+    function hoverPenroseFace(
+        e: MouseEvent, sx: number, sy: number, cx: number, cy: number,
+    ): boolean {
+        for (const r of currentRhombs()) {
+            if (isStacked(r)) continue;
+            const pts = r.vertices.map(([x, y]) => mathToScreen(x, y, cx, cy));
+            let sign = 0, inside = true;
+            for (let i = 0; i < 4 && inside; i++) {
+                const a = pts[i], b = pts[(i + 1) % 4];
+                const c = (b[0] - a[0]) * (sy - a[1]) - (b[1] - a[1]) * (sx - a[0]);
+                if (Math.abs(c) < 1e-9) continue;
+                if (sign === 0) sign = Math.sign(c);
+                else if (Math.sign(c) !== sign) inside = false;
+            }
+            if (!inside) continue;
+            clearHighlight();
+            highlightTile(r, cx, cy);
+            showReadout(
+                `families <span style="color:${COLORS[r.j]}">${r.j}</span>`
+                + `&times;<span style="color:${COLORS[r.k]}">${r.k}</span>`
+                + ` &nbsp;n = (${r.nj}, ${r.nk})`,
+                `<span style="color:${TIP_NAME}">${r.thick ? "thick" : "thin"}</span> rhomb`,
+                e, 34);
+            return true;
+        }
+        return false;
+    }
+
+    /** An intersection under the pointer, and the tile it becomes. */
+    function hoverGridCrossing(
+        e: MouseEvent, sx: number, sy: number, cx: number, cy: number,
+    ): boolean {
+        const hit = nearestIntersection(sx, sy, cx, cy);
+        if (!hit) return false;
+        clearHighlight();
+        highlightTile(hit, cx, cy);
+        showReadout(
+            `families <span style="color:${COLORS[hit.j]}">${hit.j}</span>`
+            + `&times;<span style="color:${COLORS[hit.k]}">${hit.k}</span>`
+            + ` &nbsp;n = (${hit.nj}, ${hit.nk})`,
+            `<span style="color:${TIP_NAME}">${hit.thick ? "thick" : "thin"}</span> rhomb`,
+            e, 34);
+        return true;
+    }
+
+    /** A gridline segment under the pointer, and the Penrose edge it becomes. */
+    function hoverGridSegment(
+        e: MouseEvent, sx: number, sy: number, cx: number, cy: number,
+    ): boolean {
+        const [mx, my] = screenToGrid(sx, sy, cx, cy);
+        const active = Array.from({ length: model.n }, (_, j) => gammaSet.familyEnabled(j));
+        const near = nearestLine(model, mx, my, active);
+        // The tolerance is in pixels, so it holds at every zoom.
+        const pxPerUnit = scale * gridGain();
+        if (!near || near.dist * pxPerUnit >= 10) return false;
+        const reach = Math.max(4, 40 / Math.max(pxPerUnit, 1e-6));
+        const seg = segmentAt(model, near.j, near.nj, mx, my, reach);
+        if (!seg) return false;
+        clearHighlight();
+        highlightSegment(seg, cx, cy);
+        const sub = SUBSCRIPTS[seg.j] ?? `_${seg.j}`;
+        showReadout(
+            `line <span style="color:${COLORS[seg.j % COLORS.length]}">`
+            + `${seg.nj} of family ${seg.j}</span>`
+            + `<br>${formatKTooltip(seg.K1)}<br>${formatKTooltip(seg.K2)}`,
+            `<span style="color:${TIP_NAME}">edge</span> = v${sub}`, e, 40);
+        return true;
+    }
+
+    /** The region under the pointer, and the dual vertex it becomes. */
+    function hoverGridRegion(
+        e: MouseEvent, sx: number, sy: number, cx: number, cy: number,
+    ): boolean {
+        // The K-tuple is a fact about the pentagrid, so it is read in grid
+        // coordinates; the vertex it points at stays in tiling coordinates.
+        const [mx, my] = screenToGrid(sx, sy, cx, cy);
+        const K = computeKTuple(mx, my);
+        clearHighlight();
+        const terms = K.map((v, j) => {
+            const color = gammaSet.familyEnabled(j) ? TIP_ON : TIP_OFF;
+            return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
+        });
+        showReadout(formatKTooltip(K),
+                    `<span style="color:${TIP_NAME}">f</span> = ${terms.join(" + ")}`, e);
+
+        // Derive dark version of the region's color
+        let hash = 0;
+        for (let j = 0; j < model.n; j++) {
+            hash = ((hash << 5) - hash + K[j] + 50) | 0;
+        }
+        const hue = (((hash * 137) % 360) + 360) % 360;
+        const [dr, dg, db] = hslToRgb(hue, 0.7, 0.35);
+        const darkColor = `rgb(${dr},${dg},${db})`;
+
+        // Compute dual vertex f = Σ K_j · v_j
+        let fx = 0, fy = 0;
+        for (let j = 0; j < model.n; j++) {
+            fx += K[j] * directions[j][0];
+            fy += K[j] * directions[j][1];
+        }
+        const [dsx, dsy] = mathToScreen(fx, fy, cx, cy);
+
+        // Draw the dual point
+        hlP.fillStyle = darkColor;
+        hlP.beginPath();
+        hlP.arc(dsx, dsy, 3, 0, 2 * Math.PI);
+        hlP.fill();
+
+        // Arrow from cursor to dual vertex, when they share a canvas
+        const adx = dsx - sx;
+        const ady = dsy - sy;
+        const dist = Math.sqrt(adx * adx + ady * ady);
+        if (dist > 15 && hlSame) {
+            const ux = adx / dist;
+            const uy = ady / dist;
+            const startX = sx + ux * 6;
+            const startY = sy + uy * 6;
+            const endX = dsx - ux * 6;
+            const endY = dsy - uy * 6;
+
+            hlG.strokeStyle = darkColor;
+            hlG.lineWidth = 1.5;
+            hlG.beginPath();
+            hlG.moveTo(startX, startY);
+            hlG.lineTo(endX, endY);
+            hlG.stroke();
+
+            const headLen = 7;
+            const angle = Math.atan2(uy, ux);
+            hlG.beginPath();
+            hlG.moveTo(endX, endY);
+            hlG.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
+            hlG.moveTo(endX, endY);
+            hlG.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
+            hlG.stroke();
+        }
+        return true;
+    }
+
     onEvent("mousemove", (e, surface) => {
         if (isPanning) {
-            tooltip.style.display = "none";
+            hideReadout();
             clearHighlight();
             return;
         }
@@ -3594,7 +3908,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const sy = e.clientY - rect.top;
         if (sx < canvas.margin || sx > canvas.w - canvas.margin ||
             sy < canvas.margin || sy > canvas.h - canvas.margin) {
-            tooltip.style.display = "none";
+            hideReadout();
             clearHighlight();
             return;
         }
@@ -3613,170 +3927,40 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (target) loupe.open(target, scale);
         }
 
-        // Intersection -> its tile. Only possible now that rhombs remember the
-        // crossing that made them (PLAN.md item 4).
-        if (features.hoverTile) {
-            const hit = nearestIntersection(sx, sy, cx, cy);
-            if (hit) {
-                clearHighlight();
-                highlightTile(hit, cx, cy);
-                tooltip.innerHTML =
-                    `families <span style="color:${COLORS[hit.j]}">${hit.j}</span>` +
-                    `&times;<span style="color:${COLORS[hit.k]}">${hit.k}</span>` +
-                    ` &nbsp;n = (${hit.nj}, ${hit.nk})` +
-                    `<br><span style="color:${TIP_NAME}">${hit.thick ? "thick" : "thin"}</span> rhomb`;
-                placeTooltip(e, 34);
-                return;
-            }
+        // ── The hovers ────────────────────────────────────────────────
+        //
+        // Six of them, each one way. The order is by how definite the target
+        // is: a point before a line before an area, or the area would swallow
+        // every hover near the others. Sharing one canvas the two sides
+        // interleave; split, each only answers on its own.
+        const onG = surface === gridSurface;
+        const onP = surface === penSurface;
+        const probes: { on: boolean; run: () => boolean }[] = [
+            // Penrose in, grid out.
+            { on: onP && features.hoverVertex && features.penroseVertices,
+              run: () => hoverPenroseVertex(e, sx, sy, cx, cy) },
+            // Grid in, Penrose out.
+            { on: onG && features.hoverCrossing && features.intersectionDots,
+              run: () => hoverGridCrossing(e, sx, sy, cx, cy) },
+            { on: onP && features.hoverEdge && features.penroseEdges,
+              run: () => hoverPenroseEdge(e, sx, sy, cx, cy) },
+            { on: onG && features.hoverSegment && features.gridLines,
+              run: () => hoverGridSegment(e, sx, sy, cx, cy) },
+            { on: onP && features.hoverFace && features.penroseTiles,
+              run: () => hoverPenroseFace(e, sx, sy, cx, cy) },
+            { on: onG && features.hoverRegion && features.kRegions,
+              run: () => hoverGridRegion(e, sx, sy, cx, cy) },
+        ];
+        for (const probe of probes) {
+            if (probe.on && probe.run()) return;
         }
 
-        // Gridline segment -> Penrose edge. Ordered between the two: a crossing
-        // is a point and a region is an area, so the line belongs in the middle
-        // or it would swallow every hover near a gridline.
-        if (features.hoverEdge) {
-            const [mx, my] = screenToGrid(sx, sy, cx, cy);
-            const active = Array.from({ length: model.n },
-                                      (_, j) => gammaSet.familyEnabled(j));
-            const near = nearestLine(model, mx, my, active);
-            // The tolerance is in pixels, so it holds at every zoom.
-            const pxPerUnit = scale * gridGain();
-            if (near && near.dist * pxPerUnit < 10) {
-                const reach = Math.max(4, 40 / Math.max(pxPerUnit, 1e-6));
-                const seg = segmentAt(model, near.j, near.nj, mx, my, reach);
-                if (seg) {
-                    clearHighlight();
-                    highlightSegment(seg, cx, cy);
-                    const sub = SUBSCRIPTS[seg.j] ?? `_${seg.j}`;
-                    tooltip.innerHTML =
-                        `line <span style="color:${COLORS[seg.j % COLORS.length]}">` +
-                        `${seg.nj} of family ${seg.j}</span>` +
-                        `<br>${formatKTooltip(seg.K1)}` +
-                        `<br>${formatKTooltip(seg.K2)}` +
-                        `<br><span style="color:${TIP_NAME}">edge</span> = v${sub}`;
-                    placeTooltip(e, 40);
-                    return;
-                }
-            }
-        }
-
-        if (features.hoverVertex) {
-            // TWO readings of one hover, and the nearer thing wins.
-            //
-            // These were two separate `if (features.hoverVertex)` blocks and the
-            // first ended in an unconditional `return`, so the second could never
-            // run: the yellow source-region and its arrow had been dead since the
-            // factory extraction on 2026-09-05, three months after they were
-            // written. Ordered properly now — a dual vertex under the pointer
-            // answers with the region that MADE it, and anywhere else answers with
-            // the region you are in and the vertex it becomes.
-            // and the reverse: nearest dual vertex -> the region that produced it
-            let best: DualVertex | null = null;
-            let bestDist = 12; // pixel threshold
-            for (const dv of dualVertices) {
-                const dx = dv.sx - sx;
-                const dy = dv.sy - sy;
-                const d = Math.sqrt(dx * dx + dy * dy);
-                if (d < bestDist) {
-                    bestDist = d;
-                    best = dv;
-                }
-            }
-
-            clearHighlight();
-
-            if (best) {
-                // Equation: f = Σ K_j · v_j
-                const terms = best.K.map((v, j) => {
-                    const color = gammaSet.familyEnabled(j) ? TIP_ON : TIP_OFF;
-                    return `<span style="color:${color}">${v}</span>&middot;v${SUBSCRIPTS[j]}`;
-                });
-                tooltip.innerHTML =
-                    formatKTooltip(best.K) +
-                    `<br><span style="color:${TIP_NAME}">f</span> = ${terms.join(" + ")}`;
-                placeTooltip(e);
-
-                // Highlight the hovered dot
-                hlP.fillStyle = "#fc0";
-                hlP.beginPath();
-                hlP.arc(best.sx, best.sy, 5, 0, 2 * Math.PI);
-                hlP.fill();
-
-                // Highlight the source region in the pentagrid
-                withView(gridView(), () => highlightRegion(best!.K, cx, cy, best!.sx, best!.sy));
-                return;
-            }
-            // Nothing under the pointer is a vertex, so fall through to the region.
-
-            // Region -> its dual vertex. The K-tuple is a fact about the pentagrid,
-            // so it is read in grid coordinates; the vertex it points at stays in
-            // tiling coordinates.
-            const [mx, my] = screenToGrid(sx, sy, cx, cy);
-            const K = computeKTuple(mx, my);
-            tooltip.innerHTML = formatKTooltip(K);
-            placeTooltip(e);
-
-            clearHighlight();
-
-            // Derive dark version of the region's color
-            let hash = 0;
-            for (let j = 0; j < model.n; j++) {
-                hash = ((hash << 5) - hash + K[j] + 50) | 0;
-            }
-            const hue = (((hash * 137) % 360) + 360) % 360;
-            const [dr, dg, db] = hslToRgb(hue, 0.7, 0.35);
-            const darkColor = `rgb(${dr},${dg},${db})`;
-
-            // Compute dual vertex f = Σ K_j · v_j
-            let fx = 0, fy = 0;
-            for (let j = 0; j < model.n; j++) {
-                fx += K[j] * directions[j][0];
-                fy += K[j] * directions[j][1];
-            }
-            const [dsx, dsy] = mathToScreen(fx, fy, cx, cy);
-
-            // Draw the dual point
-            hlP.fillStyle = darkColor;
-            hlP.beginPath();
-            hlP.arc(dsx, dsy, 3, 0, 2 * Math.PI);
-            hlP.fill();
-
-            // Arrow from cursor to dual vertex, when they share a canvas
-            const adx = dsx - sx;
-            const ady = dsy - sy;
-            const dist = Math.sqrt(adx * adx + ady * ady);
-            if (dist > 15 && hlSame) {
-                const ux = adx / dist;
-                const uy = ady / dist;
-                const startX = sx + ux * 6;
-                const startY = sy + uy * 6;
-                const endX = dsx - ux * 6;
-                const endY = dsy - uy * 6;
-
-                hlG.strokeStyle = darkColor;
-                hlG.lineWidth = 1.5;
-                hlG.beginPath();
-                hlG.moveTo(startX, startY);
-                hlG.lineTo(endX, endY);
-                hlG.stroke();
-
-                const headLen = 7;
-                const angle = Math.atan2(uy, ux);
-                hlG.beginPath();
-                hlG.moveTo(endX, endY);
-                hlG.lineTo(endX - headLen * Math.cos(angle - 0.4), endY - headLen * Math.sin(angle - 0.4));
-                hlG.moveTo(endX, endY);
-                hlG.lineTo(endX - headLen * Math.cos(angle + 0.4), endY - headLen * Math.sin(angle + 0.4));
-                hlG.stroke();
-            }
-            return;
-        }
-
-        tooltip.style.display = "none";
+        hideReadout();
         clearHighlight();
     });
 
     onEvent("mouseleave", () => {
-        tooltip.style.display = "none";
+        hideReadout();
         clearHighlight();
     });
 

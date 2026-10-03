@@ -38,7 +38,8 @@ if (viewHost && pick) {
             n,
             features: { gridLines: true, intersectionDots: true, center: true,
                         penroseTiles: true, penroseEdges: true, penroseVertices: false,
-                        hoverVertex: false, hoverEdge: false, hoverTile: false },
+                        hoverRegion: false, hoverSegment: false, hoverCrossing: false,
+                        hoverVertex: false, hoverEdge: false, hoverFace: false },
         });
         // The uniform offset 1/n is the one setting with global n-fold symmetry
         // for odd n (Lutfalla Thm 1.2); for even n, 1/2 each gives 2n-fold

@@ -645,6 +645,43 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**The hovers are six, one way each (2026-10-03).** I had built the Penrose
+hover row as a second view of the same three switches, on the ground that each
+hover already reads both ways. Jake: it does not — "one screen is input, the
+other output", they do not synchronize, and an element lives on its own canvas.
+So:
+
+| direction | takes | lights |
+|---|---|---|
+| `hoverRegion` | a region, on the grid | its dual vertex |
+| `hoverSegment` | a gridline segment | the Penrose edge |
+| `hoverCrossing` | an intersection | the tile it becomes |
+| `hoverVertex` | a dual vertex, on the tiling | the region that made it |
+| `hoverEdge` | a tile edge | the gridline segment it came from |
+| `hoverFace` | a face | the crossing that made it |
+
+Three of the six existed. `hoverEdge` and `hoverFace` had to be written — the
+reverse direction was only ever built for vertices — and the old two-way
+`hoverVertex` split in two, its region half becoming `hoverRegion`.
+
+Two rules fall out of "one way", and both are now enforced. **A hover only
+detects what is drawn**: no regions on screen, no region to point at, so each
+switch is gated on its own object's layer and does nothing without it. And **an
+element lives on its own canvas**: with `containerP` the grid hovers answer
+only on the grid surface and the Penrose hovers only on the Penrose one, which
+the handler can tell because `onEvent` already passes the surface it fired on.
+Sharing one canvas, both sides answer on it — and the probe order is by how
+definite the target is, a point before a line before an area, or the area would
+swallow every hover near the others.
+
+**The readout split too.** Two boxes: what was detected goes on the screen it
+came from and what it dualizes to on the screen that draws it, so in split the
+K-tuple sits on the grid and f = Σ Kⱼvⱼ on the tiling. Sharing a canvas, both
+halves go in one box. And the background is **translucent** now — Jake: the
+data must not be practically opaque, the picture has to show through — kept
+legible by staying light with dark text, which is the opposite mistake from the
+old translucent black.
+
 **Kowalewski's coloring (2026-10-03).** Not what I first took it for. I had
 mapped Jake's "Kowalewski" onto the existing `pair` — the two families blended —
 and he wrote the real rule out. A rhomb is an unordered pair of families and the

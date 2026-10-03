@@ -733,35 +733,49 @@ test("whether a family is dualized has ONE home: the gamma set", () => {
     h.redraw();
 });
 
-test("hovering a dual vertex shows the region that made it, not just the reverse", () => {
-    // There were two `if (features.hoverVertex)` blocks and the first ended in an
-    // unconditional return, so the second — the yellow source-region and its
-    // arrow — could never run. Dead from 2026-09-05 until this was noticed.
-    const before = globalThis.document.body.children.length;
-    const h = createPentagrid({
-        container: sizedHost(800, 800),
-        features: { gridLines: true, penroseVertices: true, hoverVertex: true },
-    });
-    const tip = globalThis.document.body.children[before];
-    h.redraw();
-
-    const move = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
-    assert.ok(move.length > 0, "no mousemove handler to drive");
-
-    let onVertex = 0, onRegion = 0;
-    for (let x = 120; x < 680; x += 11) {
-        for (let y = 120; y < 680; y += 11) {
-            tip.innerHTML = "";
-            for (const f of move) f({ clientX: x, clientY: y, offsetX: x, offsetY: y,
-                                      preventDefault() {} });
-            const s = String(tip.innerHTML || "");
-            // only the vertex path prints the f = Σ K_j·v_j equation
-            if (s.includes("f</span> =")) onVertex++;
-            else if (s) onRegion++;
+test("the two directions of the vertex hover are two switches, one way each", () => {
+    // hoverVertex takes a Penrose vertex to the region that made it; hoverRegion
+    // takes a region to the vertex it becomes. Separate switches, each one way,
+    // and each needs its own object drawn — no regions on screen, no region to
+    // point at. They were one two-way switch until Jake set it straight.
+    const sweep = (features) => {
+        const before = globalThis.document.body.children.length;
+        const h = createPentagrid({ container: sizedHost(800, 800), features });
+        const tip = globalThis.document.body.children[before];
+        h.redraw();
+        const move = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
+        let answered = 0, tried = 0;
+        for (let x = 120; x < 680; x += 11) {
+            for (let y = 120; y < 680; y += 11) {
+                tip.innerHTML = "";
+                for (const f of move) f({ clientX: x, clientY: y, offsetX: x, offsetY: y,
+                                          preventDefault() {} });
+                tried++;
+                if (String(tip.innerHTML || "")) answered++;
+            }
         }
-    }
-    assert.ok(onVertex > 0, "the dual-vertex path never ran — it is shadowed again");
-    assert.ok(onRegion > 0, "the region path must still answer everywhere else");
+        return { answered, tried };
+    };
+    const base = { gridLines: true, kRegions: true, penroseVertices: true };
+
+    // The Penrose side alone: a vertex is a definite thing under the pointer, so
+    // it answers where there is one and nowhere else.
+    const pen = sweep({ ...base, hoverVertex: true });
+    assert.ok(pen.answered > 0, "the vertex hover never answered");
+    assert.ok(pen.answered < pen.tried / 2,
+              `a vertex is a point, not an area (${pen.answered} of ${pen.tried})`);
+
+    // The grid side alone: a region is wherever you are, so it answers always.
+    const grid = sweep({ ...base, hoverRegion: true });
+    assert.equal(grid.answered, grid.tried, "every point of the plane is in a region");
+
+    // And neither answers with its own switch off.
+    const none = sweep(base);
+    assert.equal(none.answered, 0, "both off should answer nothing");
+
+    // Nor with the switch on but the object not drawn: nothing to point at.
+    const unlit = sweep({ gridLines: true, kRegions: false, hoverRegion: true });
+    assert.equal(unlit.answered, 0, "no regions on screen, no region hover");
 });
 
 test("hovering a gridline segment shows the Penrose edge it becomes", () => {
@@ -771,7 +785,7 @@ test("hovering a gridline segment shows the Penrose edge it becomes", () => {
     const before = globalThis.document.body.children.length;
     const h = createPentagrid({
         container: sizedHost(800, 800),
-        features: { gridLines: true, penroseEdges: true, hoverEdge: true },
+        features: { gridLines: true, penroseEdges: true, hoverSegment: true },
     });
     const tip = globalThis.document.body.children[before];
     h.redraw();
@@ -867,7 +881,7 @@ test("the hover readout sits in the canvas corner unless told to follow", () => 
                                           right: 900, bottom: 850 });
     const h = createPentagrid({
         container: host,
-        features: { gridLines: true, hoverVertex: true },
+        features: { gridLines: true, kRegions: true, hoverRegion: true },
     });
     const tip = globalThis.document.body.children[before];
     h.redraw();
@@ -887,9 +901,12 @@ test("the hover readout sits in the canvas corner unless told to follow", () => 
     // The follow-pointer setting is the second view of the same thing.
     const h2 = createPentagrid({
         container: host, hoverBox: "pointer",
-        features: { gridLines: true, hoverVertex: true },
+        features: { gridLines: true, kRegions: true, hoverRegion: true },
     });
-    const tip2 = globalThis.document.body.children[globalThis.document.body.children.length - 1];
+    // Two boxes per instance now — the grid readout and the Penrose one — so
+    // the grid box of the newest instance is the second from the end.
+    const kids = globalThis.document.body.children;
+    const tip2 = kids[kids.length - 2];
     h2.redraw();
     const move2 = handlers.filter((x) => x.type === "mousemove").map((x) => x.fn);
     for (const f of move2) f({ clientX: 300, clientY: 300, offsetX: 300, offsetY: 300,
@@ -1996,4 +2013,51 @@ test("Kowalewski: ten band-pair types to five colors, a thin with its opposite t
     }
     assert.equal(KOW.filter((f) => used.has(f)).length, 5,
                  `all five colors appear: ${[...used]}`);
+});
+
+test("split: a hover answers only on the canvas its target is drawn on", () => {
+    // Grid elements are on the grid canvas and Penrose elements on the tiling's.
+    // Hovering the wrong one detects nothing: one screen in, the other out.
+    const left = sizedHost(600, 600), right = sizedHost(600, 600);
+    const before = globalThis.document.body.children.length;
+    const h = createPentagrid({
+        container: left, containerP: right,
+        features: {
+            gridLines: true, kRegions: true, intersectionDots: true,
+            penroseTiles: true, penroseEdges: true, penroseVertices: true,
+            hoverRegion: true, hoverFace: true,
+        },
+    });
+    const tipG = globalThis.document.body.children[before];
+    const tipP = globalThis.document.body.children[before + 1];
+    h.redraw();
+
+    // Each container has its own input surface; the handler is told which.
+    const surfaces = [left, right].map((host) =>
+        host.children.filter((c) => c.style && c.style.pointerEvents === "auto").at(-1));
+    assert.ok(surfaces[0] && surfaces[1], "both canvases need an input surface");
+    assert.notEqual(surfaces[0], surfaces[1]);
+
+    const hoverOn = (surface, x, y) => {
+        tipG.innerHTML = ""; tipP.innerHTML = "";
+        tipG.style.display = "none"; tipP.style.display = "none";
+        for (const fn of surface.on?.mousemove ?? []) {
+            fn({ clientX: x, clientY: y, offsetX: x, offsetY: y, preventDefault() {} });
+        }
+        return { g: String(tipG.innerHTML || ""), p: String(tipP.innerHTML || "") };
+    };
+
+    // The grid canvas: the region hover answers, and both halves land, each on
+    // its own screen — the K-tuple on the grid, the dual vertex on the tiling.
+    const onGrid = hoverOn(surfaces[0], 300, 300);
+    assert.ok(onGrid.g, "the grid readout should carry what was detected");
+    assert.ok(onGrid.p.includes("f</span> ="), "and the tiling readout what it becomes");
+
+    // The same point on the tiling canvas: hoverRegion is a grid hover, so it
+    // must not answer there. hoverFace may or may not find a face at this
+    // point, but it can never print a K-tuple-only grid readout with no
+    // Penrose half, which is the region hover's signature.
+    const onPen = hoverOn(surfaces[1], 300, 300);
+    assert.ok(!(onPen.g && !onPen.p),
+              "a grid hover answered on the Penrose canvas");
 });

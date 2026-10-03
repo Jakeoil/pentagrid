@@ -58,7 +58,7 @@ export const METHOD_PAGES: Page[] = [
             at each point. This is essential for the dual construction
             that follows.</p>`,
         enter: (pg) => {
-            pg.setFeatures({ gridLines: true, intersectionDots: true, hoverTile: true });
+            pg.setFeatures({ gridLines: true, intersectionDots: true, hoverCrossing: true });
             pg.setGridAlpha(0.6);
             pg.exposeRows(null);
         },
@@ -83,7 +83,7 @@ export const METHOD_PAGES: Page[] = [
             <i>f</i>(<b>x</b>)&thinsp;=&thinsp;&sum;&thinsp;<i>K<sub>j</sub></i>&thinsp;&middot;&thinsp;<b>v</b><sub><i>j</i></sub>.</p>`,
         enter: (pg) => {
             pg.setFeatures({
-                gridLines: true, kRegions: true, kLabels: true, hoverVertex: true,
+                gridLines: true, kRegions: true, kLabels: true, hoverRegion: true,
             });
             pg.setGridAlpha(0.4);
             pg.exposeRows(null);
@@ -104,7 +104,7 @@ export const METHOD_PAGES: Page[] = [
             Adjacent regions (differing in one <i>K<sub>j</sub></i>)
             map to vertices one <b>v</b><sub><i>j</i></sub> apart.</p>`,
         enter: (pg) => {
-            pg.setFeatures({ gridLines: true, penroseVertices: true, hoverVertex: true });
+            pg.setFeatures({ gridLines: true, penroseVertices: true, hoverVertex: true, hoverRegion: true });
             pg.setGridAlpha(0.28);
             pg.exposeRows(null);
         },
@@ -129,7 +129,7 @@ export const METHOD_PAGES: Page[] = [
             <p>Families whose index difference is 1 (mod&nbsp;5) yield
             thick rhombs; difference 2 yields thin.</p>`,
         enter: (pg) => {
-            pg.setFeatures({ gridLines: true, penroseEdges: true, hoverTile: true });
+            pg.setFeatures({ gridLines: true, penroseEdges: true, hoverCrossing: true });
             pg.setGridAlpha(0.24);
             pg.exposeRows(null);
         },
