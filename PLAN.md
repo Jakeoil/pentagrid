@@ -645,6 +645,35 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**A bench for the arrows (2026-10-05).** `ui-test/arrows.html`, linked from
+method.html as a temporary line above the title. Ported from coylean-map's
+arrow tester, whose useful part is its parameterization — **SW** the shaft
+half-width, **HL** the head length, **HW** the head half-width, **ND** the
+notch where the head meets the shaft — plus a **MARGIN** pulling both ends in.
+Here the host is a rhomb rather than a diamond and the arrow lies along an
+EDGE, between two vertex dots, so the numbers are fractions of the edge: the
+canvas works in tiling units and scales, and pixels would not transplant.
+
+Two shapes are drawn side by side on purpose. `outline` is one filled path —
+arrow.svg's shape, a round-capped shaft with a notched triangular head — and
+`stroke + head` is what `drawColoredArrows` draws today, a stroked line with a
+separate filled triangle, which is exactly why its shaft and head do not agree
+at the neck. The AR pattern is not invented for the bench: `rhombArrows` is
+imported, so the doubles and singles fall where the tiling puts them, with
+`extAt` passed explicitly since a synthetic tile cannot derive it.
+
+Built as plain ES modules with no build step, like discrete-directions, and
+fenced in its own directory. The geometry is tested (`tools/arrowbench.test.mjs`):
+the outline stays inside the edge's strip and between the margins at every
+angle, a double is symmetric about the midpoint, and a head that will not fit
+returns null rather than a crossed-over path. The bench itself is driven
+headless too — every button, every field, reset — which caught the one real
+bug in it, a preset card built out of an innerHTML string that no test could
+reach into.
+
+Open: the outcome. Nothing in `drawColoredArrows` has changed yet; the bench
+exists to settle the shape and the pair of colors first.
+
 **The hovers are six, one way each (2026-10-03).** I had built the Penrose
 hover row as a second view of the same three switches, on the ground that each
 hover already reads both ways. Jake: it does not — "one screen is input, the

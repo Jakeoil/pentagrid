@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentagrid — Arrow bench</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="../site.css">
+    <style>
+        .bench { display: flex; gap: 22px; align-items: flex-start; margin-top: 18px; }
+        .bench .side { min-width: 280px; max-width: 300px; }
+        .bench .stage {
+            border: 1px solid var(--rule);
+            border-radius: 8px;
+            background: #fff;
+            padding: 10px;
+            overflow: auto;
+        }
+        .bench h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;
+                    color: var(--ink-faint); margin: 14px 0 6px; }
+        .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+        .btn {
+            font: inherit; font-size: 12px; padding: 3px 8px;
+            border: 1px solid #ccc; border-radius: 4px; background: #fff;
+            color: var(--ink); cursor: pointer;
+        }
+        .btn.active { background: #eef3fa; border-color: #7a9cc6; color: #1b4a7a; }
+        .btn.swatch { display: inline-flex; align-items: center; gap: 4px; }
+        .btn.swatch span { width: 10px; height: 10px; border-radius: 2px; border: 1px solid #aaa; }
+        .num { display: inline-flex; flex-direction: column; font-size: 11px;
+               color: var(--ink-faint); gap: 2px; }
+        .num input { width: 62px; font: inherit; font-size: 12px; padding: 1px 3px; }
+        .preset-card {
+            border: 1px solid var(--rule); border-radius: 6px;
+            padding: 7px 9px; margin-bottom: 7px; background: #fafafa;
+        }
+        .preset-card h3 { margin: 0 0 5px; font-size: 12px; text-transform: none;
+                          letter-spacing: 0; color: var(--ink); }
+        .preset-card .hint { font-weight: 400; font-size: 11px; margin-left: 5px; }
+        .preset-card .fields { display: flex; flex-wrap: wrap; gap: 5px; }
+        .preset-card label { display: inline-flex; flex-direction: column; font-size: 11px;
+                             color: var(--ink-faint); gap: 1px; }
+        .preset-card input { width: 58px; font: inherit; font-size: 12px; padding: 1px 3px; }
+        .preset-card .clear { margin-top: 5px; font-size: 11px; }
+        .out {
+            font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+            white-space: pre; background: #f4f4f6; border: 1px solid var(--rule);
+            border-radius: 4px; padding: 7px; color: #333;
+            max-height: 240px; overflow: auto; margin-top: 7px;
+        }
+        /* The stage */
+        .host { fill: #fff; stroke: #b9b9c2; stroke-width: 1.2; }
+        .host.thin { stroke: #c9b9d2; }
+        .host-edge { stroke: #b9b9c2; stroke-width: 1.2; }
+        .dot { fill: #c0392b; }
+        .label { font: 500 12px system-ui, sans-serif; fill: var(--ink-faint); text-anchor: middle; }
+    </style>
+</head>
+<body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="../" draggable="false">Home</a>
+    <a href="../method.html" draggable="false">Method</a>
+    <a href="./arrows.html" draggable="false" aria-current="page">Arrow bench</a>
+</nav>
+<div class="wrap">
+    <h1>Arrow bench</h1>
+    <h2>A shape and a pair of colors for the edge decorations</h2>
+
+    <p>The arrows on <a href="../method.html">Method</a> are drawn today as a stroked
+    shaft with a separate filled triangle, which is why the two never quite agree at
+    the neck. This is the bench for replacing them: the same four numbers
+    coylean-map's arrow tester used &mdash; <b>SW</b> the shaft half-width,
+    <b>HL</b> the head length, <b>HW</b> the head half-width, <b>ND</b> the notch
+    where the head meets the shaft &mdash; plus a <b>MARGIN</b> pulling both ends
+    in off the vertex dots. Every number is a fraction of the rhomb edge, since
+    that is what the canvas works in.</p>
+
+    <p>The pattern is not invented here: <code>rhombArrows</code> is imported, so the
+    doubles and singles fall where the tiling puts them &mdash; doubles into the
+    extreme corner, singles opposite, out of it on a thick and into it on a thin.
+    <b>stroke&nbsp;+&nbsp;head</b> draws what the page draws now, for comparison.</p>
+
+    <div class="bench">
+        <div class="side">
+            <h3>Host</h3>
+            <div class="row">
+                <button id="host-thick" class="btn active">thick</button>
+                <button id="host-thin" class="btn">thin</button>
+                <button id="host-both" class="btn">both</button>
+                <button id="host-edge" class="btn">bare edge</button>
+            </div>
+
+            <h3>Arrows</h3>
+            <div class="row">
+                <button id="form-pattern" class="btn active">AR pattern</button>
+                <button id="form-single" class="btn">all single</button>
+                <button id="form-double" class="btn">all double</button>
+            </div>
+
+            <h3>Shape</h3>
+            <div class="row">
+                <button id="shape-outline" class="btn active">outline</button>
+                <button id="shape-stroke" class="btn">stroke + head</button>
+            </div>
+
+            <h3>Scale</h3>
+            <div class="row">
+                <label class="num">edge px<input type="number" id="edge" value="150" step="10" min="40"></label>
+                <label class="num">dot r<input type="number" id="dot" value="3" step="0.5" min="0"></label>
+            </div>
+
+            <h3>Color</h3>
+            <div class="row">
+                <label class="num">double<input type="color" id="col-double" value="#3aa655"></label>
+                <label class="num">single<input type="color" id="col-single" value="#e0423c"></label>
+            </div>
+            <div class="row" id="palettes" style="margin-top: 6px;"></div>
+
+            <h3>Presets</h3>
+            <div id="preset-controls"></div>
+
+            <h3>Export</h3>
+            <div class="row">
+                <button id="copy" class="btn">Copy JSON</button>
+                <button id="reset" class="btn">Reset</button>
+            </div>
+            <div id="json-out" class="out"></div>
+        </div>
+
+        <div class="stage"><svg id="gallery"></svg></div>
+    </div>
+
+    <p class="hint"><b>Temporary.</b> A bench, not a page of the site: it exists to
+    settle the arrow's shape and colors, and what comes out of it belongs in
+    <code>drawColoredArrows</code>.</p>
+</div>
+<script type="module">
+    import { init } from "./arrows.js";
+    init();
+</script>
+</body>
+</html>
