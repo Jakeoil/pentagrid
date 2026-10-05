@@ -680,6 +680,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      */
     const dressings = dressingReadings;
 
+    /** Whether any face dressing is on, and so wants the tiles layer drawn. */
+    const dressed = () => tileStyle.pentaFace || tileStyle.pentaEdge || tileStyle.nextgen
+        || tileStyle.kites || tileStyle.curves || tileStyle.p1 || tileStyle.nextPenta;
+
     /** A signed integer as a superscript, for λ = φᵐ. */
     function superscript(m: number): string {
         const digits = "⁰¹²³⁴⁵⁶⁷⁸⁹";
@@ -1131,7 +1135,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     stack.add({
         id: "penrose-tiles", label: "Tiles", z: PENROSE_Z_FRONT, group: "Penrose",
-        visible: () => features.penroseTiles,
+        // A dressing lives in this layer, so it has to be able to raise it: with
+        // `faces` off and penta on, the old answer was to draw nothing at all.
+        // What `faces` then decides is only whether the SYSTEM fill goes down
+        // underneath — which is how the pentagons can be had without a
+        // thick/thin ground behind them.
+        visible: () => features.penroseTiles || dressed(),
         draw: (c) => {
             drawRhombs(c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy, true);
             drawResolutions(c.ctx, c.cx, c.cy, true);
@@ -2454,8 +2463,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function drawNextPenta(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
-        tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
-        tc.fill();
+        // The blue ground, unless penta-face has already laid one: it is the
+        // same blue, and painting it twice buried penta's own pentagons under
+        // this generation's. Jake: with next-penta on, they don't all draw.
+        if (!tileStyle.pentaFace) {
+            tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+            tc.fill();
+        }
         tc.clip();                                       // inside save/restore already
         const mx = (rhomb.vertices[0][0] + rhomb.vertices[2][0]) / 2;
         const my = (rhomb.vertices[0][1] + rhomb.vertices[2][1]) / 2;
@@ -2630,11 +2644,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // The system first — what a bare tile is — and then every
                 // dressing that is on, over it. One dropdown used to hold both
                 // and they were alternatives; they are not.
-                if (tileStyle.color === "bands") {
-                    drawBands(tc, rhomb, sv, cx, cy);
-                } else {
-                    tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
-                    tc.fill();
+                // The system is the FACE: no faces, no thick/thin ground, and
+                // the dressings go straight onto the page.
+                if (features.penroseTiles) {
+                    if (tileStyle.color === "bands") {
+                        drawBands(tc, rhomb, sv, cx, cy);
+                    } else {
+                        tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
+                        tc.fill();
+                    }
                 }
                 if (tileStyle.curves) drawCurves(tc, rhomb, sv, cx, cy);
                 if (tileStyle.pentaFace || tileStyle.pentaEdge) {

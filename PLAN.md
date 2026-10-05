@@ -645,6 +645,24 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**Three things wrong with the dressings, and what they had in common
+(2026-10-05).** Jake: with `faces` off penta does not work; with it on the
+pentagons sit on a thick/thin ground; and turning next-penta on makes them "not
+all draw". All three were the same confusion — the layer, the system and the
+dressing were one thing.
+
+- A dressing lives in the tiles LAYER, which was `visible: features.penroseTiles`
+  — so `faces` off meant the dressing drew nothing at all. It raises the layer
+  itself now, the way the `index` switch raises the vertices.
+- And what `faces` actually decides is only whether the **system fill** goes down
+  underneath. With it off the pentagons go straight onto the page, with no
+  thick/thin behind them, which is the thing Jake said he could live without.
+- `drawNextPenta` painted its own blue ground over the whole tile before drawing,
+  so with penta-face on as well it buried penta's pentagons under this
+  generation's. It lays the ground only when penta-face has not: the two use the
+  same blue, so one is enough, and both generations' pentagons now show — the
+  finer over the coarser, which is the right way round.
+
 **penta splits in two (2026-10-05).** Jake: split penta into **penta-face** and
 **penta-edge**, "I want to be able to see the deflation clearly". The face half
 is what `penta` was — the blue ground with the orange Pe1 and the yellow Pe3

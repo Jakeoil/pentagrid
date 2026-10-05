@@ -2233,3 +2233,56 @@ test("penta splits in two: the faces fill, the edges only outline", () => {
     assert.ok(over.fills.includes(GOLD), "next-gen's gold is still there to see");
     assert.ok(over.strokes.filter((c) => c === EDGE).length > 50, "with the pentagons over it");
 });
+
+test("a dressing draws with faces off, and next-penta does not bury penta", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const fills = [];
+    layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    const run = (style, feats) => {
+        if (feats) h.setFeatures(feats, { merge: true });
+        h.setTileStyle(style);
+        fills.length = 0;
+        h.redraw();
+        return [...fills];
+    };
+
+    const BLUE = "#0000ff", ORANGE = "#e46c0a", YELLOW = "#ffff00";
+    const THICK = "#e8c170", THIN = "#7eb8da";
+
+    // Faces off and nothing dressed: the layer stays down.
+    assert.equal(layer.visible(), false);
+    assert.equal(run({}).length, 0);
+
+    // Faces off, penta on: the layer comes up on its own, and there is no
+    // thick/thin ground under the pentagons — that is what `faces` decides.
+    const bare = run({ pentaFace: true });
+    assert.equal(layer.visible(), true, "a dressing has to be able to raise its own layer");
+    assert.ok(bare.includes(ORANGE) && bare.includes(YELLOW), "the pentagons draw");
+    assert.ok(bare.includes(BLUE), "on their own blue ground");
+    assert.equal(bare.filter((c) => c === THICK || c === THIN).length, 0,
+                 "and no system fill behind them");
+
+    // Faces on: the system goes down first, under the same pentagons.
+    const over = run({ pentaFace: true }, { penroseTiles: true });
+    assert.ok(over.filter((c) => c === THICK || c === THIN).length > 50,
+              "with faces on the thick/thin ground is there");
+
+    // next-penta over penta: both generations' pentagons, since the second
+    // must not repaint the ground over the first.
+    const pentaOnly = run({ pentaFace: true, nextPenta: false });
+    const both = run({ pentaFace: true, nextPenta: true });
+    const count = (list) => list.filter((c) => c === ORANGE || c === YELLOW).length;
+    assert.ok(count(both) > count(pentaOnly),
+              `next-penta adds to penta rather than burying it `
+              + `(${count(both)} against ${count(pentaOnly)})`);
+    assert.equal(both.filter((c) => c === BLUE).length,
+                 pentaOnly.filter((c) => c === BLUE).length,
+                 "and the ground is laid once, not twice");
+});
