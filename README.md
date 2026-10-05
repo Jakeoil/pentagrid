@@ -222,6 +222,8 @@ system is chosen, rather than alternatives to it: `curves` (the matching curves
 as filled regions, dark at the arrow corner), `penta` (P1 at the scale where
 every thick rhomb holds one whole — the big rhombs), `nextgen` (the deflation,
 thick gold and thin gray at 1/φ; the next generation when the edges are off),
+`nextPenta` (penta one generation down: the P1 pentagons of the DEFLATED tiling,
+at 1/φ, and no next-generation rhomb edges with them),
 `kites` (P2 on the rhombs, a dart in every thick), and two placed by the rhomb
 GROUPS rather than by one tile's index: `p1` (a pentagon on every group, blue
 between) and `bigRhombs` (the generation above — the inflation γ′ⱼ = γⱼ₋₁ +

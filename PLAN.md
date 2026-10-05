@@ -645,6 +645,48 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**next-penta (2026-10-05).** Jake: take the deflated rhombs of next-gen and
+give them the rhomb-to-penta treatment, "without showing the next-gen rhomb
+edges". So a third scale of one decoration: `penta` places P1 pentagons of
+circumradius 1/φ² on the tiles, `nextPenta` places them on the tiles one
+generation down, radius 1/φ³.
+
+It is NOT cut out of next-gen's pieces. Those arrive as triangles — half-rhombs,
+some of whose other halves are in the neighbor — with no orientation of their
+own, and the pentagon rule needs each sub-rhomb's extreme corner. So the
+deflation is taken as what it is, a grid: γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃), collected with
+the same `collectRhombs`, and `rhombPentagons` run on it unchanged. Every
+sub-rhomb's extreme corner then comes from the thing that defines it rather than
+a rule guessed per tile. Measured first: every vertex of this tiling is a vertex
+of that one, 289 of 289 well inside a sun patch. The result is scaled by 1/φ
+into these units and clipped to the tile it falls in, so it is a face decoration
+like the others.
+
+Three things the work turned up, all caught rather than reasoned.
+
+- The index range must be read off the **laid** sub-tiles only. A deflated
+  singularity stacks rhombs whose corners carry the 2k-gon's ghost levels, which
+  widens the range past four and silences the whole decoration — the trap
+  `indexRange()` already avoids here, and it bites at Σγ = 0, the preset the
+  page opens on.
+- The cache needed **off Penrose** in its key. It is cleared with the rhombs,
+  but `setTileStyle` clears nothing, so turning the switch on left the empty
+  list in place.
+- And it has to be **bucketed**. Asking every tile about every pentagon is what
+  `drawP1` does and gets away with, there being few P1 pentagons; this
+  generation has φ² times the rhombs and three pentagons each, so zoomed out it
+  was tiles × pentagons and split's pagecheck went from seconds to over five
+  minutes. A 1.5-unit cell and the nine around a tile brought it to 17 ms a pan.
+
+And an asymmetry worth keeping. **Σγ″ = −2Σγ**, so a half-integer sum — the
+generalised tilings, Σγ ≡ ½, the thin-rhomb flowers — deflates to an integer
+one. next-penta draws there and `penta` does not: the generation below a
+non-Penrose tiling can be Penrose. Asserted.
+
+Not built: roof and grow keep their own per-tile dressing pipeline and do not
+get this one, since it is placed from a grid rather than from a tile's own
+halves and so cannot ride the fold.
+
 **Is `arcs` an edge decoration? (2026-10-05).** Jake asked, looking at the
 panel, where `arcs` sits in **edge style** and `curves` — the same decoration
 drawn as filled regions — sits in **penrose face**. The answer is that the MARK

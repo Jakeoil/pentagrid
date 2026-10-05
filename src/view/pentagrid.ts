@@ -140,6 +140,12 @@ export interface TileStyle {
     nextgen: boolean;
     kites: boolean;
     /**
+     * `penta` one generation down: the P1 pentagons of the DEFLATED tiling,
+     * which is `penta` at 1/φ and a third scale of the same decoration. The
+     * next generation's rhomb edges are not drawn with it.
+     */
+    nextPenta: boolean;
+    /**
      * The two that are placed by the rhomb GROUPS rather than by a single
      * tile's index: `p1`, a pentagon on every group with blue between (the
      * small rhombs), and `bigRhombs`, the generation ABOVE this one — the
@@ -827,7 +833,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
-        curves: false, penta: false, nextgen: false, kites: false,
+        curves: false, penta: false, nextgen: false, kites: false, nextPenta: false,
         p1: false, bigRhombs: false, faceEdges: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
@@ -911,6 +917,100 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return p1Cache;
     }
 
+    /**
+     * The NEXT generation's pentagons: `penta` applied to the deflated rhombs.
+     *
+     * The deflation is a grid in its own right — γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃), the
+     * tiling at 1/φ — so rather than cut the pentagons out of this tile's own
+     * halves, which arrive as triangles with no orientation of their own, the
+     * deflated grid is collected and `rhombPentagons` run on it unchanged. That
+     * gets every sub-rhomb's extreme corner from the thing that defines it
+     * instead of from a rule guessed per tile. Measured: every vertex of this
+     * tiling is a vertex of that one, 289 of 289 well inside a sun patch.
+     *
+     * The result is scaled by 1/φ into this tiling's units and cached with the
+     * rhombs. No edges are drawn: Jake asked for the pentagons alone.
+     */
+    interface NextPenta { x: number; y: number; pts: Vec2[]; style: string; alpha: number }
+    /**
+     * Bucketed by a 1.5-unit cell, because a tile only has to ask about the
+     * pentagons near it. Scanning the whole list per tile is what drawP1 does
+     * and gets away with — there are few P1 pentagons — but this generation has
+     * φ² times as many rhombs and three pentagons each, so zoomed out it was
+     * tiles × pentagons and the page stopped.
+     */
+    const NEXT_CELL = 1.5;
+    interface NextPentaSet { list: NextPenta[]; cells: Map<string, NextPenta[]> }
+    let nextPentaCache: NextPentaSet | null = null;
+    // Cleared with the rhombs, like the rest — but it also depends on a SWITCH,
+    // and setTileStyle does not clear anything, so off Penrose is in the key.
+    let nextPentaKey = "";
+    function nextPentas(): NextPentaSet {
+        const cacheKey = String(tileStyle.offPenrose);
+        if (nextPentaCache && cacheKey === nextPentaKey) return nextPentaCache;
+        nextPentaKey = cacheKey;
+        const n = model.n;
+        const gd = model.gamma.map((_, j) => -(model.gamma[(j + 2) % n] + model.gamma[(j + 3) % n]));
+        const base = computeRect();
+        const sub = geoCollectRhombs(
+            { n, directions: model.directions, gamma: gd, edges: model.edges },
+            { xMin: base.xMin * PHI, xMax: base.xMax * PHI,
+              yMin: base.yMin * PHI, yMax: base.yMax * PHI },
+            { gain: gridGain() },
+        );
+        // The range is read off the LAID tiles only. A deflated singularity
+        // stacks rhombs on one crossing and their corners carry the 2k-gon's
+        // ghost levels, which would widen the range past four and silence the
+        // whole decoration — the same trap indexRange() avoids here.
+        const crowd = new Map<string, number>();
+        for (const r of sub) {
+            const k = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
+            crowd.set(k, (crowd.get(k) ?? 0) + 1);
+        }
+        const stacked = (r: Rhomb) => (crowd.get(`${r.x0.toFixed(6)},${r.y0.toFixed(6)}`) ?? 0) > 1;
+        let lo = Infinity, hi = -Infinity;
+        for (const r of sub) {
+            if (stacked(r)) continue;
+            for (const K of r.kTuples) {
+                const m = vertexIndex(K);
+                if (m < lo) lo = m;
+                if (m > hi) hi = m;
+            }
+        }
+        const levels = hi - lo + 1;
+        const out: NextPenta[] = [];
+        // The same rule the other dressings follow: four levels places it
+        // outright, five only with off Penrose, and then both readings at half.
+        const placeable = levels === 4 || (levels === 5 && tileStyle.offPenrose);
+        if (placeable) {
+            for (const r of sub) {
+                if (stacked(r)) continue;            // a superposition dresses nothing
+                for (const { extAt, alpha } of dressings(r, lo, levels)) {
+                    const parts = rhombPentagons(r, lo, levels, extAt);
+                    const add2 = (pts: Vec2[], style: string) => {
+                        let cx2 = 0, cy2 = 0;
+                        for (const [x, y] of pts) { cx2 += x; cy2 += y; }
+                        out.push({
+                            x: cx2 / pts.length / PHI, y: cy2 / pts.length / PHI,
+                            pts: pts.map(([x, y]) => [x / PHI, y / PHI] as Vec2),
+                            style, alpha,
+                        });
+                    };
+                    for (const o of parts.orange) add2(o, P1_FILL.Pe1);
+                    if (parts.yellow) add2(parts.yellow, P1_FILL.Pe3);
+                }
+            }
+        }
+        const cells = new Map<string, NextPenta[]>();
+        for (const p of out) {
+            const k = `${Math.floor(p.x / NEXT_CELL)},${Math.floor(p.y / NEXT_CELL)}`;
+            const at = cells.get(k);
+            if (at) at.push(p); else cells.set(k, [p]);
+        }
+        nextPentaCache = { list: out, cells };
+        return nextPentaCache;
+    }
+
     /** wieringa-roof's `t`: -1 at the patch's lowest vertex, +1 at its highest. */
     function rampT(index: number): number {
         const { lo, hi } = indexRange();
@@ -941,6 +1041,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         indexRangeCache = null;
         groupCache = null;
         p1Cache = null;
+        nextPentaCache = null;
         rhombCacheKey = key;
         return rhombCache;
     }
@@ -2053,7 +2154,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // A dressing is placed by the index and a stack has no one index, so a
         // 2k-gon takes the bare face under whichever dressing is on.
         if (tileStyle.curves) return CURVE_FACE;
-        if (tileStyle.penta || tileStyle.nextgen || tileStyle.kites || tileStyle.p1) {
+        if (tileStyle.penta || tileStyle.nextgen || tileStyle.kites || tileStyle.p1
+            || tileStyle.nextPenta) {
             return NO_GROUP;
         }
         if (tileStyle.color === "pair") {
@@ -2317,6 +2419,48 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     /**
+     * `penta` one generation down: the pentagons of the deflated tiling, drawn
+     * on the tile they fall in and clipped to it. The blue ground is the same
+     * blue `penta` uses, so neighboring tiles join without a seam, and the
+     * next generation's own rhomb edges are not drawn — Jake: without showing
+     * the next-gen rhomb edges.
+     */
+    function drawNextPenta(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    ) {
+        tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+        tc.fill();
+        tc.clip();                                       // inside save/restore already
+        const mx = (rhomb.vertices[0][0] + rhomb.vertices[2][0]) / 2;
+        const my = (rhomb.vertices[0][1] + rhomb.vertices[2][1]) / 2;
+        // A pentagon of this generation reaches at most its own radius past a
+        // tile's half diagonal, 1.2 units, so the nine cells around the tile's
+        // center hold every one that can touch it.
+        const { cells } = nextPentas();
+        const gx = Math.floor(mx / NEXT_CELL), gy = Math.floor(my / NEXT_CELL);
+        const near: NextPenta[] = [];
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const at = cells.get(`${gx + dx},${gy + dy}`);
+                if (at) near.push(...at);
+            }
+        }
+        for (const p of near) {
+            if (Math.hypot(p.x - mx, p.y - my) > 1.2) continue;
+            tc.globalAlpha = tileStyle.opacity * p.alpha;
+            tc.beginPath();
+            p.pts.forEach(([x, y], i) => {
+                const [px, py] = mathToScreen(x, y, cx, cy);
+                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+            });
+            tc.closePath();
+            tc.fillStyle = ramped(tc, rhomb, sv, p.style);
+            tc.fill();
+        }
+        tc.globalAlpha = tileStyle.opacity;
+    }
+
+    /**
      * The next generation: the tile filled gold (thick') and its thin' pieces
      * laid over in gray. Geometry in rhombDeflation. With the edges off, what
      * shows is the deflated tiling — the halves on every edge meet their other
@@ -2468,6 +2612,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 }
                 if (tileStyle.curves) drawCurves(tc, rhomb, sv, cx, cy);
                 if (tileStyle.penta) drawPentagons(tc, rhomb, sv, cx, cy);
+                if (tileStyle.nextPenta) drawNextPenta(tc, rhomb, sv, cx, cy);
                 if (tileStyle.nextgen) drawNextGen(tc, rhomb, sv, cx, cy);
                 if (tileStyle.kites) drawKites(tc, rhomb, sv, cx, cy);
                 if (tileStyle.p1) drawP1(tc, rhomb, sv, cx, cy);
@@ -3210,7 +3355,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (model.n === 5) {
                 const fRow = row(panelFor("penrose face"), "penrose face");
                 const dress = (
-                    key: "penta" | "nextgen" | "kites" | "curves",
+                    key: "penta" | "nextgen" | "nextPenta" | "kites" | "curves",
                     label: string, title: string,
                 ) => {
                     const cb = checkbox(fRow, label, tileStyle[key], (v) => {
@@ -3223,6 +3368,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     + "rhomb holds one whole — the big rhombs.");
                 dress("nextgen", "next-gen", "The deflation: thick gold and thin gray at "
                     + "1/φ. Switch the face edges off and it IS the next generation.");
+                dress("nextPenta", "next-penta", "penta one generation down: the P1 pentagons "
+                    + "of the deflated tiling, at 1/φ. The next generation's own rhomb edges "
+                    + "are not drawn.");
                 dress("kites", "kites", "P2 on the rhombs: kites light, a dart in every thick.");
                 dress("curves", "curves", "The matching curves as filled regions, dark at "
                     + "the arrow corner.");

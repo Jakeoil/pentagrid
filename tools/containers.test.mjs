@@ -2128,3 +2128,61 @@ test("the colored arrows are one filled outline each, and clear the vertex mark"
               `the index circle costs ${(markR - 3).toFixed(1)} px an end `
               + `(${withDot.toFixed(1)} against ${withIndex.toFixed(1)})`);
 });
+
+test("next-penta is penta one generation down, and draws no next-gen edges", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { nextPenta: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const fills = [], strokes = [];
+    layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    layer.ctx.stroke = function () { strokes.push(String(this.strokeStyle)); };
+    h.redraw();
+
+    const BLUE = "#0000ff", ORANGE = "#e46c0a", YELLOW = "#ffff00";
+    const seen = new Set(fills);
+    assert.ok(seen.has(BLUE), "the blue ground, same as penta's");
+    assert.ok(seen.has(ORANGE) && seen.has(YELLOW),
+              `both pentagon kinds: ${[...seen].join(" ")}`);
+    assert.equal(strokes.length, 0, "no next-gen rhomb edges — the pentagons alone");
+
+    // One generation down means MORE pentagons than penta on the same patch:
+    // the deflated tiling has about phi squared as many rhombs.
+    const count = (style) => {
+        fills.length = 0;
+        h.setTileStyle(style);
+        h.redraw();
+        return fills.filter((c) => c === ORANGE || c === YELLOW).length;
+    };
+    const next = count({ nextPenta: true, penta: false });
+    const same = count({ nextPenta: false, penta: true });
+    assert.ok(next > same * 1.5,
+              `next-penta should be the busier of the two (${next} against ${same})`);
+
+    // It is placed by the DEFLATED tiling's index, and Σγ″ = −2Σγ — so a
+    // half-integer sum, which is generalised and not Penrose, deflates to an
+    // integer one. next-penta draws there and penta does not.
+    const pentas = () => {
+        fills.length = 0;
+        h.redraw();
+        return fills.filter((c) => c === ORANGE || c === YELLOW).length;
+    };
+    h.setTileStyle({ nextPenta: true, penta: false, offPenrose: false });
+    h.gamma.setValues([0.1, 0.1, 0.1, 0.1, 0.1]);          // sum 1/2: generalised
+    assert.ok(pentas() > 0, "a half-integer sum deflates to Penrose, so this still places");
+    h.setTileStyle({ nextPenta: false, penta: true });
+    assert.equal(pentas(), 0, "while penta itself has five levels and stays quiet");
+
+    // A sum whose deflation is not integer either goes quiet, and off Penrose
+    // brings it back at half strength.
+    h.setTileStyle({ nextPenta: true, penta: false });
+    h.gamma.setValues([0.05, 0.05, 0.05, 0.05, 0.05]);     // sum 1/4
+    assert.equal(pentas(), 0, "five levels down there too: nothing placed");
+    h.setTileStyle({ offPenrose: true });
+    assert.ok(pentas() > 0, "with the switch on, both readings at half strength");
+});
