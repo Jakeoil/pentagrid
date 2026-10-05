@@ -645,6 +645,26 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**And a fifth, same family (2026-10-05).** Jake, still: penta-edge is screwing
+up next-penta — and the diagnosis with it. *next-penta is a simple rhomb
+decoration: all thin rhombs have the same pattern, all thick rhombs have the
+same pattern. Is that what you see?*
+
+Measured, and yes — but only once the measurement was right. Taking every tile
+in a patch, assigning each pentagon to the one tile its center is inside, and
+reading the result in the tile's own frame off its extreme corner: **one pattern
+over seventeen thick tiles, one over seven thin**, for tiles well inside the
+collected patch. The decoration is per-prototile, exactly as he said, which is
+what makes "penta-edge changes it" a contradiction rather than a preference.
+
+The contradiction was the same class of bug as the clip. Each dressing starts by
+filling its own ground, and `fill()` takes the **current path** — which the
+dressing before it left as the last shape it drew. So with penta-edge on,
+next-penta's blue ground came out as one of penta's pentagons instead of the
+tile. Every dressing is now handed the tile's path, re-traced before each, so
+none of them can be made to depend on which ran first. A test records the path
+each ground was filled with and insists on four corners.
+
 **And a fourth, which was the real one (2026-10-05).** Jake: sun preset, grid
 off, faces off, set penta-edge — fine. Set next-penta, and most of them are
 blank; turn penta-edge off and they all come back.

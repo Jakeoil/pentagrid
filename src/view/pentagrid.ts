@@ -2659,14 +2659,27 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // the first's pentagons and almost nothing of it survived.
                 // Jake: set penta-edge, set next-penta, most of them blank.
                 if (dressed()) tc.clip();
-                if (tileStyle.curves) drawCurves(tc, rhomb, sv, cx, cy);
+                // And every dressing starts from the TILE's path. They each
+                // begin by filling their own ground, which is `fill()` on
+                // whatever path is current — and a dressing leaves that as the
+                // last shape it drew, so the second one's ground came out as a
+                // pentagon of the first. Re-traced before each, so no dressing
+                // can be made to depend on which ran before it.
+                const retrace = () => {
+                    tc.beginPath();
+                    tc.moveTo(sv[0][0], sv[0][1]);
+                    for (let i = 1; i < 4; i++) tc.lineTo(sv[i][0], sv[i][1]);
+                    tc.closePath();
+                };
+                if (tileStyle.curves) { retrace(); drawCurves(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.pentaFace || tileStyle.pentaEdge) {
+                    retrace();
                     drawPentagons(tc, rhomb, sv, cx, cy);
                 }
-                if (tileStyle.nextPenta) drawNextPenta(tc, rhomb, sv, cx, cy);
-                if (tileStyle.nextgen) drawNextGen(tc, rhomb, sv, cx, cy);
-                if (tileStyle.kites) drawKites(tc, rhomb, sv, cx, cy);
-                if (tileStyle.p1) drawP1(tc, rhomb, sv, cx, cy);
+                if (tileStyle.nextPenta) { retrace(); drawNextPenta(tc, rhomb, sv, cx, cy); }
+                if (tileStyle.nextgen) { retrace(); drawNextGen(tc, rhomb, sv, cx, cy); }
+                if (tileStyle.kites) { retrace(); drawKites(tc, rhomb, sv, cx, cy); }
+                if (tileStyle.p1) { retrace(); drawP1(tc, rhomb, sv, cx, cy); }
                 tc.restore();
                 if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
                 if (tileStyle.faceEdges) {

@@ -2323,3 +2323,43 @@ test("one dressing does not clip the next: the tile is clipped once", () => {
     const one = run({ pentaFace: true, pentaEdge: false, nextPenta: false });
     assert.equal(two.clips, one.clips, "the tile is clipped once however many dressings");
 });
+
+test("every dressing starts from the tile's own path, not the last one's", () => {
+    // A dressing fills its ground with fill(), which takes the CURRENT path —
+    // and the one before it left that as the last shape it drew. So with
+    // penta-edge on, next-penta's blue ground came out as a pentagon of penta's
+    // rather than the tile. Jake: penta-edge is still screwing up next-penta.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    // Record the path each fill was made with: four points is the tile.
+    let path = [], grounds = [];
+    layer.ctx.beginPath = () => { path = []; };
+    layer.ctx.moveTo = (x, y) => path.push([x, y]);
+    layer.ctx.lineTo = (x, y) => path.push([x, y]);
+    layer.ctx.fill = function () {
+        if (String(this.fillStyle) === "#0000ff") grounds.push(path.length);
+    };
+    const run = (style) => {
+        h.setTileStyle(style);
+        grounds = [];
+        h.redraw();
+        return grounds;
+    };
+
+    const alone = run({ pentaEdge: false, pentaFace: false, nextPenta: true });
+    assert.ok(alone.length > 50, `next-penta lays a ground per tile (${alone.length})`);
+    assert.deepEqual([...new Set(alone)], [4], "and the ground is the tile: four corners");
+
+    // The SHAPE is the point: a ground drawn on the path penta-edge left behind
+    // would have five corners, not four.
+    const withEdge = run({ pentaEdge: true, pentaFace: false, nextPenta: true });
+    assert.ok(withEdge.length > 50, "and it is still laid");
+    assert.deepEqual([...new Set(withEdge)], [4],
+                     "still the tile, not a pentagon left over from penta-edge");
+});
