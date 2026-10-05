@@ -95,7 +95,7 @@ test("the bench builds, draws, and survives every control", () => {
     init();
 
     assert.ok(gallery.children.length > 0, "nothing drawn");
-    assert.equal(cards.children.length, 4, "four presets");
+    assert.equal(cards.children.length, 5, "the two shipped, the legacy, and two sizes");
     assert.ok(String(out.textContent).includes("ofEdge"),
               "the export leads with the fractions, which is what the view wants");
 
@@ -153,4 +153,8 @@ test("the bench builds, draws, and survives every control", () => {
     for (const i of [1, 2, 3]) {
         assert.ok(dbl[i] > sgl[i], "the double's head is the bigger one, in all three");
     }
+    // The drawing that was replaced is kept, so it can be compared and recovered.
+    const legacy = nums(cards.children[2]);
+    assert.deepEqual(legacy, [0.0156, 0.15, 0.0497, 0, 0.04], "legacy");
+    assert.equal(legacy[3], 0, "and it had no notch, which is what the new shape adds");
 });

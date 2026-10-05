@@ -2119,10 +2119,11 @@ test("the colored arrows are one filled outline each, and clear the vertex mark"
     h.setTileStyle({ vertexMark: "index" });
     const withIndex = arrowLength();
     // An edge is `scale` pixels long, and each end loses the mark's radius plus
-    // three of air: the dot is 3, the index circle max(6, min(9, 0.12*scale)).
+    // ARROW_GAP of air: the dot is 3, the index circle max(6, min(9, 0.12*scale)).
+    const GAP = 1.5;
     const markR = Math.max(6, Math.min(9, view.scale * 0.12));
-    assert.ok(Math.abs(withDot - (view.scale - 12)) < 0.5,
-              `with the dot the arrow is the edge less 6 px an end (${withDot.toFixed(1)})`);
+    assert.ok(Math.abs(withDot - (view.scale - 2 * (3 + GAP))) < 0.5,
+              `with the dot the arrow is the edge less ${3 + GAP} px an end (${withDot.toFixed(1)})`);
     assert.ok(Math.abs((withDot - withIndex) - 2 * (markR - 3)) < 0.5,
               `the index circle costs ${(markR - 3).toFixed(1)} px an end `
               + `(${withDot.toFixed(1)} against ${withIndex.toFixed(1)})`);

@@ -685,6 +685,20 @@ whether the tip lands on it. The colors stay as they were.
 The stage shows **before and after together**, the stroked shaft with its
 separate triangle over the single outline that would replace it.
 
+**Tightened, and the old one kept (2026-10-05).** The gap between an arrow's
+point and the mark at the vertex was **3 px** — which with the 3 px dot is the
+6 px inset this drawing had always used, read as the dot plus air. Jake wanted
+the tips closer to the circled index, so it is **1.5 px** now, in one named
+constant, `ARROW_GAP`. Both ends move together: the tail keeps the same
+treatment as the point, which was his earlier instruction, so if they ever want
+to differ that is a second number rather than a change of shape.
+
+And the drawing that was replaced is kept on purpose rather than left in the
+history: the bench holds it as the **Legacy** preset with its numbers converted
+into edge fractions, beside the **before only** shape that draws it the old way
+— a stroked shaft and a separate triangle, and no notch at all, which is the one
+thing the new shape adds.
+
 **And it shipped (2026-10-05).** Jake's numbers off the bench, with the two
 markings given DIFFERENT geometry — the double's head longer, wider and more
 deeply notched than the single's — so the distinction survives a reader who

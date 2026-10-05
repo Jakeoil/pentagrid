@@ -108,6 +108,15 @@ const DEFAULTS = [
       SW: 0.028, HL: 0.3, HW: 0.1, ND: 0.08, MARGIN: 0.08 },
     { name: "single", label: "Single (red)",
       SW: 0.028, HL: 0.215, HW: 0.076, ND: 0.04, MARGIN: 0.08 },
+    // Kept on purpose: the drawing that was replaced, so it can be compared
+    // against and come back if the new one turns out worse. Its numbers were
+    // fractions of the ARROW's length rather than of the edge — HEAD 0.163,
+    // HALF 0.054, line width 0.034, over L = 1 − 12/scale — and this is them
+    // converted at an edge of 150 px, where L is 0.92. It had no notch at all,
+    // which is the one thing the new shape adds. Draw it with the "before only"
+    // shape to see it as it was.
+    { name: "legacy", label: "Legacy (replaced)",
+      SW: 0.0156, HL: 0.15, HW: 0.0497, ND: 0, MARGIN: 0.04 },
     { name: "hairline", label: "Hairline", k: 0.6 },
     { name: "bold", label: "Bold", k: 2.2 },
 ];

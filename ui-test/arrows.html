@@ -161,7 +161,12 @@
 
     <p class="hint"><b>Temporary.</b> A bench, not a page of the site: it exists to
     settle the arrow's shape and colors, and what comes out of it belongs in
-    <code>drawColoredArrows</code>.</p>
+    <code>drawColoredArrows</code>. The <b>Legacy</b> preset and the
+    <b>before&nbsp;only</b> shape are kept deliberately &mdash; they are the drawing
+    that was replaced, so it can be compared against and brought back. Note that a
+    preset&rsquo;s MARGIN is the bench&rsquo;s own: the view drives it from the
+    vertex mark in pixels, since a mark is the same size however far you zoom, and
+    a constant fraction of the edge is right at exactly one zoom.</p>
 </div>
 <script type="module">
     import { init } from "./arrows.js";

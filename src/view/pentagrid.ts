@@ -63,6 +63,14 @@ function classFill(cls: number): string {
 const KOWALEWSKI_FILLS = ["#e4a05c", "#7fbf9b", "#8e9bd4", "#d98ba8", "#b5b35c"];
 
 /**
+ * Pixels of air between an arrow's point and the mark at the vertex, and the
+ * same at its tail. Was 3 — the 6 px inset this drawing had always used, read
+ * as a 3 px dot plus 3 of air — and Jake wanted the tips closer to the circled
+ * index: 1.5. One number, so it stays easy to turn.
+ */
+const ARROW_GAP = 1.5;
+
+/**
  * A 2k-gon is neither thick nor thin — it is a stack of both — so it gets its
  * own color. Two of them: the hexagons are the common case and the ones that
  * come in a column, so they read pink, and the octagon and the decagon keep the
@@ -1949,10 +1957,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         };
         // The margin is NOT a fraction: it has to clear the mark at the vertex,
         // and a mark is a fixed number of pixels however far the view is zoomed.
-        // Three pixels clear of it, which at the 3 px dot is the 6 px inset this
-        // drawing has always used, and at the index circle clears that instead.
+        // So: the mark's radius plus ARROW_GAP pixels of air, which is the one
+        // number to turn when the tips want to sit closer or further off.
         const inner = tileStyle.vertexMark === "dot" ? 3 : markRadius();
-        const margin = (inner + 3) / scale;
+        const margin = (inner + ARROW_GAP) / scale;
         if (1 - 2 * margin <= 0.2) return;
         for (const r of rhombs) {
             for (const { extAt, alpha } of dressings(r, lo, levels)) {
