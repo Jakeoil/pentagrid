@@ -17,7 +17,7 @@ import {
     solveIntersection, segmentAt, nearestLine,
 } from "../dist/geometry/pentagrid.js";
 import { TRIPLES, noIntegerGamma, scanRegions, singularTriples } from "../dist/geometry/regularity.js";
-import { ARC_T, PENTA_R, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, extremeCorner } from "../dist/geometry/decor.js";
+import { ARC_T, PENTA_R, rhombArcs, edgeCrossing, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, extremeCorner } from "../dist/geometry/decor.js";
 import { regionPoly } from "../dist/geometry/region.js";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 
@@ -1186,4 +1186,73 @@ test("even n spaces the families over a half turn: no parallel pair, frame n/2, 
     const five = makeDirections(true, 5);
     assert.ok(Math.abs(five[0][0]) < 1e-12 && Math.abs(five[0][1] - 1) < 1e-12);
     assert.ok(Math.abs(five[1][0] - Math.cos(Math.PI / 2 + 2 * Math.PI / 5)) < 1e-12);
+});
+
+test("the arcs are an edge decoration drawn on the face, and they always join", () => {
+    // Jake: is arcs really an edge decoration? The MARK is — each edge carries
+    // one crossing, at ARC_T along it from its tail, the end it runs +v_j from —
+    // and the INK is not: two circles centered at opposite corners. This is the
+    // mechanism, measured.
+    const g = createGammaSet({ guard: false });
+    g.setLocked(-1);
+    g.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);                // the sun
+    const m = g.model;
+    const rhombs = collectRhombs(m, { xMin: -4, xMax: 4, yMin: -4, yMax: 4 }, {});
+    assert.ok(rhombs.length > 100);
+
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    assert.ok(Math.abs(ARC_T - 1 / (PHI * PHI)) < 1e-12, "ARC_T is 1/phi^2");
+
+    const key = (p) => `${Math.round(p[0] * 1e6)},${Math.round(p[1] * 1e6)}`;
+    const byCrossing = new Map();
+    let cut = 0, edges = 0;
+    for (const r of rhombs) {
+        const arcs = rhombArcs(m, r);
+        // The two radii sum to 1, which is what lets both land at ARC_T from a
+        // tail: one measures forward from its corner, the other back.
+        assert.ok(Math.abs(arcs[0].r + arcs[1].r - 1) < 1e-12, "radii sum to 1");
+        for (let i = 0; i < 4; i++) {
+            const A = r.vertices[i], B = r.vertices[(i + 1) % 4];
+            const d = [B[0] - A[0], B[1] - A[1]];
+            let j = [0, 1, 2, 3, 4].find((k) =>
+                Math.hypot(d[0] - m.directions[k][0], d[1] - m.directions[k][1]) < 1e-9);
+            const tail = j !== undefined ? A : B;
+            if (j === undefined) {
+                j = [0, 1, 2, 3, 4].find((k) =>
+                    Math.hypot(d[0] + m.directions[k][0], d[1] + m.directions[k][1]) < 1e-9);
+            }
+            edges++;
+            const X = edgeCrossing(m, tail, j);
+            // The arc that cuts this edge is centered on one of its own ends, so
+            // the radius at the crossing lies ALONG the edge and the arc meets it
+            // at a right angle. That is the whole reason the curves join.
+            const arc = arcs.find((a) => Math.hypot(a.x - A[0], a.y - A[1]) < 1e-9
+                                      || Math.hypot(a.x - B[0], a.y - B[1]) < 1e-9);
+            assert.ok(arc, "no arc is centered on this edge");
+            assert.ok(Math.abs(Math.hypot(X[0] - arc.x, X[1] - arc.y) - arc.r) < 1e-9,
+                      "the crossing is not on that arc");
+            cut++;
+            const rad = [X[0] - arc.x, X[1] - arc.y];
+            const L = Math.hypot(...rad);
+            const list = byCrossing.get(key(X)) ?? [];
+            if (!byCrossing.has(key(X))) byCrossing.set(key(X), list);
+            list.push({ tan: [-rad[1] / L, rad[0] / L], r: arc.r });
+        }
+    }
+    assert.equal(cut, edges, "every edge is cut, once, by an arc centered on one of its ends");
+
+    let pairs = 0, tangent = 0, changed = 0;
+    for (const list of byCrossing.values()) {
+        if (list.length !== 2) continue;                   // the rest are the patch's rim
+        pairs++;
+        const [a, b] = list;
+        if (Math.abs(a.tan[0] * b.tan[1] - a.tan[1] * b.tan[0]) < 1e-9) tangent++;
+        if (Math.abs(a.r - b.r) > 1e-9) changed++;
+    }
+    assert.ok(pairs > 200, `only ${pairs} interior crossings`);
+    assert.equal(tangent, pairs, "the two tiles' curves must share a tangent at every crossing");
+    // And a curve may change radius as it crosses — 1/phi^2 to 1/phi — and still
+    // be smooth, because both arcs meet the edge square on.
+    assert.ok(changed > 0 && changed < pairs,
+              `${changed} of ${pairs} crossings change radius`);
 });

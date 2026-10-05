@@ -645,6 +645,33 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**Is `arcs` an edge decoration? (2026-10-05).** Jake asked, looking at the
+panel, where `arcs` sits in **edge style** and `curves` — the same decoration
+drawn as filled regions — sits in **penrose face**. The answer is that the MARK
+is on the edge and the INK is not.
+
+Each edge carries one crossing point, at **ARC_T = 1/φ² ≈ 0.382** along it from
+its TAIL, the end it runs +vⱼ from. That orientation is global, so the two tiles
+either side of an edge compute the same point without consulting each other —
+which is the whole trick, and why there is no matching rule to enforce. What is
+drawn is two circles, centered at opposite corners of the tile with radii 1/φ²
+and 1/φ; they sum to 1, which is exactly what lets the far corner's arc land at
+ARC_T from the far edges' tails as well.
+
+Then the reason the curves join: wherever an arc meets an edge, its center is
+one END of that edge, so the radius there lies along the edge and the arc
+crosses it **square on**. Both tiles do that, so the two curves share a tangent.
+Measured over a sun patch: all 704 edges cut by an arc centered on one of their
+own ends, and all **319 interior crossings tangent** — including the **124**
+where the radius changes from 1/φ² to 1/φ across the edge, which is smooth
+anyway because both sides meet it perpendicularly. Kept as a test in
+geometry.test.mjs.
+
+So it is an edge decoration in the sense that decides everything and a face
+decoration in the sense of where the ink lands. Not moved: `arcs` next to
+`curves` on the face row is the tidier reading, and is a one-line change
+whenever Jake wants it.
+
 **A bench for the arrows (2026-10-05).** `ui-test/arrows.html`, linked from
 method.html as a temporary line above the title. Ported from coylean-map's
 arrow tester, whose useful part is its parameterization — **SW** the shaft
