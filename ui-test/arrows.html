@@ -53,7 +53,10 @@
         .host.thin { stroke: #c9b9d2; }
         .host-edge { stroke: #b9b9c2; stroke-width: 1.2; }
         .dot { fill: #c0392b; }
+        .indexmark { fill: #fff; stroke: #111; stroke-width: 1; }
+        .indexnum { font: 700 10px system-ui, sans-serif; fill: #111; text-anchor: middle; }
         .label { font: 500 12px system-ui, sans-serif; fill: var(--ink-faint); text-anchor: middle; }
+        .rowlabel { font: 600 12px system-ui, sans-serif; fill: var(--ink-soft); }
     </style>
 </head>
 <body>
@@ -76,10 +79,21 @@
     in off the vertex dots. Every number is a fraction of the rhomb edge, since
     that is what the canvas works in.</p>
 
+    <p>The arrows are <b>unidirectional</b>. &ldquo;Double&rdquo; and
+    &ldquo;single&rdquo; name de Bruijn's two markings, not a count of heads: an
+    edge carries one arrow either way and the color is the whole distinction. Both
+    ends are pulled in by the margin &mdash; the tail&rsquo;s round cap and the
+    head&rsquo;s tip alike &mdash; and at a margin equal to the vertex mark&rsquo;s
+    radius the point lands exactly on the circle round the index, which is what
+    <b>stop at the mark</b> sets. The mark itself is drawn, so you can see whether
+    it does.</p>
+
     <p>The pattern is not invented here: <code>rhombArrows</code> is imported, so the
     doubles and singles fall where the tiling puts them &mdash; doubles into the
     extreme corner, singles opposite, out of it on a thick and into it on a thin.
-    <b>stroke&nbsp;+&nbsp;head</b> draws what the page draws now, for comparison.</p>
+    The stage shows <b>before and after</b> together: the stroked shaft with its
+    separate triangle as the page draws it today, over the single outline that
+    would replace it.</p>
 
     <div class="bench">
         <div class="side">
@@ -94,20 +108,28 @@
             <h3>Arrows</h3>
             <div class="row">
                 <button id="form-pattern" class="btn active">AR pattern</button>
-                <button id="form-single" class="btn">all single</button>
-                <button id="form-double" class="btn">all double</button>
+                <button id="form-single" class="btn">all singles</button>
+                <button id="form-double" class="btn">all doubles</button>
             </div>
 
             <h3>Shape</h3>
             <div class="row">
-                <button id="shape-outline" class="btn active">outline</button>
-                <button id="shape-stroke" class="btn">stroke + head</button>
+                <button id="shape-both" class="btn active">before &amp; after</button>
+                <button id="shape-stroke" class="btn">before only</button>
+                <button id="shape-outline" class="btn">after only</button>
+            </div>
+
+            <h3>Vertex mark</h3>
+            <div class="row">
+                <button id="mark-index" class="btn active">circled index</button>
+                <button id="mark-dot" class="btn">dot</button>
             </div>
 
             <h3>Scale</h3>
             <div class="row">
                 <label class="num">edge px<input type="number" id="edge" value="150" step="10" min="40"></label>
                 <label class="num">dot r<input type="number" id="dot" value="3" step="0.5" min="0"></label>
+                <label class="num">index r<input type="number" id="indexR" value="9" step="0.5" min="1"></label>
             </div>
 
             <h3>Color</h3>

@@ -671,6 +671,20 @@ headless too — every button, every field, reset — which caught the one real
 bug in it, a preset card built out of an innerHTML string that no test could
 reach into.
 
+Jake came back with the figure and three corrections, all in now. **The arrows
+are unidirectional** — "double" and "single" name de Bruijn's two markings, not
+a count of heads, so the outline has one head and the color is the whole
+distinction; the double-headed branch is gone and today's shape is drawn
+one-headed too, or the comparison would not be fair. **Both ends keep the
+treatment they have**, pulled in by the margin: the tail's round cap and the
+head's tip alike. And **the point ends on the circle round the index**, which
+makes the margin exactly the vertex mark's radius — so the bench draws the
+mark, dot or circled index with its real 1 2 3 2 corner levels, and you can see
+whether the tip lands on it. The colors stay as they were.
+
+The stage shows **before and after together**, the stroked shaft with its
+separate triangle over the single outline that would replace it.
+
 Open: the outcome. Nothing in `drawColoredArrows` has changed yet; the bench
 exists to settle the shape and the pair of colors first.
 

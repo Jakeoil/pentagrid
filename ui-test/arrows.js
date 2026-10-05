@@ -31,11 +31,18 @@ const el = (name, attrs = {}) => {
 /**
  * One filled outline along A -> B, arrow.svg's shape.
  *
+ * UNIDIRECTIONAL, always. "Double" and "single" are the names of de Bruijn's
+ * two markings, not a count of heads: an edge carries one arrow either way and
+ * the color is the whole distinction. Jake, with the diagram: the arrows are
+ * unidirectional.
+ *
  * Built in the edge's own frame — t along it, s across — so it works at any
- * angle, which the original's separate down/right paths did not need to.
- * MARGIN pulls both ends in: the tail's round cap and the head's tip.
+ * angle, which the original's separate down/right paths did not need to. Both
+ * ends are pulled in by MARGIN: the tail's round cap and the head's tip, which
+ * is the treatment the page already gives them, and at MARGIN = the vertex
+ * mark's radius the tip lands exactly on the circle round the index.
  */
-export function outlinePath(A, B, p, double) {
+export function outlinePath(A, B, p) {
     const dx = B[0] - A[0], dy = B[1] - A[1];
     const len = Math.hypot(dx, dy) || 1;
     const ux = dx / len, uy = dy / len;
@@ -43,12 +50,7 @@ export function outlinePath(A, B, p, double) {
     const P = (t, s) => `${(A[0] + ux * t + nx * s).toFixed(2)},${(A[1] + uy * t + ny * s).toFixed(2)}`;
     const { MARGIN: m, SW, HL, HW, ND } = p;
     const l = m, r = len - m;
-    if (r - l < HL * (double ? 2 : 1) + 1) return null;      // no room for the heads
-    if (double) {
-        return `M${P(l, 0)} L${P(l + HL, -HW)} ${P(l + HL - ND, -SW)} ${P(r - HL + ND, -SW)} `
-            + `${P(r - HL, -HW)} ${P(r, 0)} ${P(r - HL, HW)} ${P(r - HL + ND, SW)} `
-            + `${P(l + HL - ND, SW)} ${P(l + HL, HW)}Z`;
-    }
+    if (r - l < HL + 1) return null;                         // no room for the head
     // The tail is a half-round cap, which is what keeps a thin arrow from
     // looking cut off. Sweep flag 0: the arc bulges backwards, away from the head.
     return `M${P(l, -SW)} A${SW},${SW} 0 0 0 ${P(l, SW)} L${P(r - HL + ND, SW)} `
@@ -56,7 +58,7 @@ export function outlinePath(A, B, p, double) {
 }
 
 /** Today's drawing, for comparison: a stroked shaft and a separate head. */
-export function strokeParts(A, B, p, double) {
+export function strokeParts(A, B, p) {
     const dx = B[0] - A[0], dy = B[1] - A[1];
     const len = Math.hypot(dx, dy) || 1;
     const ux = dx / len, uy = dy / len;
@@ -65,9 +67,8 @@ export function strokeParts(A, B, p, double) {
     const l = m, r = len - m;
     const at = (t, s) => [A[0] + ux * t + nx * s, A[1] + uy * t + ny * s];
     const heads = [[r, 1]];
-    if (double) heads.push([l, -1]);
     return {
-        shaft: [at(double ? l + HL * 0.8 : l, 0), at(r - HL * 0.8, 0)],
+        shaft: [at(l, 0), at(r - HL * 0.8, 0)],
         width: 2 * SW,
         heads: heads.map(([t, dir]) => [
             at(t, 0), at(t - dir * HL, HW), at(t - dir * HL, -HW),
@@ -122,9 +123,11 @@ export function init() {
     const state = {
         edge: +byId("edge").value,
         dot: +byId("dot").value,
+        indexR: +byId("indexR").value,
+        mark: "index",       // dot | index — what sits at a vertex
         host: "thick",       // thick | thin | both | edge
         form: "pattern",     // pattern | single | double
-        shape: "outline",    // outline | stroke
+        shape: "both",       // outline | stroke | both
         double: PALETTES[0].double,
         single: PALETTES[0].single,
         presets: DEFAULTS.map((p) => ({ ...p, ...scaled(p.k) })),
@@ -136,9 +139,15 @@ export function init() {
         return { SW: p.SW * e, HL: p.HL * e, HW: p.HW * e, ND: p.ND * e, MARGIN: p.MARGIN * e };
     }
 
-    /** The margin that lays the tail's cap exactly against the vertex dot. */
-    function clearMargin(p) {
-        return +((state.dot / state.edge) + p.SW).toFixed(4);
+    /**
+     * The margin that puts both ends exactly on the vertex mark.
+     *
+     * Jake: the arrow point should end at the circle around the circled index
+     * number. So the margin IS the mark's radius — the tip touches the circle
+     * — and the tail's round cap gets the same treatment at the other end.
+     */
+    function clearMargin() {
+        return +(markRadius() / state.edge).toFixed(4);
     }
 
     /** The hint span of each card, kept rather than looked up. */
@@ -182,10 +191,10 @@ export function init() {
 
             const clear = document.createElement("button");
             clear.className = "btn clear";
-            clear.textContent = "\u2190 clear the dot";
+            clear.textContent = "\u2190 stop at the mark";
             clear.addEventListener("click", () => {
                 const pp = state.presets[idx];
-                pp.MARGIN = clearMargin(pp);
+                pp.MARGIN = clearMargin();
                 inputs.MARGIN.value = String(pp.MARGIN);
                 hints();
                 render();
@@ -200,9 +209,9 @@ export function init() {
     function hints() {
         hintSpans.forEach((span, idx) => {
             const p = state.presets[idx];
-            const d = +((p.MARGIN - clearMargin(p)) * state.edge).toFixed(1);
-            span.textContent = d === 0 ? " (touching)"
-                : d < 0 ? ` (over the dot ${-d}px)` : ` (clear by ${d}px)`;
+            const d = +((p.MARGIN - clearMargin()) * state.edge).toFixed(1);
+            span.textContent = d === 0 ? " (on the mark)"
+                : d < 0 ? ` (over the mark ${-d}px)` : ` (short by ${d}px)`;
             span.style.color = d === 0 ? "#16a34a" : d < 0 ? "#9a4a4a" : "#5a8aaa";
         });
     }
@@ -234,7 +243,33 @@ export function init() {
         });
     }
 
-    function drawHost(g, host, verts, p) {
+    /**
+     * The mark at a vertex, and the radius the arrow must stop at.
+     *
+     * Two of them, matching the view: the red dot, or the de Bruijn index in a
+     * white circle. The tip is supposed to land ON that circle, so the bench
+     * draws the real thing rather than a stand-in — a rhomb's corners run
+     * m, m+1, m+2, m+1, which is 1 2 3 2 with the extreme at corner 0.
+     */
+    function markRadius() {
+        return state.mark === "index" ? state.indexR : state.dot;
+    }
+    function drawMarks(g, host, verts) {
+        const LEVELS = [1, 2, 3, 2];
+        verts.forEach(([x, y], i) => {
+            if (state.mark === "dot" || host === "edge") {
+                g.appendChild(el("circle", { cx: x, cy: y, r: state.dot, class: "dot" }));
+                return;
+            }
+            g.appendChild(el("circle", { cx: x, cy: y, r: state.indexR, class: "indexmark" }));
+            const t = el("text", { x, y: y + state.indexR * 0.36, class: "indexnum",
+                                   "font-size": (state.indexR * 1.4).toFixed(1) });
+            t.textContent = String(LEVELS[i % 4]);
+            g.appendChild(t);
+        });
+    }
+
+    function drawHost(g, host, verts, p, shape) {
         if (host === "edge") {
             g.appendChild(el("line", {
                 x1: verts[0][0], y1: verts[0][1], x2: verts[1][0], y2: verts[1][1],
@@ -246,21 +281,18 @@ export function init() {
                 class: `host ${host}`,
             }));
         }
-        for (const [x, y] of verts) {
-            g.appendChild(el("circle", { cx: x, cy: y, r: state.dot, class: "dot" }));
-        }
         for (const a of arrowsOn(host, verts)) {
             const color = a.double ? state.double : state.single;
-            // In "both" on a bare edge the two specimens are stacked rather
-            // than laid on each other.
-            const shift = a.offset ? 2.2 * p.SW + 6 : (state.form === "pattern" ? 0 : 0);
+            // On a bare edge the two markings are stacked rather than laid on
+            // top of each other.
+            const shift = a.offset ? 2.2 * p.SW + 6 : 0;
             const A = [a.A[0], a.A[1] + shift], B = [a.B[0], a.B[1] + shift];
-            if (state.shape === "outline") {
-                const d = outlinePath(A, B, p, a.double);
+            if (shape === "outline") {
+                const d = outlinePath(A, B, p);
                 if (d) g.appendChild(el("path", { d, fill: color }));
                 continue;
             }
-            const parts = strokeParts(A, B, p, a.double);
+            const parts = strokeParts(A, B, p);
             g.appendChild(el("line", {
                 x1: parts.shaft[0][0], y1: parts.shaft[0][1],
                 x2: parts.shaft[1][0], y2: parts.shaft[1][1],
@@ -273,35 +305,53 @@ export function init() {
                 }));
             }
         }
+        // The marks go on top: the question is whether the tip lands on one.
+        drawMarks(g, host, verts);
     }
+
+    const SHAPE_LABEL = { stroke: "before — stroke + head", outline: "after — one outline" };
 
     function render() {
         const hosts = state.host === "both" ? ["thick", "thin"] : [state.host];
+        const shapes = state.shape === "both" ? ["stroke", "outline"] : [state.shape];
         const e = state.edge;
-        const cellW = Math.max(2.3 * e, 170);
+        const cellW = Math.max(2.3 * e, 190);
         const cellH = 1.9 * e + 56;
-        const w = state.presets.length * cellW;
-        const h = hosts.length * cellH;
+        const gutter = 118;                         // the row label's column
+        const w = gutter + state.presets.length * cellW;
+        const h = hosts.length * shapes.length * cellH;
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
         svg.setAttribute("width", w);
         svg.setAttribute("height", h);
         svg.replaceChildren();
 
-        hosts.forEach((host, row) => {
-            state.presets.forEach((p, col) => {
-                const g = el("g", {
-                    transform: `translate(${col * cellW + cellW / 2},`
-                        + `${row * cellH + cellH / 2 - 14})`,
+        let row = 0;
+        for (const shape of shapes) {
+            for (const host of hosts) {
+                const top = row * cellH;
+                const name = el("text", {
+                    x: 10, y: top + cellH / 2, class: "rowlabel",
                 });
-                const verts = host === "edge" ? bareEdge(e)
-                    : rhomb(e, host === "thick" ? 72 : 36);
-                drawHost(g, host, verts, px(p));
-                const label = el("text", { x: 0, y: cellH / 2 - 6, class: "label" });
-                label.textContent = `${p.label} · SW ${(p.SW * e).toFixed(1)}px`;
-                g.appendChild(label);
-                svg.appendChild(g);
-            });
-        });
+                name.textContent = shapes.length > 1
+                    ? `${SHAPE_LABEL[shape]}${hosts.length > 1 ? ` · ${host}` : ""}`
+                    : host;
+                svg.appendChild(name);
+                state.presets.forEach((p, col) => {
+                    const g = el("g", {
+                        transform: `translate(${gutter + col * cellW + cellW / 2},`
+                            + `${top + cellH / 2 - 14})`,
+                    });
+                    const verts = host === "edge" ? bareEdge(e)
+                        : rhomb(e, host === "thick" ? 72 : 36);
+                    drawHost(g, host, verts, px(p), shape);
+                    const label = el("text", { x: 0, y: cellH / 2 - 6, class: "label" });
+                    label.textContent = `${p.label} · SW ${(p.SW * e).toFixed(1)}px`;
+                    g.appendChild(label);
+                    svg.appendChild(g);
+                });
+                row++;
+            }
+        }
         writeJson();
     }
 
@@ -337,9 +387,10 @@ export function init() {
     }
     group(["host-thick", "host-thin", "host-both", "host-edge"], (v) => { state.host = v; });
     group(["form-pattern", "form-single", "form-double"], (v) => { state.form = v; });
-    group(["shape-outline", "shape-stroke"], (v) => { state.shape = v; });
+    group(["shape-both", "shape-stroke", "shape-outline"], (v) => { state.shape = v; });
+    group(["mark-index", "mark-dot"], (v) => { state.mark = v; });
 
-    for (const [id, key] of [["edge", "edge"], ["dot", "dot"]]) {
+    for (const [id, key] of [["edge", "edge"], ["dot", "dot"], ["indexR", "indexR"]]) {
         byId(id).addEventListener("input", () => {
             state[key] = +byId(id).value;
             hints();

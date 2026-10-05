@@ -16,31 +16,38 @@ function points(d) {
 }
 
 test("the outline stays inside the edge's strip, between the two margins", () => {
-    for (const double of [false, true]) {
-        const d = outlinePath(A, B, P, double);
-        assert.ok(d, "no path");
-        assert.ok(d.endsWith("Z"), "the outline must close");
-        for (const [x, y] of points(d)) {
-            // The arc's radius pair is the one point that is not a position.
-            if (Math.abs(x - P.SW) < 1e-9 && Math.abs(y - P.SW) < 1e-9) continue;
-            assert.ok(x >= P.MARGIN - 1e-6 && x <= 200 - P.MARGIN + 1e-6,
-                      `x ${x} outside the margins`);
-            assert.ok(Math.abs(y) <= P.HW + 1e-6, `y ${y} wider than the head`);
-        }
+    const d = outlinePath(A, B, P);
+    assert.ok(d, "no path");
+    assert.ok(d.endsWith("Z"), "the outline must close");
+    for (const [x, y] of points(d)) {
+        // The arc's radius pair is the one point that is not a position.
+        if (Math.abs(x - P.SW) < 1e-9 && Math.abs(y - P.SW) < 1e-9) continue;
+        assert.ok(x >= P.MARGIN - 1e-6 && x <= 200 - P.MARGIN + 1e-6,
+                  `x ${x} outside the margins`);
+        assert.ok(Math.abs(y) <= P.HW + 1e-6, `y ${y} wider than the head`);
     }
 });
 
-test("a single head is at the far end, a double at both", () => {
-    const one = points(outlinePath(A, B, P, false));
-    const two = points(outlinePath(A, B, P, true));
-    const tipAt = (pts, x) => pts.some((p) => Math.abs(p[0] - x) < 1e-6 && Math.abs(p[1]) < 1e-6);
-    assert.ok(tipAt(one, 200 - P.MARGIN), "the single's tip is at the far margin");
-    assert.ok(!tipAt(one, P.MARGIN), "and its tail is a cap, not a tip");
-    assert.ok(tipAt(two, 200 - P.MARGIN) && tipAt(two, P.MARGIN), "the double has both");
-    // Symmetric about the midpoint, which is what makes a double read as one.
-    const mirror = two.map(([x, y]) => [+(200 - x).toFixed(4), +(-y).toFixed(4)]);
-    const key = (pts) => pts.map((q) => q.join(",")).sort().join(" ");
-    assert.equal(key(mirror), key(two.map(([x, y]) => [+x.toFixed(4), +y.toFixed(4)])));
+test("one head, at the far end, and a capped tail at the near one", () => {
+    // Jake: the arrows are unidirectional. "Double" and "single" are the names
+    // of the two markings, not a count of heads — the color is the distinction.
+    const pts = points(outlinePath(A, B, P));
+    const tipAt = (x) => pts.some((p) => Math.abs(p[0] - x) < 1e-6 && Math.abs(p[1]) < 1e-6);
+    assert.ok(tipAt(200 - P.MARGIN), "the tip is at the far margin");
+    assert.ok(!tipAt(P.MARGIN), "and the tail is a cap, not a second tip");
+    assert.equal(outlinePath(A, B, P).length, outlinePath(A, B, P).length);
+    assert.equal(outlinePath.length, 3, "no doubleHeaded argument to pass");
+});
+
+test("the tip lands on the vertex mark when the margin is its radius", () => {
+    // Which is the whole of "stop at the mark": the point ends at the circle
+    // round the index, and the tail's cap gets the same treatment.
+    for (const markR of [3, 9, 12]) {
+        const pts = points(outlinePath(A, B, { ...P, MARGIN: markR }));
+        const tip = pts.find((q) => Math.abs(q[1]) < 1e-6 && q[0] > 100);
+        assert.ok(tip, `no tip at mark radius ${markR}`);
+        assert.equal(+tip[0].toFixed(2), 200 - markR, "the tip is the mark away from the corner");
+    }
 });
 
 test("it works at any angle, because it is built in the edge's own frame", () => {
@@ -48,7 +55,7 @@ test("it works at any angle, because it is built in the edge's own frame", () =>
     for (const deg of [0, 36, 72, 144, 216, 300]) {
         const a = (deg * Math.PI) / 180;
         const end = [len * Math.cos(a), len * Math.sin(a)];
-        const pts = points(outlinePath(A, end, P, false));
+        const pts = points(outlinePath(A, end, P));
         const ux = Math.cos(a), uy = Math.sin(a);
         for (const [x, y] of pts) {
             if (Math.abs(x - P.SW) < 1e-9 && Math.abs(y - P.SW) < 1e-9) continue;
@@ -64,16 +71,16 @@ test("it works at any angle, because it is built in the edge's own frame", () =>
 
 test("no room, no arrow: a head that will not fit returns null", () => {
     const tiny = [0, 0], near = [30, 0];
-    assert.equal(outlinePath(tiny, near, P, true), null, "two heads cannot fit in 30px");
-    assert.ok(outlinePath(tiny, near, { ...P, HL: 4, MARGIN: 2 }, true), "but a small one can");
+    assert.equal(outlinePath(tiny, near, { ...P, HL: 40 }), null,
+                 "a 40px head cannot fit in 30px of edge");
+    assert.ok(outlinePath(tiny, near, { ...P, HL: 4, MARGIN: 2 }), "but a small one can");
 });
 
 test("the stroke shape pulls its shaft under the head, so the cap never shows", () => {
-    const s = strokeParts(A, B, P, false);
+    const s = strokeParts(A, B, P);
     assert.equal(s.width, 2 * P.SW);
     assert.ok(s.shaft[1][0] < 200 - P.MARGIN, "the shaft stops short of the tip");
-    assert.equal(s.heads.length, 1);
-    assert.equal(strokeParts(A, B, P, true).heads.length, 2);
+    assert.equal(s.heads.length, 1, "one head here too: the comparison has to be fair");
 });
 
 // ── the bench itself ──────────────────────────────────────────────────
@@ -97,7 +104,8 @@ test("the bench builds, draws, and survives every control", () => {
     const first = gallery.children.length;
     for (const id of ["host-thin", "host-both", "host-edge", "host-thick",
                       "form-single", "form-double", "form-pattern",
-                      "shape-stroke", "shape-outline"]) {
+                      "shape-stroke", "shape-outline", "shape-both",
+                      "mark-dot", "mark-index"]) {
         const b = globalThis.document.getElementById(id);
         for (const fn of b.on?.click ?? []) fn({});
         if (b.onclick) b.onclick({});
@@ -105,9 +113,10 @@ test("the bench builds, draws, and survives every control", () => {
     }
     assert.ok(gallery.children.length === first, "the stage is rebuilt, not appended to");
 
-    for (const id of ["edge", "dot", "col-double", "col-single"]) {
+    for (const id of ["edge", "dot", "indexR", "col-double", "col-single"]) {
         const inp = globalThis.document.getElementById(id);
-        inp.value = id === "edge" ? "90" : id === "dot" ? "4" : "#123456";
+        inp.value = id === "edge" ? "90" : id === "dot" ? "4"
+            : id === "indexR" ? "9" : "#123456";
         for (const fn of inp.on?.input ?? []) fn({});
     }
     assert.ok(String(out.textContent).includes("#123456"), "the colors go into the export");
@@ -122,8 +131,10 @@ test("the bench builds, draws, and survives every control", () => {
     for (const fn of inputs[0].on?.input ?? []) fn({});
     const clear = card.children[2];
     for (const fn of clear.on?.click ?? []) fn({});
-    assert.equal(+inputs[4].value, +(4 / 90 + 0.05).toFixed(4),
-                 "clear the dot = the dot's radius plus the shaft, in edge fractions");
+    // Stop at the mark: the margin IS the mark's radius, in edge fractions, so
+    // the point ends on the circle round the index.
+    assert.equal(+inputs[4].value, +(9 / 90).toFixed(4),
+                 "stop at the mark = the index circle's radius over the edge");
 
     // And reset puts the seeds back.
     const reset = globalThis.document.getElementById("reset");
