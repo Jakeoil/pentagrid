@@ -2159,8 +2159,8 @@ test("next-penta is penta one generation down, and draws no next-gen edges", () 
         h.redraw();
         return fills.filter((c) => c === ORANGE || c === YELLOW).length;
     };
-    const next = count({ nextPenta: true, penta: false });
-    const same = count({ nextPenta: false, penta: true });
+    const next = count({ nextPenta: true, pentaFace: false });
+    const same = count({ nextPenta: false, pentaFace: true });
     assert.ok(next > same * 1.5,
               `next-penta should be the busier of the two (${next} against ${same})`);
 
@@ -2172,17 +2172,64 @@ test("next-penta is penta one generation down, and draws no next-gen edges", () 
         h.redraw();
         return fills.filter((c) => c === ORANGE || c === YELLOW).length;
     };
-    h.setTileStyle({ nextPenta: true, penta: false, offPenrose: false });
+    h.setTileStyle({ nextPenta: true, pentaFace: false, offPenrose: false });
     h.gamma.setValues([0.1, 0.1, 0.1, 0.1, 0.1]);          // sum 1/2: generalised
     assert.ok(pentas() > 0, "a half-integer sum deflates to Penrose, so this still places");
-    h.setTileStyle({ nextPenta: false, penta: true });
+    h.setTileStyle({ nextPenta: false, pentaFace: true });
     assert.equal(pentas(), 0, "while penta itself has five levels and stays quiet");
 
     // A sum whose deflation is not integer either goes quiet, and off Penrose
     // brings it back at half strength.
-    h.setTileStyle({ nextPenta: true, penta: false });
+    h.setTileStyle({ nextPenta: true, pentaFace: false });
     h.gamma.setValues([0.05, 0.05, 0.05, 0.05, 0.05]);     // sum 1/4
     assert.equal(pentas(), 0, "five levels down there too: nothing placed");
     h.setTileStyle({ offPenrose: true });
     assert.ok(pentas() > 0, "with the switch on, both readings at half strength");
+});
+
+test("penta splits in two: the faces fill, the edges only outline", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const fills = [], strokes = [];
+    layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    layer.ctx.stroke = function () { strokes.push(String(this.strokeStyle)); };
+    const run = (style) => {
+        h.setTileStyle(style);
+        fills.length = 0; strokes.length = 0;
+        h.redraw();
+        return { fills: [...fills], strokes: [...strokes] };
+    };
+
+    const BLUE = "#0000ff", ORANGE = "#e46c0a", YELLOW = "#ffff00";
+    const EDGE = "rgba(38, 28, 18, 0.85)";
+
+    const face = run({ pentaFace: true, pentaEdge: false });
+    assert.ok(new Set(face.fills).has(BLUE), "the face half keeps the blue ground");
+    assert.ok(face.fills.includes(ORANGE) && face.fills.includes(YELLOW));
+    assert.equal(face.strokes.filter((c) => c === EDGE).length, 0, "and outlines nothing");
+
+    const edge = run({ pentaFace: false, pentaEdge: true });
+    assert.ok(edge.strokes.filter((c) => c === EDGE).length > 50,
+              `the edge half outlines them (${edge.strokes.length})`);
+    assert.equal(edge.fills.filter((c) => c === BLUE || c === ORANGE || c === YELLOW).length, 0,
+                 "and fills nothing — whatever is underneath has to stay visible");
+
+    // One pentagon, one outline: the two halves draw the same shapes.
+    const both = run({ pentaFace: true, pentaEdge: true });
+    const shapes = face.fills.filter((c) => c === ORANGE || c === YELLOW).length;
+    assert.equal(edge.strokes.filter((c) => c === EDGE).length, shapes);
+    assert.equal(both.strokes.filter((c) => c === EDGE).length, shapes, "both: filled AND outlined");
+    assert.ok(both.fills.filter((c) => c === ORANGE || c === YELLOW).length === shapes);
+
+    // Which is the point: the outlines over next-gen, with the deflation showing.
+    const over = run({ pentaFace: false, pentaEdge: true, nextgen: true });
+    const GOLD = "#f7d058";
+    assert.ok(over.fills.includes(GOLD), "next-gen's gold is still there to see");
+    assert.ok(over.strokes.filter((c) => c === EDGE).length > 50, "with the pentagons over it");
 });

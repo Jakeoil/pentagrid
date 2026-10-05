@@ -645,6 +645,20 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**penta splits in two (2026-10-05).** Jake: split penta into **penta-face** and
+**penta-edge**, "I want to be able to see the deflation clearly". The face half
+is what `penta` was — the blue ground with the orange Pe1 and the yellow Pe3
+filled on it. The edge half is new and draws their OUTLINES and nothing else,
+no ground, so the pentagons can be laid over `nextgen` and its gold and gray
+read straight through them. Both on gives filled pentagons with their outlines,
+which is the third thing neither switch could say alone.
+
+The outlines are clipped to the tile like the fills, which is what keeps them
+single: an orange pentagon straddling an edge is emitted identically by both
+tiles, so each drawing its own share gives one outline rather than two laid over
+each other. A test pins the counts together — one outline per pentagon the face
+half fills, in all three combinations.
+
 **next-penta (2026-10-05).** Jake: take the deflated rhombs of next-gen and
 give them the rhomb-to-penta treatment, "without showing the next-gen rhomb
 edges". So a third scale of one decoration: `penta` places P1 pentagons of

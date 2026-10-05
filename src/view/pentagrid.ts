@@ -60,6 +60,9 @@ function classFill(cls: number): string {
  * touch. So: five colors, at the lightness of the other fills, meaning nothing
  * but "these five classes".
  */
+/** The pentagons' outline, dark enough to read over gold, gray or blue. */
+const PENTA_EDGE = "rgba(38, 28, 18, 0.85)";
+
 const KOWALEWSKI_FILLS = ["#e4a05c", "#7fbf9b", "#8e9bd4", "#d98ba8", "#b5b35c"];
 
 /**
@@ -136,7 +139,17 @@ export interface TileStyle {
      * generation · `kites` P2 on the rhombs, a dart in every thick.
      */
     curves: boolean;
-    penta: boolean;
+    /**
+     * The P1 pentagons at the big-rhomb scale, in two halves.
+     *
+     * `pentaFace` fills them — the blue ground with the orange Pe1 and the
+     * yellow Pe3 on it, which is what `penta` was. `pentaEdge` draws their
+     * OUTLINES and nothing else, so the pentagons can be laid over `nextgen`
+     * and the deflation still seen through them. Both on gives filled
+     * pentagons with their outlines drawn.
+     */
+    pentaFace: boolean;
+    pentaEdge: boolean;
     nextgen: boolean;
     kites: boolean;
     /**
@@ -833,7 +846,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
-        curves: false, penta: false, nextgen: false, kites: false, nextPenta: false,
+        curves: false, pentaFace: false, pentaEdge: false,
+        nextgen: false, kites: false, nextPenta: false,
         p1: false, bigRhombs: false, faceEdges: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
@@ -2154,8 +2168,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // A dressing is placed by the index and a stack has no one index, so a
         // 2k-gon takes the bare face under whichever dressing is on.
         if (tileStyle.curves) return CURVE_FACE;
-        if (tileStyle.penta || tileStyle.nextgen || tileStyle.kites || tileStyle.p1
-            || tileStyle.nextPenta) {
+        if (tileStyle.pentaFace || tileStyle.pentaEdge || tileStyle.nextgen
+            || tileStyle.kites || tileStyle.p1 || tileStyle.nextPenta) {
             return NO_GROUP;
         }
         if (tileStyle.color === "pair") {
@@ -2393,8 +2407,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function drawPentagons(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
-        tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
-        tc.fill();
+        // The ground belongs to the FACE half. With only the edges on, whatever
+        // is underneath — next-gen's gold and gray, say — has to stay visible,
+        // which is the whole point of splitting the two.
+        if (tileStyle.pentaFace) {
+            tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+            tc.fill();
+        }
         const { lo } = indexRange();
         const levels = dressingLevels();
         if (levels === null) return;                     // no indices to place it by
@@ -2402,18 +2421,25 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
         tc.globalAlpha = tileStyle.opacity * alpha;
         const parts = rhombPentagons(rhomb, lo, levels, extAt);
-        const poly = (pts: [number, number][], style: string) => {
+        const draw = (pts: [number, number][], style: string) => {
             tc.beginPath();
             pts.forEach(([x, y], i) => {
                 const [px, py] = mathToScreen(x, y, cx, cy);
                 if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
             });
             tc.closePath();
-            tc.fillStyle = ramped(tc, rhomb, sv, style);
-            tc.fill();
+            if (tileStyle.pentaFace) {
+                tc.fillStyle = ramped(tc, rhomb, sv, style);
+                tc.fill();
+            }
+            if (tileStyle.pentaEdge) {
+                tc.strokeStyle = PENTA_EDGE;
+                tc.lineWidth = tileStyle.boldEdges ? 2 : 1.2;
+                tc.stroke();
+            }
         };
-        for (const o of parts.orange) poly(o, P1_FILL.Pe1);
-        if (parts.yellow) poly(parts.yellow, P1_FILL.Pe3);
+        for (const o of parts.orange) draw(o, P1_FILL.Pe1);
+        if (parts.yellow) draw(parts.yellow, P1_FILL.Pe3);
         }
         tc.globalAlpha = tileStyle.opacity;
     }
@@ -2611,7 +2637,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tc.fill();
                 }
                 if (tileStyle.curves) drawCurves(tc, rhomb, sv, cx, cy);
-                if (tileStyle.penta) drawPentagons(tc, rhomb, sv, cx, cy);
+                if (tileStyle.pentaFace || tileStyle.pentaEdge) {
+                    drawPentagons(tc, rhomb, sv, cx, cy);
+                }
                 if (tileStyle.nextPenta) drawNextPenta(tc, rhomb, sv, cx, cy);
                 if (tileStyle.nextgen) drawNextGen(tc, rhomb, sv, cx, cy);
                 if (tileStyle.kites) drawKites(tc, rhomb, sv, cx, cy);
@@ -3355,7 +3383,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (model.n === 5) {
                 const fRow = row(panelFor("penrose face"), "penrose face");
                 const dress = (
-                    key: "penta" | "nextgen" | "nextPenta" | "kites" | "curves",
+                    key: "pentaFace" | "pentaEdge" | "nextgen" | "nextPenta"
+                        | "kites" | "curves",
                     label: string, title: string,
                 ) => {
                     const cb = checkbox(fRow, label, tileStyle[key], (v) => {
@@ -3364,8 +3393,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     });
                     cb.title = title;
                 };
-                dress("penta", "penta", "The P1 pentagons at the scale where every thick "
-                    + "rhomb holds one whole — the big rhombs.");
+                dress("pentaFace", "penta-face", "The P1 pentagons at the scale where every "
+                    + "thick rhomb holds one whole — the big rhombs — filled: blue ground, "
+                    + "orange Pe1, yellow Pe3.");
+                dress("pentaEdge", "penta-edge", "The same pentagons as OUTLINES and nothing "
+                    + "else, so they can be laid over next-gen and the deflation still seen "
+                    + "through them. With penta-face as well, filled and outlined.");
                 dress("nextgen", "next-gen", "The deflation: thick gold and thin gray at "
                     + "1/φ. Switch the face edges off and it IS the next generation.");
                 dress("nextPenta", "next-penta", "penta one generation down: the P1 pentagons "
