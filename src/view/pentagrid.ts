@@ -2426,7 +2426,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const { lo } = indexRange();
         const levels = dressingLevels();
         if (levels === null) return;                     // no indices to place it by
-        tc.clip();                                       // inside save/restore already
         for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
         tc.globalAlpha = tileStyle.opacity * alpha;
         const parts = rhombPentagons(rhomb, lo, levels, extAt);
@@ -2470,7 +2469,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
             tc.fill();
         }
-        tc.clip();                                       // inside save/restore already
         const mx = (rhomb.vertices[0][0] + rhomb.vertices[2][0]) / 2;
         const my = (rhomb.vertices[0][1] + rhomb.vertices[2][1]) / 2;
         // A pentagon of this generation reaches at most its own radius past a
@@ -2654,6 +2652,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         tc.fill();
                     }
                 }
+                // Clip to the tile ONCE, here, while the current path is still
+                // the tile. Each dressing used to do its own, which worked for
+                // the first and then not: a dressing leaves the path as the
+                // last shape it drew, so the second clipped itself to one of
+                // the first's pentagons and almost nothing of it survived.
+                // Jake: set penta-edge, set next-penta, most of them blank.
+                if (dressed()) tc.clip();
                 if (tileStyle.curves) drawCurves(tc, rhomb, sv, cx, cy);
                 if (tileStyle.pentaFace || tileStyle.pentaEdge) {
                     drawPentagons(tc, rhomb, sv, cx, cy);

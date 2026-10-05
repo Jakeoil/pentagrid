@@ -645,6 +645,21 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**And a fourth, which was the real one (2026-10-05).** Jake: sun preset, grid
+off, faces off, set penta-edge — fine. Set next-penta, and most of them are
+blank; turn penta-edge off and they all come back.
+
+Each dressing clipped itself to the tile, which worked for whichever ran first
+and silently failed for the rest. `clip()` takes the CURRENT PATH, and a
+dressing leaves that as the last shape it drew — so next-penta, running after
+penta, clipped itself to one of penta's pentagons, and only the fragment of this
+generation inside that one pentagon survived. Nothing looked wrong in the code:
+every dressing had the same correct-looking line.
+
+The tile is clipped **once** now, in the caller, while the path is still the
+tile, and no dressing clips at all. A test counts both the clips and the
+pentagons: penta-edge must not cost next-penta a single one.
+
 **Three things wrong with the dressings, and what they had in common
 (2026-10-05).** Jake: with `faces` off penta does not work; with it on the
 pentagons sit on a thick/thin ground; and turning next-penta on makes them "not

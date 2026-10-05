@@ -2286,3 +2286,40 @@ test("a dressing draws with faces off, and next-penta does not bury penta", () =
                  pentaOnly.filter((c) => c === BLUE).length,
                  "and the ground is laid once, not twice");
 });
+
+test("one dressing does not clip the next: the tile is clipped once", () => {
+    // A dressing leaves the current path as the last shape it drew, so a second
+    // dressing doing its own clip() clipped itself to one of the first's
+    // pentagons. Jake: set penta-edge, set next-penta, most of them blank.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    let clips = 0, fills = 0;
+    layer.ctx.clip = () => { clips++; };
+    layer.ctx.fill = function () {
+        if (String(this.fillStyle) === "#e46c0a" || String(this.fillStyle) === "#ffff00") fills++;
+    };
+    const run = (style) => {
+        h.setTileStyle(style);
+        clips = 0; fills = 0;
+        h.redraw();
+        return { clips, fills };
+    };
+
+    const alone = run({ pentaEdge: false, pentaFace: false, nextPenta: true });
+    const withEdge = run({ pentaEdge: true, pentaFace: false, nextPenta: true });
+    assert.ok(alone.fills > 100, `next-penta alone draws (${alone.fills})`);
+    assert.equal(withEdge.fills, alone.fills,
+                 `penta-edge must not cost next-penta a single pentagon `
+                 + `(${withEdge.fills} against ${alone.fills})`);
+
+    // One clip per tile, whatever is on — not one per dressing.
+    const two = run({ pentaFace: true, pentaEdge: true, nextPenta: true, kites: false });
+    const one = run({ pentaFace: true, pentaEdge: false, nextPenta: false });
+    assert.equal(two.clips, one.clips, "the tile is clipped once however many dressings");
+});
