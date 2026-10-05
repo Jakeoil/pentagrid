@@ -99,11 +99,16 @@ function bareEdge(e) {
 // a typical scale is about 0.08 of the edge. ND has no counterpart there — the
 // notch is the thing today's shape is missing — so it is seeded at half of SW.
 
-const BASE = { SW: 0.034, HL: 0.163, HW: 0.054, ND: 0.017, MARGIN: 0.08 };
+const BASE = { SW: 0.028, HL: 0.215, HW: 0.076, ND: 0.04, MARGIN: 0.08 };
+// What shipped, off this bench: the two markings differ in shape as well as
+// color, the double's head longer, wider and more deeply notched. A preset
+// named "double" or "single" is used for that marking in "as shipped".
 const DEFAULTS = [
+    { name: "double", label: "Double (green)",
+      SW: 0.028, HL: 0.3, HW: 0.1, ND: 0.08, MARGIN: 0.08 },
+    { name: "single", label: "Single (red)",
+      SW: 0.028, HL: 0.215, HW: 0.076, ND: 0.04, MARGIN: 0.08 },
     { name: "hairline", label: "Hairline", k: 0.6 },
-    { name: "current", label: "Current", k: 1 },
-    { name: "fuller", label: "Fuller", k: 1.5 },
     { name: "bold", label: "Bold", k: 2.2 },
 ];
 
@@ -130,7 +135,8 @@ export function init() {
         shape: "both",       // outline | stroke | both
         double: PALETTES[0].double,
         single: PALETTES[0].single,
-        presets: DEFAULTS.map((p) => ({ ...p, ...scaled(p.k) })),
+        use: "marking",      // marking (as shipped) | preset (one per column)
+        presets: DEFAULTS.map(seed),
     };
 
     /** A preset in pixels at the current edge length. */
@@ -269,6 +275,13 @@ export function init() {
         });
     }
 
+    /** The preset an arrow is drawn with: its marking's, or the column's. */
+    function presetFor(a, column) {
+        if (state.use !== "marking") return column;
+        const want = a.double ? "double" : "single";
+        return px(state.presets.find((q) => q.name === want) ?? state.presets[0]);
+    }
+
     function drawHost(g, host, verts, p, shape) {
         if (host === "edge") {
             g.appendChild(el("line", {
@@ -283,16 +296,17 @@ export function init() {
         }
         for (const a of arrowsOn(host, verts)) {
             const color = a.double ? state.double : state.single;
+            const pa = presetFor(a, p);
             // On a bare edge the two markings are stacked rather than laid on
             // top of each other.
-            const shift = a.offset ? 2.2 * p.SW + 6 : 0;
+            const shift = a.offset ? 2.2 * pa.SW + 6 : 0;
             const A = [a.A[0], a.A[1] + shift], B = [a.B[0], a.B[1] + shift];
             if (shape === "outline") {
-                const d = outlinePath(A, B, p);
+                const d = outlinePath(A, B, pa);
                 if (d) g.appendChild(el("path", { d, fill: color }));
                 continue;
             }
-            const parts = strokeParts(A, B, p);
+            const parts = strokeParts(A, B, pa);
             g.appendChild(el("line", {
                 x1: parts.shaft[0][0], y1: parts.shaft[0][1],
                 x2: parts.shaft[1][0], y2: parts.shaft[1][1],
@@ -318,7 +332,8 @@ export function init() {
         const cellW = Math.max(2.3 * e, 190);
         const cellH = 1.9 * e + 56;
         const gutter = 118;                         // the row label's column
-        const w = gutter + state.presets.length * cellW;
+        const columns = state.use === "marking" ? [state.presets[0]] : state.presets;
+        const w = gutter + columns.length * cellW;
         const h = hosts.length * shapes.length * cellH;
         svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
         svg.setAttribute("width", w);
@@ -336,7 +351,7 @@ export function init() {
                     ? `${SHAPE_LABEL[shape]}${hosts.length > 1 ? ` · ${host}` : ""}`
                     : host;
                 svg.appendChild(name);
-                state.presets.forEach((p, col) => {
+                columns.forEach((p, col) => {
                     const g = el("g", {
                         transform: `translate(${gutter + col * cellW + cellW / 2},`
                             + `${top + cellH / 2 - 14})`,
@@ -345,7 +360,9 @@ export function init() {
                         : rhomb(e, host === "thick" ? 72 : 36);
                     drawHost(g, host, verts, px(p), shape);
                     const label = el("text", { x: 0, y: cellH / 2 - 6, class: "label" });
-                    label.textContent = `${p.label} · SW ${(p.SW * e).toFixed(1)}px`;
+                    label.textContent = state.use === "marking"
+                        ? `as shipped · double and single`
+                        : `${p.label} · SW ${(p.SW * e).toFixed(1)}px`;
                     g.appendChild(label);
                     svg.appendChild(g);
                 });
@@ -389,6 +406,7 @@ export function init() {
     group(["form-pattern", "form-single", "form-double"], (v) => { state.form = v; });
     group(["shape-both", "shape-stroke", "shape-outline"], (v) => { state.shape = v; });
     group(["mark-index", "mark-dot"], (v) => { state.mark = v; });
+    group(["use-marking", "use-preset"], (v) => { state.use = v; });
 
     for (const [id, key] of [["edge", "edge"], ["dot", "dot"], ["indexR", "indexR"]]) {
         byId(id).addEventListener("input", () => {
@@ -433,7 +451,7 @@ export function init() {
         setTimeout(() => { btn.textContent = orig; }, 1200);
     };
     byId("reset").onclick = () => {
-        state.presets = DEFAULTS.map((p) => ({ ...p, ...scaled(p.k) }));
+        state.presets = DEFAULTS.map(seed);
         buildPresetControls();
         render();
     };
@@ -442,7 +460,10 @@ export function init() {
     render();
 }
 
-function scaled(k) {
-    const r = (x) => +(x * k).toFixed(4);
-    return { SW: r(BASE.SW), HL: r(BASE.HL), HW: r(BASE.HW), ND: r(BASE.ND), MARGIN: BASE.MARGIN };
+/** A preset either states its numbers or scales the base by k. */
+function seed(p) {
+    if (p.k === undefined) return { ...p };
+    const r = (x) => +(x * p.k).toFixed(4);
+    return { ...p, SW: r(BASE.SW), HL: r(BASE.HL), HW: r(BASE.HW), ND: r(BASE.ND),
+             MARGIN: BASE.MARGIN };
 }

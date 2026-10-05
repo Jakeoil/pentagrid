@@ -105,7 +105,8 @@ test("the bench builds, draws, and survives every control", () => {
     for (const id of ["host-thin", "host-both", "host-edge", "host-thick",
                       "form-single", "form-double", "form-pattern",
                       "shape-stroke", "shape-outline", "shape-both",
-                      "mark-dot", "mark-index"]) {
+                      "mark-dot", "mark-index",
+                      "use-preset", "use-marking"]) {
         const b = globalThis.document.getElementById(id);
         for (const fn of b.on?.click ?? []) fn({});
         if (b.onclick) b.onclick({});
@@ -140,5 +141,16 @@ test("the bench builds, draws, and survives every control", () => {
     const reset = globalThis.document.getElementById("reset");
     if (reset.onclick) reset.onclick({});
     const back = cards.children[1].children[1].children.map(fieldInput);
-    assert.equal(+back[0].value, 0.034, "Current seeds SW from what the view draws now");
+    // The first two presets are the two markings, as shipped: the double's head
+    // is longer, wider and more deeply notched than the single's.
+    const nums = (card) => card.children[1].children.map(fieldInput).map((i) => +i.value);
+    const dbl = nums(cards.children[0]);
+    const sgl = back.map((i) => +i.value);
+    assert.deepEqual(dbl, [0.028, 0.3, 0.1, 0.08, 0.08], "double");
+    assert.deepEqual(sgl, [0.028, 0.215, 0.076, 0.04, 0.08], "single");
+    assert.equal(dbl[0], sgl[0], "same shaft");
+    assert.equal(dbl[4], sgl[4], "same margin");
+    for (const i of [1, 2, 3]) {
+        assert.ok(dbl[i] > sgl[i], "the double's head is the bigger one, in all three");
+    }
 });

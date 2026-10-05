@@ -685,8 +685,30 @@ whether the tip lands on it. The colors stay as they were.
 The stage shows **before and after together**, the stroked shaft with its
 separate triangle over the single outline that would replace it.
 
-Open: the outcome. Nothing in `drawColoredArrows` has changed yet; the bench
-exists to settle the shape and the pair of colors first.
+**And it shipped (2026-10-05).** Jake's numbers off the bench, with the two
+markings given DIFFERENT geometry — the double's head longer, wider and more
+deeply notched than the single's — so the distinction survives a reader who
+cannot tell green from red:
+
+| | SW | HL | HW | ND |
+|---|---|---|---|---|
+| double, green | 0.028 | 0.30 | 0.100 | 0.08 |
+| single, red | 0.028 | 0.215 | 0.076 | 0.04 |
+
+Fractions of a unit edge, which is what the canvas works in. One amendment:
+**the margin is not a fraction**. Jake gave 0.08, but what the margin has to do
+is clear the mark at the vertex, and a mark is a fixed number of PIXELS however
+far the view is zoomed — so it is `(markRadius + 3) / scale`, three pixels clear
+of whichever mark is up. At the 3 px dot that is the 6 px inset this drawing has
+always used, so nothing changes there; with the circled index up the arrows pull
+in to clear the circle, which is what Jake asked for and what a constant
+fraction could not do. His 0.08 is exactly right at one zoom and wrong either
+side of it.
+
+`drawColoredArrows` draws one filled outline per arrow now — a round-capped
+shaft running into a notched head — in place of a stroked line and a separate
+triangle that never agreed at the neck. Same code on method and split, since
+both are the same view.
 
 **The hovers are six, one way each (2026-10-03).** I had built the Penrose
 hover row as a second view of the same three switches, on the ground that each

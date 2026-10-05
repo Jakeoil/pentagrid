@@ -1927,47 +1927,63 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * rounded shaft with a solid triangular head, the head a sixth of the
      * length and about a third as wide as long, the shaft a thirtieth. It runs
      * from just short of one vertex to just short of the other — clear of the
-     * vertex dots — so the arrows at a vertex do not pile onto it. One head
-     * each: the color carries the double/single distinction, green on the
-     * doubles (the 1-2 and 3-4 edges), red on the singles (2-3), so a second
-     * head would say it twice. Jake: "No doubles!" A shared edge is drawn
-     * once per tile, identically, since the rule agrees across it.
+     * vertex marks — so the arrows at a vertex do not pile onto one. One head
+     * each, always: "double" and "single" are the names of de Bruijn's two
+     * markings, not a count of heads, so a second head would say it twice.
+     * Jake: "No doubles!" and later "the arrows are unidirectional". A shared
+     * edge is drawn once per tile, identically, since the rule agrees across
+     * it. The shape came off the bench in ui-test/arrows.html.
      */
     function drawColoredArrows(
         tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, lo: number, levels: number,
     ) {
-        const DOUBLE = "#3aa655", SINGLE = "#e0423c";
-        const inset = 6 / scale;             // past the 3 px vertex dot, in tiling units
-        const L = 1 - 2 * inset;             // the arrow's length, of a unit edge
-        if (L <= 0.2) return;
-        const HEAD = 0.163 * L, HALF = 0.054 * L, SHAFT = 0.034 * L;
-        tc.lineWidth = Math.max(1.2, SHAFT * scale);
-        tc.lineCap = "round";
+        // Settled on the bench, ui-test/arrows.html, and kept in its units:
+        // fractions of a unit edge. SW the shaft half-width, HL the head
+        // length, HW the head half-width, ND the notch where the head meets the
+        // shaft. The two markings differ in SHAPE as well as color now — the
+        // double's head is longer, wider and more deeply notched — so the
+        // distinction survives a reader who cannot tell the two colors apart.
+        const SHAPE = {
+            double: { color: "#3aa655", SW: 0.028, HL: 0.3, HW: 0.1, ND: 0.08 },
+            single: { color: "#e0423c", SW: 0.028, HL: 0.215, HW: 0.076, ND: 0.04 },
+        };
+        // The margin is NOT a fraction: it has to clear the mark at the vertex,
+        // and a mark is a fixed number of pixels however far the view is zoomed.
+        // Three pixels clear of it, which at the 3 px dot is the 6 px inset this
+        // drawing has always used, and at the index circle clears that instead.
+        const inner = tileStyle.vertexMark === "dot" ? 3 : markRadius();
+        const margin = (inner + 3) / scale;
+        if (1 - 2 * margin <= 0.2) return;
         for (const r of rhombs) {
             for (const { extAt, alpha } of dressings(r, lo, levels)) {
             tc.globalAlpha = alpha;
             for (const a of rhombArrows(model, r, lo, levels, extAt)) {
-                const nx = -a.dy, ny = a.dx;
-                const color = a.double ? DOUBLE : SINGLE;
-                const tx = a.x - a.dx * L / 2, ty = a.y - a.dy * L / 2;   // tail
-                const hx = a.x + a.dx * L / 2, hy = a.y + a.dy * L / 2;   // tip
-                // Shaft, stopping under the head so the round cap never shows.
-                const tail = mathToScreen(tx, ty, cx, cy);
-                const neck = mathToScreen(hx - a.dx * HEAD * 0.8, hy - a.dy * HEAD * 0.8, cx, cy);
-                tc.strokeStyle = color;
+                const p = a.double ? SHAPE.double : SHAPE.single;
+                // Tail and tip in tiling units, then everything else in screen
+                // units: the map is a similarity, so a length scales by `scale`
+                // and the round cap stays a circle.
+                const half = 0.5 - margin;
+                const tail = mathToScreen(a.x - a.dx * half, a.y - a.dy * half, cx, cy);
+                const tip = mathToScreen(a.x + a.dx * half, a.y + a.dy * half, cx, cy);
+                const dx = tip[0] - tail[0], dy = tip[1] - tail[1];
+                const len = Math.hypot(dx, dy);
+                const sw = p.SW * scale, hl = p.HL * scale;
+                const hw = p.HW * scale, nd = p.ND * scale;
+                if (len < hl + 2 * sw) continue;          // no room for the head
+                const ux = dx / len, uy = dy / len, nx = -uy, ny = ux;
+                const P = (t: number, s: number): [number, number] =>
+                    [tail[0] + ux * t + nx * s, tail[1] + uy * t + ny * s];
+                const ang = Math.atan2(uy, ux);
+                tc.fillStyle = p.color;
                 tc.beginPath();
-                tc.moveTo(tail[0], tail[1]);
-                tc.lineTo(neck[0], neck[1]);
-                tc.stroke();
-                // The head, one only.
-                tc.fillStyle = color;
-                const tip = mathToScreen(hx, hy, cx, cy);
-                const l = mathToScreen(hx - a.dx * HEAD + nx * HALF, hy - a.dy * HEAD + ny * HALF, cx, cy);
-                const rr = mathToScreen(hx - a.dx * HEAD - nx * HALF, hy - a.dy * HEAD - ny * HALF, cx, cy);
-                tc.beginPath();
-                tc.moveTo(tip[0], tip[1]);
-                tc.lineTo(l[0], l[1]);
-                tc.lineTo(rr[0], rr[1]);
+                // The back cap, from +s round to −s: a half-round tail is what
+                // keeps a thin arrow from looking cut off.
+                tc.arc(tail[0], tail[1], sw, ang + Math.PI / 2, ang - Math.PI / 2);
+                for (const [t, u] of [[len - hl + nd, -sw], [len - hl, -hw], [len, 0],
+                                      [len - hl, hw], [len - hl + nd, sw]] as const) {
+                    const [px2, py2] = P(t, u);
+                    tc.lineTo(px2, py2);
+                }
                 tc.closePath();
                 tc.fill();
             }

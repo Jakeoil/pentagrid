@@ -2061,3 +2061,69 @@ test("split: a hover answers only on the canvas its target is drawn on", () => {
     assert.ok(!(onPen.g && !onPen.p),
               "a grid hover answered on the Penrose canvas");
 });
+
+test("the colored arrows are one filled outline each, and clear the vertex mark", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true, penroseVertices: true, arrows: true },
+        tileStyle: { coloredArrows: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-decor");
+    const fills = [], strokes = [];
+    const arcs = [];
+    layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    layer.ctx.stroke = function () { strokes.push(String(this.strokeStyle)); };
+    layer.ctx.arc = (x, y, r) => { arcs.push(r); };
+    h.redraw();
+
+    assert.ok(fills.length > 100, `only ${fills.length} arrows`);
+    assert.equal(strokes.length, 0,
+                 "one filled outline each: the stroked shaft and its separate head are gone");
+    // Every arrow has a round tail cap, so there is one arc per fill.
+    assert.equal(arcs.length, fills.length, "a cap for every arrow");
+    const GREEN = "#3aa655", RED = "#e0423c";
+    assert.deepEqual([...new Set(fills)].sort(), [GREEN, RED].sort(),
+                     "the two markings keep their colors");
+    // Both appear: the doubles meet at the extreme corner, the singles opposite.
+    assert.ok(fills.filter((c) => c === GREEN).length > 20);
+    assert.ok(fills.filter((c) => c === RED).length > 20);
+
+    // The cap's radius is the shaft half-width, 0.028 of an edge, in pixels.
+    const view = h.getView();
+    const want = +(0.028 * view.scale).toFixed(4);
+    for (const r of arcs) assert.equal(+r.toFixed(4), want, "every cap is the shaft's width");
+
+    // And the margin tracks the vertex MARK, which is a fixed pixel size: with
+    // the index circle up the arrows must pull in further than with the dot.
+    // Measured per arrow — tail to tip — rather than across the patch, whose
+    // extent says nothing about the inset.
+    const arrowLength = () => {
+        let tail = null;
+        const lens = [];
+        layer.ctx.arc = (x, y) => { tail = [x, y]; };
+        layer.ctx.lineTo = (x, y) => {
+            if (tail) lens.push(Math.hypot(x - tail[0], y - tail[1]));
+        };
+        layer.ctx.fill = () => {};
+        lens.length = 0;
+        h.redraw();
+        // The tip is the farthest point of each arrow from its own tail, and
+        // every arrow sits on a unit edge, so the longest is the whole length.
+        return Math.max(...lens);
+    };
+    h.setTileStyle({ vertexMark: "dot" });
+    const withDot = arrowLength();
+    h.setTileStyle({ vertexMark: "index" });
+    const withIndex = arrowLength();
+    // An edge is `scale` pixels long, and each end loses the mark's radius plus
+    // three of air: the dot is 3, the index circle max(6, min(9, 0.12*scale)).
+    const markR = Math.max(6, Math.min(9, view.scale * 0.12));
+    assert.ok(Math.abs(withDot - (view.scale - 12)) < 0.5,
+              `with the dot the arrow is the edge less 6 px an end (${withDot.toFixed(1)})`);
+    assert.ok(Math.abs((withDot - withIndex) - 2 * (markR - 3)) < 0.5,
+              `the index circle costs ${(markR - 3).toFixed(1)} px an end `
+              + `(${withDot.toFixed(1)} against ${withIndex.toFixed(1)})`);
+});
