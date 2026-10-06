@@ -659,9 +659,19 @@ is only what the page adds: the narrative's step bar, the explanation, the
 legend, and the stage. `.loupe` moved the other way, into site.css, since it
 belongs to a shared component.
 
+One thing came back the other way, though. site.css dresses `.controls` as a
+white panel — right where it holds a bar of sliders, as grow does, and wrong
+here, where it holds the gamma bank FOLDED: an empty white rectangle between the
+text and the controls. The bank keeps its row; the box is stripped off on this
+page.
+
 **Two panel columns**, and split's rule to the breakpoint: the grid's rows
-left, the dual's right, one column under 1240px. A test reads the breakpoint out
-of both pages and insists they collapse together. `panelP` is given without
+left, the dual's right, one column under 1240px. Not `1fr 1fr`, which is what I
+wrote first and what made them visibly narrower than split's — split's columns
+are not halves of the wrap at all. Its 580px viewport sits in the grid and
+pushes each track out to 580, so the whole thing overflows the 940 measure,
+which is also why it collapses at 1240. method says 580 outright, and a test
+reads that number out of `.split .viewport` so the two cannot drift. `panelP` is given without
 `containerP`, which the view already supports — there is one canvas here, so the
 split is of the controls only, which is the half of split's layout method wants
 and the only real difference between the two layouts.

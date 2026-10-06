@@ -2431,7 +2431,12 @@ test("method's page is one column: the text above the instrument", () => {
     }
     // Two panel columns, as split has.
     assert.ok(html.indexOf('id="layer-panel-p"') > 0, "the second panel column is missing");
-    assert.match(html, /\.panels \{[^}]*grid-template-columns: 1fr 1fr/s, "two columns");
+    // The columns are split's width, not a half of method's narrower wrap: the
+    // viewport in split's grid pushes each track out to 580, so method says 580.
+    const splitCss = readFileSync(new URL("../split.html", import.meta.url), "utf8");
+    const track = +/\.split \.viewport\s*\{[^}]*width:\s*(\d+)px/s.exec(splitCss)[1];
+    const mine = +/\.panels \{[^}]*minmax\(0, (\d+)px\)/s.exec(html)[1];
+    assert.equal(mine, track, `method's columns should be split's (${mine} against ${track})`);
 
     // The canvas is as wide as that text and six tenths as tall, which is a
     // ratio rather than anything to recompute.
@@ -2452,6 +2457,10 @@ test("method's page is one column: the text above the instrument", () => {
     const bp = (css) => +/@media \(max-width: (\d+)px\)/.exec(css)[1];
     const splitHtml = readFileSync(new URL("../split.html", import.meta.url), "utf8");
     assert.equal(bp(html), bp(splitHtml), "method and split should collapse together");
+    // And the controls row is a row, not site.css's white panel: here it holds
+    // the gamma bank folded, so the panel was an empty rectangle.
+    assert.match(html, /\.controls \{[^}]*background: none/s,
+                 "the controls box should not be a panel on this page");
     // The old two-column layout is gone, and so is the height arithmetic.
     const src = readFileSync(new URL("../src/method.ts", import.meta.url), "utf8");
     assert.ok(!src.includes("fitStage"), "the ratio is CSS's now, not the page's");
