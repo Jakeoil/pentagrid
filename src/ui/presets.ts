@@ -27,7 +27,7 @@ export function addPresets(
         if (only && !only.includes(p.name)) continue;
         const b = document.createElement("button");
         b.className = p.penrose ? "preset" : "preset not-penrose";
-        b.textContent = p.name;
+        b.textContent = p.name + (p.mark ?? "");
         b.title = p.note;
         b.addEventListener("click", () => {
             // Always release the total first. A preset IS the whole phase vector,

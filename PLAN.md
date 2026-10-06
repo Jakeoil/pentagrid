@@ -645,6 +645,25 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**The deca moves a thousandth off (2026-10-05).** Jake: the deca preset's
+dials should read **999** where they read 900 and **001** where they read 100,
+with an asterisk on the button, and a note on how close that is to the decagon.
+
+It was a tenth off Γ = 0; it is a thousandth now — γ = (0, 1, −1, −1, 1)/1000
+against (0, 10, −10, −10, 10)/100. The structure is untouched: γ₁ = γ₄,
+γ₂ = γ₃, total zero, mirror-symmetric about the vertical axis, which is the
+nudge the deca IS. Only the size of the nudge changed, and the honest place to
+show what Γ = 0 resolves into is as close to Γ = 0 as the dials go.
+
+Which is the point of the asterisk. The dials now read **000 001 999 999 001**
+against the `decagon` preset's **000 000 000 000 000** — one unit apart on four
+of five — and the two pictures are nothing alike: deca is regular, no three
+lines concurrent, one Pe3 flanked by two Pe1; decagon has all five lines through
+a point and 5 thick + 5 thin superposed on it. The deca holds exactly what the
+singularity holds, which is why it is what the singularity resolves into. A
+`mark` field on the preset carries the asterisk so the name stays "deca" for the
+code and the tests.
+
 **The order the dressings are READ in (2026-10-05).** Jake: penta-edge should
 be drawn over/after next-penta. The outlines exist to see the generation below
 through them, so they belong on top of it — and they were underneath, because

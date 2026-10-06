@@ -117,6 +117,12 @@ export interface SingularPreset {
     penrose: boolean;
     /** "cap" names what sits at the origin; "hunt" names what is singular. */
     group: "cap" | "hunt";
+    /**
+     * A flag drawn after the name on the button, the note behind it. The deca
+     * carries one: it sits a thousandth off Γ = 0, so it is a regular grid that
+     * looks like the singular decagon until you read the dials.
+     */
+    mark?: string;
 }
 
 /**
@@ -161,11 +167,19 @@ const CAPS: readonly SingularPreset[] = [
             + "it sits inside an St5, a star-shaped gap. Regular.",
     },
     {
-        name: "deca", gamma: [0, 10, -10, -10, 10], den: D, penrose: true, group: "cap",
-        note: "The queen. One Pe3 flanked by two Pe1 — 5 thick + 5 thin, ten "
-            + "rhombs, mirror-symmetric about the vertical axis. It is what the "
-            + "5-fold singularity at Gamma = 0 resolves into under a mirror-"
-            + "symmetric nudge: gamma1 = gamma4, gamma2 = gamma3. Regular.",
+        // A THOUSANDTH off, not a tenth. The deca is what Gamma = 0 resolves
+        // into, so the honest place to show it is as close to Gamma = 0 as the
+        // dials go: 999 and 001 either side of nothing. Jake.
+        name: "deca", gamma: [0, 1, -1, -1, 1], den: 1000, penrose: true, group: "cap",
+        mark: "*",
+        note: "The queen, a thousandth off Gamma = 0 — the asterisk. One Pe3 "
+            + "flanked by two Pe1: 5 thick + 5 thin, ten rhombs, mirror-symmetric "
+            + "about the vertical axis, which is exactly what the 5-fold "
+            + "singularity holds. It is what Gamma = 0 resolves into under a "
+            + "mirror-symmetric nudge, gamma1 = gamma4 and gamma2 = gamma3, and "
+            + "the dials read 999 and 001 either side of nothing — so this looks "
+            + "like the decagon preset and is not one: regular, no three lines "
+            + "concurrent, where the decagon has all five through a point.",
     },
 ];
 
