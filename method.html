@@ -73,23 +73,6 @@
             border: 1px solid #aaa;
         }
 
-        /* Two panel columns and the same collapse split has, to the breakpoint:
-           the grid's rows on the left, the dual's on the right, one column when
-           there is no room for two. One canvas under them, since there is one
-           here — which is the only difference between the two layouts, and the
-           reason they can become a mode of one page. */
-        .panels {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 580px));
-            justify-content: center;
-            gap: 0 20px;
-            align-items: start;
-            margin: 16px 0 8px;
-        }
-        @media (max-width: 1240px) {
-            .panels { grid-template-columns: minmax(0, 580px); }
-        }
-
         /* The stage is OUTSIDE the wrap, so the picture is not held to the
            reading measure: there is one canvas here and it has the page to
            itself. The largest square the window allows, and room below it to
@@ -129,7 +112,9 @@
         <div class="step-nav" id="step-nav"></div>
         <div class="explanation" id="explanation"></div>
         <div class="controls" id="controls"></div>
-        <div class="panels">
+        <!-- site.css's `.duo`: split's two control columns, without split's
+             viewports in them, because the one canvas is below. -->
+        <div class="duo">
             <div class="layer-panel" id="layer-panel"></div>
             <div class="layer-panel" id="layer-panel-p"></div>
         </div>

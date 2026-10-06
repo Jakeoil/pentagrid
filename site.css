@@ -398,19 +398,28 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     text-transform: none;
     color: #8a8a92;
 }
-/* The magnifier, created by ui/loupe.ts on any page that enables it — it was
-   styled only in method's own sheet, so everywhere else it came up bare. */
-.loupe {
-    position: absolute;
-    right: 8px;
-    bottom: 8px;
-    z-index: 200;
-    background: #fff;
-    border: 1px solid #888;
-    border-radius: 3px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-    cursor: crosshair;
+/* ── The two control columns ──────────────────────────────────────────
+   One layout, both pages. The grid's rows go in the left column and the dual's
+   in the right, and they collapse to one column when there is no room for two.
+   What differs is only where the picture goes: split puts a viewport in each
+   column, method puts its single canvas under them. The controls are the same
+   either way, which is the point — the two pages are one page in two modes, and
+   the column width lives here rather than being whatever a viewport happened to
+   push a `1fr` out to. */
+.duo {
+    --duo-col: 580px;
+    display: grid;
+    grid-template-columns: repeat(2, var(--duo-col));
+    justify-content: center;
+    gap: 0 20px;
+    margin: 16px 0 8px;
+    align-items: start;
 }
+.duo .layer-panel { align-self: start; }
+@media (max-width: 1240px) {
+    .duo { grid-template-columns: var(--duo-col); }
+}
+
 .panel-row {
     display: flex;
     gap: 12px;
@@ -434,7 +443,29 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     width: max-content;
 }
 .settings[open] summary { color: #444; }
-.settings /* The magnifier, created by ui/loupe.ts on any page that enables it — it was
+.settings /* ── The two control columns ──────────────────────────────────────────
+   One layout, both pages. The grid's rows go in the left column and the dual's
+   in the right, and they collapse to one column when there is no room for two.
+   What differs is only where the picture goes: split puts a viewport in each
+   column, method puts its single canvas under them. The controls are the same
+   either way, which is the point — the two pages are one page in two modes, and
+   the column width lives here rather than being whatever a viewport happened to
+   push a `1fr` out to. */
+.duo {
+    --duo-col: 580px;
+    display: grid;
+    grid-template-columns: repeat(2, var(--duo-col));
+    justify-content: center;
+    gap: 0 20px;
+    margin: 16px 0 8px;
+    align-items: start;
+}
+.duo .layer-panel { align-self: start; }
+@media (max-width: 1240px) {
+    .duo { grid-template-columns: var(--duo-col); }
+}
+
+/* The magnifier, created by ui/loupe.ts on any page that enables it — it was
    styled only in method's own sheet, so everywhere else it came up bare. */
 .loupe {
     position: absolute;

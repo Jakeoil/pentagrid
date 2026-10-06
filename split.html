@@ -14,20 +14,17 @@
            the two canvases share a row and sit level however tall the panels
            above them come out. The figures are display:contents so their
            children land in the grid directly. */
-        .split {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            grid-template-rows: auto auto auto;
-            grid-auto-flow: column;
-            gap: 0 20px;
-            margin: 16px 0 8px;
-        }
+        /* The column tracks and the collapse are shared, in site.css's `.duo`.
+           What is split's own is the FLOW: three rows filled down each column,
+           so the two canvases sit level however tall the panels above them come
+           out, with the figures display:contents so their children land in the
+           grid directly. */
+        .split { grid-template-rows: auto auto auto; grid-auto-flow: column; }
         .split figure { display: contents; }
         .split figcaption { font-size: 12px; color: var(--ink-faint); margin: 8px 0; text-align: center; }
-        .split .layer-panel { align-self: start; }
-        .split .viewport    { width: 580px; height: 580px; justify-self: center; }
+        .split .viewport { width: var(--duo-col); height: var(--duo-col); justify-self: center; }
         @media (max-width: 1240px) {
-            .split { grid-template-columns: 1fr; grid-auto-flow: row; grid-template-rows: none; }
+            .split { grid-auto-flow: row; grid-template-rows: none; }
         }
     </style>
 </head>
@@ -55,7 +52,7 @@
     the reticulum and its presets drive both. The G controls sit over the grid,
     the P controls over the tiling.</p>
 
-    <div class="split">
+    <div class="duo split">
         <figure>
             <div class="layer-panel" id="split-grid-panel"></div>
             <figcaption>pentagrid &mdash; lines, regions, crossings</figcaption>

@@ -2431,32 +2431,24 @@ test("method's page is one column: the text above the instrument", () => {
     }
     // Two panel columns, as split has.
     assert.ok(html.indexOf('id="layer-panel-p"') > 0, "the second panel column is missing");
-    // The columns are split's width, not a half of method's narrower wrap: the
-    // viewport in split's grid pushes each track out to 580, so method says 580.
-    const splitCss = readFileSync(new URL("../split.html", import.meta.url), "utf8");
-    const track = +/\.split \.viewport\s*\{[^}]*width:\s*(\d+)px/s.exec(splitCss)[1];
-    const mine = +/\.panels \{[^}]*minmax\(0, (\d+)px\)/s.exec(html)[1];
-    assert.equal(mine, track, `method's columns should be split's (${mine} against ${track})`);
+    // The two control columns are ONE layout, in site.css, used by both pages:
+    // split puts a viewport in each, method puts its single canvas below them.
+    const site2 = readFileSync(new URL("../site.css", import.meta.url), "utf8");
+    assert.match(site2, /\.duo \{[^}]*grid-template-columns: repeat\(2, var\(--duo-col\)\)/s,
+                 "the columns belong to site.css, not to either page");
+    const splitHtml2 = readFileSync(new URL("../split.html", import.meta.url), "utf8");
+    assert.match(html, /<div class="duo">/, "method uses the shared columns");
+    assert.match(splitHtml2, /<div class="duo split">/, "and so does split");
+    // Neither page may set its own column tracks any more.
+    for (const [name, page] of [["method", html], ["split", splitHtml2]]) {
+        const style = /<style>(.*?)<\/style>/s.exec(page)[1];
+        assert.ok(!/grid-template-columns/.test(style),
+                  `${name} should take its columns from site.css`);
+    }
+    // The breakpoint is shared too, so they collapse together by construction.
+    assert.equal((site2.match(/@media \(max-width: 1240px\)/g) ?? []).length >= 1, true,
+                 "the collapse is site.css's");
 
-    // The canvas is as wide as that text and six tenths as tall, which is a
-    // ratio rather than anything to recompute.
-
-    const ratio = /#canvas-container \{[^}]*aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/s.exec(html);
-    assert.ok(ratio, "no aspect ratio on the canvas");
-    assert.equal(+ratio[2] / +ratio[1], 1, "square");
-    // Square, but never taller than the window.
-    assert.match(html, /#canvas-container \{[^}]*width: min\(100%, \d+vh\)/s,
-                 "the square has to fit the view");
-    // And it is OUTSIDE the wrap: one canvas has the page to itself rather than
-    // the reading measure, with room below to scroll it into the middle.
-    assert.ok(html.indexOf('<div class="stage">') > html.indexOf('id="layer-panel-p"'),
-              "the stage follows the column");
-    assert.match(html, /\.stage \{ padding: 0 \d+px \d+vh; \}/,
-                 "the stage needs room to scroll into, or the canvas sits at the top");
-    // The panels collapse where split's do.
-    const bp = (css) => +/@media \(max-width: (\d+)px\)/.exec(css)[1];
-    const splitHtml = readFileSync(new URL("../split.html", import.meta.url), "utf8");
-    assert.equal(bp(html), bp(splitHtml), "method and split should collapse together");
     // And the controls row is a row, not site.css's white panel: here it holds
     // the gamma bank folded, so the panel was an empty rectangle.
     assert.match(html, /\.controls \{[^}]*background: none/s,
