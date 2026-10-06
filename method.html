@@ -14,10 +14,8 @@
            is why it drifted. method and split are going to be one page with a
            mode; they may as well already look like it. */
 
-        /* split's `.wrap`, plus room to scroll INTO: a square canvas is taller
-           than most windows, and without it the picture can only ever sit at the
-           top of the view, never in the middle of it. */
-        .wrap { padding-bottom: 40vh; }
+        /* The wrap keeps the reading measure; the stage below it does not. */
+        .wrap { padding-bottom: 8px; }
         .bench-link { font-size: 12px; color: var(--ink-faint); margin: 0 0 10px; }
 
         /* The narrative: which step, the buttons either side, the build stamp. */
@@ -69,23 +67,32 @@
             border: 1px solid #aaa;
         }
 
-        /* Two panel columns, as split has: the grid's rows on the left, the
-           dual's on the right. One canvas under them, since there is one here.*/
+        /* Two panel columns and the same collapse split has, to the breakpoint:
+           the grid's rows on the left, the dual's on the right, one column when
+           there is no room for two. One canvas under them, since there is one
+           here — which is the only difference between the two layouts, and the
+           reason they can become a mode of one page. */
         .panels {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px 24px;
+            gap: 0 20px;
             align-items: start;
-            margin-top: 10px;
+            margin: 16px 0 8px;
+        }
+        @media (max-width: 1240px) {
+            .panels { grid-template-columns: 1fr; }
         }
 
-        /* The stage: as wide as the text above it, and square — but never taller
-           than the window, or the square could not be seen at once. */
+        /* The stage is OUTSIDE the wrap, so the picture is not held to the
+           reading measure: there is one canvas here and it has the page to
+           itself. The largest square the window allows, and room below it to
+           scroll that square into the middle of the view. */
+        .stage { padding: 0 20px 40vh; }
         #canvas-container {
             position: relative;
-            width: min(100%, 78vh);
+            width: min(100%, 92vh);
             aspect-ratio: 1 / 1;
-            margin: 10px auto 0;
+            margin: 0 auto;
             background: #fff;
             touch-action: none;
         }
@@ -119,8 +126,8 @@
             <div class="layer-panel" id="layer-panel"></div>
             <div class="layer-panel" id="layer-panel-p"></div>
         </div>
-        <div id="canvas-container"></div>
     </div>
+    <div class="stage"><div id="canvas-container"></div></div>
     <script type="module" src="./dist/method.js"></script>
 </body>
 </html>

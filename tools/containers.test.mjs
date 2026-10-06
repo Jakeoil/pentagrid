@@ -2442,9 +2442,16 @@ test("method's page is one column: the text above the instrument", () => {
     // Square, but never taller than the window.
     assert.match(html, /#canvas-container \{[^}]*width: min\(100%, \d+vh\)/s,
                  "the square has to fit the view");
-    // And room below to scroll it into the middle of that view.
-    assert.match(html, /\.wrap \{ padding-bottom: \d+vh; \}/,
-                 "the column needs room to scroll into, or the canvas sits at the top");
+    // And it is OUTSIDE the wrap: one canvas has the page to itself rather than
+    // the reading measure, with room below to scroll it into the middle.
+    assert.ok(html.indexOf('<div class="stage">') > html.indexOf('id="layer-panel-p"'),
+              "the stage follows the column");
+    assert.match(html, /\.stage \{ padding: 0 \d+px \d+vh; \}/,
+                 "the stage needs room to scroll into, or the canvas sits at the top");
+    // The panels collapse where split's do.
+    const bp = (css) => +/@media \(max-width: (\d+)px\)/.exec(css)[1];
+    const splitHtml = readFileSync(new URL("../split.html", import.meta.url), "utf8");
+    assert.equal(bp(html), bp(splitHtml), "method and split should collapse together");
     // The old two-column layout is gone, and so is the height arithmetic.
     const src = readFileSync(new URL("../src/method.ts", import.meta.url), "utf8");
     assert.ok(!src.includes("fitStage"), "the ratio is CSS's now, not the page's");

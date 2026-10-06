@@ -659,15 +659,19 @@ is only what the page adds: the narrative's step bar, the explanation, the
 legend, and the stage. `.loupe` moved the other way, into site.css, since it
 belongs to a shared component.
 
-**Two panel columns**, as split has them: the grid's rows left, the dual's
-right. `panelP` is given without `containerP`, which the view already supports —
-there is one canvas here, so the split is of the controls only, which is the
-half of split's layout method wants.
+**Two panel columns**, and split's rule to the breakpoint: the grid's rows
+left, the dual's right, one column under 1240px. A test reads the breakpoint out
+of both pages and insists they collapse together. `panelP` is given without
+`containerP`, which the view already supports — there is one canvas here, so the
+split is of the controls only, which is the half of split's layout method wants
+and the only real difference between the two layouts.
 
-The canvas is **square**, `min(100%, 78vh)` wide: the full measure on a tall
-window, and never taller than the window on a short one, since a square you
-cannot see at once is not a square. Under it `.wrap` carries 40vh of padding, to
-scroll into.
+And the stage sits **outside the wrap**. The text keeps the reading measure; the
+picture does not have to, because there is one canvas here and it has the page
+to itself rather than sharing a column with another. It is the largest square
+the window allows — `min(100%, 92vh)`, since a square you cannot see at once is
+not a square — with 40vh under it to scroll that square into the middle of the
+view.
 
 A test now reads site.css and method.html together: the measures must match, the
 shared selectors must NOT be redefined in the page, both panel columns must be
