@@ -645,6 +645,18 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**The order the dressings are READ in (2026-10-05).** Jake: penta-edge should
+be drawn over/after next-penta. The outlines exist to see the generation below
+through them, so they belong on top of it — and they were underneath, because
+the drawing order had been whatever the grounds allowed.
+
+The P1 ground is the caller's now, laid once for whichever pentagon dressings
+are on, instead of each one laying its own and so having to run before anything
+it would otherwise cover. With that separated the order can be the one that
+reads: ground, then curves, then **next-gen**, then **next-penta**, then kites,
+and **penta last**. Coarse under fine, and the current generation's outlines
+over both of the ones below. A test reads the draw order back and insists on it.
+
 **And a fifth, same family (2026-10-05).** Jake, still: penta-edge is screwing
 up next-penta — and the diagnosis with it. *next-penta is a simple rhomb
 decoration: all thin rhombs have the same pattern, all thick rhombs have the

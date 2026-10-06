@@ -2416,13 +2416,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function drawPentagons(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
-        // The ground belongs to the FACE half. With only the edges on, whatever
-        // is underneath — next-gen's gold and gray, say — has to stay visible,
-        // which is the whole point of splitting the two.
-        if (tileStyle.pentaFace) {
-            tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
-            tc.fill();
-        }
+        // The ground is the caller's, laid once for whichever pentagon
+        // dressings are on. With only the edges on there is none, which is the
+        // point of splitting the two: whatever is underneath stays visible.
         const { lo } = indexRange();
         const levels = dressingLevels();
         if (levels === null) return;                     // no indices to place it by
@@ -2462,13 +2458,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function drawNextPenta(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
-        // The blue ground, unless penta-face has already laid one: it is the
-        // same blue, and painting it twice buried penta's own pentagons under
-        // this generation's. Jake: with next-penta on, they don't all draw.
-        if (!tileStyle.pentaFace) {
-            tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
-            tc.fill();
-        }
         const mx = (rhomb.vertices[0][0] + rhomb.vertices[2][0]) / 2;
         const my = (rhomb.vertices[0][1] + rhomb.vertices[2][1]) / 2;
         // A pentagon of this generation reaches at most its own radius past a
@@ -2671,14 +2660,26 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     for (let i = 1; i < 4; i++) tc.lineTo(sv[i][0], sv[i][1]);
                     tc.closePath();
                 };
+                // The P1 ground, laid once by whoever wants it. It used to
+                // belong to each pentagon dressing, which forced them to draw in
+                // the order their grounds allowed; separated, they can be drawn
+                // in the order they should be READ.
+                if (tileStyle.pentaFace || tileStyle.nextPenta) {
+                    retrace();
+                    tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+                    tc.fill();
+                }
+                // Then coarse to fine, and penta LAST: Jake wants penta-edge
+                // over next-penta, and over next-gen, since the point of the
+                // outlines is to read the generation below through them.
                 if (tileStyle.curves) { retrace(); drawCurves(tc, rhomb, sv, cx, cy); }
+                if (tileStyle.nextgen) { retrace(); drawNextGen(tc, rhomb, sv, cx, cy); }
+                if (tileStyle.nextPenta) { retrace(); drawNextPenta(tc, rhomb, sv, cx, cy); }
+                if (tileStyle.kites) { retrace(); drawKites(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.pentaFace || tileStyle.pentaEdge) {
                     retrace();
                     drawPentagons(tc, rhomb, sv, cx, cy);
                 }
-                if (tileStyle.nextPenta) { retrace(); drawNextPenta(tc, rhomb, sv, cx, cy); }
-                if (tileStyle.nextgen) { retrace(); drawNextGen(tc, rhomb, sv, cx, cy); }
-                if (tileStyle.kites) { retrace(); drawKites(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.p1) { retrace(); drawP1(tc, rhomb, sv, cx, cy); }
                 tc.restore();
                 if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);

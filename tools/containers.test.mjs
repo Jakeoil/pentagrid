@@ -2363,3 +2363,47 @@ test("every dressing starts from the tile's own path, not the last one's", () =>
     assert.deepEqual([...new Set(withEdge)], [4],
                      "still the tile, not a pentagon left over from penta-edge");
 });
+
+test("penta is drawn last: over next-penta, and over next-gen", () => {
+    // Jake: penta-edge should be drawn over/after next-penta. The outlines are
+    // there to read the generation below through, so they go on top of it.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const order = [];
+    layer.ctx.fill = function () { order.push(`fill ${this.fillStyle}`); };
+    layer.ctx.stroke = function () { order.push(`stroke ${this.strokeStyle}`); };
+    const run = (style) => {
+        h.setTileStyle(style);
+        order.length = 0;
+        h.redraw();
+        return [...order];
+    };
+
+    const EDGE = "rgba(38, 28, 18, 0.85)";
+    const BLUE = "fill #0000ff";
+    const GOLD = "fill #f7d058";
+
+    // The ground first, then this generation's pentagons, then penta's outlines.
+    const withNext = run({ nextPenta: true, pentaEdge: true, pentaFace: false });
+    const firstEdge = withNext.findIndex((o) => o === `stroke ${EDGE}`);
+    const lastPent = withNext.map((o, i) => [o, i])
+        .filter(([o]) => o === "fill #e46c0a" || o === "fill #ffff00")
+        .map(([, i]) => i).pop();
+    assert.ok(firstEdge >= 0 && lastPent !== undefined, "both are drawn");
+    assert.ok(lastPent < withNext.lastIndexOf(`stroke ${EDGE}`),
+              "the last pentagon of the generation below comes before the last outline");
+    // And the ground is laid once, before either.
+    assert.ok(withNext.indexOf(BLUE) >= 0 && withNext.indexOf(BLUE) < firstEdge,
+              "the ground goes down first");
+
+    // Same over next-gen: the deflation, then the outlines on top of it.
+    const overGen = run({ nextgen: true, pentaEdge: true, pentaFace: false });
+    assert.ok(overGen.lastIndexOf(GOLD) < overGen.lastIndexOf(`stroke ${EDGE}`),
+              "next-gen's gold is laid before penta's outlines, not over them");
+});
