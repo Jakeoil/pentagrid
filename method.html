@@ -16,18 +16,26 @@
             --accent: #457b9d;
         }
 
+        /* The same shell split gets from site.css, which this page does not
+           load: border-box everywhere and no body margin, so `.page` below is
+           `.wrap` and the two read at the same measure. */
+        * { box-sizing: border-box; }
         body {
             font-family: sans-serif;
-            margin: 20px;
+            margin: 0;
             background: #fafafa;
         }
-        /* One centered column, the same measure split reads at: site.css gives
-           it max-width 980 with 20 of side padding, so 940 of text. The canvas
-           is as wide as that text, which puts the reading measure in charge of
-           the size of the picture rather than the other way round. */
+        /* One centered column, split's `.wrap` to the pixel. The canvas is as
+           wide as the text in it, which puts the reading measure in charge of
+           the size of the picture rather than the other way round.
+
+           The deep bottom padding is room to scroll INTO: a square canvas is
+           taller than most windows, so without it the picture can never sit in
+           the middle of the view, only at the top of it. */
         .page {
-            max-width: 940px;
+            max-width: 980px;
             margin: 0 auto;
+            padding: 28px 20px 50vh;
         }
         .bench-link { font-size: 12px; color: #8a8a92; margin: 6px 0 0; }
         h1 { margin-bottom: 4px; }
@@ -295,13 +303,13 @@
             color: #666;
             font-family: monospace;
         }
-        /* As wide as the column and six tenths as tall. 5 / 3 IS 0.6, and
-           saying it as a ratio keeps the height following the width through
-           every resize with nothing to run. */
+        /* As wide as the column, and square. Said as a ratio rather than
+           computed, so the height follows the width through every resize with
+           nothing to run. */
         #canvas-container {
             position: relative;
             width: 100%;
-            aspect-ratio: 5 / 3;
+            aspect-ratio: 1 / 1;
             margin-top: 10px;
             background: white;
             touch-action: none;

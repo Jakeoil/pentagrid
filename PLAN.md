@@ -657,18 +657,25 @@ page whose subject is the picture. It is one centered column now, read down:
 it is not, since centered body text is harder to read and the equations center
 themselves already.
 
-The column reads at **split's own measure** — site.css gives `.wrap` max-width
-980 with 20 of side padding, so 940 of text — and the canvas takes its width
-from the column, which puts the reading measure in charge of the size of the
-picture rather than the other way round. Its height is **0.6 of its width**,
-said as `aspect-ratio: 5 / 3` rather than computed: the height then follows the
-width through every resize with nothing to run, and the container's own
-ResizeObserver inside createPentagrid picks the new size up and redraws.
+The column is split's `.wrap` **to the pixel**, and getting there took two
+goes. Copying the number was not enough: method does not load site.css, so it
+had neither `* { box-sizing: border-box }` nor `body { margin: 0 }`, and
+max-width means different things with and without the first. The shell is copied
+now as well as the number, and a test reads BOTH rules and compares
+max-width − 2·padding, so neither page can drift from the other.
 
-(My first version made the height w/φ capped against the bottom of the window,
+The canvas takes its width from that column, which puts the reading measure in
+charge of the size of the picture rather than the other way round, and it is
+**square** — said as `aspect-ratio: 1 / 1` rather than computed, so the height
+follows the width through every resize with nothing to run and the container's
+own ResizeObserver picks the new size up. Under it the column carries **50vh of
+bottom padding**: a square canvas is taller than most windows, and without room
+to scroll into it the picture can only ever sit at the top of the view, never in
+the middle of it.
+
+(The first version made the height w/φ capped against the bottom of the window,
 which needed the page to measure the room left below the text and refit on every
-step. Jake wanted a flat 0.6 and no cap, which is a CSS ratio and no code at
-all.)
+step. A flat ratio is a line of CSS and no code at all.)
 
 **The deca moves a thousandth off (2026-10-05).** Jake: the deca preset's
 dials should read **999** where they read 900 and **001** where they read 100,

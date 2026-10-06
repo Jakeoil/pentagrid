@@ -2424,11 +2424,18 @@ test("method's page is one column: the text above the instrument", () => {
     assert.match(html, /\.page \{[^}]*margin: 0 auto/s, "the column is centered");
     const site = readFileSync(new URL("../site.css", import.meta.url), "utf8");
     const wrap = /\.wrap \{([^}]*)\}/.exec(site)[1];
-    const max = +/max-width:\s*(\d+)px/.exec(wrap)[1];
-    const pad = +/padding:\s*\d+px\s+(\d+)px/.exec(wrap)[1];
-    const measure = +/\.page \{[^}]*max-width:\s*(\d+)px/s.exec(html)[1];
-    assert.equal(measure, max - 2 * pad,
-                 `method should read at split's measure (${measure} against ${max - 2 * pad})`);
+    const page = /\.page \{([^}]*)\}/s.exec(html)[1];
+    const measure = (css) => {
+        const max = +/max-width:\s*(\d+)px/.exec(css)[1];
+        const pad = +/padding:\s*\d+px\s+(\d+)px/.exec(css)[1];
+        return max - 2 * pad;
+    };
+    assert.equal(measure(page), measure(wrap),
+                 `method should read at split's measure `
+                 + `(${measure(page)} against ${measure(wrap)})`);
+    // Which needs the shell split gets from site.css and this page does not load.
+    assert.match(html, /\* \{ box-sizing: border-box; \}/, "border-box, or the measure is off");
+    assert.match(html, /body \{[^}]*margin: 0;/s, "and no body margin on top of the column");
 
     // The canvas is as wide as that text and six tenths as tall, which is a
     // ratio rather than anything to recompute.
@@ -2436,7 +2443,10 @@ test("method's page is one column: the text above the instrument", () => {
                  "the canvas is as wide as the column, not 800px of its own");
     const ratio = /#canvas-container \{[^}]*aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/s.exec(html);
     assert.ok(ratio, "no aspect ratio on the canvas");
-    assert.equal(+ratio[2] / +ratio[1], 0.6, "six tenths of the width");
+    assert.equal(+ratio[2] / +ratio[1], 1, "square");
+    // And room below to scroll the square into the middle of the view.
+    assert.match(page, /padding:\s*\d+px\s+\d+px\s+\d+vh/,
+                 "the column needs deep bottom padding, or the canvas can only sit at the top");
     // The old two-column layout is gone, and so is the height arithmetic.
     const src = readFileSync(new URL("../src/method.ts", import.meta.url), "utf8");
     assert.ok(!src.includes("fitStage"), "the ratio is CSS's now, not the page's");
