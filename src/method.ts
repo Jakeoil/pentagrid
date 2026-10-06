@@ -16,6 +16,10 @@ const handle = createPentagrid({
     container: document.getElementById("canvas-container")!,
     controls: byId("controls"),
     panel: byId("layer-panel"),
+    // Two columns, as split has them: the grid's rows left, the dual's right.
+    // There is one canvas here, so `containerP` is not given — the split is of
+    // the controls only, which is the half of split's layout that method wants.
+    panelP: byId("layer-panel-p"),
 });
 
 // The pages drive the view, not the other way round: createPentagrid no longer

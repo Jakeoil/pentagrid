@@ -2419,34 +2419,32 @@ test("method's page is one column: the text above the instrument", () => {
         assert.ok(order[i - 1].at < order[i].at,
                   `${order[i - 1].id} must come before ${order[i].id}`);
     }
-    // One centered column, at split's own measure: site.css gives .wrap
-    // max-width 980 with 20 of side padding, so 940 of text.
-    assert.match(html, /\.page \{[^}]*margin: 0 auto/s, "the column is centered");
-    const site = readFileSync(new URL("../site.css", import.meta.url), "utf8");
-    const wrap = /\.wrap \{([^}]*)\}/.exec(site)[1];
-    const page = /\.page \{([^}]*)\}/s.exec(html)[1];
-    const measure = (css) => {
-        const max = +/max-width:\s*(\d+)px/.exec(css)[1];
-        const pad = +/padding:\s*\d+px\s+(\d+)px/.exec(css)[1];
-        return max - 2 * pad;
-    };
-    assert.equal(measure(page), measure(wrap),
-                 `method should read at split's measure `
-                 + `(${measure(page)} against ${measure(wrap)})`);
-    // Which needs the shell split gets from site.css and this page does not load.
-    assert.match(html, /\* \{ box-sizing: border-box; \}/, "border-box, or the measure is off");
-    assert.match(html, /body \{[^}]*margin: 0;/s, "and no body margin on top of the column");
+    // The column IS split's: method loads site.css now and uses .wrap, rather
+    // than carrying its own copy of the shell and drifting from it.
+    assert.match(html, /<link[^>]+href="\.\/site\.css"/, "method should load site.css");
+    assert.match(html, /<div class="wrap">/, "and use the same wrap split does");
+    const style = /<style>(.*?)<\/style>/s.exec(html)[1];
+    for (const shared of ["nav.site", ".reticulum", ".dial", ".panel-row", ".float-panel",
+                          "button.preset", ".sumstrip"]) {
+        assert.ok(!new RegExp(`^\\s*\\${shared.startsWith(".") ? "" : ""}${shared.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*[,{]`, "m").test(style),
+                  `${shared} is site.css's — method must not keep its own copy`);
+    }
+    // Two panel columns, as split has.
+    assert.ok(html.indexOf('id="layer-panel-p"') > 0, "the second panel column is missing");
+    assert.match(html, /\.panels \{[^}]*grid-template-columns: 1fr 1fr/s, "two columns");
 
     // The canvas is as wide as that text and six tenths as tall, which is a
     // ratio rather than anything to recompute.
-    assert.match(html, /#canvas-container \{[^}]*width: 100%/s,
-                 "the canvas is as wide as the column, not 800px of its own");
+
     const ratio = /#canvas-container \{[^}]*aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/s.exec(html);
     assert.ok(ratio, "no aspect ratio on the canvas");
     assert.equal(+ratio[2] / +ratio[1], 1, "square");
-    // And room below to scroll the square into the middle of the view.
-    assert.match(page, /padding:\s*\d+px\s+\d+px\s+\d+vh/,
-                 "the column needs deep bottom padding, or the canvas can only sit at the top");
+    // Square, but never taller than the window.
+    assert.match(html, /#canvas-container \{[^}]*width: min\(100%, \d+vh\)/s,
+                 "the square has to fit the view");
+    // And room below to scroll it into the middle of that view.
+    assert.match(html, /\.wrap \{ padding-bottom: \d+vh; \}/,
+                 "the column needs room to scroll into, or the canvas sits at the top");
     // The old two-column layout is gone, and so is the height arithmetic.
     const src = readFileSync(new URL("../src/method.ts", import.meta.url), "utf8");
     assert.ok(!src.includes("fitStage"), "the ratio is CSS's now, not the page's");

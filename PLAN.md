@@ -645,6 +645,34 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**method and split share a sheet (2026-10-06).** Jake: commonality in the text
+fields, and maybe complete commonality in the controls — two columns — with a
+larger canvas on method, almost the width of split's two squares together.
+"Assume we are going to combine the two and make it a mode."
+
+So method **loads site.css** and uses `.wrap`. It had been carrying its own copy
+of the whole shell — the nav, the reticulum, the dials, the sum strip, the
+floating panel, the panel rows, the presets: **63 selectors duplicated** — which
+is why "as wide as split" kept not being, and why the loupe was styled on this
+page and bare on every other. The duplicates are gone; what is left in the page
+is only what the page adds: the narrative's step bar, the explanation, the
+legend, and the stage. `.loupe` moved the other way, into site.css, since it
+belongs to a shared component.
+
+**Two panel columns**, as split has them: the grid's rows left, the dual's
+right. `panelP` is given without `containerP`, which the view already supports —
+there is one canvas here, so the split is of the controls only, which is the
+half of split's layout method wants.
+
+The canvas is **square**, `min(100%, 78vh)` wide: the full measure on a tall
+window, and never taller than the window on a short one, since a square you
+cannot see at once is not a square. Under it `.wrap` carries 40vh of padding, to
+scroll into.
+
+A test now reads site.css and method.html together: the measures must match, the
+shared selectors must NOT be redefined in the page, both panel columns must be
+there, and the stage must be square and capped.
+
 **method.html reads down the page (2026-10-06).** Jake: move the text above
 the controls and canvas, centered, right below the step indicator; center the
 controls and canvas under it much as split does; make the canvas the width of
