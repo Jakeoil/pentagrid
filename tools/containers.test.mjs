@@ -2407,3 +2407,31 @@ test("penta is drawn last: over next-penta, and over next-gen", () => {
     assert.ok(overGen.lastIndexOf(GOLD) < overGen.lastIndexOf(`stroke ${EDGE}`),
               "next-gen's gold is laid before penta's outlines, not over them");
 });
+
+test("method's page is one column: the text above the instrument", () => {
+    // Jake: move the text above the controls and canvas, centered, right below
+    // the step indicator; the canvas as wide as the text and golden-ratio tall.
+    const html = readFileSync(new URL("../method.html", import.meta.url), "utf8");
+    const order = ["step-nav", "explanation", "controls", "layer-panel", "canvas-container"]
+        .map((id) => ({ id, at: html.indexOf(`id="${id}"`) }));
+    for (const o of order) assert.ok(o.at > 0, `${o.id} is missing`);
+    for (let i = 1; i < order.length; i++) {
+        assert.ok(order[i - 1].at < order[i].at,
+                  `${order[i - 1].id} must come before ${order[i].id}`);
+    }
+    // One centered column, and the canvas takes its width from it rather than
+    // carrying its own.
+    assert.match(html, /\.page \{[^}]*margin: 0 auto/s, "the column is centered");
+    assert.match(html, /#canvas-container \{[^}]*width: 100%/s,
+                 "the canvas is as wide as the column, not 800px of its own");
+    // The old two-column layout is gone.
+    assert.ok(!html.includes('class="explanation" id="explanation"></div>\n    </div>'),
+              "the side column should not be back");
+
+    // And the height is the page's to set, since only it can measure the room
+    // left below the text.
+    const src = readFileSync(new URL("../src/method.ts", import.meta.url), "utf8");
+    assert.match(src, /box\.width \/ PHI/, "golden ratio off the width");
+    assert.match(src, /window\.innerHeight - box\.top/, "capped by what is left of the window");
+    assert.match(src, /ResizeObserver/, "and refitted when the text's height changes");
+});

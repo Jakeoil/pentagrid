@@ -21,6 +21,15 @@
             margin: 20px;
             background: #fafafa;
         }
+        /* One centered column, and the canvas is as wide as the text it is
+           under — so the reading measure sets the size of the picture rather
+           than the other way round. */
+        .page {
+            --col: min(860px, calc(100vw - 56px));
+            width: var(--col);
+            margin: 0 auto;
+        }
+        .bench-link { font-size: 12px; color: #8a8a92; margin: 6px 0 0; }
         h1 { margin-bottom: 4px; }
         h2 { color: #555; font-weight: normal; margin-top: 0; }
         .controls {
@@ -257,6 +266,7 @@
         .step-nav {
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 16px;
             margin: 6px 0;
         }
@@ -285,10 +295,12 @@
             color: #666;
             font-family: monospace;
         }
+        /* Width from the column; height set in method.ts, which is the only
+           place that can know how much room is left below the text. */
         #canvas-container {
             position: relative;
-            width: 800px;
-            height: 800px;
+            width: 100%;
+            height: 532px;
             margin-top: 10px;
             background: white;
             touch-action: none;
@@ -386,12 +398,14 @@
         .band-setting input[type=range] { margin: 0; }
         .pad-setting input[type=number] { font: inherit; font-size: 11px; padding: 1px 3px;
             border: 1px solid #ccc; border-radius: 3px; }
+        /* The block is centered by the column; the prose inside it is not —
+           centered body text is harder to read, and the equations center
+           themselves already. */
         .explanation {
-            max-width: 340px;
             font-size: 15px;
             line-height: 1.6;
             color: #333;
-            padding-top: 20px;
+            padding-top: 8px;
         }
         .explanation h3 {
             margin: 0 0 12px;
@@ -491,19 +505,19 @@
     <a href="split.html" draggable="false">Split</a>
     <a href="wiggle.html" draggable="false">Wiggle</a>
 </nav>
-    <p class="bench-link" style="font-size:12px;color:#8a8a92;margin:6px 0 0;">
-        bench (temporary): <a href="ui-test/arrows.html">arrows</a>
-    </p>
-    <h1>Pentagrid</h1>
-    <h2>De Bruijn's Pentagrid Method</h2>
-    <div style="display: flex; gap: 30px; align-items: flex-start;">
-        <div>
-            <div class="controls" id="controls"></div>
-            <div class="step-nav" id="step-nav"></div>
-            <div id="layer-panel"></div>
-            <div id="canvas-container"></div>
-        </div>
+    <div class="page">
+        <p class="bench-link">bench (temporary): <a href="ui-test/arrows.html">arrows</a></p>
+        <h1>Pentagrid</h1>
+        <h2>De Bruijn's Pentagrid Method</h2>
+        <!-- Read down the page: which step you are on, what it says, then the
+             instrument it is about. The text used to sit in a column beside the
+             canvas, 340px wide, which made it the narrowest thing on a page
+             whose whole point is the picture. -->
+        <div class="step-nav" id="step-nav"></div>
         <div class="explanation" id="explanation"></div>
+        <div class="controls" id="controls"></div>
+        <div id="layer-panel"></div>
+        <div id="canvas-container"></div>
     </div>
     <script type="module" src="./dist/method.js"></script>
 </body>

@@ -645,6 +645,27 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**method.html reads down the page (2026-10-06).** Jake: move the text above
+the controls and canvas, centered, right below the step indicator; center the
+controls and canvas under it much as split does; make the canvas the width of
+the text area and no taller than the golden ratio, without overshooting the
+bottom of the window.
+
+The text had been a 340 px column beside the canvas — the narrowest thing on a
+page whose subject is the picture. It is one centered column now, read down:
+**step, text, controls, panel, canvas**. The block is centered; the prose inside
+it is not, since centered body text is harder to read and the equations center
+themselves already.
+
+The canvas takes its width from the column, so the reading measure sets the size
+of the picture rather than the other way round. Its height is the page's to set,
+because CSS cannot say "w/φ, but no taller than the rest of the screen" and
+only the page can measure the second half of that — the text's height changes
+with the step, so the room below it does too. `fitStage()` does both, on load,
+on resize, and on a ResizeObserver watching the explanation; the container's own
+observer inside createPentagrid picks the new size up and redraws. Setting the
+canvas's height cannot change the text's, so it does not chase its own tail.
+
 **The deca moves a thousandth off (2026-10-05).** Jake: the deca preset's
 dials should read **999** where they read 900 and **001** where they read 100,
 with an asterisk on the button, and a note on how close that is to the decagon.
