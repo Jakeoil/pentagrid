@@ -657,14 +657,18 @@ page whose subject is the picture. It is one centered column now, read down:
 it is not, since centered body text is harder to read and the equations center
 themselves already.
 
-The canvas takes its width from the column, so the reading measure sets the size
-of the picture rather than the other way round. Its height is the page's to set,
-because CSS cannot say "w/φ, but no taller than the rest of the screen" and
-only the page can measure the second half of that — the text's height changes
-with the step, so the room below it does too. `fitStage()` does both, on load,
-on resize, and on a ResizeObserver watching the explanation; the container's own
-observer inside createPentagrid picks the new size up and redraws. Setting the
-canvas's height cannot change the text's, so it does not chase its own tail.
+The column reads at **split's own measure** — site.css gives `.wrap` max-width
+980 with 20 of side padding, so 940 of text — and the canvas takes its width
+from the column, which puts the reading measure in charge of the size of the
+picture rather than the other way round. Its height is **0.6 of its width**,
+said as `aspect-ratio: 5 / 3` rather than computed: the height then follows the
+width through every resize with nothing to run, and the container's own
+ResizeObserver inside createPentagrid picks the new size up and redraws.
+
+(My first version made the height w/φ capped against the bottom of the window,
+which needed the page to measure the room left below the text and refit on every
+step. Jake wanted a flat 0.6 and no cap, which is a CSS ratio and no code at
+all.)
 
 **The deca moves a thousandth off (2026-10-05).** Jake: the deca preset's
 dials should read **999** where they read 900 and **001** where they read 100,

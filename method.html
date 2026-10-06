@@ -21,12 +21,12 @@
             margin: 20px;
             background: #fafafa;
         }
-        /* One centered column, and the canvas is as wide as the text it is
-           under — so the reading measure sets the size of the picture rather
-           than the other way round. */
+        /* One centered column, the same measure split reads at: site.css gives
+           it max-width 980 with 20 of side padding, so 940 of text. The canvas
+           is as wide as that text, which puts the reading measure in charge of
+           the size of the picture rather than the other way round. */
         .page {
-            --col: min(860px, calc(100vw - 56px));
-            width: var(--col);
+            max-width: 940px;
             margin: 0 auto;
         }
         .bench-link { font-size: 12px; color: #8a8a92; margin: 6px 0 0; }
@@ -295,12 +295,13 @@
             color: #666;
             font-family: monospace;
         }
-        /* Width from the column; height set in method.ts, which is the only
-           place that can know how much room is left below the text. */
+        /* As wide as the column and six tenths as tall. 5 / 3 IS 0.6, and
+           saying it as a ratio keeps the height following the width through
+           every resize with nothing to run. */
         #canvas-container {
             position: relative;
             width: 100%;
-            height: 532px;
+            aspect-ratio: 5 / 3;
             margin-top: 10px;
             background: white;
             touch-action: none;

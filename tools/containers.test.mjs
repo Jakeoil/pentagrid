@@ -2419,19 +2419,25 @@ test("method's page is one column: the text above the instrument", () => {
         assert.ok(order[i - 1].at < order[i].at,
                   `${order[i - 1].id} must come before ${order[i].id}`);
     }
-    // One centered column, and the canvas takes its width from it rather than
-    // carrying its own.
+    // One centered column, at split's own measure: site.css gives .wrap
+    // max-width 980 with 20 of side padding, so 940 of text.
     assert.match(html, /\.page \{[^}]*margin: 0 auto/s, "the column is centered");
+    const site = readFileSync(new URL("../site.css", import.meta.url), "utf8");
+    const wrap = /\.wrap \{([^}]*)\}/.exec(site)[1];
+    const max = +/max-width:\s*(\d+)px/.exec(wrap)[1];
+    const pad = +/padding:\s*\d+px\s+(\d+)px/.exec(wrap)[1];
+    const measure = +/\.page \{[^}]*max-width:\s*(\d+)px/s.exec(html)[1];
+    assert.equal(measure, max - 2 * pad,
+                 `method should read at split's measure (${measure} against ${max - 2 * pad})`);
+
+    // The canvas is as wide as that text and six tenths as tall, which is a
+    // ratio rather than anything to recompute.
     assert.match(html, /#canvas-container \{[^}]*width: 100%/s,
                  "the canvas is as wide as the column, not 800px of its own");
-    // The old two-column layout is gone.
-    assert.ok(!html.includes('class="explanation" id="explanation"></div>\n    </div>'),
-              "the side column should not be back");
-
-    // And the height is the page's to set, since only it can measure the room
-    // left below the text.
+    const ratio = /#canvas-container \{[^}]*aspect-ratio:\s*(\d+)\s*\/\s*(\d+)/s.exec(html);
+    assert.ok(ratio, "no aspect ratio on the canvas");
+    assert.equal(+ratio[2] / +ratio[1], 0.6, "six tenths of the width");
+    // The old two-column layout is gone, and so is the height arithmetic.
     const src = readFileSync(new URL("../src/method.ts", import.meta.url), "utf8");
-    assert.match(src, /box\.width \/ PHI/, "golden ratio off the width");
-    assert.match(src, /window\.innerHeight - box\.top/, "capped by what is left of the window");
-    assert.match(src, /ResizeObserver/, "and refitted when the text's height changes");
+    assert.ok(!src.includes("fitStage"), "the ratio is CSS's now, not the page's");
 });
