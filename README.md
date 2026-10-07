@@ -223,7 +223,10 @@ as filled regions, dark at the arrow corner), `pentaShape` — one of
 `penta`, `innie`, `outie`: the same pentagons with the boundaries between the
 colors straight, or bowed into 72° arcs of the pentagon's own radius one way or
 the other (yellow convex to blue, blue convex to orange, orange convex to
-yellow; `outie` reverses the cycle) — with `pentaFace` (P1 at the scale where
+yellow; `outie` reverses the cycle), `pentaBisect` (take those boundaries as
+conics tangent to the blue bisector at each end rather than circumscribed arcs,
+at weight 1 — the parabola — so the curves continue through a corner instead of
+meeting it; off leaves the circles, which are the same family at weight cos θ) — with `pentaFace` (P1 at the scale where
 every thick rhomb holds one whole — the big rhombs — filled) and `pentaEdge`
 (the same pentagons as outlines only, so they can be laid over `nextgen` with
 the deflation still showing through; both on gives filled and outlined), `nextgen` (the deflation,

@@ -176,6 +176,24 @@ export interface TileStyle {
      * name the two directions of one construction.
      */
     pentaShape: "penta" | "innie" | "outie";
+    /**
+     * Take the innie/outie boundary as a CONIC through the two corners,
+     * tangent to the bisector of the blue wedge it bounds at each end, rather
+     * than as the pentagon's own circumscribed arc.
+     *
+     * The point of it is that the curves then continue through a corner
+     * instead of meeting it: neighbors arriving at a vertex leave along the
+     * same line. Drawn at weight 1, which is the parabola and a single
+     * quadraticCurveTo. Off by default — Jake: "I still love the circles very
+     * much" — and the circles are what a weight of cos θ would give anyway, so
+     * this switch is a move along one family rather than a different idea.
+     *
+     * Measured over a patch, the bisectors want 18° at an edge bounding a 36°
+     * star spike and 54° at one bounding a 108° blue corner, and the two ends
+     * of an edge disagree about half the time — which is why a circle cannot
+     * do it, and why this exists.
+     */
+    pentaBisect: boolean;
     nextgen: boolean;
     kites: boolean;
     /**
@@ -896,6 +914,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
         curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
+        pentaBisect: false,
         nextgen: false, kites: false, nextPenta: false,
         p1: false, bigRhombs: false, faceEdges: false, afterimage: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
@@ -2473,15 +2492,26 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * center; an edge then asks what lies at the mirror of its own center,
      * which is where the neighbor's center must be if there is one.
      */
-    let pentaKindCache: Map<string, "Pe3" | "Pe1"> | null = null;
+    interface PentaScene {
+        /** Pentagon kind, by center — what lies across an edge. */
+        kinds: Map<string, "Pe3" | "Pe1">;
+        /**
+         * The 108° sectors a corner is covered by, as start angles. What is
+         * left is blue, and the bisector of the blue beside an edge is the
+         * tangent the conic form wants there.
+         */
+        corners: Map<string, number[]>;
+    }
+    let pentaKindCache: PentaScene | null = null;
     let pentaKindKey = "";
     const centerKey = (x: number, y: number) =>
         `${Math.round(x * 1e4)},${Math.round(y * 1e4)}`;
-    function pentaKinds(): Map<string, "Pe3" | "Pe1"> {
+    function pentaKinds(): PentaScene {
         const key = String(tileStyle.offPenrose);
         if (pentaKindCache && key === pentaKindKey) return pentaKindCache;
         pentaKindKey = key;
         const out = new Map<string, "Pe3" | "Pe1">();
+        const corners = new Map<string, number[]>();
         const { lo } = indexRange();
         const levels = dressingLevels();
         if (levels !== null) {
@@ -2493,14 +2523,90 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         let x = 0, y = 0;
                         for (const [px, py] of pts) { x += px; y += py; }
                         out.set(centerKey(x / pts.length, y / pts.length), kind);
+                        // The corner's own 108° sector: from one edge round to
+                        // the other, the short way, since 108 is less than 180.
+                        pts.forEach((v, i) => {
+                            const prev = pts[(i + 4) % 5], next = pts[(i + 1) % 5];
+                            const a = Math.atan2(prev[1] - v[1], prev[0] - v[0]);
+                            const b = Math.atan2(next[1] - v[1], next[0] - v[0]);
+                            const start = turn(b - a) < Math.PI ? a : b;
+                            const k = centerKey(v[0], v[1]);
+                            const at = corners.get(k);
+                            if (at) at.push(start); else corners.set(k, [start]);
+                        });
                     };
                     for (const o of parts.orange) add(o, "Pe1");
                     if (parts.yellow) add(parts.yellow, "Pe3");
                 }
             }
         }
-        pentaKindCache = out;
-        return out;
+        pentaKindCache = { kinds: out, corners };
+        return pentaKindCache;
+    }
+
+    /** An angle in [0, 2π). */
+    const TAU = 2 * Math.PI;
+    const turn = (a: number) => ((a % TAU) + TAU) % TAU;
+    const SECTOR = (3 * Math.PI) / 5;          // a pentagon's corner, 108°
+    /**
+     * How much free angle there is at a corner, starting along `dir` and
+     * sweeping the way `sign` says, before the next pentagon.
+     */
+    function freeWedge(corner: string, dir: number, sign: number): number {
+        const occ = pentaKinds().corners.get(corner);
+        if (!occ) return TAU;
+        let best = TAU;
+        for (const start of occ) {
+            for (const edge of [start, start + SECTOR]) {
+                const d = sign > 0 ? turn(edge - dir) : turn(dir - edge);
+                if (d > 1e-6 && d < best) best = d;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * One edge as a conic tangent to the blue bisector at each end.
+     *
+     * The tangent at a corner leans half the adjacent blue wedge off the
+     * chord, which is the bisector of that wedge; `outward` takes it into the
+     * blue and inward takes its mirror in the chord, so the innie/outie cycle
+     * still decides the side. The two tangents cross at one point and the
+     * conic of weight 1 through both corners tangent to both IS the quadratic
+     * Bézier with that point as its control — a single native call.
+     *
+     * Returns false when the wedges cannot be had — at the rim of the patch,
+     * where a corner's neighbors were never collected, or at the lone-Pe1
+     * corners whose adjacent blue is a 252° reflex whose bisector points
+     * backwards. The caller then draws the circle, which is the right thing to
+     * fall back to and is what the rest of the tiling is doing anyway.
+     */
+    function bisectEdge(
+        tc: CanvasRenderingContext2D, a: Vec2, b: Vec2, C: Vec2, outward: boolean,
+        cx: number, cy: number, endScreen: [number, number],
+    ): boolean {
+        const chord = Math.atan2(b[1] - a[1], b[0] - a[0]);
+        // Which way is away from this pentagon, at each end.
+        const sideA = turn(Math.atan2(C[1] - a[1], C[0] - a[0]) - chord) < Math.PI ? -1 : 1;
+        const sideB = turn(Math.atan2(C[1] - b[1], C[0] - b[0]) - (chord + Math.PI))
+            < Math.PI ? -1 : 1;
+        const wa = freeWedge(centerKey(a[0], a[1]), chord, sideA);
+        const wb = freeWedge(centerKey(b[0], b[1]), chord + Math.PI, sideB);
+        const LIMIT = (80 * Math.PI) / 180;         // or the curve leaves backwards
+        if (!(wa / 2 > 1e-3 && wa / 2 < LIMIT && wb / 2 > 1e-3 && wb / 2 < LIMIT)) return false;
+        const s = outward ? 1 : -1;
+        const ta = chord + s * sideA * (wa / 2);
+        const tb = chord + Math.PI + s * sideB * (wb / 2);
+        // Where the two tangent rays cross: the control point.
+        const d1 = [Math.cos(ta), Math.sin(ta)], d2 = [Math.cos(tb), Math.sin(tb)];
+        const det = d1[0] * d2[1] - d1[1] * d2[0];
+        if (Math.abs(det) < 1e-9) return false;     // parallel: no conic
+        const t = ((b[0] - a[0]) * d2[1] - (b[1] - a[1]) * d2[0]) / det;
+        if (!(t > 0)) return false;                 // crossing behind the start
+        const P: Vec2 = [a[0] + d1[0] * t, a[1] + d1[1] * t];
+        const [px, py] = mathToScreen(P[0], P[1], cx, cy);
+        tc.quadraticCurveTo(px, py, endScreen[0], endScreen[1]);
+        return true;
     }
 
     /**
@@ -2529,7 +2635,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         let ox = 0, oy = 0;
         for (const [x, y] of pts) { ox += x; oy += y; }
         const C: Vec2 = [ox / pts.length, oy / pts.length];
-        const kinds = pentaKinds();
+        const { kinds } = pentaKinds();
         // Each pushes into the next: yellow into blue, blue into orange,
         // orange into yellow. `outie` runs it the other way.
         const pushesInto = kind === "Pe3" ? "blue" : "Pe3";
@@ -2543,9 +2649,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const M: Vec2 = [a[0] + b[0] - C[0], a[1] + b[1] - C[1]];
             const across = kinds.get(centerKey(M[0], M[1])) ?? "blue";
             const outward = (across === pushesInto) === (shape === "innie");
+            const next = screen[(i + 1) % pts.length];
+            if (tileStyle.pentaBisect
+                && bisectEdge(tc, a, b, C, outward, cx, cy, next)) continue;
             const at = outward ? C : M;
             const [sx2, sy2] = mathToScreen(at[0], at[1], cx, cy);
-            const [ax, ay] = screen[i], [bx, by] = screen[(i + 1) % pts.length];
+            const [ax, ay] = screen[i], [bx, by] = next;
             const a0 = Math.atan2(ay - sy2, ax - sx2);
             let d = Math.atan2(by - sy2, bx - sx2) - a0;
             while (d > Math.PI) d -= 2 * Math.PI;
@@ -3592,6 +3701,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     draw();
                 });
                 fRow.appendChild(shape);
+                const bis = checkbox(fRow, "bisectors", tileStyle.pentaBisect, (v) => {
+                    tileStyle.pentaBisect = v;
+                    draw();
+                });
+                bis.title = "Take innie and outie's boundaries as conics tangent to the "
+                    + "bisector of the blue wedge at each end, instead of the pentagon's "
+                    + "own circumscribed arc — so the curves continue THROUGH a corner "
+                    + "rather than meeting it. Weight 1, which is the parabola. Off leaves "
+                    + "the circles, which are the same family at weight cos θ.";
                 dress("pentaFace", "penta-face", "The P1 pentagons at the scale where every "
                     + "thick rhomb holds one whole — the big rhombs — filled: blue ground, "
                     + "orange Pe1, yellow Pe3. The dropdown beside this says which of the "

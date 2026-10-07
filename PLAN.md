@@ -645,6 +645,41 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**The bisectors, and what the probe found (2026-10-07).** Jake wondered whether
+a shallower boundary would read better — "maybe a hyperbolic arc so that the
+begin and end tangents line up with the star bisectors. Hyperbolic or parabolic,
+I don't know which is better." Then, having thought: "they're all quadratic,
+duh." Which is the whole of it — circle, ellipse, parabola and hyperbola are one
+rational quadratic with one weight, w = cos θ, w < 1, w = 1, w > 1, and the
+circles innie and outie already draw sit on that dial. The question was never
+which conic but which weight.
+
+The probe measured the condition before anything was built, and turned up two
+things.
+
+**The tangents disagree at the two ends about half the time** — 235 edges
+symmetric against 238 asymmetric — so a circle cannot satisfy them: a circular
+arc through two points has one free parameter, and prescribing one end's tangent
+fixes the other by mirror. That settles the form.
+
+**And the bisectors are mostly DEEPER, not shallower**, which was the point of
+the exercise. Half the blue wedge an edge bounds is the tangent-chord angle, and
+over a patch: 18° at the 119 ends bounding a 36° star spike — shallower, sagitta
+7.9% against today's 16.2% — but 54° at 450 ends bounding a 108° blue corner,
+sagitta 25.5%. The vertex figures are why: the blue round a corner is usually
+TWO wedges, 36° and 108°, and only the 36° one is a star point. "Line the
+tangents up with the bisectors" and "shallower" turn out to be different
+requests.
+
+Built anyway, at w = 1, behind a **bisectors** checkbox that is off — "I still
+love the circles very much". The quadratic Bézier through both corners with the
+two tangents' crossing as its control IS the weight-1 conic, so it is one native
+call. Two thirds of the edges take it; the rest fall back to the circle, which
+is correct rather than a shortfall: at a lone-Pe1 corner the adjacent blue is a
+252° reflex whose bisector points backwards, so the rule does not speak there.
+The innie/outie cycle still picks the side, since the inward tangent is the
+mirror of the outward one in the chord, exactly as the two circle centers are.
+
 **innie and outie (2026-10-07).** Two colorings derived from penta: the same
 pentagons, with every boundary between the colors bowed into a **72° arc of the
 pentagon's own radius** instead of a straight edge — partial circumscribed

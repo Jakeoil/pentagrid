@@ -2555,3 +2555,49 @@ test("innie and outie bow every penta boundary, each pushing into the next", () 
     const same = inn.filter((c, i) => c === out[i]).length;
     assert.equal(same, 0, `${same} arcs did not move when the cycle reversed`);
 });
+
+test("the bisectors switch trades circles for conics, edge for edge", () => {
+    // Jake: w = 1, build it, but add a checkbox — "I still love the circles very
+    // much". So the boundary is the same set of edges either way; what changes
+    // is whether each is the pentagon's circumscribed arc or the conic tangent
+    // to the blue bisector at both of its ends.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { pentaFace: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    let arcs = 0, quads = 0;
+    layer.ctx.arc = () => { arcs++; };
+    layer.ctx.quadraticCurveTo = () => { quads++; };
+    const run = (style) => {
+        h.setTileStyle(style);
+        arcs = 0; quads = 0;
+        h.redraw();
+        return { arcs, quads };
+    };
+
+    const circles = run({ pentaShape: "innie", pentaBisect: false });
+    assert.ok(circles.arcs > 1000, `only ${circles.arcs} arcs`);
+    assert.equal(circles.quads, 0, "with the switch off every edge is a circle");
+
+    const conics = run({ pentaShape: "innie", pentaBisect: true });
+    assert.ok(conics.quads > conics.arcs, "most edges should take the conic");
+    // Every edge still gets exactly one curve: the switch moves them between
+    // the two calls, it does not add or drop any.
+    assert.equal(conics.arcs + conics.quads, circles.arcs,
+                 `${conics.arcs} + ${conics.quads} against ${circles.arcs}`);
+
+    // The fallback is not a failure: an edge whose blue wedge is the 252°
+    // reflex at a lone-Pe1 corner has a bisector pointing backwards, and the
+    // circle is the right thing to draw there.
+    assert.ok(conics.arcs > 0, "some edges must fall back, and the probe says a third do");
+
+    // outie trades the same edges — the cycle decides the side, not the form.
+    const other = run({ pentaShape: "outie", pentaBisect: true });
+    assert.equal(other.arcs, conics.arcs);
+    assert.equal(other.quads, conics.quads);
+});
