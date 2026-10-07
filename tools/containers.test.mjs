@@ -2498,3 +2498,60 @@ test("the afterimage switch swaps the whole P1 palette at once", () => {
     assert.ok(nextPlain.has(BLUE) && nextPlain.has(ORANGE) && nextPlain.has(YELLOW),
               "and switch back");
 });
+
+test("innie and outie bow every penta boundary, each pushing into the next", () => {
+    // Jake's cycle: yellow convex to blue, blue convex to orange, orange convex
+    // to yellow. The two arcs through one edge have the same radius and the
+    // same 72 degrees and differ only in their center — the pentagon's own, or
+    // its mirror across that edge, which is where the neighbor's center is.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { pentaFace: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    let arcs = [], lines = 0;
+    layer.ctx.arc = (x, y, r, a0, a1) => { arcs.push({ x, y, r, sweep: a1 - a0 }); };
+    layer.ctx.lineTo = () => { lines++; };
+    const run = (shape) => {
+        h.setTileStyle({ pentaShape: shape });
+        arcs = []; lines = 0;
+        h.redraw();
+        return { arcs: [...arcs], lines };
+    };
+
+    const flat = run("penta");
+    assert.equal(flat.arcs.length, 0, "the straight tiling draws no arcs");
+    assert.ok(flat.lines > 100);
+
+    for (const shape of ["innie", "outie"]) {
+        const bowed = run(shape);
+        assert.ok(bowed.arcs.length > 100, `${shape}: only ${bowed.arcs.length} arcs`);
+        // Five edges a pentagon, every one an arc: no straight edge survives.
+        assert.equal(bowed.arcs.length % 5, 0, `${shape}: not whole pentagons`);
+        // The layer draws tile outlines with lineTo as well, so the test is
+        // that the pentagons stopped using it: four straight edges a pentagon
+        // traded for five arcs.
+        const traded = flat.lines - bowed.lines;
+        assert.ok(Math.abs(traded - bowed.arcs.length * 4 / 5) < 5,
+                  `${shape}: ${traded} straight edges went for ${bowed.arcs.length} arcs`);
+        // Every arc is the pentagon's own radius, and every sweep is 72 degrees.
+        const R = bowed.arcs[0].r;
+        for (const a of bowed.arcs) {
+            assert.ok(Math.abs(a.r - R) < 1e-6, `${shape}: radius ${a.r} against ${R}`);
+            assert.ok(Math.abs(Math.abs(a.sweep) - (2 * Math.PI / 5)) < 1e-6,
+                      `${shape}: a sweep of ${(a.sweep * 180 / Math.PI).toFixed(1)} degrees`);
+        }
+    }
+
+    // innie and outie are opposites: the same edges, bowed the other way, so
+    // every arc of one is centered where the other's is not.
+    const inn = run("innie").arcs.map((a) => `${a.x.toFixed(2)},${a.y.toFixed(2)}`);
+    const out = run("outie").arcs.map((a) => `${a.x.toFixed(2)},${a.y.toFixed(2)}`);
+    assert.equal(inn.length, out.length);
+    const same = inn.filter((c, i) => c === out[i]).length;
+    assert.equal(same, 0, `${same} arcs did not move when the cycle reversed`);
+});

@@ -16,7 +16,7 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
-import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI } from "../geometry/decor.js";
+import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
@@ -158,6 +158,24 @@ export interface TileStyle {
      */
     pentaFace: boolean;
     pentaEdge: boolean;
+    /**
+     * Which of the three penta colorings is drawn. All three place the same
+     * pentagons; what differs is the BOUNDARY between the colors.
+     *
+     * `penta` is the straight-edged tiling. `innie` and `outie` replace every
+     * edge with a 72° arc of the pentagon's own radius — the circumscribed
+     * circle, cut at the two corners — bulging one way or the other. Which way
+     * is one cyclic rule, Jake's: **yellow is convex to blue, blue is convex to
+     * orange, orange is convex to yellow**, each pushing into the next and
+     * nothing left over. `outie` runs the cycle backwards.
+     *
+     * The two arcs through one edge have the same radius and the same 72°, and
+     * differ only in their center: the pentagon's own, or its mirror across
+     * that edge — which is exactly where the neighboring P1 pentagon sits, so
+     * "centered on the yellow pentagon" and "centered on the blue pentagon"
+     * name the two directions of one construction.
+     */
+    pentaShape: "penta" | "innie" | "outie";
     nextgen: boolean;
     kites: boolean;
     /**
@@ -877,7 +895,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
-        curves: false, pentaFace: false, pentaEdge: false,
+        curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
         nextgen: false, kites: false, nextPenta: false,
         p1: false, bigRhombs: false, faceEdges: false, afterimage: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
@@ -1090,6 +1108,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         groupCache = null;
         p1Cache = null;
         nextPentaCache = null;
+        pentaKindCache = null;
         rhombCacheKey = key;
         return rhombCache;
     }
@@ -2443,6 +2462,99 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * tile is filled blue, clipped, and the pentagons laid over it so the pieces
      * meet across the edges without any tile knowing its neighbor.
      */
+    /**
+     * Where every penta-scale pentagon sits, and which kind it is.
+     *
+     * Needed because the bulge of an arc depends on what is across the edge,
+     * and that is not a fact about one tile: an orange Pe1 straddles two, and
+     * its yellow neighbor may be in either of them. Deciding per tile would
+     * give the same pentagon two different curves depending on which tile drew
+     * it. So the pentagons are collected once over the patch and keyed by
+     * center; an edge then asks what lies at the mirror of its own center,
+     * which is where the neighbor's center must be if there is one.
+     */
+    let pentaKindCache: Map<string, "Pe3" | "Pe1"> | null = null;
+    let pentaKindKey = "";
+    const centerKey = (x: number, y: number) =>
+        `${Math.round(x * 1e4)},${Math.round(y * 1e4)}`;
+    function pentaKinds(): Map<string, "Pe3" | "Pe1"> {
+        const key = String(tileStyle.offPenrose);
+        if (pentaKindCache && key === pentaKindKey) return pentaKindCache;
+        pentaKindKey = key;
+        const out = new Map<string, "Pe3" | "Pe1">();
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels !== null) {
+            for (const r of currentRhombs()) {
+                if (isStacked(r)) continue;
+                for (const { extAt } of dressings(r, lo, levels)) {
+                    const parts = rhombPentagons(r, lo, levels, extAt);
+                    const add = (pts: Vec2[], kind: "Pe3" | "Pe1") => {
+                        let x = 0, y = 0;
+                        for (const [px, py] of pts) { x += px; y += py; }
+                        out.set(centerKey(x / pts.length, y / pts.length), kind);
+                    };
+                    for (const o of parts.orange) add(o, "Pe1");
+                    if (parts.yellow) add(parts.yellow, "Pe3");
+                }
+            }
+        }
+        pentaKindCache = out;
+        return out;
+    }
+
+    /**
+     * Trace one pentagon: straight, or with each edge bowed into its arc.
+     *
+     * The arc is the pentagon's own circumscribed circle cut at the two
+     * corners — radius PENTA_R, 72° — taken about one center or the other.
+     * About its own center it bulges outward; about the mirror of that center
+     * across the edge, which is the neighbor's center, it bulges in. So the
+     * whole choice is which center, and the cycle decides it.
+     */
+    function tracePentagon(
+        tc: CanvasRenderingContext2D, pts: readonly Vec2[], kind: "Pe3" | "Pe1",
+        cx: number, cy: number,
+    ) {
+        const shape = tileStyle.pentaShape;
+        const screen = pts.map(([x, y]) => mathToScreen(x, y, cx, cy));
+        if (shape === "penta") {
+            tc.beginPath();
+            screen.forEach(([px, py], i) => {
+                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+            });
+            tc.closePath();
+            return;
+        }
+        let ox = 0, oy = 0;
+        for (const [x, y] of pts) { ox += x; oy += y; }
+        const C: Vec2 = [ox / pts.length, oy / pts.length];
+        const kinds = pentaKinds();
+        // Each pushes into the next: yellow into blue, blue into orange,
+        // orange into yellow. `outie` runs it the other way.
+        const pushesInto = kind === "Pe3" ? "blue" : "Pe3";
+        const R = PENTA_R * scale;
+        tc.beginPath();
+        tc.moveTo(screen[0][0], screen[0][1]);
+        for (let i = 0; i < pts.length; i++) {
+            const a = pts[i], b = pts[(i + 1) % pts.length];
+            // The mirror of the center across the edge: the chord's midpoint is
+            // the foot of the perpendicular, so it is just a + b − C.
+            const M: Vec2 = [a[0] + b[0] - C[0], a[1] + b[1] - C[1]];
+            const across = kinds.get(centerKey(M[0], M[1])) ?? "blue";
+            const outward = (across === pushesInto) === (shape === "innie");
+            const at = outward ? C : M;
+            const [sx2, sy2] = mathToScreen(at[0], at[1], cx, cy);
+            const [ax, ay] = screen[i], [bx, by] = screen[(i + 1) % pts.length];
+            const a0 = Math.atan2(ay - sy2, ax - sx2);
+            let d = Math.atan2(by - sy2, bx - sx2) - a0;
+            while (d > Math.PI) d -= 2 * Math.PI;
+            while (d < -Math.PI) d += 2 * Math.PI;     // the minor arc, 72°
+            tc.arc(sx2, sy2, R, a0, a0 + d, d < 0);
+        }
+        tc.closePath();
+    }
+
     function drawPentagons(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
@@ -2455,13 +2567,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
         tc.globalAlpha = tileStyle.opacity * alpha;
         const parts = rhombPentagons(rhomb, lo, levels, extAt);
-        const draw = (pts: [number, number][], style: string) => {
-            tc.beginPath();
-            pts.forEach(([x, y], i) => {
-                const [px, py] = mathToScreen(x, y, cx, cy);
-                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
-            });
-            tc.closePath();
+        const draw = (pts: [number, number][], style: string, kind: "Pe3" | "Pe1") => {
+            tracePentagon(tc, pts, kind, cx, cy);
             if (tileStyle.pentaFace) {
                 tc.fillStyle = ramped(tc, rhomb, sv, style);
                 tc.fill();
@@ -2473,8 +2580,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.stroke();
             }
         };
-        for (const o of parts.orange) draw(o, p1Fill("Pe1"));
-        if (parts.yellow) draw(parts.yellow, p1Fill("Pe3"));
+        for (const o of parts.orange) draw(o, p1Fill("Pe1"), "Pe1");
+        if (parts.yellow) draw(parts.yellow, p1Fill("Pe3"), "Pe3");
         }
         tc.globalAlpha = tileStyle.opacity;
     }
@@ -3461,9 +3568,34 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     });
                     cb.title = title;
                 };
+                // Three colorings, one set of pentagons: what changes is the
+                // boundary between the colors. The face and edge switches are
+                // shared, so the dropdown says WHICH and they say how much.
+                const shape = document.createElement("select");
+                shape.className = "line-pick";
+                shape.style.width = "66px";
+                shape.title = "penta: the straight-edged tiling. innie: every boundary bowed "
+                    + "into a 72° arc of the pentagon's own radius, yellow convex to blue, "
+                    + "blue convex to orange, orange convex to yellow — each pushing into the "
+                    + "next. outie: the same cycle backwards. The face and edge switches "
+                    + "beside this apply to all three.";
+                for (const [value, text] of [["penta", "penta"], ["innie", "innie"],
+                                             ["outie", "outie"]] as const) {
+                    const o = document.createElement("option");
+                    o.value = value;
+                    o.textContent = text;
+                    shape.appendChild(o);
+                }
+                shape.value = tileStyle.pentaShape;
+                shape.addEventListener("change", () => {
+                    tileStyle.pentaShape = shape.value as TileStyle["pentaShape"];
+                    draw();
+                });
+                fRow.appendChild(shape);
                 dress("pentaFace", "penta-face", "The P1 pentagons at the scale where every "
                     + "thick rhomb holds one whole — the big rhombs — filled: blue ground, "
-                    + "orange Pe1, yellow Pe3.");
+                    + "orange Pe1, yellow Pe3. The dropdown beside this says which of the "
+                    + "three colorings.");
                 dress("pentaEdge", "penta-edge", "The same pentagons as OUTLINES and nothing "
                     + "else, so they can be laid over next-gen and the deflation still seen "
                     + "through them. With penta-face as well, filled and outlined.");

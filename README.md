@@ -219,7 +219,11 @@ one opposite it, in five colors of its own rather than the ribbons'; `bands` is
 themselves, `band` wide (`pair` is the same ten as a flat blend).
 The **dressings** are independent switches over whatever
 system is chosen, rather than alternatives to it: `curves` (the matching curves
-as filled regions, dark at the arrow corner), `pentaFace` (P1 at the scale where
+as filled regions, dark at the arrow corner), `pentaShape` — one of
+`penta`, `innie`, `outie`: the same pentagons with the boundaries between the
+colors straight, or bowed into 72° arcs of the pentagon's own radius one way or
+the other (yellow convex to blue, blue convex to orange, orange convex to
+yellow; `outie` reverses the cycle) — with `pentaFace` (P1 at the scale where
 every thick rhomb holds one whole — the big rhombs — filled) and `pentaEdge`
 (the same pentagons as outlines only, so they can be laid over `nextgen` with
 the deflation still showing through; both on gives filled and outlined), `nextgen` (the deflation,

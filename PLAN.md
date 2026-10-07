@@ -645,6 +645,42 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**innie and outie (2026-10-07).** Two colorings derived from penta: the same
+pentagons, with every boundary between the colors bowed into a **72° arc of the
+pentagon's own radius** instead of a straight edge — partial circumscribed
+circles, cut at the two corners.
+
+Jake gave the rule twice, once case by case on the thick and thin rhombs and
+once as three global statements: *orange is concave to blue and convex to
+yellow; blue is concave to yellow and convex to orange; yellow is convex to
+blue and concave to orange.* Those three are one **cycle** — yellow pushes into
+blue, blue into orange, orange into yellow, each into the next and nothing left
+over — and `outie` runs it backwards. His five case-by-case statements all fall
+out of it, which is how the rule was checked before any of it was drawn.
+
+The construction is smaller than it looks. The two arcs of radius R through one
+edge differ only in their **center**: the pentagon's own, or that center's
+mirror across the edge — and since the chord's midpoint is the foot of the
+perpendicular, the mirror is just **a + b − C**. About its own center the arc
+bulges out; about the mirror it bulges in. So the whole thing is one choice of
+center per edge, and the mirror is also exactly where the neighboring P1
+pentagon sits, which is why "centered on the yellow pentagon" and "centered on
+the blue pentagon" name the two directions of a single move.
+
+The one thing that could not stay local: an arc's direction depends on what is
+ACROSS the edge, and an orange Pe1 straddles two tiles with its yellow neighbor
+in either of them. Deciding per tile would give one pentagon two different
+curves depending on which tile drew it. So the pentagons are collected once
+over the patch, keyed by center, and an edge asks what lies at the mirror of
+its own center.
+
+The three are a dropdown — penta the default — sharing the `penta-face` and
+`penta-edge` switches, since they are three colorings of one tiling rather than
+three dressings.
+
+Not done: next-penta still draws straight, and would want its own center map
+one generation down.
+
 **The afterimage palette (2026-10-07).** Jake: an "after image" alternative for
 penta and the stars — dark blue to pale yellow, yellow to light purple, orange
 to light blue — "not the colors I said", find the formula. They are what he sees
