@@ -650,35 +650,44 @@ penta and the stars — dark blue to pale yellow, yellow to light purple, orange
 to light blue — "not the colors I said", find the formula. They are what he sees
 when he stares at the penta faces and turns the faces off.
 
-They are **negative afterimages**, and the physiology names the formula.
-Opponent-process adaptation: the cone-difference channels a patch has been
-driving one way relax the other way, so the afterimage is a reflection through
-the NEUTRAL AXIS of an opponent space, faded and washed out by the partial
-adaptation. Three decisions, and the first is the one that matters.
+They are **negative afterimages**, and the physiology names the formula. A
+first version reflected the color through the neutral axis of **Oklab** —
+negating a and b, which is the opponent statement — then faded the chroma and
+set a pale lightness. Two of three were right first time, and Jake said so:
+*the light purple and light blue are dead on. It's the blue to pale yellow.
+Your result is too orange. My eye sees yellow, paler than the pe3 color, but in
+that hue.*
 
-1. **Oklab, not CIELAB.** Reflecting a and b is the opponent statement in
-   either, but CIELAB's hue lines bend badly through the blues — sRGB blue sits
-   at **306°** there, nearer purple than blue — so the reflection lands at 126°,
-   a yellow-green. Jake saw pale yellow. Oklab, built to keep hue straight
-   through exactly that region, puts blue at **264°** and the reflection at 84°:
-   yellow. That single change makes all three of his readings fall out of one
-   formula, and it is why an RGB inversion will not do either — invert #ffff00
-   and you get #0000ff, a saturated blue, where the eye gives blue-VIOLET.
-2. The chroma **fades** by a strength factor: adaptation is partial, so what
-   you see is a tint.
-3. The lightness is **fixed and pale**, because an afterimage is seen against
-   whatever you look at next and against a page they all read as pale tints —
-   which is what he described, rather than the dark violet a strict lightness
-   inversion gives for yellow.
+He was right, and the fix was to stop doing geometry and do the **mechanism**.
+Staring drives each cone type and costs it gain; look at the page and you see
+white through what is left — von Kries adaptation,
 
-Measured: #0000ff → **#ffd98d**, #ffff00 → **#ddd9ff**, #e46c0a → **#b6e6ff**.
-Pale yellow, light purple, light blue — his three, in order.
+> gain_i = 1 / (1 + K · L_i / Lw_i),  afterimage_i = Lw_i · gain_i
+
+in CAT16 cone space, with K how hard you stared. The reflection had blue's
+afterimage at hue **84°**, an orange-yellow; the cones put it at **100°**,
+against Pe3's own **110°** — and reproduce the light blue to the byte and the
+light purple within seven degrees. **The complement of a primary is not 180°
+from it in any space.** The cones know where it is and the geometry does not.
+(CIELAB is worse still: it has sRGB blue at 306°, nearer purple than blue, so a
+reflection there lands on a yellow-GREEN.)
+
+Two stages follow the mechanism, and they are about appearance rather than
+physiology: the chroma **fades**, since adaptation is partial and what you see
+is a tint; and the lightness is **fixed and pale**, because an afterimage is
+seen against whatever you look at next and against a page they all read as pale
+— which is what he described, rather than the dark violet a strict lightness
+inversion gives for yellow.
+
+Measured: #0000ff → **#f1e07b**, #ffff00 → **#d9dbfe**, #e46c0a → **#b6e6ff**.
 
 Out-of-gamut tints lose **chroma, not hue**: pulled in along the chroma axis
 rather than clipped per channel, which would swing the hue, and a complement
-that changes hue is not one. The switch covers every dressing that uses the
-palette — penta, next-penta, P1 — since they are one palette and swapping half
-of it would be two tilings in two schemes.
+that changes hue is not one. A test proves that by asking for a strength that
+certainly fits and one that certainly does not and insisting they agree. The
+switch covers every dressing that uses the palette — penta, next-penta, P1 —
+since they are one palette and swapping half of it would be two tilings in two
+schemes.
 
 **method and split share a sheet (2026-10-06).** Jake: commonality in the text
 fields, and maybe complete commonality in the controls — two columns — with a

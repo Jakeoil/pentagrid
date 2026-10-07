@@ -230,8 +230,8 @@ at 1/φ, and no next-generation rhomb edges with them),
 GROUPS rather than by one tile's index: `p1` (a pentagon on every group, blue
 between) and `bigRhombs` (the generation above — the inflation γ′ⱼ = γⱼ₋₁ +
 γⱼ₊₁ at λ·φ, outlined over the patch). Plus `afterimage` (the P1 palette as its own negative afterimage — the
-complement, pale — computed in Oklab rather than listed, so it follows the
-palette; see `view/afterimage.ts`), `faceEdges` (outline each face from
+complement, pale — computed from von Kries cone adaptation rather than
+listed, so it follows the palette; see `view/afterimage.ts`), `faceEdges` (outline each face from
 the tile layer, so edges can be seen with the edge layer off), `isogloss`,
 `shading` with its `ramp` (the
 Wieringa height ramp, over any color), `boldEdges`, `coloredArrows` (de Bruijn's

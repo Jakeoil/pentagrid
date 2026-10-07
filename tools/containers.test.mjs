@@ -2477,7 +2477,7 @@ test("the afterimage switch swaps the whole P1 palette at once", () => {
     };
 
     const BLUE = "#0000ff", ORANGE = "#e46c0a", YELLOW = "#ffff00";
-    const PALE_YELLOW = "#ffd98d", PALE_BLUE = "#b6e6ff", PALE_PURPLE = "#ddd9ff";
+    const PALE_YELLOW = "#f1e07b", PALE_BLUE = "#b6e6ff", PALE_PURPLE = "#d9dbfe";
 
     const plain = run({ pentaFace: true, afterimage: false });
     assert.ok(plain.has(BLUE) && plain.has(ORANGE) && plain.has(YELLOW));

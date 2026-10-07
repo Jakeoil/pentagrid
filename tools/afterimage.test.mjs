@@ -26,17 +26,26 @@ test("Jake's three readings come out of the one formula", () => {
     assert.equal(band(afterimage(P1_FILL.Pe1)), "blue", "orange should go light blue");
 });
 
-test("CIELAB would get the blue wrong, which is why the space is Oklab", () => {
-    // sRGB blue sits at 306 degrees in CIELAB — nearer purple than blue — so
-    // reflecting it there lands on a yellow-green. In Oklab it is 264, and the
-    // reflection is a yellow. This is the whole reason for the choice.
+test("the cones put blue's afterimage in Pe3's own yellow, a reflection does not", () => {
+    // Jake on the first version: "too orange. My eye sees yellow, paler than
+    // the pe3 color, but in that hue." A reflection through the neutral axis —
+    // negating a and b — lands blue at 84 degrees, which is an orange-yellow.
+    // Von Kries adaptation puts it at 100, against Pe3's own 110.
+    const hueOf = (hex) => {
+        const [, a, b] = oklab(hex);
+        return (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
+    };
+    const target = hueOf(P1_FILL.Pe3);
+    const mine = hueOf(afterimage(P1_STAR));
+    assert.ok(Math.abs(mine - target) < 15,
+              `blue's afterimage should be Pe3's hue: ${mine.toFixed(0)} against ${target.toFixed(0)}`);
+
+    // What the reflection would have given, for the record: further from Pe3
+    // than the cones are, and out of the yellow band altogether.
     const [, a, b] = oklab(P1_STAR);
-    const h = (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
-    assert.ok(Math.abs(h - 264) < 6, `Oklab puts sRGB blue at ${h.toFixed(0)}, not 264`);
-    const [, a2, b2] = oklab(afterimage(P1_STAR));
-    const h2 = (Math.atan2(b2, a2) * 180 / Math.PI + 360) % 360;
-    assert.ok(Math.abs(h2 - (h - 180)) < 12,
-              `the afterimage should sit opposite: ${h2.toFixed(0)} against ${(h - 180).toFixed(0)}`);
+    const reflected = (Math.atan2(-b, -a) * 180 / Math.PI + 360) % 360;
+    assert.ok(Math.abs(reflected - target) > Math.abs(mine - target) + 10,
+              `the reflection sits at ${reflected.toFixed(0)}, no better than ${mine.toFixed(0)}`);
 });
 
 test("every afterimage is pale: light, and weaker than what made it", () => {
@@ -62,19 +71,28 @@ test("it is reversible in hue: the afterimage of the afterimage comes back", () 
         const h2 = (Math.atan2(b2, a2) * 180 / Math.PI + 360) % 360;
         // Folded difference: 0 is the same hue, 180 is opposite. Twice round
         // should come back to where it started.
+        // Adaptation is not an involution — the second stimulus is a pale tint
+        // and fatigues the cones differently — so this is a sanity bound, not
+        // an identity: twice round must land back in the same part of the
+        // circle rather than wander off it.
         const d = Math.abs(((h1 - h2 + 540) % 360) - 180);
-        assert.ok(d < 10, `${hex} -> ${there} -> ${back}: hue drifted ${d.toFixed(0)}`);
+        assert.ok(d < 20, `${hex} -> ${there} -> ${back}: hue drifted ${d.toFixed(0)}`);
     }
 });
 
 test("out of gamut loses chroma, not hue", () => {
     // A tint that cannot be shown is shown grayer. Clipping per channel would
-    // swing the hue instead, which is the one thing a complement must not do.
-    const hot = afterimage("#00ff00");
-    const [, a, b] = oklab(hot);
-    const h = (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
-    const [, a0, b0] = oklab("#00ff00");
-    const h0 = (Math.atan2(b0, a0) * 180 / Math.PI + 360) % 360;
-    const d = Math.abs(((h0 - h + 540) % 360) - 180);
-    assert.ok(180 - d < 12, `green's afterimage drifted ${(180 - d).toFixed(0)} degrees`);
+    // swing the hue instead, which is the one thing a complement must not do —
+    // so a strength that certainly fits and one that certainly does not have to
+    // give the same hue.
+    const hueOf = (hex) => {
+        const [, a, b] = oklab(hex);
+        return (Math.atan2(b, a) * 180 / Math.PI + 360) % 360;
+    };
+    // Folded difference: 0 is the same hue, 180 is opposite.
+    const apart = (h1, h2) => Math.abs(((h1 - h2 + 540) % 360) - 180);
+    for (const hex of ["#00ff00", "#ff0000", "#0000ff", "#ff00ff"]) {
+        const d = apart(hueOf(afterimage(hex, 0.15)), hueOf(afterimage(hex, 1)));
+        assert.ok(d < 6, `${hex}: the hue moved ${d.toFixed(0)} degrees on the way out of gamut`);
+    }
 });
