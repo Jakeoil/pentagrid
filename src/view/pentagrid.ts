@@ -60,8 +60,15 @@ function classFill(cls: number): string {
  * touch. So: five colors, at the lightness of the other fills, meaning nothing
  * but "these five classes".
  */
-/** The pentagons' outline, dark enough to read over gold, gray or blue. */
+/**
+ * The pentagons' outline, dark enough to read over gold, gray or blue, and
+ * heavy enough to hold its own over a dressing: these lines are the figure when
+ * penta-edge is the only thing on, not a hairline round a fill. Jake wanted
+ * them thicker. `bold edges` takes them up again.
+ */
 const PENTA_EDGE = "rgba(38, 28, 18, 0.85)";
+const PENTA_EDGE_W = 2.2;
+const PENTA_EDGE_BOLD = 3.6;
 
 const KOWALEWSKI_FILLS = ["#e4a05c", "#7fbf9b", "#8e9bd4", "#d98ba8", "#b5b35c"];
 
@@ -2438,7 +2445,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             }
             if (tileStyle.pentaEdge) {
                 tc.strokeStyle = PENTA_EDGE;
-                tc.lineWidth = tileStyle.boldEdges ? 2 : 1.2;
+                tc.lineWidth = tileStyle.boldEdges ? PENTA_EDGE_BOLD : PENTA_EDGE_W;
+                tc.lineJoin = "round";
                 tc.stroke();
             }
         };
