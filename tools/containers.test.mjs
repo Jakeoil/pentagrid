@@ -2601,3 +2601,74 @@ test("the bisectors switch trades circles for conics, edge for edge", () => {
     assert.equal(other.arcs, conics.arcs);
     assert.equal(other.quads, conics.quads);
 });
+
+test("the pentagons are one unclipped pass over the patch, not one per tile", () => {
+    // Jake: "really nice, especially the innies. The outies...bleed between
+    // tiles." Per-tile was fine while the boundaries were straight — a pentagon
+    // across a tile edge is proposed by both tiles, each drew its half clipped
+    // to itself, and the halves met on the edge. An `outie` bows OUTWARD: the
+    // overhang lands in a tile that may not propose that pentagon at all, and
+    // so clips it away; and where that tile does propose it, its own ground is
+    // laid afterward and paints the overhang over.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { pentaFace: true, pentaEdge: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    let log = [];
+    layer.ctx.clip = () => { log.push({ t: "clip" }); };
+    layer.ctx.moveTo = (x, y) => { log.push({ t: "moveTo", x, y }); };
+    layer.ctx.lineTo = (x, y) => { log.push({ t: "lineTo", x, y }); };
+    layer.ctx.arc = () => { log.push({ t: "arc" }); };
+    layer.ctx.quadraticCurveTo = () => { log.push({ t: "quad" }); };
+    const run = (shape) => {
+        h.setTileStyle({ pentaShape: shape });
+        log = [];
+        h.redraw();
+        const last = log.map((e) => e.t).lastIndexOf("clip");
+        assert.ok(last > 0, `${shape}: the tiles never clipped, so nothing is proved`);
+        const parts = [];
+        for (const e of log.slice(last + 1)) {
+            if (e.t === "moveTo") parts.push({ pts: [[e.x, e.y]], curves: 0 });
+            else if (!parts.length) continue;
+            else if (e.t === "lineTo") parts[parts.length - 1].pts.push([e.x, e.y]);
+            else parts[parts.length - 1].curves++;
+        }
+        return {
+            // The last tile to clip still traces its own four-corner outline
+            // afterward; a pentagon is the five-cornered shape.
+            shapes: parts.filter((s) => s.pts.length === 5 || s.curves === 5),
+            curved: log.slice(0, last).filter((e) => e.t === "arc" || e.t === "quad").length,
+        };
+    };
+    const centers = (shapes) => new Set(shapes.map((s) => {
+        const n = s.pts.length;
+        return `${(s.pts.reduce((a, p) => a + p[0], 0) / n).toFixed(2)},`
+             + `${(s.pts.reduce((a, p) => a + p[1], 0) / n).toFixed(2)}`;
+    }));
+
+    // Straight first, where every corner is on the wire and the pentagons can
+    // be told apart by their centers.
+    const flat = run("penta");
+    assert.ok(flat.shapes.length > 500, `only ${flat.shapes.length} pentagons on the sun`);
+    // The pass draws each pentagon ONCE: the two tiles sharing one both propose
+    // it, and drawn twice a half-strength reading would come out at full.
+    assert.equal(centers(flat.shapes).size, flat.shapes.length,
+                 `${flat.shapes.length - centers(flat.shapes).size} drawn twice`);
+
+    for (const shape of ["penta", "innie", "outie"]) {
+        const r = run(shape);
+        // Nothing bowed is drawn while a tile's clip is in force: every
+        // pentagon comes after the last of them, in the pass, uncut.
+        assert.equal(r.curved, 0, `${shape}: ${r.curved} curves drawn under a clip`);
+        // The cycle bows the boundaries. It does not change which pentagons
+        // there are, or how many.
+        assert.equal(r.shapes.length, flat.shapes.length, `${shape}: a different count`);
+        if (shape !== "penta")
+            for (const s of r.shapes) assert.equal(s.curves, 5, "five bowed edges");
+    }
+});

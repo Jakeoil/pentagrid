@@ -2664,35 +2664,78 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         tc.closePath();
     }
 
-    function drawPentagons(
-        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    /**
+     * The pentagons, drawn ONCE over the whole patch instead of once per tile.
+     *
+     * Per tile was right while every pentagon boundary was straight. A pentagon
+     * straddling a tile edge is proposed identically by both tiles, each drew
+     * its half clipped to itself, and the halves met exactly on the edge.
+     * `outie` breaks that twice over. A boundary that bows OUTWARD reaches past
+     * the tile edge, sometimes into a third tile that never proposes that
+     * pentagon at all and so clips the overhang away; and where the neighbor
+     * does propose it, the neighbor's own ground is laid afterward and paints
+     * over the overhang that was already there. Jake: the outies bleed between
+     * tiles.
+     *
+     * So: every ground first, every pentagon after, each drawn once, unclipped.
+     * Deduplicated by center and reading, because the two tiles sharing a
+     * pentagon each propose it and a half-alpha reading drawn twice is no
+     * longer half. One thing comes free: the height ramp now shades a pentagon
+     * by where the pentagon is. Before, each half took its own tile's shade and
+     * a straddling pentagon came out in two tones.
+     */
+    function drawPentaPass(
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
     ) {
-        // The ground is the caller's, laid once for whichever pentagon
-        // dressings are on. With only the edges on there is none, which is the
-        // point of splitting the two: whatever is underneath stays visible.
         const { lo } = indexRange();
         const levels = dressingLevels();
         if (levels === null) return;                     // no indices to place it by
-        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
-        tc.globalAlpha = tileStyle.opacity * alpha;
-        const parts = rhombPentagons(rhomb, lo, levels, extAt);
-        const draw = (pts: [number, number][], style: string, kind: "Pe3" | "Pe1") => {
-            tracePentagon(tc, pts, kind, cx, cy);
+        interface Piece {
+            pts: [number, number][]; kind: "Pe3" | "Pe1"; alpha: number;
+            rhomb: Rhomb; sv: [number, number][];
+        }
+        const pieces = new Map<string, Piece>();
+        for (const rhomb of rhombs) {
+            const sv = rhomb.vertices.map(([vx, vy]) =>
+                mathToScreen(vx, vy, cx, cy)) as [number, number][];
+            for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+                const parts = rhombPentagons(rhomb, lo, levels, extAt);
+                const keep = (pts: [number, number][], kind: "Pe3" | "Pe1") => {
+                    let x = 0, y = 0;
+                    for (const [px, py] of pts) { x += px; y += py; }
+                    // Its center is its name, the same identity pentaKinds
+                    // uses. NOT the center and `extAt`: extAt is the tile's own
+                    // extreme corner, so the two tiles sharing a pentagon label
+                    // it differently and keying on it deduplicates nothing.
+                    // Where one tile reads a pentagon whole and another reads
+                    // it as one of two half-strength alternatives, the whole
+                    // reading wins: with one draw to give it, give it the
+                    // stronger.
+                    const key = centerKey(x / pts.length, y / pts.length);
+                    const had = pieces.get(key);
+                    if (!had || had.alpha < alpha)
+                        pieces.set(key, { pts, kind, alpha, rhomb, sv });
+                };
+                for (const o of parts.orange) keep(o, "Pe1");
+                if (parts.yellow) keep(parts.yellow, "Pe3");
+            }
+        }
+        tc.save();
+        tc.lineJoin = "round";
+        for (const piece of pieces.values()) {
+            tc.globalAlpha = tileStyle.opacity * piece.alpha;
+            tracePentagon(tc, piece.pts, piece.kind, cx, cy);
             if (tileStyle.pentaFace) {
-                tc.fillStyle = ramped(tc, rhomb, sv, style);
+                tc.fillStyle = ramped(tc, piece.rhomb, piece.sv, p1Fill(piece.kind));
                 tc.fill();
             }
             if (tileStyle.pentaEdge) {
                 tc.strokeStyle = PENTA_EDGE;
                 tc.lineWidth = tileStyle.boldEdges ? PENTA_EDGE_BOLD : PENTA_EDGE_W;
-                tc.lineJoin = "round";
                 tc.stroke();
             }
-        };
-        for (const o of parts.orange) draw(o, p1Fill("Pe1"), "Pe1");
-        if (parts.yellow) draw(parts.yellow, p1Fill("Pe3"), "Pe3");
         }
-        tc.globalAlpha = tileStyle.opacity;
+        tc.restore();
     }
 
     /**
@@ -2923,24 +2966,39 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (tileStyle.nextgen) { retrace(); drawNextGen(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.nextPenta) { retrace(); drawNextPenta(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.kites) { retrace(); drawKites(tc, rhomb, sv, cx, cy); }
-                if (tileStyle.pentaFace || tileStyle.pentaEdge) {
-                    retrace();
-                    drawPentagons(tc, rhomb, sv, cx, cy);
-                }
+                // penta is NOT here. It is a second pass over the whole
+                // patch, after every tile's ground is down — see drawPentaPass.
                 if (tileStyle.p1) { retrace(); drawP1(tc, rhomb, sv, cx, cy); }
                 tc.restore();
-                if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
-                if (tileStyle.faceEdges) {
-                    // The outline alone, from the tile layer, so a face can be
-                    // read with the edge layer off.
-                    tc.strokeStyle = tileStyle.boldEdges ? "#222" : "#777";
-                    tc.lineWidth = tileStyle.boldEdges ? 2 : 1;
-                    tc.stroke();
-                }
             } else {
                 tc.strokeStyle = dotted ? "#999" : (tileStyle.boldEdges ? "#222" : "#777");
                 tc.lineWidth = tileStyle.boldEdges && !dotted ? 2 : 1;
                 tc.stroke();
+            }
+        }
+        if (fill && (tileStyle.pentaFace || tileStyle.pentaEdge)) {
+            drawPentaPass(tc, rhombs, cx, cy);
+        }
+        // The outlines last, over everything. They used to be drawn with each
+        // tile, which was the same thing while the dressings were clipped to
+        // their own tile; the penta pass is not, so an outline drawn in the
+        // loop would go under the pentagons of the tiles that come after.
+        if (fill && (tileStyle.isogloss || tileStyle.faceEdges)) {
+            for (const rhomb of rhombs) {
+                const sv = rhomb.vertices.map(([vx, vy]) =>
+                    mathToScreen(vx, vy, cx, cy)) as [number, number][];
+                if (tileStyle.isogloss) drawIsogloss(tc, sv, rhomb.thick);
+                if (tileStyle.faceEdges) {
+                    // The outline alone, from the tile layer, so a face can be
+                    // read with the edge layer off.
+                    tc.beginPath();
+                    tc.moveTo(sv[0][0], sv[0][1]);
+                    for (let i = 1; i < 4; i++) tc.lineTo(sv[i][0], sv[i][1]);
+                    tc.closePath();
+                    tc.strokeStyle = tileStyle.boldEdges ? "#222" : "#777";
+                    tc.lineWidth = tileStyle.boldEdges ? 2 : 1;
+                    tc.stroke();
+                }
             }
         }
         if (dotted) tc.restore();
