@@ -9,6 +9,7 @@ import type { GridSegment } from "../geometry/pentagrid.js";
 import { scanRegions } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
 import { findClusters, CLUSTER_FILL, p1Pentagons as geoP1, P1_FILL, P1_STAR } from "../geometry/clusters.js";
+import { afterimage } from "./afterimage.js";
 import type { ClusterKind, P1Pentagon } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
@@ -174,6 +175,14 @@ export interface TileStyle {
      */
     p1: boolean;
     bigRhombs: boolean;
+    /**
+     * The P1 palette as its own AFTERIMAGE: the complement, pale, the way the
+     * colors look when you have stared at the pentagons and the faces go off.
+     * Computed rather than listed — see view/afterimage.ts — so it follows the
+     * palette if the palette ever moves. Jake's idea, and his three readings
+     * are what checked the formula.
+     */
+    afterimage: boolean;
     /**
      * Outline each face from the tile layer, so the edges can be seen with the
      * `edges` feature off. The edge layer carries the arrows, the arcs and the
@@ -687,6 +696,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      */
     const dressings = dressingReadings;
 
+    /**
+     * The P1 palette, or its afterimage.
+     *
+     * One switch over every dressing that uses these colors — penta, next-penta
+     * and P1 itself — since they are one palette and swapping half of it would
+     * be two tilings in two schemes. See view/afterimage.ts for the formula.
+     */
+    const p1Color = (hex: string) => (tileStyle.afterimage ? afterimage(hex) : hex);
+    const p1Fill = (kind: keyof typeof P1_FILL) => p1Color(P1_FILL[kind]);
+    const p1Ground = () => p1Color(P1_STAR);
+
     /** Whether any face dressing is on, and so wants the tiles layer drawn. */
     const dressed = () => tileStyle.pentaFace || tileStyle.pentaEdge || tileStyle.nextgen
         || tileStyle.kites || tileStyle.curves || tileStyle.p1 || tileStyle.nextPenta;
@@ -859,7 +879,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
         curves: false, pentaFace: false, pentaEdge: false,
         nextgen: false, kites: false, nextPenta: false,
-        p1: false, bigRhombs: false, faceEdges: false,
+        p1: false, bigRhombs: false, faceEdges: false, afterimage: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
     };
@@ -967,11 +987,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const NEXT_CELL = 1.5;
     interface NextPentaSet { list: NextPenta[]; cells: Map<string, NextPenta[]> }
     let nextPentaCache: NextPentaSet | null = null;
-    // Cleared with the rhombs, like the rest — but it also depends on a SWITCH,
-    // and setTileStyle does not clear anything, so off Penrose is in the key.
+    // Cleared with the rhombs, like the rest — but it also depends on SWITCHES,
+    // and setTileStyle clears nothing, so they are in the key. Both of them:
+    // the pentagons carry their own color, so the afterimage belongs here too,
+    // which a handler clearing the cache by hand would get right only when the
+    // handler is what changed it.
     let nextPentaKey = "";
     function nextPentas(): NextPentaSet {
-        const cacheKey = String(tileStyle.offPenrose);
+        const cacheKey = `${tileStyle.offPenrose}|${tileStyle.afterimage}`;
         if (nextPentaCache && cacheKey === nextPentaKey) return nextPentaCache;
         nextPentaKey = cacheKey;
         const n = model.n;
@@ -1021,8 +1044,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                             style, alpha,
                         });
                     };
-                    for (const o of parts.orange) add2(o, P1_FILL.Pe1);
-                    if (parts.yellow) add2(parts.yellow, P1_FILL.Pe3);
+                    for (const o of parts.orange) add2(o, p1Fill("Pe1"));
+                    if (parts.yellow) add2(parts.yellow, p1Fill("Pe3"));
                 }
             }
         }
@@ -2329,7 +2352,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function drawP1(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
-        tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+        tc.fillStyle = ramped(tc, rhomb, sv, p1Ground());
         tc.fill();
         const v0 = rhomb.vertices[0], v2 = rhomb.vertices[2];
         const mx = (v0[0] + v2[0]) / 2, my = (v0[1] + v2[1]) / 2;
@@ -2343,7 +2366,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
             });
             tc.closePath();
-            tc.fillStyle = ramped(tc, rhomb, sv, P1_FILL[pent.kind]);
+            tc.fillStyle = ramped(tc, rhomb, sv, p1Fill(pent.kind));
             tc.fill();
         }
     }
@@ -2450,8 +2473,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.stroke();
             }
         };
-        for (const o of parts.orange) draw(o, P1_FILL.Pe1);
-        if (parts.yellow) draw(parts.yellow, P1_FILL.Pe3);
+        for (const o of parts.orange) draw(o, p1Fill("Pe1"));
+        if (parts.yellow) draw(parts.yellow, p1Fill("Pe3"));
         }
         tc.globalAlpha = tileStyle.opacity;
     }
@@ -2674,7 +2697,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // in the order they should be READ.
                 if (tileStyle.pentaFace || tileStyle.nextPenta) {
                     retrace();
-                    tc.fillStyle = ramped(tc, rhomb, sv, P1_STAR);
+                    tc.fillStyle = ramped(tc, rhomb, sv, p1Ground());
                     tc.fill();
                 }
                 // Then coarse to fine, and penta LAST: Jake wants penta-edge
@@ -3452,6 +3475,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 dress("kites", "kites", "P2 on the rhombs: kites light, a dart in every thick.");
                 dress("curves", "curves", "The matching curves as filled regions, dark at "
                     + "the arrow corner.");
+                const after = checkbox(fRow, "afterimage", tileStyle.afterimage, (v) => {
+                    tileStyle.afterimage = v;
+                    draw();
+                });
+                after.title = "The P1 palette as its own afterimage: the complement, pale — "
+                    + "what the colors look like when you have stared at the pentagons and "
+                    + "the faces go off. Computed from the palette, not listed beside it.";
                 const fe = checkbox(fRow, "face edges", tileStyle.faceEdges, (v) => {
                     tileStyle.faceEdges = v;
                     draw();

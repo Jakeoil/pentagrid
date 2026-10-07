@@ -2457,3 +2457,44 @@ test("method's page is one column: the text above the instrument", () => {
     const src = readFileSync(new URL("../src/method.ts", import.meta.url), "utf8");
     assert.ok(!src.includes("fitStage"), "the ratio is CSS's now, not the page's");
 });
+
+test("the afterimage switch swaps the whole P1 palette at once", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    let fills = [];
+    layer.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    const run = (style) => {
+        h.setTileStyle(style);
+        fills = [];
+        h.redraw();
+        return new Set(fills);
+    };
+
+    const BLUE = "#0000ff", ORANGE = "#e46c0a", YELLOW = "#ffff00";
+    const PALE_YELLOW = "#ffd98d", PALE_BLUE = "#b6e6ff", PALE_PURPLE = "#ddd9ff";
+
+    const plain = run({ pentaFace: true, afterimage: false });
+    assert.ok(plain.has(BLUE) && plain.has(ORANGE) && plain.has(YELLOW));
+
+    const after = run({ pentaFace: true, afterimage: true });
+    for (const c of [BLUE, ORANGE, YELLOW]) {
+        assert.ok(!after.has(c), `${c} should be gone under the afterimage`);
+    }
+    assert.ok(after.has(PALE_YELLOW) && after.has(PALE_BLUE) && after.has(PALE_PURPLE),
+              `got ${[...after].join(" ")}`);
+
+    // One palette: next-penta takes it too, rather than half the page in each
+    // scheme — and its cache has to be cleared, since the pentagons carry it.
+    const next = run({ pentaFace: false, nextPenta: true, afterimage: true });
+    assert.ok(next.has(PALE_YELLOW) && next.has(PALE_BLUE) && next.has(PALE_PURPLE),
+              `next-penta should follow: ${[...next].join(" ")}`);
+    const nextPlain = run({ pentaFace: false, nextPenta: true, afterimage: false });
+    assert.ok(nextPlain.has(BLUE) && nextPlain.has(ORANGE) && nextPlain.has(YELLOW),
+              "and switch back");
+});

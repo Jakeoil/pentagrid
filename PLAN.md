@@ -645,6 +645,41 @@ figure laid on top. A test asserts the same thing in screen coordinates.
 The ribbons row folds away — five dropdowns and five line numbers is the widest
 row in the panel and it is set once.
 
+**The afterimage palette (2026-10-07).** Jake: an "after image" alternative for
+penta and the stars — dark blue to pale yellow, yellow to light purple, orange
+to light blue — "not the colors I said", find the formula. They are what he sees
+when he stares at the penta faces and turns the faces off.
+
+They are **negative afterimages**, and the physiology names the formula.
+Opponent-process adaptation: the cone-difference channels a patch has been
+driving one way relax the other way, so the afterimage is a reflection through
+the NEUTRAL AXIS of an opponent space, faded and washed out by the partial
+adaptation. Three decisions, and the first is the one that matters.
+
+1. **Oklab, not CIELAB.** Reflecting a and b is the opponent statement in
+   either, but CIELAB's hue lines bend badly through the blues — sRGB blue sits
+   at **306°** there, nearer purple than blue — so the reflection lands at 126°,
+   a yellow-green. Jake saw pale yellow. Oklab, built to keep hue straight
+   through exactly that region, puts blue at **264°** and the reflection at 84°:
+   yellow. That single change makes all three of his readings fall out of one
+   formula, and it is why an RGB inversion will not do either — invert #ffff00
+   and you get #0000ff, a saturated blue, where the eye gives blue-VIOLET.
+2. The chroma **fades** by a strength factor: adaptation is partial, so what
+   you see is a tint.
+3. The lightness is **fixed and pale**, because an afterimage is seen against
+   whatever you look at next and against a page they all read as pale tints —
+   which is what he described, rather than the dark violet a strict lightness
+   inversion gives for yellow.
+
+Measured: #0000ff → **#ffd98d**, #ffff00 → **#ddd9ff**, #e46c0a → **#b6e6ff**.
+Pale yellow, light purple, light blue — his three, in order.
+
+Out-of-gamut tints lose **chroma, not hue**: pulled in along the chroma axis
+rather than clipped per channel, which would swing the hue, and a complement
+that changes hue is not one. The switch covers every dressing that uses the
+palette — penta, next-penta, P1 — since they are one palette and swapping half
+of it would be two tilings in two schemes.
+
 **method and split share a sheet (2026-10-06).** Jake: commonality in the text
 fields, and maybe complete commonality in the controls — two columns — with a
 larger canvas on method, almost the width of split's two squares together.
