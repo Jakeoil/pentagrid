@@ -2556,11 +2556,11 @@ test("innie and outie bow every penta boundary, each pushing into the next", () 
     assert.equal(same, 0, `${same} arcs did not move when the cycle reversed`);
 });
 
-test("the bisectors switch trades circles for conics, edge for edge", () => {
+test("the boundary dropdown is one family: circles, bisectors, two bends", () => {
     // Jake: w = 1, build it, but add a checkbox — "I still love the circles very
-    // much". So the boundary is the same set of edges either way; what changes
-    // is whether each is the pentagon's circumscribed arc or the conic tangent
-    // to the blue bisector at both of its ends.
+    // much" — and then make it a dropdown with circles the default and two
+    // bends beside them. The edges are the same edges in all four; what changes
+    // is what each one IS.
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: false },
@@ -2570,23 +2570,24 @@ test("the bisectors switch trades circles for conics, edge for edge", () => {
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
 
     const layer = h.stack.get("penrose-tiles");
-    let arcs = 0, quads = 0;
+    let arcs = 0, quads = 0, lines = 0, pts = [];
     layer.ctx.arc = () => { arcs++; };
     layer.ctx.quadraticCurveTo = () => { quads++; };
+    layer.ctx.lineTo = (x, y) => { lines++; pts.push([x, y]); };
     const run = (style) => {
         h.setTileStyle(style);
-        arcs = 0; quads = 0;
+        arcs = 0; quads = 0; lines = 0; pts = [];
         h.redraw();
-        return { arcs, quads };
+        return { arcs, quads, lines, pts: [...pts] };
     };
 
-    const circles = run({ pentaShape: "innie", pentaBisect: false });
+    const circles = run({ pentaShape: "innie", pentaBoundary: "circle" });
     assert.ok(circles.arcs > 1000, `only ${circles.arcs} arcs`);
-    assert.equal(circles.quads, 0, "with the switch off every edge is a circle");
+    assert.equal(circles.quads, 0, "on circles every edge is an arc");
 
-    const conics = run({ pentaShape: "innie", pentaBisect: true });
+    const conics = run({ pentaShape: "innie", pentaBoundary: "bisector" });
     assert.ok(conics.quads > conics.arcs, "most edges should take the conic");
-    // Every edge still gets exactly one curve: the switch moves them between
+    // Every edge still gets exactly one curve: the dropdown moves them between
     // the two calls, it does not add or drop any.
     assert.equal(conics.arcs + conics.quads, circles.arcs,
                  `${conics.arcs} + ${conics.quads} against ${circles.arcs}`);
@@ -2597,9 +2598,98 @@ test("the bisectors switch trades circles for conics, edge for edge", () => {
     assert.ok(conics.arcs > 0, "some edges must fall back, and the probe says a third do");
 
     // outie trades the same edges — the cycle decides the side, not the form.
-    const other = run({ pentaShape: "outie", pentaBisect: true });
+    const other = run({ pentaShape: "outie", pentaBoundary: "bisector" });
     assert.equal(other.arcs, conics.arcs);
     assert.equal(other.quads, conics.quads);
+
+    // Neither bend draws a curve at all: every edge becomes two straight legs,
+    // and the angle is the only difference between the two of them.
+    const flat = run({ pentaShape: "penta" });
+    const pentagons = circles.arcs / 5;
+    assert.ok(Number.isInteger(pentagons), `${circles.arcs} arcs is not whole pentagons`);
+    for (const form of ["bend18", "bend36"]) {
+        const bend = run({ pentaShape: "innie", pentaBoundary: form });
+        assert.equal(bend.arcs, 0, `${form} should hold no curve`);
+        assert.equal(bend.quads, 0);
+        // Ten lineTo a pentagon — corner, apex, corner — against the straight
+        // tiling's four, which closePath finishes. Both counts also carry the
+        // tile outlines, three a tile, so the difference is what to measure.
+        assert.equal(bend.lines - flat.lines, pentagons * 6,
+                     `${form}: ${bend.lines - flat.lines} legs over ${pentagons} pentagons`);
+    }
+    // The shallow one is shallower everywhere: tan 18° against tan 36°, on the
+    // same chords, so every apex is nearer its edge and none of them moved.
+    const shallow = run({ pentaShape: "innie", pentaBoundary: "bend18" });
+    const deep = run({ pentaShape: "innie", pentaBoundary: "bend36" });
+    assert.equal(shallow.pts.length, deep.pts.length);
+    let moved = 0;
+    for (let i = 0; i < shallow.pts.length; i++) {
+        const [sx, sy] = shallow.pts[i], [dx, dy] = deep.pts[i];
+        if (Math.hypot(sx - dx, sy - dy) > 1e-9) moved++;
+    }
+    // Half the points are corners, shared; half are apexes, and every one of
+    // those is further out at 36°.
+    assert.ok(moved > 0, "the two bends drew the same figure");
+    assert.ok(moved < shallow.pts.length,
+              "the corners should not move when only the angle does");
+});
+
+test("a bend's legs lean 36 or 18 degrees off the chord, the arc's tangents", () => {
+    // The tangent-chord angle on a 72° arc is half of it. So a 36° apex sits
+    // tan 36° of the half chord off the middle — the crossing of the arc's two
+    // tangents, which is where a Bézier control point would go. 18° is the same
+    // reading of half the arc.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { pentaFace: true, pentaShape: "innie", pentaBoundary: "bend36" },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    let log = [];
+    layer.ctx.clip = () => { log.push({ t: "clip" }); };
+    layer.ctx.moveTo = (x, y) => { log.push({ t: "moveTo", x, y }); };
+    layer.ctx.lineTo = (x, y) => { log.push({ t: "lineTo", x, y }); };
+    for (const [form, ang] of [["bend36", Math.PI / 5], ["bend18", Math.PI / 10]]) {
+        h.setTileStyle({ pentaBoundary: form });
+        log = [];
+        h.redraw();
+
+        // The pentagons are the one pass after the last tile clip; a bent one is
+        // ten lineTo off its moveTo, apex and corner alternating.
+        const last = log.map((e) => e.t).lastIndexOf("clip");
+        const shapes = [];
+        for (const e of log.slice(last + 1)) {
+            if (e.t === "moveTo") shapes.push([[e.x, e.y]]);
+            else if (shapes.length) shapes[shapes.length - 1].push([e.x, e.y]);
+        }
+        const bent = shapes.filter((s) => s.length === 11);
+        assert.ok(bent.length > 500, `only ${bent.length} bent pentagons`);
+
+        let inward = 0;
+        for (const s of bent) {
+            let cx = 0, cy = 0;                     // the center, from the corners
+            for (let i = 0; i < 10; i += 2) { cx += s[i][0] / 5; cy += s[i][1] / 5; }
+            for (let i = 0; i < 10; i += 2) {
+                const a = s[i], apex = s[i + 1], b = s[(i + 2) % 10];
+                const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+                const half = Math.hypot(b[0] - a[0], b[1] - a[1]) / 2;
+                const rise = Math.hypot(apex[0] - mx, apex[1] - my);
+                // Over the middle of the chord, at its tangent of the half.
+                assert.ok(Math.abs(rise - half * Math.tan(ang)) < 1e-6 * half + 1e-6,
+                          `${form}: a rise of ${rise.toFixed(3)} on a half chord `
+                          + `of ${half.toFixed(3)}`);
+                const dot = (apex[0] - mx) * (mx - cx) + (apex[1] - my) * (my - cy);
+                if (dot < 0) inward++;
+            }
+        }
+        // Both ways are used: the cycle bends some edges in and some out, and a
+        // boundary that went one way everywhere would mean the cycle was dropped.
+        assert.ok(inward > 0 && inward < bent.length * 5,
+                  `${form}: ${inward} of ${bent.length * 5} legs bend inward`);
+    }
 });
 
 test("the pentagons are one unclipped pass over the patch, not one per tile", () => {

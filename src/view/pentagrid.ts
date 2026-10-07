@@ -177,23 +177,33 @@ export interface TileStyle {
      */
     pentaShape: "penta" | "innie" | "outie";
     /**
-     * Take the innie/outie boundary as a CONIC through the two corners,
-     * tangent to the bisector of the blue wedge it bounds at each end, rather
-     * than as the pentagon's own circumscribed arc.
+     * What an innie/outie boundary IS: three readings of one edge, with the
+     * cycle still deciding which side it leans to.
      *
-     * The point of it is that the curves then continue through a corner
-     * instead of meeting it: neighbors arriving at a vertex leave along the
-     * same line. Drawn at weight 1, which is the parabola and a single
-     * quadraticCurveTo. Off by default — Jake: "I still love the circles very
-     * much" — and the circles are what a weight of cos θ would give anyway, so
-     * this switch is a move along one family rather than a different idea.
+     * `circle` — the pentagon's own circumscribed arc, 72° of radius PENTA_R,
+     * about its own center (bulging out) or about the mirror of that center
+     * across the edge, which is the neighbor's center (bulging in). The
+     * default. Jake: "I still love the circles very much."
      *
-     * Measured over a patch, the bisectors want 18° at an edge bounding a 36°
-     * star spike and 54° at one bounding a 108° blue corner, and the two ends
-     * of an edge disagree about half the time — which is why a circle cannot
-     * do it, and why this exists.
+     * `bisector` — a conic through the two corners, tangent at each end to the
+     * bisector of the blue wedge the edge bounds. The curves then continue
+     * THROUGH a corner instead of meeting it: neighbors arriving at a vertex
+     * leave along the same line. Weight 1, the parabola, a single
+     * quadraticCurveTo. Measured over a patch the bisectors want 18° at an
+     * edge bounding a 36° star spike and 54° at one bounding a 108° blue
+     * corner, and the two ends of an edge disagree about half the time — which
+     * is why a circle cannot do it, and why this exists.
+     *
+     * `bend36`, `bend18` — no curve at all: the edge breaks at its middle into
+     * two straight legs, that many degrees off the chord, in or out as the
+     * cycle says. 36° is not a third idea. A 72° chord meets its own circle at
+     * 36° — the tangent-chord angle is half the arc — so those legs lie along
+     * the arc's tangents and their crossing IS the arc's control point:
+     * `bend36` is `circle`'s control polygon, the same rational quadratic at
+     * infinite weight where `circle` is cos 36° and `bisector` is 1. 18° is
+     * then the same reading of HALF the arc, and the shallow one.
      */
-    pentaBisect: boolean;
+    pentaBoundary: "circle" | "bisector" | "bend18" | "bend36";
     nextgen: boolean;
     kites: boolean;
     /**
@@ -914,7 +924,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
         curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
-        pentaBisect: false,
+        pentaBoundary: "circle",
         nextgen: false, kites: false, nextPenta: false,
         p1: false, bigRhombs: false, faceEdges: false, afterimage: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
@@ -2609,6 +2619,40 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return true;
     }
 
+    /** The two bends, by the angle their legs make with the chord. */
+    const BEND: Record<string, number> = {
+        bend36: Math.PI / 5,                    // 36°, the 72° arc's tangent
+        bend18: Math.PI / 10,                   // 18°, half of it: the shallow one
+    };
+    /**
+     * One edge as a BEND: two straight legs meeting over the middle of the
+     * chord, each `ang` off it.
+     *
+     * At 36° this is the circle without the curve. A 72° chord meets its
+     * circle at 36° — the tangent-chord angle is half the arc — so the legs
+     * are the arc's own tangents at the two corners and their crossing is
+     * where a Bézier control point would go, at tan 36° of the half chord off
+     * the middle. 18° is the same thing read off half the arc. `outward` is
+     * read exactly as the arc reads it: away from the pentagon's own center,
+     * or toward it.
+     *
+     * Screen space throughout, since nothing here needs the math plane and the
+     * two differ by a similarity.
+     */
+    function bendEdge(
+        tc: CanvasRenderingContext2D, a: [number, number], b: [number, number],
+        sc: [number, number], outward: boolean, ang: number,
+    ) {
+        const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+        const ex = b[0] - a[0], ey = b[1] - a[1];
+        const len = Math.hypot(ex, ey) || 1;
+        const nx = -ey / len, ny = ex / len;    // the chord's normal
+        const away = nx * (mx - sc[0]) + ny * (my - sc[1]) >= 0 ? 1 : -1;
+        const h = (len / 2) * Math.tan(ang) * (outward ? away : -away);
+        tc.lineTo(mx + nx * h, my + ny * h);
+        tc.lineTo(b[0], b[1]);
+    }
+
     /**
      * Trace one pentagon: straight, or with each edge bowed into its arc.
      *
@@ -2650,8 +2694,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const across = kinds.get(centerKey(M[0], M[1])) ?? "blue";
             const outward = (across === pushesInto) === (shape === "innie");
             const next = screen[(i + 1) % pts.length];
-            if (tileStyle.pentaBisect
+            const form = tileStyle.pentaBoundary;
+            // bisector falls back to the circle where the wedges cannot be
+            // had — see bisectEdge — so the circle is both a choice and the
+            // floor under the other two.
+            if (form === "bisector"
                 && bisectEdge(tc, a, b, C, outward, cx, cy, next)) continue;
+            if (form in BEND) {
+                bendEdge(tc, screen[i], next, mathToScreen(C[0], C[1], cx, cy),
+                         outward, BEND[form]);
+                continue;
+            }
             const at = outward ? C : M;
             const [sx2, sy2] = mathToScreen(at[0], at[1], cx, cy);
             const [ax, ay] = screen[i], [bx, by] = next;
@@ -3759,15 +3812,34 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     draw();
                 });
                 fRow.appendChild(shape);
-                const bis = checkbox(fRow, "bisectors", tileStyle.pentaBisect, (v) => {
-                    tileStyle.pentaBisect = v;
+                // And what the boundary IS, which is the same three-way choice
+                // along one family: circles at weight cos 36°, bisectors at 1,
+                // bend at the limit where the curve is its control polygon.
+                const bound = document.createElement("select");
+                bound.className = "line-pick";
+                bound.style.width = "78px";
+                bound.title = "What an innie or outie boundary is. circles: the pentagon's "
+                    + "own 72° arc. bisectors: a conic tangent to the bisector of the blue "
+                    + "wedge at each end, so the curves continue THROUGH a corner rather "
+                    + "than meeting it — weight 1, the parabola. bend 36: no curve, two "
+                    + "straight legs 36° off the chord, which are the arc's own tangents "
+                    + "and so the same family at the far end of it. bend 18: the shallow "
+                    + "one, the same reading of half the arc.";
+                for (const [value, text] of [["circle", "circles"],
+                                             ["bisector", "bisectors"],
+                                             ["bend18", "bend 18"],
+                                             ["bend36", "bend 36"]] as const) {
+                    const o = document.createElement("option");
+                    o.value = value;
+                    o.textContent = text;
+                    bound.appendChild(o);
+                }
+                bound.value = tileStyle.pentaBoundary;
+                bound.addEventListener("change", () => {
+                    tileStyle.pentaBoundary = bound.value as TileStyle["pentaBoundary"];
                     draw();
                 });
-                bis.title = "Take innie and outie's boundaries as conics tangent to the "
-                    + "bisector of the blue wedge at each end, instead of the pentagon's "
-                    + "own circumscribed arc — so the curves continue THROUGH a corner "
-                    + "rather than meeting it. Weight 1, which is the parabola. Off leaves "
-                    + "the circles, which are the same family at weight cos θ.";
+                fRow.appendChild(bound);
                 dress("pentaFace", "penta-face", "The P1 pentagons at the scale where every "
                     + "thick rhomb holds one whole — the big rhombs — filled: blue ground, "
                     + "orange Pe1, yellow Pe3. The dropdown beside this says which of the "
