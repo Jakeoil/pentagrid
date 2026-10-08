@@ -3066,3 +3066,65 @@ test("the circles' overlaps are painted blue, and only the circles have any", ()
     assert.equal(run({ pentaFace: false, pentaEdge: true }).lens, 0,
                  "no face, nothing painted twice, no lens");
 });
+
+test("the ammann switch sits before curves, and draws red bars over the faces", () => {
+    // Jake: Ammann bars in classic red, before curves. They can be put on all
+    // LI rhombs. The geometry and the four facts behind it are tested in
+    // tools/ammann.test.mjs; this is the switch, the color and the height.
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        panel,
+        features: { penroseTiles: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    // In the penrose face row's misc group, immediately before curves.
+    const row = panelSwitches(panel).filter((s) => s.row === "penrose face").map((s) => s.label);
+    assert.deepEqual(row, ["edge", "face", "edge", "face", "ammann", "curves",
+                           "face edges", "off Penrose"],
+                     `the row reads ${row.join(" ")}`);
+
+    const layer = h.stack.get("penrose-tiles");
+    const log = [];
+    layer.ctx.fill = function () { log.push({ t: "fill", style: String(this.fillStyle) }); };
+    layer.ctx.stroke = function () { log.push({ t: "stroke", style: String(this.strokeStyle) }); };
+    layer.ctx.lineTo = () => { log.push({ t: "line" }); };
+    const run = (style) => {
+        h.setTileStyle({ ammann: false, kitesEdge: false, nextgenEdge: false,
+                         p1Face: false, kitesFace: false, ...style });
+        log.length = 0;
+        h.redraw();
+        const at = (p) => log.map((e, i) => [e, i]).filter(([e]) => p(e)).map(([, i]) => i);
+        return {
+            red: at((e) => e.t === "stroke" && e.style === "#d40000"),
+            gen: at((e) => e.t === "stroke" && e.style === "#777"),
+            p2: at((e) => e.t === "stroke" && e.style === "#556"),
+            faces: at((e) => e.t === "fill" && ["#0000ff", "#ffff00", "#e46c0a"].includes(e.style)),
+            lines: log.filter((e) => e.t === "line").length,
+            on: layer.visible(),
+        };
+    };
+
+    // Off by default, and either way the layer only lights up for a reason.
+    assert.equal(run({}).red.length, 0, "nothing red with the switch off");
+    assert.equal(run({}).on, false, "and nothing to draw at all");
+
+    const bars = run({ ammann: true });
+    assert.ok(bars.on, "the bars raise the layer, as the dressings do");
+    assert.ok(bars.red.length > 100, `only ${bars.red.length} red strokes`);
+    // Five chords a tile, drawn as one path: two lineTo-free moveTos each, so
+    // the line count is five a tile and the stroke count one.
+    assert.ok(bars.lines > bars.red.length * 4,
+              `${bars.lines} legs for ${bars.red.length} strokes`);
+
+    // Over the faces, and under the other outline sets, being the coarsest.
+    const all = run({ ammann: true, p1Face: true, kitesFace: true,
+                      kitesEdge: true, nextgenEdge: true });
+    assert.ok(Math.max(...all.faces) < Math.min(...all.red),
+              "a bar must go over every face");
+    assert.ok(Math.max(...all.red) < Math.min(...all.gen),
+              "and under next-rhomb's edges");
+    assert.ok(Math.max(...all.red) < Math.min(...all.p2), "and under kites'");
+});

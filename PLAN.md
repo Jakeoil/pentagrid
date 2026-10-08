@@ -81,8 +81,11 @@ overloading one page. There is no explorations index; the nav is it.
 
 Nothing here blocks anything. Ordered by how likely they are to be wanted.
 
-1. **Ammann bars, as first-class citizens.** Asked for 2026-10-08; the whole
-   plan, with what has already been measured, is §7. Nothing built yet.
+1. **Ammann bars, as first-class citizens.** Asked for 2026-10-08; the plan and
+   the measurements are §7. Steps 1 and 2 are built — `geometry/ammann.ts`, the
+   `ammann` switch in classic red, six tests in `tools/ammann.test.mjs`. What
+   is left is §7.4 (`ammannLines`, and what cⱼ is in terms of γⱼ), §7.5 (the
+   reticulum switch, bars → tiling) and §7.6 (the hover and the readout).
 2. **The band's route as a control.** §5.0: one family's ribbon crosses the
    other k−1 once each, and every one of the (k−1)! orders occurs — 24 for the
    decagon. Stepping one colored band through its routes is coarser than
@@ -3302,17 +3305,21 @@ bars they would have carried leave 41 gaps of L − S = 0.691. Off Penrose
 (Σγ = 1.1) only three tiles are undressed and only three gaps are wrong, so the
 bars nearly survive there too.
 
-The probe is `$CLAUDE_JOB_DIR` scratch as of writing; step 7.2 lands it.
+All six of these are assertions in `tools/ammann.test.mjs` as of 2026-10-08.
 
-### 7.2 The geometry
+### 7.2 The geometry — BUILT 2026-10-08
 
-`src/geometry/ammann.ts`, DOM-free, tested:
+`src/geometry/ammann.ts`, DOM-free, tested. The signature came out with the
+pentagrid in it, because the family of a chord is read off the directions
+rather than from a table of which chord is which:
 
 ```ts
 export interface AmmannChord { a: Vec2; b: Vec2; family: number }
 export function rhombAmmann(
-    r: Rhomb, lo: number, levels?: number, extAt?: 0 | 2,
+    pg: Pentagrid, r: Rhomb, lo: number, levels?: number, extAt?: 0 | 2,
 ): AmmannChord[];
+export function ammannOffset(pg: Pentagrid, c: AmmannChord): number;
+export const AMMANN_SHORT, AMMANN_LONG, AMMANN_POINTS;
 ```
 
 The same signature as every other per-tile dressing, so it drops into
@@ -3324,20 +3331,20 @@ Tests, all four of §7.1 as assertions: zero skew; the chord count per line over
 a patch; the two gap values and their ratio; the LS word against the Fibonacci
 word. Plus the LI sweep over four gammas, and the star as the known exception.
 
-### 7.3 The layer, the switch, the red
+### 7.3 The layer, the switch, the red — BUILT 2026-10-08
 
 A per-tile dressing like the others, in `pentagrid.ts`:
 
 - `tileStyle.ammann: boolean`, in the **penrose face** row's `misc` group,
   **before** `curves` as Jake asked.
-- Classic red. `#c00` on its own, or the mosaic's plain `"red"`; to be settled
-  by eye against the existing palette, and it is the one decoration whose color
-  is named rather than derived.
+- Classic red: `#d40000`, a shade off the mosaic's flat `red` so it does not
+  shout over a pale tiling. The one decoration whose color is named rather than
+  derived. Say the word and it moves.
 - Drawn with the OUTLINE sets, after every face — the bars are lines and the
-  whole point is reading them over a coloring. Within that group they go
-  first, under next-rhomb and kites, since they are the coarsest figure.
-  (If "before curves" meant the draw order rather than the panel order, this is
-  the line to change.)
+  whole point is reading them over a coloring. First within that group, under
+  the group P1, next-rhomb and kites, since they are the coarsest figure: the
+  spacing is wider than the tile. Jake confirmed "before curves" meant the
+  panel position, which is what this is.
 - No afterimage: red is red.
 
 ### 7.4 The bars as their own object, not a decoration
@@ -3408,9 +3415,8 @@ choices.
 
 ### 7.7 Order of work
 
-1. §7.2, the geometry and its four tests. Self-contained, and it is where the
-   measured facts become assertions.
-2. §7.3, the switch and the red. First thing Jake can look at.
+1. ~~§7.2, the geometry and its four tests.~~ Done 2026-10-08, six tests.
+2. ~~§7.3, the switch and the red.~~ Done 2026-10-08.
 3. §7.4, `ammannLines` — fit cⱼ first, then try to derive it, and keep the
    two-route test either way.
 4. §7.5, the dual, and the proof test.

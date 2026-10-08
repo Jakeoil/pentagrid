@@ -17,6 +17,7 @@ import { regionPoly as geoRegionPoly } from "../geometry/region.js";
 import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
+import { rhombAmmann } from "../geometry/ammann.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
@@ -71,6 +72,9 @@ const PENTA_EDGE = "rgba(38, 28, 18, 0.85)";
 // The group P1's own outline, a scale up from penta's and darker toward its
 // blue, so the two can be read at once without being mistaken for each other.
 const P1_EDGE = "rgba(18, 22, 52, 0.85)";
+// Ammann's own red, the one the literature and penrose-mosaic both use. The one
+// decoration whose color is named rather than derived.
+const AMMANN_RED = "#d40000";
 const PENTA_EDGE_W = 2.2;
 const PENTA_EDGE_BOLD = 3.6;
 
@@ -222,6 +226,16 @@ export interface TileStyle {
     /** P2 on the rhombs, a dart in every thick, split the same way. */
     kitesFace: boolean;
     kitesEdge: boolean;
+    /**
+     * Ammann bars: five families of lines parallel to the gridlines, spaced in
+     * Conway's musical sequence — the Fibonacci word, with gaps √5/2 and φ√5/2.
+     *
+     * Lines only, so there is no face half. Geometry and the four measurements
+     * behind it in `geometry/ammann.ts`; the short of it is that each tile
+     * carries five chords, one per family, oriented by the index extreme
+     * corner, and that they assemble into straight bars on every LI class.
+     */
+    ammann: boolean;
     /**
      * `penta` one generation down: the P1 pentagons of the DEFLATED tiling,
      * which is `penta` at 1/φ and a third scale of the same decoration. The
@@ -794,7 +808,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** Whether any face dressing is on, and so wants the tiles layer drawn. */
     const dressed = () => tileStyle.pentaFace || tileStyle.pentaEdge
         || tileStyle.nextgenFace || tileStyle.nextgenEdge
-        || tileStyle.kitesFace || tileStyle.kitesEdge
+        || tileStyle.kitesFace || tileStyle.kitesEdge || tileStyle.ammann
         || tileStyle.curves || tileStyle.p1Face || tileStyle.p1Grid
         || tileStyle.nextPenta;
 
@@ -967,7 +981,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
         pentaBoundary: "circle",
         nextgenFace: false, nextgenEdge: false,
-        kitesFace: false, kitesEdge: false, nextPenta: false,
+        kitesFace: false, kitesEdge: false, ammann: false, nextPenta: false,
         p1Shape: "pentaplex", p1Face: false, p1Grid: false,
         bigRhombsFace: false, bigRhombsGrid: false,
         faceEdges: false, afterimage: false,
@@ -3195,6 +3209,36 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         tc.globalAlpha = tileStyle.opacity;
     }
 
+    /**
+     * The Ammann bars crossing one tile: five chords, one per gridline family,
+     * chained end to end — consecutive chords of different families meet on an
+     * edge, which is why one path draws them all.
+     *
+     * An outline set like the others, and the coarsest of them: the bars are
+     * spaced √5/2 and φ√5/2 apart, wider than the tile they cross.
+     */
+    function drawAmmann(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, cx: number, cy: number,
+    ) {
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;
+        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+            tc.globalAlpha = tileStyle.opacity * alpha;
+            tc.strokeStyle = AMMANN_RED;
+            tc.lineWidth = tileStyle.boldEdges ? 2 : 1.2;
+            tc.beginPath();
+            for (const c of rhombAmmann(model, rhomb, lo, levels, extAt)) {
+                const [ax, ay] = mathToScreen(c.a[0], c.a[1], cx, cy);
+                const [bx, by] = mathToScreen(c.b[0], c.b[1], cx, cy);
+                tc.moveTo(ax, ay);
+                tc.lineTo(bx, by);
+            }
+            tc.stroke();
+        }
+        tc.globalAlpha = tileStyle.opacity;
+    }
+
     /** P2's edge set alone, on the same terms as drawNextGenEdge. */
     function drawKitesEdge(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, cx: number, cy: number,
@@ -3365,6 +3409,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     drawLensPass(tc, pieces, cx, cy);
                 }
                 pentaPass = { pieces, cx, cy };
+            }
+            if (tileStyle.ammann || tileStyle.nextgenEdge || tileStyle.kitesEdge) {
+                // Coarsest first: the bars are spaced wider than a tile, the
+                // group P1 is radius 1, and P2 and the deflation are the tile's
+                // own scale.
+                for (const rhomb of rhombs) {
+                    if (tileStyle.ammann) drawAmmann(tc, rhomb, cx, cy);
+                }
             }
             if (tileStyle.p1Grid) drawP1Pass(tc, rhombs, cx, cy, "edge");
             if (tileStyle.nextgenEdge || tileStyle.kitesEdge) {
@@ -4131,7 +4183,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 const dress = (
                     parent: HTMLElement,
                     key: "pentaFace" | "pentaEdge" | "nextgenFace" | "nextgenEdge"
-                        | "nextPenta" | "kitesFace" | "kitesEdge" | "curves",
+                        | "nextPenta" | "kitesFace" | "kitesEdge" | "ammann"
+                        | "curves",
                     label: string, title: string,
                 ) => {
                     const cb = checkbox(parent, label, tileStyle[key], (v) => {
@@ -4234,6 +4287,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 dress(fRow, "kitesFace", "face", "P2 on the rhombs, filled: kites light, a "
                     + "dart in every thick.");
                 group(fRow, "misc");
+                dress(fRow, "ammann", "ammann", "Ammann bars: five families of lines parallel "
+                    + "to the gridlines, spaced in Conway's musical sequence — the Fibonacci "
+                    + "word, gaps of √5/2 and φ√5/2. Five chords a tile, one per family, and "
+                    + "they come out straight exactly when the tiling is Penrose. Every LI "
+                    + "class carries them; a superposed 2k-gon tile carries none.");
                 dress(fRow, "curves", "curves", "The matching curves as filled regions, dark "
                     + "at the arrow corner.");
                 const fe = checkbox(fRow, "face edges", tileStyle.faceEdges, (v) => {
