@@ -432,6 +432,15 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     color: #888;
     min-width: 62px;
 }
+/* A name for the pair of switches after it, inside a row: "next-rhomb edge,
+   face | kites edge, face". Without it the row carries two switches called
+   edge and nothing says which is which. */
+.panel-group {
+    font-size: 12px;
+    color: #aaa;
+    margin-left: 4px;
+}
+.panel-group::after { content: ":"; }
 .settings {
     margin-top: 6px;
     font-size: 12px;

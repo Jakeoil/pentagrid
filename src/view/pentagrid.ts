@@ -3541,8 +3541,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * the Penrose rows — the P side of the G/P split — go there instead.
      */
     const P_ROWS = new Set([
-        "Penrose", "Penrose hover", "system", "face shade", "penrose face", "for groups",
-        "edge style", "vertex style", "ribbons", "singularities",
+        "Penrose", "Penrose hover", "system", "face shade", "pentaplex", "penrose face",
+        "for groups", "edge style", "vertex style", "ribbons", "singularities",
     ]);
     function panelFor(title: string): HTMLElement {
         return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
@@ -3564,9 +3564,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         { title: "grid", rows: ["Pentagrid", "Hover", "style"] },
         {
             title: "Penrose",
-            rows: ["Penrose", "Penrose hover", "system", "face shade", "penrose face",
-                   "for groups", "edge style", "vertex style", "ribbons",
-                   "singularities"],
+            rows: ["Penrose", "Penrose hover", "system", "face shade", "pentaplex",
+                   "penrose face", "for groups", "edge style", "vertex style",
+                   "ribbons", "singularities"],
         },
     ];
     const sectionEls: { el: HTMLElement; rows: HTMLElement[] }[] = [];
@@ -3970,18 +3970,35 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 (v) => { tileStyle.opacity = v; draw(); });
 
             // The dressings, each over the system rather than instead of it.
+            //
+            // Two rows, since penta has grown two dropdowns of its own: the
+            // pentaplex line is that one decoration end to end — which P1,
+            // what its boundary is, and how much of it to draw — and the
+            // penrose face line is every other dressing, in pairs.
             if (model.n === 5) {
+                const pRow = row(panelFor("pentaplex"), "pentaplex");
                 const fRow = row(panelFor("penrose face"), "penrose face");
                 const dress = (
+                    parent: HTMLElement,
                     key: "pentaFace" | "pentaEdge" | "nextgenFace" | "nextgenEdge"
                         | "nextPenta" | "kitesFace" | "kitesEdge" | "curves",
                     label: string, title: string,
                 ) => {
-                    const cb = checkbox(fRow, label, tileStyle[key], (v) => {
+                    const cb = checkbox(parent, label, tileStyle[key], (v) => {
                         tileStyle[key] = v;
                         draw();
                     });
                     cb.title = title;
+                };
+                /**
+                 * A name for the pair that follows it, so two checkboxes can
+                 * both be called "edge" in one row and still be read.
+                 */
+                const group = (parent: HTMLElement, text: string) => {
+                    const el = document.createElement("span");
+                    el.className = "panel-group";
+                    el.textContent = text;
+                    parent.appendChild(el);
                 };
                 // Three colorings, one set of pentagons: what changes is the
                 // boundary between the colors. The face and edge switches are
@@ -4006,7 +4023,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tileStyle.pentaShape = shape.value as TileStyle["pentaShape"];
                     draw();
                 });
-                fRow.appendChild(shape);
+                pRow.appendChild(shape);
                 // And what the boundary IS, which is the same three-way choice
                 // along one family: circles at weight cos 36°, bisectors at 1,
                 // bend at the limit where the curve is its control polygon.
@@ -4034,36 +4051,41 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tileStyle.pentaBoundary = bound.value as TileStyle["pentaBoundary"];
                     draw();
                 });
-                fRow.appendChild(bound);
-                dress("pentaFace", "penta-face", "The P1 pentagons at the scale where every "
-                    + "thick rhomb holds one whole — the big rhombs — filled: blue ground, "
-                    + "orange Pe1, yellow Pe3. The dropdown beside this says which of the "
-                    + "three colorings.");
-                dress("pentaEdge", "penta-edge", "The same pentagons as OUTLINES and nothing "
-                    + "else, so they can be laid over next-gen and the deflation still seen "
-                    + "through them. With penta-face as well, filled and outlined.");
-                dress("nextgenFace", "next-gen-face", "The deflation filled: thick gold and "
-                    + "thin gray at 1/φ. With next-gen-edge as well and the face edges off, "
-                    + "the tile IS the next generation.");
-                dress("nextgenEdge", "next-gen-edge", "The next generation's edges and "
-                    + "nothing else, drawn over every face — so the deflation can be read "
-                    + "through whatever is coloring the tiles.");
-                dress("nextPenta", "next-penta", "penta one generation down: the P1 pentagons "
+                pRow.appendChild(bound);
+                // Outline before face, the way they are read: the edge is the
+                // figure and the face is how much of it is filled in.
+                dress(pRow, "pentaEdge", "edge", "The P1 pentagons at the big-rhomb scale as "
+                    + "OUTLINES and nothing else, so they can be laid over next-rhomb and "
+                    + "the deflation still seen through them.");
+                dress(pRow, "pentaFace", "face", "The same pentagons filled: blue ground, "
+                    + "orange Pe1, yellow Pe3. With edge as well, filled and outlined.");
+                dress(pRow, "nextPenta", "next", "penta one generation down: the P1 pentagons "
                     + "of the deflated tiling, at 1/φ. The next generation's own rhomb edges "
                     + "are not drawn.");
-                dress("kitesFace", "kites-face", "P2 on the rhombs, filled: kites light, a "
-                    + "dart in every thick.");
-                dress("kitesEdge", "kites-edge", "P2's edges and nothing else, over every "
-                    + "face — the kite and dart boundaries read through the coloring.");
-                dress("curves", "curves", "The matching curves as filled regions, dark at "
-                    + "the arrow corner.");
-                const after = checkbox(fRow, "afterimage", tileStyle.afterimage, (v) => {
+                const after = checkbox(pRow, "afterimage", tileStyle.afterimage, (v) => {
                     tileStyle.afterimage = v;
                     draw();
                 });
                 after.title = "The P1 palette as its own afterimage: the complement, pale — "
                     + "what the colors look like when you have stared at the pentagons and "
                     + "the faces go off. Computed from the palette, not listed beside it.";
+
+                // And the rest, each a pair: the outline and the fill.
+                group(fRow, "next-rhomb");
+                dress(fRow, "nextgenEdge", "edge", "The next generation's edges and nothing "
+                    + "else, drawn over every face — so the deflation can be read through "
+                    + "whatever is coloring the tiles.");
+                dress(fRow, "nextgenFace", "face", "The deflation filled: thick gold and "
+                    + "thin gray at 1/φ. With edge as well and the face edges off, the tile "
+                    + "IS the next generation.");
+                group(fRow, "kites");
+                dress(fRow, "kitesEdge", "edge", "P2's edges and nothing else, over every "
+                    + "face — the kite and dart boundaries read through the coloring.");
+                dress(fRow, "kitesFace", "face", "P2 on the rhombs, filled: kites light, a "
+                    + "dart in every thick.");
+                group(fRow, "misc");
+                dress(fRow, "curves", "curves", "The matching curves as filled regions, dark "
+                    + "at the arrow corner.");
                 const fe = checkbox(fRow, "face edges", tileStyle.faceEdges, (v) => {
                     tileStyle.faceEdges = v;
                     draw();

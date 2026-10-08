@@ -1488,7 +1488,8 @@ test("split: the Penrose group draws in the second container, the axes in both, 
     // the panel: G rows left, P rows right
     const gRows = [...panelRows(gPanel).keys()], pRows = [...panelRows(pPanel).keys()];
     for (const r of ["Pentagrid", "Hover", "style"]) assert.ok(gRows.includes(r), `${r} should be on the G side`);
-    for (const r of ["Penrose", "Penrose hover", "system", "penrose face", "edge style"]) {
+    for (const r of ["Penrose", "Penrose hover", "system", "pentaplex", "penrose face",
+                     "edge style"]) {
         assert.ok(pRows.includes(r), `${r} should be on the P side`);
     }
     for (const r of pRows) assert.ok(!gRows.includes(r), `${r} is on both sides`);
@@ -1669,6 +1670,7 @@ test("the multigrid: createPentagrid at n = 8 builds, the reticulum has sixteen 
     assert.deepEqual(sel.children.map((o) => o.value), ["type", "pair", "bands"]);
     const rows = panelRows(panel);
     assert.ok(!rows.get("edge style").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
+    assert.ok(!rows.has("pentaplex"), "no penta off the pentagrid");
     assert.ok(!rows.has("penrose face"), "no index-placed dressings off the pentagrid");
     assert.ok(!rows.has("for groups"), "and no rhomb groups to place them on");
     assert.equal(rows.get("ribbons").length, 8, `eight family controls: ${rows.get("ribbons").map((c) => c.label)}`);
@@ -1952,7 +1954,7 @@ test("the panel reads in three sections, and split puts the third on the right",
     const GRID = ["== view", "View", "settings", "== grid",
                   "Pentagrid", "Hover", "style"];
     const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
-                 "penrose face", "for groups", "edge style", "vertex style",
+                 "pentaplex", "penrose face", "for groups", "edge style", "vertex style",
                  "ribbons", "singularities"];
 
     const panel = sizedHost(800, 200);
