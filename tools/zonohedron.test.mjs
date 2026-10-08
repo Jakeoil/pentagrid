@@ -293,3 +293,82 @@ test("a corner's height is the de Bruijn index the tiling gives it", () => {
     }
     assert.ok(checked > 20, `only ${checked} corners checked`);
 });
+
+test("the Penrose decagon is one orbit of ten, and rotation is all that joins them", () => {
+    // Jake, 2026-10-08: "Yes there are 62 paths, but it's irrelevant... only 10
+    // paths — rotations of the CARTWHEEL." PLAN §5.0's correction. The counts
+    // were already there; what was missing is that no FLIP relates two of them,
+    // which is what retires a stepper over the 62 and makes the control a
+    // rotation.
+    const z = zonohedronOf(dirs, [0, 1, 2, 3, 4]);
+    assert.equal(z.readings.length, 62);
+    assert.equal(z.penrose.length, 10, "ten, on a Penrose grid");
+
+    const key = (bases) => bases.join(",");
+    const index = new Map(z.readings.map((b, i) => [key(b), i]));
+    const degree = z.readings.map((b) => z.flips(b).length);
+
+    // The ten the sum rule admits are exactly the ten of flip degree 4.
+    const four = degree.map((d, i) => [d, i]).filter(([d]) => d === 4).map(([, i]) => i);
+    assert.deepEqual([...z.penrose].sort((a, b) => a - b), four,
+                     "the Penrose ten and the degree-4 ten are the same set");
+    // And the whole distribution, for the record: 50 at 3, 10 at 4, 2 at 5.
+    const spread = new Map();
+    for (const d of degree) spread.set(d, (spread.get(d) ?? 0) + 1);
+    assert.deepEqual([...spread].sort(), [[3, 50], [4, 10], [5, 2]]);
+
+    // The two surfaces with five flips are readings 0 and 6 — the zonohedron's
+    // own lower and upper — and NEITHER is reachable while Σγ is held. So a
+    // control that opened on an extreme surface would be driving a figure the
+    // grid cannot make.
+    assert.deepEqual(degree.map((d, i) => [d, i]).filter(([d]) => d === 5).map(([, i]) => i),
+                     [0, 6]);
+    for (const i of [0, 6]) assert.ok(!z.penrose.includes(i), `reading ${i} is not Penrose`);
+
+    // One orbit: a 36° turn relabels family j as j+1, and the ten are closed
+    // under it. Ten in a group of twenty, so each has a two-fold stabilizer.
+    const pairAt = new Map(z.pairs.map((p, i) => [`${p[0]},${p[1]}`, i]));
+    const rotate = (bases, s) => {
+        const out = new Array(z.pairs.length).fill(0);
+        z.pairs.forEach(([a, b], i) => {
+            const a2 = (a + s) % 5, b2 = (b + s) % 5;
+            const j = pairAt.get(a2 < b2 ? `${a2},${b2}` : `${b2},${a2}`);
+            let m = 0;
+            for (let g = 0; g < 5; g++) if (bases[i] >> g & 1) m |= 1 << ((g + s) % 5);
+            out[j] = m;
+        });
+        return out;
+    };
+    const closure = new Set();
+    for (const i of z.penrose) for (let s = 0; s < 5; s++) {
+        const to = index.get(key(rotate(z.readings[i], s)));
+        assert.ok(to !== undefined, "a rotation of a reading must be a reading");
+        closure.add(to);
+    }
+    assert.equal(closure.size, 10, "the ten are closed under rotation");
+    for (const i of z.penrose) assert.ok(closure.has(i));
+
+    // And nothing else joins them: of the 40 flips out of the ten, not one
+    // lands inside. Rotation is the only relation, so the control is a rotation.
+    const inTen = new Set(z.penrose);
+    let out = 0, stay = 0;
+    for (const i of z.penrose) for (const f of z.flips(z.readings[i])) {
+        if (inTen.has(index.get(key(f.to)))) stay++; else out++;
+    }
+    assert.equal(stay, 0, `${stay} flips stay inside the orbit`);
+    assert.equal(out, 40, "four flips from each of the ten, all of them leaving");
+
+    // Equidistant from the lower surface, as an orbit under symmetry must be.
+    const adj = z.readings.map((b) => z.flips(b).map((f) => index.get(key(f.to))));
+    const steps = new Array(62).fill(-1);
+    steps[0] = 0;
+    for (let frontier = [0]; frontier.length;) {
+        const next = [];
+        for (const u of frontier) for (const v of adj[u]) {
+            if (steps[v] < 0) { steps[v] = steps[u] + 1; next.push(v); }
+        }
+        frontier = next;
+    }
+    assert.deepEqual([...new Set(z.penrose.map((i) => steps[i]))], [5],
+                     "every cartwheel is five flips from the lower surface");
+});

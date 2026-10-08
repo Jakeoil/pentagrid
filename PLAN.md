@@ -86,30 +86,27 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    `ammann` switch in classic red, six tests in `tools/ammann.test.mjs`. What
    is left is §7.4 (`ammannLines`, and what cⱼ is in terms of γⱼ), §7.5 (the
    reticulum switch, bars → tiling) and §7.6 (the hover and the readout).
-2. **The band's route as a control.** §5.0: one family's ribbon crosses the
-   other k−1 once each, and every one of the (k−1)! orders occurs — 24 for the
-   decagon. Stepping one colored band through its routes is coarser than
-   stepping the 62 readings and is the version that reads as motion. The solids
-   themselves are built; this stepper is not.
-3. **The queen in ten orientations.** A generic nudge off Γ = 0 gives a queen
-   turned; count whether the de Bruijn resolutions of the decagon are exactly
-   the ten orientations, against the 62 rhombic tilings the zonogon admits, and
-   whether the mirror-symmetric one-parameter family is one tiling or several
-   (`perpOfGamma` in `acceptance.ts` is the tool). See §5.11.
-4. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
+2. **Draw the nudged lines.** A reading of a 2k-gon comes from a configuration
+   of the concurrent lines pulled apart; `nudgeOf` names it and the readout
+   says it, but nothing draws it. That is the one thing left from §5.0 that
+   would show rather than assert where a reading comes from. (The route
+   stepper that used to be item 1 here is retired — see §5.0's correction of
+   2026-10-08: the Penrose decagon has ten readings, one orbit under rotation,
+   and no flip joins two of them.)
+3. **De-dualization, P → G.** Given a patch of tiles, draw the gridlines that
    made it. Every rhomb carries `(j, nj, k, nk)`, so the lines are known; what
    is missing is a page that starts from the tiling. Estimated as a layer plus
    a hit-test, not a redesign.
-5. **Two-tries preset.** Jake saw a preset needing a second click once; never
+4. **Two-tries preset.** Jake saw a preset needing a second click once; never
    reproduced. Presets now `setLocked(-1)` before writing, which removed the one
    mechanism found.
-6. **Which level is the fifth?** Off Penrose the index takes five consecutive
+5. **Which level is the fifth?** Off Penrose the index takes five consecutive
    values and the vertex mark draws the top one in the complementary style
    (Jake's idea, 2026-09-19). The top is the normalization's choice — the
    minimum anchored at 1 — and nothing intrinsic marks one level as the extra.
    Whether there is a canonical one (by Σγ − ⌊Σγ⌋ against ½, or by the mirror
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
-7. **The timing test is flaky.** "Nothing consumes the scan" asserts on
+6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
 
 ## 4. Standing rules
@@ -397,58 +394,93 @@ zone that would close it.
    its crossing to its place; a zonohedron can open from that same point, which
    is the same animation one dimension up and makes the superposition legible —
    the C(k,2) rhombs separating into the faces of a solid.
-3. **Necker is the control, and the readings are counted.** A monotone
-   surface of the zonohedron is a rhombic tiling of the 2k-gon, and the
-   readings are the surfaces. A surface is a **down-set of the C(k,3)
-   rhombohedral cells** — which cells lie below it — subject to the
-   consistency condition on every four generators; that is the higher Bruhat
-   order B(k,2), and it is the whole enumeration:
+3. **Necker is the control.** A monotone surface of the zonohedron is a
+   rhombic tiling of the 2k-gon, and the readings are the surfaces. A surface
+   is a **down-set of the C(k,3) rhombohedral cells** — which cells lie below
+   it — subject to the consistency condition on every four generators; that is
+   the higher Bruhat order B(k,2):
 
-   | 2k-gon | cells | rhombs | **readings** | flips from one reading | bottom→top paths |
-   |---|---|---|---|---|---|
-   | hexagon | 1 | 3 | **2** | 1 | 1 |
-   | octagon | 4 | 6 | **8** | 2 | 2 |
-   | decagon | 10 | 10 | **62** | 3, 4 or 5 | **112** |
+   | 2k-gon | cells | rhombs | readings | **on a Penrose grid** |
+   |---|---|---|---|---|
+   | hexagon | 1 | 3 | 2 | **2** |
+   | octagon | 4 | 6 | 8 | — (no octagon is Penrose, §5.12) |
+   | decagon | 10 | 10 | 62 | **10** |
 
    The 62 were found geometrically, not from the algebra: start at the
    zonohedron's true lower surface and walk every legal hexagon flip, where a
    flip is legal only when a cell's whole cap is exposed. Every state is a
-   tiling by construction, the walk closes at 62, and the flip degrees below
-   come out of the same walk. (An area check is no check at all here — the ten
-   rhombs have the same ten areas wherever they sit.) Jake had heard ten
-   for the decagon; ten is right but it counts the **cells**, not the
-   readings. Going from the lowest surface to the highest flips all ten, one
-   hexagon at a time, and there are 112 orders in which that can be done. By
-   rank the 62 fall 1, 3, 5, 9, 9, 8, 9, 9, 5, 3, 1.
+   tiling by construction and the walk closes at 62. (An area check is no check
+   at all here — the ten rhombs have the same ten areas wherever they sit.)
 
-   And **the five pairs are real**: from a given reading only some hexagons are
-   flippable — 50 of the 62 offer 3, ten offer 4, and exactly **two offer 5**,
-   which are the bottom and top surfaces. So the extreme reading, the one the
-   page will open on, has precisely five flips, each a Necker pair. That is the
-   control: draw the current surface solid, its flip partner ghosted, and let
-   the stepper walk the five (or three, or four). Because two neighboring
-   surfaces differ by exactly one cell, the ghosted part is never the whole
-   figure — it is one rhombohedron's three-rhomb cap against the other three,
-   which is Jake's "z priority to the front band" exactly: the band in front is
-   the cap that is up. The flip is the phason flip.
+   **But 62 is not the object, and the right number is ten.** See the
+   correction below.
 
-   **And one color at a time is coarser and more legible.** A single family's
-   ribbon crosses the other k−1 exactly once each, so its route through the
-   2k-gon is the order in which it meets them — and **every** order occurs:
+**Correction, 2026-10-08 (Jake).** *"Necker is the control. This is all
+nonsense. Yes there are 62 paths, but it's irrelevant. The top and bottom
+surfaces of the Necker penteract (G20) have only 10 paths — rotations of the
+CARTWHEEL. That is why lim as Σγ → 0 is 10 cartwheels. The 10 lines of Necker
+cubes have two states, but the state of the Necker penteract determines them
+all."*
 
-   | 2k-gon | routes for one family | of |
-   |---|---|---|
-   | hexagon | **2** | 2 |
-   | octagon | **6** | 6 |
-   | decagon | **24** | 24 |
+Right, and the measurement is sharper than the first draft of this entry. What
+was removed from above: a stepper over the 62, a table of one family's (k−1)!
+routes through the 2k-gon, and a plan to open the page on an extreme surface
+and walk its five Necker pairs. All real counts; none of them the object.
 
-   (k−1)!, measured for all five families, which must agree and do. A route
-   does not pin the reading down — the 62 fall over family 0's 24 routes as
-   8, 8, then six 3s, twelve 2s and four 1s — so "step the green band through
-   its 24 routes" is a genuinely coarser control than "step the 62 readings",
-   and it is the one that reads as motion: one ribbon wandering while the rest
-   of the figure keeps still. The lower surface has every band crossing the
-   others at relative offsets +2, +1, +4, +3, and the upper the reverse.
+The object is the orbit. `zonohedronOf([0,1,2,3,4]).penrose` is ten readings,
+12 through 21 of the enumeration, and measured:
+
+- **They are exactly one orbit under the decagon's symmetry.** Rotating any of
+  them by 36° (relabel family j as j+1) gives another of the ten, and the
+  closure of the set under rotation is the set. Orbit of ten in a group of
+  twenty, so each has a two-fold stabilizer. One configuration in its ten
+  placements, which is Jake's cartwheel.
+- **They are exactly the ten readings of flip degree 4.** The 62 fall 50 at
+  degree 3, 10 at degree 4, 2 at degree 5 — and the ten of degree 4 are the ten
+  the Penrose condition admits, the same set arrived at two ways.
+- **No flip joins two of them.** Of the 40 flips available from the ten, zero
+  land inside the orbit. They are related by rotation and by nothing else, so
+  the control is a ROTATION and not a walk of phason flips. That is the whole
+  of Jake's correction in one number.
+- **The two surfaces of degree 5 are readings 0 and 6 — and neither is
+  Penrose-reachable.** All ten of the orbit sit at flip distance exactly 5 from
+  the lower surface. So the earlier plan, to open on the extreme surface and
+  step its five pairs, was a control over a figure the grid cannot make at
+  Σγ ∈ ℤ. (The first draft also called the second degree-5 reading "the last";
+  it is reading 6. The enumeration is ordered by least disturbance of the
+  lines, not by rank.)
+
+**And the solids are the k-cubes, by their own names.** Jake: *"No, it is a
+golden rhombic icosahedron. The outside of a penteract, rather oblate. Just
+like the octagon is a rhombic dodecahedron, a tesseract on the inside. Thus the
+hexes are cubes."* Which is the table above read as what it is: the hexagon's
+solid is a **cube** (skewed to a golden rhombohedron), the octagon's a
+**tesseract** seen from outside, the decagon's a **penteract** — and a penteract
+has ten square 2-faces per... ten cells, which are the ten Necker cubes. Each
+cell has two states; the penteract's state fixes all ten at once, which is why
+a completed reading leaves no hexagon ambiguous even though a hexagon on its
+own alternates between two.
+
+**The exceptional singularity, and why it is exceptional.** Jake: *"It only
+occurs on penrose, LI 0, not LI 1/2. Octagon/Tesseract only occur in
+non-penrose."* Both halves hold, and §5.12 proves the second: Σvⱼ = 0 makes the
+fifth family pass through any 4-fold exactly when Σγ ∈ ℤ, so Penrose swallows
+every octagon into a decagon and the tesseract is a non-Penrose object only.
+The first half is the catalog read the same way: a decagon needs every γⱼ
+integral, and since only γⱼ mod 1 matters that is γ ≡ 0 — the one phase vector
+that is its own class. Σ(γⱼ mod 1) is the class invariant, 0 for that vector
+alone and 1 or 2 for every non-singular Penrose patch, so no LI 1 or LI 2
+tiling has a decagon anywhere. It is not rare. It is one point.
+
+**The ten rhombs inside the decagon are resolved** (open item, closed):
+rotating cartwheels. The ten orientations the item asked about are the ten
+placements of the one reading, which is the orbit above.
+
+**The deca preset.** Jake: *"The deca moves a thousandth off. Is the
+implementation of the CARTWHEEL/deca limit. Somewhere, a thousand tiles away,
+it's wrong. But within our patch, it's a CARTWHEEL with its bow ties."* Which
+is what the asterisk on the preset is for.
+
 4. **The fifth case earns its own note**: at Γ = 0 the icosahedron stands at
    the origin with its poles on the vertical axis, and the flat page's ghost
    center is its top. That is the one place the roof explains something the
@@ -562,6 +594,9 @@ And his last claim is exactly right. **Holding the sum — staying Penrose —
 reaches precisely ten readings, and they are exactly orbit C**: one pattern in
 its ten placements, mirror-symmetric, four flips. That is the deca seed, and
 "always a rotation of the deca seed" is a theorem rather than an impression.
+Jake's name for it, 2026-10-08, is the **cartwheel**, and §5.0's correction adds
+the fact that finishes the argument: not one of the 40 flips available from the
+ten lands inside the orbit, so rotation is the only thing relating them.
 Off Penrose all 62 appear, six patterns instead of one — the variety he
 remembered. Σγ = 0 is one more great circle on that sphere, and it passes
 through ten chambers, all the same shape.
@@ -1221,8 +1256,7 @@ opposite one, so on a face it is the strip s ∈ [lo, hi] along its own
 generator, the full width across. Consecutive faces of a ribbon share that
 edge, so the strips join with nothing between them and the band is continuous
 over the solid by construction. Which faces it takes is the reading's own route
-(above), so changing the reading re-routes every band — the route control's
-picture arriving ahead of the control.
+(above), so changing the reading re-routes every band.
 
 Jake then asked for the surfaces to go: **the face is drawn as its edges, the
 two bands crossing on it, and the patch where they overlap**, that patch taking
@@ -1259,11 +1293,13 @@ And `wheelSteps` puts every growth slider under the wheel: one notch a step,
 shift for ten, snapped back onto the step grid each time so a step of 0.005 does
 not drift over a hundred notches.
 
-Not built: the route control. A single family's 24 routes (above) would make a
-third stepper, and it is the one that reads as motion. Nor are the nudged lines
-themselves drawn, which is the thing that would show, rather than assert, where
-a reading comes from — the readout names the configuration, the picture does
-not yet.
+Not built, and now not wanted: a route stepper over one family's 24 orders
+through the decagon. The correction in §5.0 retires it — on a Penrose grid the
+decagon has ten readings, one orbit under rotation, and no flip joins two of
+them, so there is nothing for a route to step through that the rotation does
+not already say. What IS still unbuilt and still wanted is drawing the nudged
+LINES, which would show rather than assert where a reading comes from: the
+readout names the configuration, the picture does not.
 
 Not built. To check before starting: `Resolution` carries `families`, so the
 generator set is already there in the right order.
@@ -1802,8 +1838,12 @@ mirroring of the sides" Jake remembers from inflation, seen here as `Gamma -> -G
 **A generic nudge gives the queen too**, just turned. `(e, 2e, 3e, 4e, -10e)` gave
 a `Pe3` and two `Pe1` at the same three radii and the same angular gaps —
 144/108/108 — rotated. So the decagon's *de Bruijn* resolutions look to be queens
-in one of ten orientations, not the 62 rhombic tilings the zonogon admits. Worth
-a proper count some day; not done.
+in one of ten orientations, not the 62 rhombic tilings the zonogon admits.
+
+**Counted, and resolved** (2026-10-08): ten it is. The Penrose-reachable
+readings of the decagon are orbit C, one pattern in its ten placements, and no
+flip joins two of them — §5.0's correction. Jake: *"The 10 rhombs inside the
+decagon is resolved. It's rotating cartwheels."*
 
 **On uniqueness.** Jake surmises the queen is the only Penrose tiling with exactly
 2-fold symmetry. The mirror-symmetric subspace at `Sum = 0` is two-dimensional;
