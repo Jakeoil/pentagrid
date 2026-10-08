@@ -1050,26 +1050,108 @@ test("rhomb groups color tiles as sun-star does, and leave the rest bare", () =>
               "a non-Penrose patch should be all bare");
 });
 
-test("the P1 style paints blue and then the pentagons, clipped to each tile", () => {
+test("the group P1 has a shape, a face and a grid, and is drawn once over the patch", () => {
+    // Jake: under "for groups", a rhomb-group P1 — a dropdown with pentaplex,
+    // in 18, out 18 — and its own face and grid, the way penta has them for the
+    // big-rhomb one. The blue ground is the tile, so it stays per tile; the
+    // pentagons are one pass after every tile, because an outward bend leaves
+    // its tile and an outline cut at a tile edge draws the tile edge.
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { p1: true },
+        tileStyle: { p1Face: true },
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);      // the sun
 
     const layer = h.stack.get("penrose-tiles");
-    const styles = [];
-    layer.ctx.fill = function () { styles.push(String(this.fillStyle)); };
-    h.redraw();
+    let log = [];
+    layer.ctx.clip = () => { log.push({ t: "clip" }); };
+    layer.ctx.moveTo = (x, y) => { log.push({ t: "moveTo", x, y }); };
+    layer.ctx.lineTo = (x, y) => { log.push({ t: "lineTo", x, y }); };
+    layer.ctx.fill = function () { log.push({ t: "fill", style: String(this.fillStyle) }); };
+    layer.ctx.stroke = () => { log.push({ t: "stroke" }); };
+    const run = (style) => {
+        h.setTileStyle({ p1Shape: "pentaplex", p1Face: false, p1Grid: false, ...style });
+        log = [];
+        h.redraw();
+        const last = log.map((e) => e.t).lastIndexOf("clip");
+        const parts = [];
+        for (const e of log.slice(last + 1)) {
+            if (e.t === "moveTo") parts.push([[e.x, e.y]]);
+            else if (e.t === "lineTo" && parts.length) parts[parts.length - 1].push([e.x, e.y]);
+        }
+        return {
+            fills: log.filter((e) => e.t === "fill"),
+            strokes: log.filter((e) => e.t === "stroke").length,
+            tiles: log.filter((e) => e.t === "clip").length,
+            parts,
+        };
+    };
 
-    const blue = styles.filter((c) => c === "#0000ff").length;
-    const yellow = styles.filter((c) => c === "#ffff00").length;
-    const orange = styles.filter((c) => c === "#e46c0a").length;
-    assert.ok(blue > 100, "every tile is painted blue first");
-    assert.ok(yellow > 50 && orange > 50, `pentagon pieces: ${yellow} yellow, ${orange} orange`);
-    assert.ok(yellow + orange > blue, "a tile is typically reached by more than one pentagon piece");
+    const flat = run({ p1Face: true });
+    const blue = flat.fills.filter((e) => e.style === "#0000ff").length;
+    const yellow = flat.fills.filter((e) => e.style === "#ffff00").length;
+    const orange = flat.fills.filter((e) => e.style === "#e46c0a").length;
+    assert.ok(blue >= flat.tiles, `every tile is painted blue first (${blue} of ${flat.tiles})`);
+    assert.ok(yellow > 20 && orange > 20, `pentagons: ${yellow} yellow, ${orange} orange`);
+    assert.equal(flat.strokes, 0, "face alone draws no line");
+
+    // Each pentagon ONCE, whole, and no two at the same center. Clipped to
+    // tiles it used to be drawn in as many pieces as tiles it touched.
+    const whole = flat.parts.filter((q) => q.length === 5);
+    assert.ok(whole.length > 20, `only ${whole.length} whole pentagons`);
+    const centers = new Set(whole.map((q) => {
+        const cx = q.reduce((a, pt) => a + pt[0], 0) / 5;
+        const cy = q.reduce((a, pt) => a + pt[1], 0) / 5;
+        return `${cx.toFixed(2)},${cy.toFixed(2)}`;
+    }));
+    assert.equal(centers.size, whole.length, "a pentagon was drawn twice");
+
+    // grid is the outlines alone: one stroke a pentagon, and nothing filled.
+    const grid = run({ p1Grid: true });
+    assert.equal(grid.strokes, whole.length, `${grid.strokes} strokes for ${whole.length}`);
+    // The system still paints each tile; what grid adds is lines only.
+    const P1_COLORS = ["#0000ff", "#ffff00", "#e46c0a"];
+    assert.equal(grid.fills.filter((e) => P1_COLORS.includes(e.style)).length, 0,
+                 "grid paints no P1 color — that is the point");
+
+    // The bends break every boundary in two: ten corners where there were five,
+    // the same pentagons, and the legs 18 degrees off the chord.
+    for (const shape of ["in18", "out18"]) {
+        const bent = run({ p1Shape: shape, p1Grid: true });
+        const tens = bent.parts.filter((q) => q.length === 10);
+        assert.equal(tens.length, whole.length, `${shape}: ${tens.length} bent pentagons`);
+        assert.equal(bent.strokes, whole.length);
+        let inward = 0;
+        for (const q of tens) {
+            let cx = 0, cy = 0;
+            for (let i = 0; i < 10; i += 2) { cx += q[i][0] / 5; cy += q[i][1] / 5; }
+            for (let i = 0; i < 10; i += 2) {
+                const a = q[i], apex = q[i + 1], b = q[(i + 2) % 10];
+                const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+                const half = Math.hypot(b[0] - a[0], b[1] - a[1]) / 2;
+                const rise = Math.hypot(apex[0] - mx, apex[1] - my);
+                assert.ok(Math.abs(rise - half * Math.tan(Math.PI / 10)) < 1e-6 * half + 1e-6,
+                          `${shape}: a rise of ${rise.toFixed(3)} on a half of ${half.toFixed(3)}`);
+                if ((apex[0] - mx) * (mx - cx) + (apex[1] - my) * (my - cy) < 0) inward++;
+            }
+        }
+        assert.ok(inward > 0 && inward < tens.length * 5,
+                  `${shape}: ${inward} of ${tens.length * 5} legs bend inward`);
+    }
+
+    // in 18 and out 18 are opposites: the same corners, every apex the other way.
+    const inn = run({ p1Shape: "in18", p1Grid: true }).parts.filter((q) => q.length === 10);
+    const out = run({ p1Shape: "out18", p1Grid: true }).parts.filter((q) => q.length === 10);
+    assert.equal(inn.length, out.length);
+    let apexMoved = 0, cornerMoved = 0;
+    for (let k = 0; k < inn.length; k++) for (let i = 0; i < 10; i++) {
+        const d = Math.hypot(inn[k][i][0] - out[k][i][0], inn[k][i][1] - out[k][i][1]);
+        if (d > 1e-9) { if (i % 2) apexMoved++; else cornerMoved++; }
+    }
+    assert.equal(cornerMoved, 0, "the corners are the pentagon's and do not move");
+    assert.equal(apexMoved, inn.length * 5, "every apex should flip");
 });
 
 test("a fresh view opens on the sun, not the singular point", () => {

@@ -13,7 +13,7 @@ import { afterimage } from "./afterimage.js";
 import type { ClusterKind, P1Pentagon } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
-import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
+import { regionPoly as geoRegionPoly } from "../geometry/region.js";
 import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
@@ -68,6 +68,9 @@ function classFill(cls: number): string {
  * them thicker. `bold edges` takes them up again.
  */
 const PENTA_EDGE = "rgba(38, 28, 18, 0.85)";
+// The group P1's own outline, a scale up from penta's and darker toward its
+// blue, so the two can be read at once without being mistaken for each other.
+const P1_EDGE = "rgba(18, 22, 52, 0.85)";
 const PENTA_EDGE_W = 2.2;
 const PENTA_EDGE_BOLD = 3.6;
 
@@ -226,13 +229,33 @@ export interface TileStyle {
      */
     nextPenta: boolean;
     /**
-     * The two that are placed by the rhomb GROUPS rather than by a single
-     * tile's index: `p1`, a pentagon on every group with blue between (the
-     * small rhombs), and `bigRhombs`, the generation ABOVE this one — the
-     * inflation, γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λ·φ — outlined over the patch, which is
-     * next-gen read the other way.
+     * The rhomb-group P1: a pentagon on every rhomb group, blue between — the
+     * small rhombs. Placed by the GROUPS rather than by a single tile's index,
+     * which is why it sits where it does in the panel.
+     *
+     * `p1Shape` is the same innie/outie question `pentaShape` asks, one scale
+     * up. `pentaplex` leaves the pentagons straight; `in18` and `out18` break
+     * every boundary at its middle into two legs 18° off the chord, in or out
+     * as the cycle says — yellow into blue, blue into orange, orange into
+     * yellow, and backwards for out. 18° because that is the angle whose legs
+     * come out as rhomb edges: here they are 1/φ exactly, the generation above
+     * this one, where on the big rhombs they are 1/φ³.
+     *
+     * The blue a pentagon pushes into is both the star/boat/diamond gap and
+     * the Pe5 pentagons, which are painted that same blue — unlike the
+     * big-rhomb P1, where no pentagon is blue.
+     *
+     * `p1Face` fills them, `p1Grid` outlines them; the two are independent the
+     * way penta's halves are.
      */
-    p1: boolean;
+    p1Shape: "pentaplex" | "in18" | "out18";
+    p1Face: boolean;
+    p1Grid: boolean;
+    /**
+     * The generation ABOVE this one — the inflation, γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λ·φ
+     * — outlined over the patch, which is next-gen read the other way. Placed
+     * by the groups as well.
+     */
     bigRhombs: boolean;
     /**
      * The P1 palette as its own AFTERIMAGE: the complement, pale, the way the
@@ -770,7 +793,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const dressed = () => tileStyle.pentaFace || tileStyle.pentaEdge
         || tileStyle.nextgenFace || tileStyle.nextgenEdge
         || tileStyle.kitesFace || tileStyle.kitesEdge
-        || tileStyle.curves || tileStyle.p1 || tileStyle.nextPenta;
+        || tileStyle.curves || tileStyle.p1Face || tileStyle.p1Grid
+        || tileStyle.nextPenta;
 
     /** A signed integer as a superscript, for λ = φᵐ. */
     function superscript(m: number): string {
@@ -942,7 +966,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         pentaBoundary: "circle",
         nextgenFace: false, nextgenEdge: false,
         kitesFace: false, kitesEdge: false, nextPenta: false,
-        p1: false, bigRhombs: false, faceEdges: false, afterimage: false,
+        p1Shape: "pentaplex", p1Face: false, p1Grid: false,
+        bigRhombs: false, faceEdges: false, afterimage: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
     };
@@ -1152,6 +1177,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         indexRangeCache = null;
         groupCache = null;
         p1Cache = null;
+        p1KindCache = null;
         nextPentaCache = null;
         pentaKindCache = null;
         rhombCacheKey = key;
@@ -2274,7 +2300,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (tileStyle.pentaFace || tileStyle.pentaEdge
             || tileStyle.nextgenFace || tileStyle.nextgenEdge
             || tileStyle.kitesFace || tileStyle.kitesEdge
-            || tileStyle.p1 || tileStyle.nextPenta) {
+            || tileStyle.p1Face || tileStyle.p1Grid || tileStyle.nextPenta) {
             return NO_GROUP;
         }
         if (tileStyle.color === "pair") {
@@ -2415,26 +2441,110 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * clipped to it and filled by type. A pentagon reaches at most a couple of
      * edges from its center, so only the near ones are tried.
      */
-    function drawP1(
-        tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
+    /** Which blue-yellow-orange class a group-P1 region belongs to. */
+    type P1Class = "blue" | "Pe3" | "Pe1";
+    const p1Class = (kind: ClusterKind | null): P1Class =>
+        kind === "Pe3" ? "Pe3" : kind === "Pe1" ? "Pe1" : "blue";
+    /** Jake's cycle: yellow into blue, blue into orange, orange into yellow. */
+    const p1PushesInto = (c: P1Class): P1Class =>
+        c === "Pe3" ? "blue" : c === "blue" ? "Pe1" : "Pe3";
+    let p1KindCache: Map<string, ClusterKind> | null = null;
+    /** Every group-P1 pentagon by its center, to ask what is across an edge. */
+    function p1Kinds(): Map<string, ClusterKind> {
+        if (!p1KindCache) {
+            p1KindCache = new Map();
+            for (const pent of p1Pentagons())
+                p1KindCache.set(centerKey(pent.x, pent.y), pent.kind);
+        }
+        return p1KindCache;
+    }
+    /**
+     * One group-P1 pentagon as it should be drawn: straight, or with each
+     * boundary broken at its middle into two legs 18° off the chord.
+     *
+     * The same construction penta's bends use, and the same way of reading the
+     * side: the mirror of the center across an edge is where the neighboring
+     * pentagon sits — |(a − C) + (b − C)| = 2cos36 = φ, which is exactly how
+     * far apart two P1 pentagons sharing an edge are — so looking that center
+     * up says what the edge borders, and blue if nothing.
+     */
+    function p1Outline(pent: P1Pentagon): Vec2[] {
+        const shape = tileStyle.p1Shape;
+        if (shape === "pentaplex") return pent.verts;
+        const kinds = p1Kinds();
+        const mine = p1Class(pent.kind);
+        const into = p1PushesInto(mine);
+        const C: Vec2 = [pent.x, pent.y];
+        const out: Vec2[] = [];
+        const v = pent.verts;
+        for (let i = 0; i < v.length; i++) {
+            const a = v[i], b = v[(i + 1) % v.length];
+            const M: Vec2 = [a[0] + b[0] - C[0], a[1] + b[1] - C[1]];
+            const across = p1Class(kinds.get(centerKey(M[0], M[1])) ?? null);
+            const outward = (across === into) === (shape === "in18");
+            const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+            const ex = b[0] - a[0], ey = b[1] - a[1];
+            const len = Math.hypot(ex, ey) || 1;
+            const nx = -ey / len, ny = ex / len;
+            const away = nx * (mx - C[0]) + ny * (my - C[1]) >= 0 ? 1 : -1;
+            const rise = (len / 2) * Math.tan(Math.PI / 10) * (outward ? away : -away);
+            out.push(a, [mx + nx * rise, my + ny * rise]);
+        }
+        return out;
+    }
+    /**
+     * The group P1's pentagons, ONCE over the whole patch.
+     *
+     * They used to be cut to each tile with clipToConvex, which is right for
+     * fills of straight pentagons and wrong for everything else: an outward
+     * bend leaves the tile, and an outline cut at a tile boundary draws the
+     * boundary. So the ground stays per tile — it IS the tile — and the
+     * pentagons come after every tile, whole. The height ramp then wants a
+     * tile to read, and takes the nearest one, which is what the ramp is a
+     * smooth function of anyway.
+     */
+    function drawP1Pass(
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
     ) {
-        tc.fillStyle = ramped(tc, rhomb, sv, p1Ground());
-        tc.fill();
-        const v0 = rhomb.vertices[0], v2 = rhomb.vertices[2];
-        const mx = (v0[0] + v2[0]) / 2, my = (v0[1] + v2[1]) / 2;
+        if (!rhombs.length) return;
+        const near = new Map<string, Rhomb>();
+        const cell = (x: number, y: number) => `${Math.round(x)},${Math.round(y)}`;
+        for (const r of rhombs) {
+            const v0 = r.vertices[0], v2 = r.vertices[2];
+            near.set(cell((v0[0] + v2[0]) / 2, (v0[1] + v2[1]) / 2), r);
+        }
+        const host = (x: number, y: number): Rhomb => {
+            for (let d = 0; d < 4; d++)
+                for (let dx = -d; dx <= d; dx++) for (let dy = -d; dy <= d; dy++) {
+                    const r = near.get(cell(x + dx, y + dy));
+                    if (r) return r;
+                }
+            return rhombs[0];
+        };
+        tc.save();
+        tc.lineJoin = "round";
         for (const pent of p1Pentagons()) {
-            if (Math.hypot(pent.x - mx, pent.y - my) > 2) continue;
-            const piece = clipToConvex(pent.verts, rhomb.vertices);
-            if (piece.length < 3) continue;
+            const poly = p1Outline(pent);
+            const r = host(pent.x, pent.y);
+            const sv = r.vertices.map(([vx, vy]) =>
+                mathToScreen(vx, vy, cx, cy)) as [number, number][];
             tc.beginPath();
-            piece.forEach(([x, y], i) => {
+            poly.forEach(([x, y], i) => {
                 const [px, py] = mathToScreen(x, y, cx, cy);
                 if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
             });
             tc.closePath();
-            tc.fillStyle = ramped(tc, rhomb, sv, p1Fill(pent.kind));
-            tc.fill();
+            if (tileStyle.p1Face) {
+                tc.fillStyle = ramped(tc, r, sv, p1Fill(pent.kind));
+                tc.fill();
+            }
+            if (tileStyle.p1Grid) {
+                tc.strokeStyle = P1_EDGE;
+                tc.lineWidth = tileStyle.boldEdges ? PENTA_EDGE_BOLD : PENTA_EDGE_W;
+                tc.stroke();
+            }
         }
+        tc.restore();
     }
 
     /**
@@ -3065,7 +3175,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (tileStyle.nextgenFace) { retrace(); drawNextGenFace(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.nextPenta) { retrace(); drawNextPenta(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.kitesFace) { retrace(); drawKitesFace(tc, rhomb, sv, cx, cy); }
-                if (tileStyle.p1) { retrace(); drawP1(tc, rhomb, sv, cx, cy); }
+                // The group P1's blue ground is the TILE, so it stays here,
+                // last of the faces. Its pentagons are a pass — see drawP1Pass.
+                if (tileStyle.p1Face) {
+                    retrace();
+                    tc.fillStyle = ramped(tc, rhomb, sv, p1Ground());
+                    tc.fill();
+                }
                 // Then the EDGE sets, over all of them: Jake wants edges on
                 // top, which is the whole point of giving them their own
                 // switch — a generation read through whatever colors it.
@@ -3080,6 +3196,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.lineWidth = tileStyle.boldEdges && !dotted ? 2 : 1;
                 tc.stroke();
             }
+        }
+        // The group P1 first and penta over it, the order they had when both
+        // were drawn in the loop: the group pentagons are the coarser figure.
+        if (fill && (tileStyle.p1Face || tileStyle.p1Grid)) {
+            drawP1Pass(tc, rhombs, cx, cy);
         }
         if (fill && (tileStyle.pentaFace || tileStyle.pentaEdge)) {
             drawPentaPass(tc, rhombs, cx, cy);
@@ -3938,12 +4059,43 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
                 // The two that are placed by the GROUPS rather than by one tile.
                 const gRow = row(panelFor("for groups"), "for groups");
-                const p1b = checkbox(gRow, "P1", tileStyle.p1, (v) => {
-                    tileStyle.p1 = v;
+                // The rhomb-group P1, with the same face/edge halves penta
+                // has for the big-rhomb one, and the bends one scale up.
+                const p1s = document.createElement("select");
+                p1s.className = "line-pick";
+                p1s.style.width = "82px";
+                p1s.title = "The P1 tiling at the rhomb-GROUP scale: a pentagon on every "
+                    + "group, blue between — the small rhombs. pentaplex leaves the "
+                    + "pentagons straight. in 18 and out 18 break every boundary into two "
+                    + "legs 18° off the chord, in or out as the cycle says — yellow into "
+                    + "blue, blue into orange, orange into yellow, and backwards for out. "
+                    + "At this scale those legs are 1/φ exactly: the generation above.";
+                for (const [value, text] of [["pentaplex", "pentaplex"],
+                                             ["in18", "in 18"],
+                                             ["out18", "out 18"]] as const) {
+                    const o = document.createElement("option");
+                    o.value = value;
+                    o.textContent = text;
+                    p1s.appendChild(o);
+                }
+                p1s.value = tileStyle.p1Shape;
+                p1s.addEventListener("change", () => {
+                    tileStyle.p1Shape = p1s.value as TileStyle["p1Shape"];
                     draw();
                 });
-                p1b.title = "The P1 tiling: a pentagon on every rhomb group, blue between "
-                    + "— the small rhombs. Placed by the groups, which is why it is here.";
+                gRow.appendChild(p1s);
+                const p1f = checkbox(gRow, "face", tileStyle.p1Face, (v) => {
+                    tileStyle.p1Face = v;
+                    draw();
+                });
+                p1f.title = "Fill the group P1: blue ground, yellow Pe3, orange Pe1, and the "
+                    + "Pe5 pentagons the same blue as the gaps.";
+                const p1g = checkbox(gRow, "grid", tileStyle.p1Grid, (v) => {
+                    tileStyle.p1Grid = v;
+                    draw();
+                });
+                p1g.title = "The group P1's boundaries as lines and nothing else, so the "
+                    + "pentagons can be read over whatever is coloring the tiles.";
                 const big = checkbox(gRow, "big rhombs", tileStyle.bigRhombs, (v) => {
                     tileStyle.bigRhombs = v;
                     draw();
