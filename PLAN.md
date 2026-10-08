@@ -85,9 +85,10 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    the measurements are §7. Steps 1 to 3 are built — `geometry/ammann.ts`, the
    `ammann` switch in classic red, bar objects, the cut and its generator, ten
    tests in `tools/ammann.test.mjs`. One number is open: the window position w
-   as a closed form in γ, which is what would let a bar family be read off γ
-   with no tiles. Then §7.5 (the reticulum switch, bars → tiling) and §7.6 (the
-   hover and the readout).
+   as a closed form in γ. Socolar and Steinhardt 1986 give it — §7.4a has the
+   dictionary and their Eq. (23) — and what remains is matching conventions.
+   Then §7.5 (the reticulum switch: bars dualize to the DEFLATION, not to the
+   tiling — their correction, §7.4a) and §7.6 (the hover and the readout).
 2. **Draw the nudged lines.** A reading of a 2k-gon comes from a configuration
    of the concurrent lines pulled apart; `nudgeOf` names it and the readout
    says it, but nothing draws it. That is the one thing left from §5.0 that
@@ -3504,6 +3505,9 @@ honest rather than circular. Two ways in, and they check each other:
   the bracket midpoints. The observed endpoints are themselves φ powers — the
   sun's family 0 brackets w into [−φ⁻⁵, −φ⁻⁷] — which says w lives in the
   conjugate lattice and a short search inside a bracket should land it exactly.
+- **Read it off Socolar and Steinhardt.** §7.4a: their Eq. (23) is the closed
+  form, and the only work left is matching conventions — the sign and units of
+  γ, the family numbering, and one umklapp integer per family.
 - **Derive it.** The bar positions should be the image of the gridline positions
   under the inflation, since L/S = φ and the inflation is the φ map. §5.17 has
   the inflation γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λφ; the guess is that a bar family is a
@@ -3515,7 +3519,82 @@ The test that matters either way: the chords of 7.2 must lie on the lines of
 7.4, on every patch. Two routes to the same figure, from the tile and from the
 grid, which is the shape of every other verified claim in this project.
 
-### 7.5 The reticulum switch — bars → tiling
+### 7.4a Socolar and Steinhardt have it (Jake, 2026-10-08)
+
+Jake pointed at `jake/Socolar-unit-cell.pdf` — *Quasicrystals II: Unit-cell
+configurations*, Phys. Rev. B **34**, 617 (1986) — section IV D, "Penrose
+tilings: The 2D pentagonal PLI class". It is the same object, named, and it
+settles two things.
+
+**Their PP3 is our measurement.** Of the three properties that define the
+Penrose local isomorphism class, the key one is: *"There exists a simple
+decoration of the tiles in a Penrose tiling which forms a linear, quasiperiodic
+(Fibonacci) pentagrid (which we have termed an Ammann quasilattice)."* Simple
+in their sense means context-free — every fat tile marked the same way, every
+skinny one the same way — which is exactly `rhombAmmann`'s two tables. And a
+Fibonacci pentagrid is five Fibonacci grids, which is what §7.4 measured
+before reading this.
+
+**Their Eq. (3) IS our module.** A quasiperiodic grid is
+
+    x_N = T[ N + α + (1/ρ)⌊N/σ + β⌋ ],   Fibonacci when ρ = σ = τ = φ,
+
+with spacings T and T(1 + 1/ρ) = T and Tφ. Put M = ⌊N/φ + β⌋ and a = N − M,
+b = M: then x_N = T(α + a + bφ), which is c + S(a + bφ) with **c = Sα** and
+T = S = √5/2. And the floor is a window: M ≤ N/φ + β < M+1 with N = a+b,
+M = b reduces to (1−φ)(a + b(1−φ)) ∈ [β−1, β), that is
+
+    u = a + b(1−φ) ∈ [−φβ, −φβ + φ)
+
+— an interval of width **exactly φ**, which is the number §7.4 measured and
+could not derive. So **w = −φβ**, and the dictionary between their
+parameterization and ours is complete: α = c/S, β = −w/φ.
+
+**Their Eq. (23) is the closed form §7.4 is missing.** For the case where a
+periodic pentagrid {γₙ} and a Fibonacci pentagrid {αₙ, βₙ} have the same dual
+in the PLI class,
+
+    γₙ = [ αₙ + (1/τ)(βₙ − ½) ] / (1 + 1/τ²)
+
+and note that 1 + 1/φ² = (2+φ)/φ² = 1.381966 is exactly the factor in our
+measured mean gap, S(2+φ)/φ². In our variables that is
+
+    w = φ²·(c/S) − φ/2 − (φ²+1)·γ
+
+so with one c shared across the families, w should be affine in γⱼ with slope
+−(φ²+1) = −3.618. **A first check does not reconcile**: fitting our bracketed
+w against γ over four patches gives slopes of 0, −1.6, −1.8, −2.1 and residuals
+up to 0.4, where the brackets are only ±0.03 wide. The gap is a convention, not
+a disagreement — their γₙ is in units of the periodic spacing and signed
+against ours, their eₙ numbering need not be our family numbering, and the
+paper says plainly that an umklapp "leaves the quasiperiodic pentagrid
+unchanged and shifts the expression on the right-hand side by an integer", so
+each family carries an unknown integer. Pinning the convention is finite work
+and is what is left of §7.4.
+
+**And they correct §7.5 before it is built.** *"The dual of the Ammann
+quasilattice, now treated as a quasiperiodic pentagrid, is the DEFLATION of its
+associated tiling... To each intersection in the Ammann decoration there
+corresponds a rhombus of the appropriate type and orientation in the deflation
+decoration."* So dualizing the bars does not give the tiling back — it gives
+the tiling one generation down, at edge 1/φ. Jake's "I heard it generates a
+penrose, how unexciting" is right about the class and wrong about the
+generation, and the proof test below has to compare against the deflation.
+
+Two more things worth having on the record:
+
+- **Their singularity rule is ours.** *"The singularity must be resolved in all
+  possible ways by shifting the grids infinitesimally with respect to one
+  another in all possible directions keeping Σₙγₙ fixed."* That is
+  `zonohedron.penrose` — the readings whose nudges sum to zero — arrived at
+  independently in §5.0 and now with a citation.
+- **Their matching rule is our window test.** The Ammann decoration *is* the
+  matching rule: *"two tiles are only allowed to match edge on edge if all the
+  decoration lines are continued linearly across the interface."* §7.4's
+  measurement that the conjugates fit a window of φ only on Penrose is that
+  rule stated as an interval.
+
+### 7.5 The reticulum switch — bars → the DEFLATION
 
 Jake: *"use the Ammann Bars generated by the decagon to draw the penrose. I
 heard it generates a penrose, how unexciting. This is for proof."*
@@ -3527,9 +3606,12 @@ letting a family carry an arbitrary sorted position list — which is also what
 the reticulum's own non-uniform modes would want.
 
 The proof is a test, not a picture: build the tiling from the bars of a given γ,
-build it from the pentagrid of that γ, and assert the vertex sets agree inside
-the patch. "How unexciting" is the right attitude and also the point — if it
-comes out as anything but the same tiling, something upstream is wrong.
+and assert its vertices are those of the **deflation** of that γ's tiling —
+γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃) at 1/φ, which §5.17 and `nextPentas` already compute, and
+which §7.4a says is what the dual of an Ammann quasilattice is. Not the tiling
+itself: that was the expectation, and Socolar and Steinhardt say otherwise.
+"How unexciting" is the right attitude and also the point — if it comes out as
+anything but the deflation, something upstream is wrong.
 
 The switch itself goes in the reticulum section, beside the other line-source
 choices.
