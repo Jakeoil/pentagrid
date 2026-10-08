@@ -84,8 +84,10 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
 1. **Ammann bars, as first-class citizens.** Asked for 2026-10-08; the plan and
    the measurements are §7. Steps 1 and 2 are built — `geometry/ammann.ts`, the
    `ammann` switch in classic red, six tests in `tools/ammann.test.mjs`. What
-   is left is §7.4 (`ammannLines`, and what cⱼ is in terms of γⱼ), §7.5 (the
-   reticulum switch, bars → tiling) and §7.6 (the hover and the readout).
+   is left is §7.4 (`ammannLines`: every bar of every family sits in ONE module
+   c + S·(ℤ + φℤ), so what is open is the cut's window, not an offset per
+   family), §7.5 (the reticulum switch, bars → tiling) and §7.6 (the hover and
+   the readout).
 2. **Draw the nudged lines.** A reading of a 2k-gon comes from a configuration
    of the concurrent lines pulled apart; `nudgeOf` names it and the readout
    says it, but nothing draws it. That is the one thing left from §5.0 that
@@ -3433,10 +3435,29 @@ it is what the reticulum switch needs.
 
 A bar family is a pencil of lines with normal vⱼ, so it is the same kind of
 object the pentagrid already has — only the positions differ, ℤ for a gridline
-and a Fibonacci cut for a bar. What was measured: in units of S the positions of
-one family on the sun are c + {0, 1, 1+φ, 2+φ, 2+2φ, 2+3φ, 3+3φ, …}, which is
-to say cⱼ + S·(ℤ + φℤ) selected by the Fibonacci cut. **What cⱼ is in terms of
-γⱼ is open** and is the one piece of real mathematics left:
+and a Fibonacci cut for a bar.
+
+**Correction, 2026-10-08.** The first draft of this section asked "what is cⱼ in
+terms of γⱼ", with cⱼ a per-family offset. Measured, that question is
+mis-framed, and the real one is better. There is no cⱼ: **there is one c for
+the whole figure.** Take one bar as a reference and every bar of every family
+sits at c + S·(a + bφ) for small integers a, b — 100-odd positions per patch,
+zero exceptions, coefficients no larger than 11, at a tolerance of 1e-9, on the
+sun, on an uneven Σγ = 1, on Σγ = 0, and off Penrose too. The five families
+share one module S·(ℤ + φℤ), and only their first bar differs: off the
+reference the five start at 0, −1−φ, −1−2φ, −1−2φ, −1−φ on the sun.
+
+Which means the offset is not the content. S·(ℤ + φℤ) is DENSE, so "the bars
+lie in it" rules almost nothing out; what picks a bar out of the module is the
+**cut** — the window that says which members are bars of family j. §7.4 is
+therefore the Fibonacci cut's window as a function of γ, not five translations,
+and the position a bar of family j sits at is
+
+    x·vⱼ = c + S·(a + bφ),   (a, b) ∈ the window for j
+
+with one real c for the whole tiling. The observed nearest-to-origin bar is
+φ²/4 at Σγ = 1 and the same number shifted by φ/2 per unit of Σγ, which is a
+fact about the window and not about c. Still open, better posed:
 
 ```ts
 export function ammannLines(
@@ -3446,8 +3467,10 @@ export function ammannLines(
 
 Two ways to close it, and they check each other:
 
-- **Fit it.** Read cⱼ off the assembled chords for a spread of γ and find the
-  map γⱼ → cⱼ. Cheap, and the probe already has the left-hand side.
+- **Fit it.** Read the window off the assembled chords for a spread of γ — the
+  probe already has every bar position as (a, b) in the module — and find which
+  (a, b) belong to family j. Cheap, and it is the measurement above carried one
+  step further.
 - **Derive it.** The bar positions should be the image of the gridline positions
   under the inflation, since L/S = φ and the inflation is the φ map. §5.17 has
   the inflation γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λφ; the guess is that a bar family is a
