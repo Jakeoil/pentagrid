@@ -2005,7 +2005,7 @@ test("big rhombs is the generation above: every vertex of it is a vertex of this
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { bigRhombs: true },
+        tileStyle: { bigRhombsFace: true, bigRhombsGrid: true },
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
@@ -2785,7 +2785,9 @@ test("the pentagons are one unclipped pass over the patch, not one per tile", ()
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: false },
-        tileStyle: { pentaFace: true, pentaEdge: true },
+        // The face alone: face and edge are separate passes now, so with both
+        // on every pentagon is traced twice and the count below would double.
+        tileStyle: { pentaFace: true, pentaEdge: false },
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
@@ -2901,4 +2903,92 @@ test("next-gen and kites split into a face and an edge, and the edges go on top"
     }
     assert.ok(blocks > 400, `only ${blocks} tiles`);
     assert.equal(late, 0, `${late} faces were laid over an edge set`);
+});
+
+test("every outline is drawn over every face, the passes included", () => {
+    // Jake: next-gen edge should write over any face, namely the group faces
+    // (pentaplex, in 18, out 18). Those are passes over the whole patch, so an
+    // edge set drawn inside the tile loop came out underneath them. Order now:
+    // tile faces, the two face passes, then the outlines coarse to fine.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { p1Face: true, nextgenEdge: true, kitesEdge: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const log = [];
+    layer.ctx.fill = function () { log.push({ t: "fill", style: String(this.fillStyle) }); };
+    layer.ctx.stroke = function () { log.push({ t: "stroke", style: String(this.strokeStyle) }); };
+    const run = (style) => {
+        h.setTileStyle(style);
+        log.length = 0;
+        h.redraw();
+        const at = (p) => log.map((e, i) => [e, i]).filter(([e]) => p(e)).map(([, i]) => i);
+        return {
+            faces: at((e) => e.t === "fill" && ["#0000ff", "#ffff00", "#e46c0a"].includes(e.style)),
+            gen: at((e) => e.t === "stroke" && e.style === "#777"),
+            p2: at((e) => e.t === "stroke" && e.style === "#556"),
+        };
+    };
+
+    for (const shape of ["pentaplex", "in18", "out18"]) {
+        const r = run({ p1Shape: shape });
+        assert.ok(r.faces.length > 100, `${shape}: only ${r.faces.length} group faces`);
+        assert.ok(r.gen.length > 100, `${shape}: only ${r.gen.length} next-gen strokes`);
+        assert.ok(r.p2.length > 100, `${shape}: only ${r.p2.length} kites strokes`);
+        // Not one face after the first outline.
+        assert.ok(Math.max(...r.faces) < Math.min(...r.gen),
+                  `${shape}: a group face at ${Math.max(...r.faces)} is over `
+                  + `a next-gen edge at ${Math.min(...r.gen)}`);
+        assert.ok(Math.max(...r.faces) < Math.min(...r.p2), `${shape}: and over kites`);
+    }
+
+    // And penta's own outline stays above those, which is what Jake asked for
+    // when next-penta went in: the generation below read THROUGH the pentagons.
+    const over = run({ p1Shape: "pentaplex", pentaEdge: true });
+    const pentaEdges = log.map((e, i) => [e, i])
+        .filter(([e]) => e.t === "stroke" && e.style.startsWith("rgba(38"))
+        .map(([, i]) => i);
+    assert.ok(pentaEdges.length > 100, `only ${pentaEdges.length} penta outlines`);
+    assert.ok(Math.min(...pentaEdges) > Math.max(...over.gen), "penta-edge over next-gen-edge");
+});
+
+test("big rhombs splits into a face and a grid", () => {
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { bigRhombsFace: true, bigRhombsGrid: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("big-rhombs");
+    let fills = 0, strokes = 0;
+    layer.ctx.fill = () => { fills++; };
+    layer.ctx.stroke = () => { strokes++; };
+    const run = (style) => {
+        h.setTileStyle(style);
+        fills = 0; strokes = 0;
+        h.redraw();
+        return { fills, strokes, on: layer.visible() };
+    };
+
+    const both = run({ bigRhombsFace: true, bigRhombsGrid: true });
+    assert.ok(both.fills > 50 && both.strokes > 50, `${both.fills} fills, ${both.strokes} strokes`);
+    assert.equal(both.fills, both.strokes, "one of each per inflated tile");
+
+    const face = run({ bigRhombsFace: true, bigRhombsGrid: false });
+    assert.equal(face.fills, both.fills);
+    assert.equal(face.strokes, 0, "the face half draws no outline");
+
+    const grid = run({ bigRhombsFace: false, bigRhombsGrid: true });
+    assert.equal(grid.strokes, both.strokes);
+    assert.equal(grid.fills, 0, "the grid half fills nothing");
+
+    // Either half raises the layer; neither leaves it dark.
+    assert.ok(face.on && grid.on);
+    assert.equal(run({ bigRhombsFace: false, bigRhombsGrid: false }).on, false);
 });

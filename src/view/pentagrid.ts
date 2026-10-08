@@ -253,10 +253,12 @@ export interface TileStyle {
     p1Grid: boolean;
     /**
      * The generation ABOVE this one — the inflation, γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λ·φ
-     * — outlined over the patch, which is next-gen read the other way. Placed
-     * by the groups as well.
+     * — laid over the patch, which is next-gen read the other way. Placed by
+     * the groups as well, and split into a face and a grid like the rest:
+     * `bigRhombsFace` is the thick/thin wash and `bigRhombsGrid` the outlines.
      */
-    bigRhombs: boolean;
+    bigRhombsFace: boolean;
+    bigRhombsGrid: boolean;
     /**
      * The P1 palette as its own AFTERIMAGE: the complement, pale, the way the
      * colors look when you have stared at the pentagons and the faces go off.
@@ -967,7 +969,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         nextgenFace: false, nextgenEdge: false,
         kitesFace: false, kitesEdge: false, nextPenta: false,
         p1Shape: "pentaplex", p1Face: false, p1Grid: false,
-        bigRhombs: false, faceEdges: false, afterimage: false,
+        bigRhombsFace: false, bigRhombsGrid: false,
+        faceEdges: false, afterimage: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
     };
@@ -1283,7 +1286,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
          * with P1 in the panel rather than with the per-tile dressings.
          */
         id: "big-rhombs", label: "Big rhombs", z: PENROSE_Z_FRONT + 4, group: "Penrose",
-        visible: () => tileStyle.bigRhombs && model.n === 5,
+        visible: () => (tileStyle.bigRhombsFace || tileStyle.bigRhombsGrid)
+            && model.n === 5,
         draw: (c) => {
             const n = model.n;
             const gp = model.gamma.map((_, j) =>
@@ -1303,14 +1307,18 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     if (i === 0) c.ctx.moveTo(sx, sy); else c.ctx.lineTo(sx, sy);
                 });
                 c.ctx.closePath();
-                c.ctx.save();
-                c.ctx.globalAlpha = 0.16;
-                c.ctx.fillStyle = r.thick ? THICK_FILL : THIN_FILL;
-                c.ctx.fill();
-                c.ctx.restore();
-                c.ctx.strokeStyle = "#8c2d4a";
-                c.ctx.lineWidth = 2.2;
-                c.ctx.stroke();
+                if (tileStyle.bigRhombsFace) {
+                    c.ctx.save();
+                    c.ctx.globalAlpha = 0.16;
+                    c.ctx.fillStyle = r.thick ? THICK_FILL : THIN_FILL;
+                    c.ctx.fill();
+                    c.ctx.restore();
+                }
+                if (tileStyle.bigRhombsGrid) {
+                    c.ctx.strokeStyle = "#8c2d4a";
+                    c.ctx.lineWidth = 2.2;
+                    c.ctx.stroke();
+                }
             }
         },
     });
@@ -2505,6 +2513,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      */
     function drawP1Pass(
         tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
+        part: "face" | "edge",
     ) {
         if (!rhombs.length) return;
         const near = new Map<string, Rhomb>();
@@ -2534,11 +2543,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
             });
             tc.closePath();
-            if (tileStyle.p1Face) {
+            if (part === "face" && tileStyle.p1Face) {
                 tc.fillStyle = ramped(tc, r, sv, p1Fill(pent.kind));
                 tc.fill();
             }
-            if (tileStyle.p1Grid) {
+            if (part === "edge" && tileStyle.p1Grid) {
                 tc.strokeStyle = P1_EDGE;
                 tc.lineWidth = tileStyle.boldEdges ? PENTA_EDGE_BOLD : PENTA_EDGE_W;
                 tc.stroke();
@@ -2867,6 +2876,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      */
     function drawPentaPass(
         tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
+        part: "face" | "edge",
     ) {
         const { lo } = indexRange();
         const levels = dressingLevels();
@@ -2906,11 +2916,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         for (const piece of pieces.values()) {
             tc.globalAlpha = tileStyle.opacity * piece.alpha;
             tracePentagon(tc, piece.pts, piece.kind, cx, cy);
-            if (tileStyle.pentaFace) {
+            if (part === "face" && tileStyle.pentaFace) {
                 tc.fillStyle = ramped(tc, piece.rhomb, piece.sv, p1Fill(piece.kind));
                 tc.fill();
             }
-            if (tileStyle.pentaEdge) {
+            if (part === "edge" && tileStyle.pentaEdge) {
                 tc.strokeStyle = PENTA_EDGE;
                 tc.lineWidth = tileStyle.boldEdges ? PENTA_EDGE_BOLD : PENTA_EDGE_W;
                 tc.stroke();
@@ -3182,14 +3192,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tc.fillStyle = ramped(tc, rhomb, sv, p1Ground());
                     tc.fill();
                 }
-                // Then the EDGE sets, over all of them: Jake wants edges on
-                // top, which is the whole point of giving them their own
-                // switch — a generation read through whatever colors it.
-                if (tileStyle.nextgenEdge) drawNextGenEdge(tc, rhomb, cx, cy);
-                if (tileStyle.kitesEdge) drawKitesEdge(tc, rhomb, cx, cy);
-                // penta is NOT here. It is a second pass over the whole patch,
-                // after every tile's ground is down — see drawPentaPass — so
-                // penta-edge still comes out above all of this.
+                // No EDGE set is drawn here. They all come after the passes,
+                // below — Jake: next-gen edge should write over any face,
+                // namely the group faces, and those are passes.
                 tc.restore();
             } else {
                 tc.strokeStyle = dotted ? "#999" : (tileStyle.boldEdges ? "#222" : "#777");
@@ -3197,13 +3202,30 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.stroke();
             }
         }
-        // The group P1 first and penta over it, the order they had when both
-        // were drawn in the loop: the group pentagons are the coarser figure.
-        if (fill && (tileStyle.p1Face || tileStyle.p1Grid)) {
-            drawP1Pass(tc, rhombs, cx, cy);
-        }
-        if (fill && (tileStyle.pentaFace || tileStyle.pentaEdge)) {
-            drawPentaPass(tc, rhombs, cx, cy);
+        // EVERY face, and then every outline over all of them.
+        //
+        // The faces that belong to one tile are above, in the loop. These two
+        // are passes over the whole patch, because a pentagon straddles tiles:
+        // the group P1 first and penta over it, the order they had when both
+        // were drawn per tile — the group pentagons are the coarser figure.
+        //
+        // Then the outlines, coarse to fine: the group P1 at radius 1, the
+        // deflation and P2 at the tile's own scale, penta at 1/φ². Jake:
+        // next-gen edge should write over any face, namely the group faces.
+        // Which is what an outline switch is FOR — a generation read through
+        // whatever is coloring the tiles — and it could not do it from inside
+        // the loop, where the passes came after it.
+        if (fill) {
+            if (tileStyle.p1Face) drawP1Pass(tc, rhombs, cx, cy, "face");
+            if (tileStyle.pentaFace) drawPentaPass(tc, rhombs, cx, cy, "face");
+            if (tileStyle.p1Grid) drawP1Pass(tc, rhombs, cx, cy, "edge");
+            if (tileStyle.nextgenEdge || tileStyle.kitesEdge) {
+                for (const rhomb of rhombs) {
+                    if (tileStyle.kitesEdge) drawKitesEdge(tc, rhomb, cx, cy);
+                    if (tileStyle.nextgenEdge) drawNextGenEdge(tc, rhomb, cx, cy);
+                }
+            }
+            if (tileStyle.pentaEdge) drawPentaPass(tc, rhombs, cx, cy, "edge");
         }
         // The outlines last, over everything. They used to be drawn with each
         // tile, which was the same thing while the dressings were clipped to
@@ -4096,13 +4118,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 });
                 p1g.title = "The group P1's boundaries as lines and nothing else, so the "
                     + "pentagons can be read over whatever is coloring the tiles.";
-                const big = checkbox(gRow, "big rhombs", tileStyle.bigRhombs, (v) => {
-                    tileStyle.bigRhombs = v;
+                // And the generation above, in the same two halves.
+                const bigF = checkbox(gRow, "big-face", tileStyle.bigRhombsFace, (v) => {
+                    tileStyle.bigRhombsFace = v;
                     draw();
                 });
-                big.title = "The generation ABOVE this one: the inflation, gamma' = "
-                    + "gamma(j-1) + gamma(j+1) at lambda times phi, outlined over the patch. "
-                    + "next-gen read the other way.";
+                bigF.title = "The generation ABOVE this one, washed in: the inflation, "
+                    + "gamma' = gamma(j-1) + gamma(j+1) at lambda times phi, thick and thin "
+                    + "at a sixth strength. next-gen read the other way.";
+                const bigG = checkbox(gRow, "big-grid", tileStyle.bigRhombsGrid, (v) => {
+                    tileStyle.bigRhombsGrid = v;
+                    draw();
+                });
+                bigG.title = "The same generation above as OUTLINES — the inflated tiling's "
+                    + "edges over the patch, and nothing else.";
             }
 
             // The edge dressings — P, not G.
