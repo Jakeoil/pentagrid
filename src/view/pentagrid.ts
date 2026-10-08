@@ -3744,7 +3744,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      */
     const P_ROWS = new Set([
         "Penrose", "Penrose hover", "system", "face shade", "pentaplex", "penrose face",
-        "for groups", "edge style", "vertex style", "ribbons", "singularities",
+        "for groups", "edge style", "vertex style", "singularities",
     ]);
     function panelFor(title: string): HTMLElement {
         return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
@@ -3762,13 +3762,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * two pages cannot drift apart.
      */
     const SECTIONS: { title: string; rows: readonly string[] }[] = [
-        { title: "view", rows: ["View", "settings"] },
+        // `ribbons` is addressed in GRID terms — family j, line n — and its
+        // state lives on the GammaSet with the rest of the grid, so Jake wants
+        // it up here with the view rather than down among the Penrose
+        // dressings, even though what it changes is which crossings dualize.
+        // Properly it is a reticulum extension: a family carrying a line SET
+        // rather than all of ℤ, which is the same generalization Ammann bars
+        // want (PLAN §7.4). When that exists this row is a case of it.
+        { title: "view", rows: ["View", "ribbons", "settings"] },
         { title: "grid", rows: ["Pentagrid", "Hover", "style"] },
         {
             title: "Penrose",
             rows: ["Penrose", "Penrose hover", "system", "face shade", "pentaplex",
                    "penrose face", "for groups", "edge style", "vertex style",
-                   "ribbons", "singularities"],
+                   "singularities"],
         },
     ];
     const sectionEls: { el: HTMLElement; rows: HTMLElement[] }[] = [];
@@ -3942,6 +3949,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // values are kept while the tiles are off, and none is not allowed when
         // they come back on: that is the one case where the row rewrites itself.
         const tilesRow = row(panelFor("ribbons"), "ribbons");
+        // Not in P_ROWS: on the split it belongs to the LEFT panel with the
+        // grid, which is where its inputs come from.
 
         const perFamily: { mode: HTMLSelectElement; n: HTMLInputElement }[] = [];
         const status = document.createElement("button");

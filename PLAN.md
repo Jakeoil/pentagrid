@@ -3347,6 +3347,40 @@ A per-tile dressing like the others, in `pentagrid.ts`:
   panel position, which is what this is.
 - No afterimage: red is red.
 
+### 7.3a Where the ribbons row belongs (Jake, 2026-10-08)
+
+Not Ammann, but the same idea and it came up while planning them. Jake:
+*"ribbons is a reticulum filter and belongs near the top of the grid.
+Technically it is a reticulum extension. But for now, it can sit in the view
+area below the sliders."*
+
+Half right, and the half that is wrong is worth writing down. What the row
+actually does, read off the code: it writes `setFamilyEnabled` and
+`setFamilyLine` on the **GammaSet**, and the only thing that reads them is
+`collectRhombs`'s `ribbons` option, where a tile is kept when EITHER of its two
+lines is selected. **The grid itself draws every family regardless.** So it is
+not a filter on the reticulum — it is a filter on the DUALIZATION, addressed in
+reticulum terms. The row's own comment has said "a filter on the tiling, P not
+G" since it was built, which is why it sat with the Penrose dressings.
+
+The move is still right, for a better reason than the one given: its state
+already lives on the GammaSet with γ, not in `tileStyle`, and everything it
+takes as input is a grid object — family j, line n. A control whose state and
+vocabulary are both grid-side reads wrong among the face dressings.
+
+"Technically a reticulum extension" is the sharp part. A family that can carry
+*all* of its lines, *one* of them, or *none* is a pentagrid whose families hold
+a line SET rather than all of ℤ — which is exactly the generalization §7.4
+needs, where a bar family holds an arbitrary sorted position list. Two instances
+of one idea. If §7.4 is built as "a family may carry any line set", ribbons
+becomes a case of it and the row can say so.
+
+Done: moved to the `view` section between View and settings, and out of
+`P_ROWS` so the split puts it on the left with the grid. One thing it does NOT
+do yet, and should if Jake's description is to be literally true: filter the
+drawn gridlines. Set every family to none with the tiles off and nothing
+happens, which is a grid-looking control with no grid effect.
+
 ### 7.4 The bars as their own object, not a decoration
 
 This is the step that makes them first class rather than another dressing, and

@@ -1951,11 +1951,11 @@ test("the panel reads in three sections, and split puts the third on the right",
         walk(panel);
         return out;
     };
-    const GRID = ["== view", "View", "settings", "== grid",
+    const GRID = ["== view", "View", "ribbons", "settings", "== grid",
                   "Pentagrid", "Hover", "style"];
     const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
                  "pentaplex", "penrose face", "for groups", "edge style", "vertex style",
-                 "ribbons", "singularities"];
+                 "singularities"];
 
     const panel = sizedHost(800, 200);
     createPentagrid({ container: sizedHost(800, 800), panel });
