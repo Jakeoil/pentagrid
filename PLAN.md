@@ -3376,10 +3376,15 @@ of one idea. If §7.4 is built as "a family may carry any line set", ribbons
 becomes a case of it and the row can say so.
 
 Done: moved to the `view` section between View and settings, and out of
-`P_ROWS` so the split puts it on the left with the grid. One thing it does NOT
-do yet, and should if Jake's description is to be literally true: filter the
-drawn gridlines. Set every family to none with the tiles off and nothing
-happens, which is a grid-looking control with no grid effect.
+`P_ROWS` so the split puts it on the left with the grid. And then Jake, asked
+whether it should filter the grid as well: *"Yes, filter the grid too. Show the
+truth."* So it does, which makes his original description of the row the true
+one. A family at `none` draws no line; a family at `one` draws that line only,
+as it already did; a crossing is two lines and goes when either of them does,
+so the dots and the K-labels follow. Every family off is an empty grid.
+
+Still not filtered: the K-regions layer, and the grid hovers, which can still
+name a line that is not drawn.
 
 ### 7.4 The bars as their own object, not a decoration
 

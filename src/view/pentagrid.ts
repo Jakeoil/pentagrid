@@ -13,7 +13,7 @@ import { afterimage } from "./afterimage.js";
 import type { ClusterKind, P1Pentagon } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
 import type { Resolution } from "../geometry/resolve.js";
-import { regionPoly as geoRegionPoly } from "../geometry/region.js";
+import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
@@ -645,6 +645,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return geoComputeKTuple(model, x, y);
     }
 
+    /**
+     * The ribbons row, taken literally: does family j exist, and does it draw
+     * line n?
+     *
+     * It used to filter the dualization only — the grid drew every family
+     * regardless, and the dots said so in a comment. Jake: "filter the grid
+     * too. Show the truth." A control addressed in gridlines should remove
+     * gridlines, or it is lying about what it does.
+     */
+    const familyShown = (j: number) => gammaSet.enabledFlags()[j] !== false;
+    const lineShown = (j: number, line: number) => {
+        if (!familyShown(j)) return false;
+        const only = gammaSet.familyLine(j);
+        return only === null || only === line;
+    };
+
     function collectRhombs(vis: ViewRect): Rhomb[] {
         return geoCollectRhombs(model, vis, {
             gain: gridGain(),
@@ -1232,6 +1248,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         opacity: () => gridAlpha,
         draw: (c) => withView(gridView(), () => {
             for (let j = 0; j < model.n; j++) {
+                if (!familyShown(j)) continue;       // the ribbons row, honored
                 drawGridFamily(c.ctx, j, c.w, c.h, c.cx, c.cy);
             }
         }),
@@ -2022,12 +2039,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         );
         const maxN = Math.min(Math.ceil(maxCoord) + 3, 50);
 
-        // Every crossing: the family flags filter the tiles, not the grid.
+        // A crossing is two lines, so it shows when both of them do.
         for (let j = 0; j < model.n; j++) {
+            if (!familyShown(j)) continue;
             for (let k = j + 1; k < model.n; k++) {
+                if (!familyShown(k)) continue;
                 tc.fillStyle = pairColors.get(`${j},${k}`)!;
                 for (let nj = -maxN; nj <= maxN; nj++) {
+                    if (!lineShown(j, nj)) continue;
                     for (let nk = -maxN; nk <= maxN; nk++) {
+                        if (!lineShown(k, nk)) continue;
                         const pt = solveIntersection(j, k, nj, nk);
                         if (!pt) continue;
                         const [px, py] = pt;
@@ -2514,6 +2535,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
         return out;
     }
+    /**
+     * Where a bend's apex sits, in the math plane — `bendEdge`'s twin, which
+     * does the same in screen space because that is where it draws.
+     */
+    function bendApex(e: PentaSide, C: Vec2, ang: number): Vec2 {
+        const mx = (e.a[0] + e.b[0]) / 2, my = (e.a[1] + e.b[1]) / 2;
+        const ex = e.b[0] - e.a[0], ey = e.b[1] - e.a[1];
+        const len = Math.hypot(ex, ey) || 1;
+        const nx = -ey / len, ny = ex / len;
+        const away = nx * (mx - C[0]) + ny * (my - C[1]) >= 0 ? 1 : -1;
+        const h = (len / 2) * Math.tan(ang) * (e.outward ? away : -away);
+        return [mx + nx * h, my + ny * h];
+    }
+
     /** Is q inside the pentagon as the circles draw it? */
     function inPentaCircle(q: Vec2, C: Vec2, sides: PentaSide[]): boolean {
         const R = PENTA_R;
@@ -2539,26 +2574,40 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return false;
     }
     /**
-     * The lenses where two of the circles cross, in the blue of the stars.
+     * Wherever the boundary paints a place twice, in the blue of the stars.
      *
-     * Jake: for innie and outie circle, color the intersecting part of the
-     * circle blue, to match stars and Pe5. There is such a part, and it is the
-     * one place the construction is not a tiling. A bulge and the dent across
-     * the same edge are the same arc, so neighbors that share an EDGE meet
-     * exactly. Two that share one CORNER are another matter: their centers are
-     * 2·sin36/φ apart against a diameter of 2/φ², so their circles cross — at
-     * that corner, and again at its mirror in the line of centers — and where
-     * both pentagons bulge that way, the almond between the two crossings is
-     * painted twice, by whichever drew last. Blue settles it, and it is the
-     * blue of what is around them.
+     * Jake, of the circles and then of bend 36: color the intersecting part
+     * blue, to match the stars and Pe5. There is such a part, and it is the one
+     * place the construction is not a tiling. A bulge and the dent across the
+     * same edge are the same curve, so neighbors that share an EDGE meet
+     * exactly — that is what makes innie and outie fit. Two that share one
+     * CORNER are another matter: their centers are 2·sin36/φ = 0.7265 apart
+     * against a diameter of 2/φ² = 0.7639, so whatever each pushes out past
+     * that corner reaches into the other, and the piece between was painted
+     * twice, by whichever drew last. Blue settles it, and it is the blue of
+     * what surrounds them.
      *
-     * Measured on the sun: 178 lenses in innie and 582 in outie, which is 0.10
-     * and 0.33 of the 36 square units sampled — the whole of the overlap a
-     * Monte Carlo finds there, to within its noise.
+     * The same 178 pairs in innie and 582 in outie whichever form is drawn —
+     * the pairing is the geometry, not the curve. What differs is how much:
+     *
+     *   circles   two 36° arcs, an almond. 0.10 and 0.33 of the 36 square
+     *             units sampled on the sun.
+     *   bend 36   the two bulge TRIANGLES clipped against each other, which is
+     *             4.5 times the area: 0.476 and 1.427. The chevron contains the
+     *             arc it was built from, so it must be the larger.
+     *   bend 18   NOTHING. Zero pairs, zero area, by sampling and by
+     *             construction. The one boundary of the four whose pieces
+     *             genuinely tile the plane, which is the same 18° that makes
+     *             them exact rhomb groups (PLAN §7 and tools/rhombgroups.mjs).
+     *
+     * Each figure was measured by Monte Carlo before it was built, and the
+     * construction agrees with the sampling to within its noise.
      */
     function drawLensPass(
         tc: CanvasRenderingContext2D, pieces: Map<string, Piece>, cx: number, cy: number,
     ) {
+        const form = tileStyle.pentaBoundary;
+        if (form !== "circle" && form !== "bend36") return;
         const sides = new Map<string, { C: Vec2; sides: PentaSide[]; piece: Piece }>();
         const corners = new Map<string, string[]>();
         for (const [key, piece] of pieces) {
@@ -2587,6 +2636,40 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         if (centerKey(u[0], u[1]) === centerKey(w[0], w[1])) shared++;
                 if (shared !== 1) continue;
                 done.add(pair);
+                tc.globalAlpha = tileStyle.opacity
+                    * Math.min(A.piece.alpha, B.piece.alpha);
+                tc.fillStyle = ramped(tc, A.piece.rhomb, A.piece.sv, p1Ground());
+                if (form === "bend36") {
+                    // Straight legs, so the overlap is a polygon: each
+                    // pentagon's bulge over the edge at this corner is the
+                    // triangle (a, apex, b), and the piece painted twice is one
+                    // clipped against the other. Both edges at the corner are
+                    // tried rather than worked out, which is four clips at
+                    // worst and says the same thing.
+                    const at = (X: typeof A) => X.sides.filter((e) =>
+                        e.outward && (centerKey(e.a[0], e.a[1]) === vk
+                                      || centerKey(e.b[0], e.b[1]) === vk));
+                    for (const ea of at(A)) for (const eb of at(B)) {
+                        const ta = [ea.a, bendApex(ea, A.C, BEND.bend36), ea.b];
+                        const tb = [eb.a, bendApex(eb, B.C, BEND.bend36), eb.b];
+                        const cut = clipToConvex(ta.map((v) => [...v] as Vec2), tb);
+                        if (cut.length < 3) continue;
+                        let a2 = 0;
+                        for (let i = 0; i < cut.length; i++) {
+                            const u = cut[i], w = cut[(i + 1) % cut.length];
+                            a2 += u[0] * w[1] - w[0] * u[1];
+                        }
+                        if (Math.abs(a2) < 1e-12) continue;
+                        tc.beginPath();
+                        cut.forEach(([x, y], i) => {
+                            const [px, py] = mathToScreen(x, y, cx, cy);
+                            if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+                        });
+                        tc.closePath();
+                        tc.fill();
+                    }
+                    continue;
+                }
                 const mid: Vec2 = [(A.C[0] + B.C[0]) / 2, (A.C[1] + B.C[1]) / 2];
                 if (!inPentaCircle(mid, A.C, A.sides)) continue;
                 if (!inPentaCircle(mid, B.C, B.sides)) continue;
@@ -2615,9 +2698,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 arc(A.C, [sv1x, sv1y], [sv2x, sv2y]);
                 arc(B.C, [sv2x, sv2y], [sv1x, sv1y]);
                 tc.closePath();
-                tc.globalAlpha = tileStyle.opacity
-                    * Math.min(A.piece.alpha, B.piece.alpha);
-                tc.fillStyle = ramped(tc, A.piece.rhomb, A.piece.sv, p1Ground());
                 tc.fill();
             }
         }
@@ -3404,8 +3484,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (tileStyle.pentaFace) drawPentaPass(tc, pieces, cx, cy, "face");
                 // The circles are the one boundary that overlaps itself, and
                 // the almonds go in blue over the faces that painted them.
-                if (tileStyle.pentaFace && tileStyle.pentaBoundary === "circle"
-                    && tileStyle.pentaShape !== "penta") {
+                // The circles and bend 36 both paint places twice; bend 18
+                // and the straight tiling do not. drawLensPass decides.
+                if (tileStyle.pentaFace && tileStyle.pentaShape !== "penta") {
                     drawLensPass(tc, pieces, cx, cy);
                 }
                 pentaPass = { pieces, cx, cy };
@@ -3540,6 +3621,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // Pass 1: gradient-filled parallelograms, collect label positions
         for (let j = 0; j < model.n; j++) {
+            if (!familyShown(j)) continue;         // no line, no label for it
             const [vx, vy] = directions[j];
             const [r, g, b] = hexToRgb(COLORS[j]);
             const colorStr = `rgba(${r},${g},${b},0.2)`;

@@ -1303,7 +1303,9 @@ test("a family control is an all/none/one mode and a line number", () => {
     assert.ok(first.sel, "no mode dropdown");
     assert.deepEqual(first.sel.children.map((o) => o.value), ["all", "none", "one"]);
 
-    // none takes the family out of the TILING — the grid still draws it
+    // none takes the family out of the grid AND the tiling. It used to leave
+    // the grid alone, which Jake called a lie: "filter the grid too. Show the
+    // truth."
     first.sel.value = "none";
     first.sel.on.change[0]();
     assert.equal(h.gamma.familyEnabled(0), false);
@@ -3127,4 +3129,117 @@ test("the ammann switch sits before curves, and draws red bars over the faces", 
     assert.ok(Math.max(...all.red) < Math.min(...all.gen),
               "and under next-rhomb's edges");
     assert.ok(Math.max(...all.red) < Math.min(...all.p2), "and under kites'");
+});
+
+test("ribbons filters the grid too, not only the tiling", () => {
+    // Jake: "filter the grid too. Show the truth." A control addressed in
+    // gridlines — family j, line n — has to remove gridlines, or it is lying
+    // about what it does. A crossing is two lines, so it goes when either does.
+    const panel = makeStub();
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        panel,
+        features: { gridLines: true, intersectionDots: true, kLabels: true,
+                    penroseTiles: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const grid = h.stack.get("grid");
+    const dots = h.stack.get("dots");
+    let lines = 0, blobs = 0;
+    grid.ctx.stroke = () => { lines++; };
+    dots.ctx.fill = () => { blobs++; };
+    const count = () => {
+        lines = 0; blobs = 0;
+        h.redraw();
+        return { lines, blobs };
+    };
+    const fam = panelRows(panel).get("ribbons");
+    const setMode = (j, mode, n) => {
+        if (n !== undefined) fam[j].el.children.find((x) => x.type === "number").value = String(n);
+        fam[j].sel.value = mode;
+        fam[j].sel.on.change[0]();
+    };
+
+    const all = count();
+    assert.ok(all.lines > 40, `only ${all.lines} gridlines`);
+    assert.ok(all.blobs > 100, `only ${all.blobs} crossings`);
+
+    // One family off: its lines go, and every crossing it took part in with
+    // them. Four families leave C(4,2)/C(5,2) = 6/10 of the crossings.
+    setMode(0, "none");
+    const off = count();
+    assert.ok(off.lines < all.lines, `${off.lines} against ${all.lines} gridlines`);
+    assert.ok(off.blobs < all.blobs * 0.7,
+              `${off.blobs} crossings should be about 6/10 of ${all.blobs}`);
+
+    // One line of a family: one line drawn, and only its own crossings.
+    setMode(0, "one", 1);
+    const one = count();
+    assert.ok(one.lines > off.lines && one.lines < all.lines,
+              `${one.lines} is not between ${off.lines} and ${all.lines}`);
+    assert.ok(one.blobs > off.blobs && one.blobs < all.blobs,
+              `${one.blobs} is not between ${off.blobs} and ${all.blobs}`);
+
+    // All of them off: an empty grid, which is the truth of what was asked.
+    for (let j = 0; j < 5; j++) setMode(j, "none");
+    const none = count();
+    assert.equal(none.lines, 0, `${none.lines} lines drawn with every family off`);
+    assert.equal(none.blobs, 0, `${none.blobs} crossings drawn with every family off`);
+});
+
+test("bend 36 paints its overlaps blue as well, and bend 18 has none to paint", () => {
+    // Jake, after the circles: innie and outie bend 36, same aesthetic, color
+    // the intersecting part of the pentagon blue. It is the same 178 and 582
+    // pairs — the pairing is the geometry, not the curve — but the chevron
+    // contains the arc it was built from, so the pieces are 4.5 times the area.
+    // bend 18 paints nothing, measured: zero pairs, zero area.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { pentaFace: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const log = [];
+    layer.ctx.fill = function () { log.push({ t: "fill", style: String(this.fillStyle) }); };
+    layer.ctx.arc = () => { log.push({ t: "arc" }); };
+    const run = (style) => {
+        h.setTileStyle({ pentaShape: "innie", pentaFace: true, pentaEdge: false, ...style });
+        log.length = 0;
+        h.redraw();
+        const pents = log.map((e, i) => [e, i])
+            .filter(([e]) => e.t === "fill" && ["#ffff00", "#e46c0a"].includes(e.style))
+            .map(([, i]) => i);
+        // The blues after the last pentagon are the overlaps; the ones before
+        // are the P1 ground, one a tile, which is the same color.
+        const last = Math.max(...pents, -1);
+        return log.filter((e, i) =>
+            e.t === "fill" && e.style === "#0000ff" && i > last).length;
+    };
+
+    const circles = run({ pentaBoundary: "circle" });
+    assert.ok(circles > 50, `only ${circles} lenses`);
+
+    for (const shape of ["innie", "outie"]) {
+        const bent = run({ pentaShape: shape, pentaBoundary: "bend36" });
+        assert.ok(bent > 50, `${shape} bend 36: only ${bent} overlaps painted`);
+        // Same pairs as the circles, so a comparable count — the area differs,
+        // not the number of places.
+        const circ = run({ pentaShape: shape, pentaBoundary: "circle" });
+        assert.ok(bent >= circ, `${shape}: ${bent} bends against ${circ} circles`);
+        assert.ok(bent < circ * 4, `${shape}: ${bent} is too many for ${circ} pairs`);
+    }
+    // outie overlaps in far more places than innie, as the probe says.
+    assert.ok(run({ pentaShape: "outie", pentaBoundary: "bend36" })
+              > run({ pentaShape: "innie", pentaBoundary: "bend36" }) * 2);
+
+    // And the two that paint nothing twice.
+    assert.equal(run({ pentaBoundary: "bend18" }), 0, "bend 18 overlaps nothing");
+    assert.equal(run({ pentaShape: "outie", pentaBoundary: "bend18" }), 0,
+                 "outie bend 18 overlaps nothing either");
+    assert.equal(run({ pentaShape: "penta" }), 0, "and the straight tiling cannot");
 });
