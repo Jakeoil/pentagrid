@@ -1515,7 +1515,7 @@ test("off Penrose is a switch: nothing dressed with it off, the extreme-level ti
     h.setTileStyle({ offPenrose: true });
     strokes = 0; h.redraw();
     assert.ok(strokes > 50, `with the switch on the extreme-level tiles carry arrows (${strokes})`);
-    h.setTileStyle({ kites: true });
+    h.setTileStyle({ kitesFace: true });
     const tiles = h.stack.get("penrose-tiles");
     let fills = 0; tiles.ctx.fill = () => { fills++; };
     h.redraw();
@@ -2228,7 +2228,7 @@ test("penta splits in two: the faces fill, the edges only outline", () => {
     assert.ok(both.fills.filter((c) => c === ORANGE || c === YELLOW).length === shapes);
 
     // Which is the point: the outlines over next-gen, with the deflation showing.
-    const over = run({ pentaFace: false, pentaEdge: true, nextgen: true });
+    const over = run({ pentaFace: false, pentaEdge: true, nextgenFace: true });
     const GOLD = "#f7d058";
     assert.ok(over.fills.includes(GOLD), "next-gen's gold is still there to see");
     assert.ok(over.strokes.filter((c) => c === EDGE).length > 50, "with the pentagons over it");
@@ -2319,7 +2319,7 @@ test("one dressing does not clip the next: the tile is clipped once", () => {
                  + `(${withEdge.fills} against ${alone.fills})`);
 
     // One clip per tile, whatever is on — not one per dressing.
-    const two = run({ pentaFace: true, pentaEdge: true, nextPenta: true, kites: false });
+    const two = run({ pentaFace: true, pentaEdge: true, nextPenta: true, kitesFace: false });
     const one = run({ pentaFace: true, pentaEdge: false, nextPenta: false });
     assert.equal(two.clips, one.clips, "the tile is clipped once however many dressings");
 });
@@ -2403,7 +2403,7 @@ test("penta is drawn last: over next-penta, and over next-gen", () => {
               "the ground goes down first");
 
     // Same over next-gen: the deflation, then the outlines on top of it.
-    const overGen = run({ nextgen: true, pentaEdge: true, pentaFace: false });
+    const overGen = run({ nextgenFace: true, pentaEdge: true, pentaFace: false });
     assert.ok(overGen.lastIndexOf(GOLD) < overGen.lastIndexOf(`stroke ${EDGE}`),
               "next-gen's gold is laid before penta's outlines, not over them");
 });
@@ -2761,4 +2761,62 @@ test("the pentagons are one unclipped pass over the patch, not one per tile", ()
         if (shape !== "penta")
             for (const s of r.shapes) assert.equal(s.curves, 5, "five bowed edges");
     }
+});
+
+test("next-gen and kites split into a face and an edge, and the edges go on top", () => {
+    // Jake: take next-gen and separate IT into faces and edges, the same with
+    // kites, and in both cases make sure edges is on top. Each face begins by
+    // filling the whole tile, so a face drawn after an edge set would bury it —
+    // every face first, then every edge set.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    let log = [];
+    layer.ctx.clip = () => { log.push("clip"); };
+    layer.ctx.fill = () => { log.push("fill"); };
+    layer.ctx.stroke = () => { log.push("stroke"); };
+    const run = (style) => {
+        h.setTileStyle({
+            pentaFace: false, pentaEdge: false, nextPenta: false, curves: false, p1: false,
+            nextgenFace: false, nextgenEdge: false, kitesFace: false, kitesEdge: false,
+            ...style,
+        });
+        log = [];
+        h.redraw();
+        return { fills: log.filter((e) => e === "fill").length,
+                 strokes: log.filter((e) => e === "stroke").length, log: [...log] };
+    };
+
+    for (const half of ["nextgen", "kites"]) {
+        const face = run({ [`${half}Face`]: true });
+        assert.ok(face.fills > 500, `${half}-face: only ${face.fills} fills`);
+        assert.equal(face.strokes, 0, `${half}-face draws no line of its own`);
+
+        const edge = run({ [`${half}Edge`]: true });
+        assert.ok(edge.strokes > 200, `${half}-edge: only ${edge.strokes} strokes`);
+        assert.equal(edge.fills, 0, `${half}-edge fills nothing — that is the point`);
+
+        // Either half alone still raises the layer, as the dressings do.
+        const both = run({ [`${half}Face`]: true, [`${half}Edge`]: true });
+        assert.equal(both.fills, face.fills, `${half}: the halves should not interfere`);
+        assert.equal(both.strokes, edge.strokes);
+    }
+
+    // And the order, with all four on: a tile's clip opens its block, and
+    // inside it no fill may come after a stroke.
+    const all = run({ nextgenFace: true, nextgenEdge: true, kitesFace: true, kitesEdge: true });
+    let blocks = 0, late = 0;
+    let seenStroke = false;
+    for (const e of all.log) {
+        if (e === "clip") { blocks++; seenStroke = false; continue; }
+        if (e === "stroke") seenStroke = true;
+        else if (e === "fill" && seenStroke) late++;
+    }
+    assert.ok(blocks > 400, `only ${blocks} tiles`);
+    assert.equal(late, 0, `${late} faces were laid over an edge set`);
 });

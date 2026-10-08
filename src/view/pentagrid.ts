@@ -144,7 +144,8 @@ export interface TileStyle {
      * rhombus-with-arcs) · `penta` the P1 pentagons at the scale where every
      * thick rhomb holds one whole, the big rhombs · `nextgen` the deflation,
      * thick gold and thin gray at 1/φ, which with the edges off IS the next
-     * generation · `kites` P2 on the rhombs, a dart in every thick.
+     * generation · `kites` P2 on the rhombs, a dart in every thick. The
+     * last two, like `penta`, come in a face half and an edge half.
      */
     curves: boolean;
     /**
@@ -204,8 +205,20 @@ export interface TileStyle {
      * then the same reading of HALF the arc, and the shallow one.
      */
     pentaBoundary: "circle" | "bisector" | "bend18" | "bend36";
-    nextgen: boolean;
-    kites: boolean;
+    /**
+     * The deflation — thick gold and thin gray at 1/φ — in two halves, the
+     * same split `penta` has.
+     *
+     * `nextgenFace` fills the two next-generation prototiles; `nextgenEdge`
+     * draws the generation's edge set and nothing else, so it can be laid over
+     * a face coloring and read through it. With the edges layer off and both
+     * of these on, the tile IS the next generation.
+     */
+    nextgenFace: boolean;
+    nextgenEdge: boolean;
+    /** P2 on the rhombs, a dart in every thick, split the same way. */
+    kitesFace: boolean;
+    kitesEdge: boolean;
     /**
      * `penta` one generation down: the P1 pentagons of the DEFLATED tiling,
      * which is `penta` at 1/φ and a third scale of the same decoration. The
@@ -754,8 +767,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const p1Ground = () => p1Color(P1_STAR);
 
     /** Whether any face dressing is on, and so wants the tiles layer drawn. */
-    const dressed = () => tileStyle.pentaFace || tileStyle.pentaEdge || tileStyle.nextgen
-        || tileStyle.kites || tileStyle.curves || tileStyle.p1 || tileStyle.nextPenta;
+    const dressed = () => tileStyle.pentaFace || tileStyle.pentaEdge
+        || tileStyle.nextgenFace || tileStyle.nextgenEdge
+        || tileStyle.kitesFace || tileStyle.kitesEdge
+        || tileStyle.curves || tileStyle.p1 || tileStyle.nextPenta;
 
     /** A signed integer as a superscript, for λ = φᵐ. */
     function superscript(m: number): string {
@@ -925,7 +940,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
         curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
         pentaBoundary: "circle",
-        nextgen: false, kites: false, nextPenta: false,
+        nextgenFace: false, nextgenEdge: false,
+        kitesFace: false, kitesEdge: false, nextPenta: false,
         p1: false, bigRhombs: false, faceEdges: false, afterimage: false,
         boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
         ...config.tileStyle,
@@ -2255,8 +2271,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // A dressing is placed by the index and a stack has no one index, so a
         // 2k-gon takes the bare face under whichever dressing is on.
         if (tileStyle.curves) return CURVE_FACE;
-        if (tileStyle.pentaFace || tileStyle.pentaEdge || tileStyle.nextgen
-            || tileStyle.kites || tileStyle.p1 || tileStyle.nextPenta) {
+        if (tileStyle.pentaFace || tileStyle.pentaEdge
+            || tileStyle.nextgenFace || tileStyle.nextgenEdge
+            || tileStyle.kitesFace || tileStyle.kitesEdge
+            || tileStyle.p1 || tileStyle.nextPenta) {
             return NO_GROUP;
         }
         if (tileStyle.color === "pair") {
@@ -2837,7 +2855,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * halves in the neighbor.
      */
     const NEXTGEN_THICK = "#f7d058", NEXTGEN_THIN = "#b6b6b6";
-    function drawNextGen(
+    function drawNextGenFace(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
         tc.fillStyle = ramped(tc, rhomb, sv, NEXTGEN_THICK);
@@ -2846,32 +2864,48 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const levels = dressingLevels();
         if (levels === null) return;                     // no indices to place it by
         for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
-        tc.globalAlpha = tileStyle.opacity * alpha;
-        const d = rhombDeflation(rhomb, lo, levels, extAt);
-        for (const poly of d.gray) {
+            tc.globalAlpha = tileStyle.opacity * alpha;
+            for (const poly of rhombDeflation(rhomb, lo, levels, extAt).gray) {
+                tc.beginPath();
+                poly.forEach(([x, y], i) => {
+                    const [px, py] = mathToScreen(x, y, cx, cy);
+                    if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+                });
+                tc.closePath();
+                tc.fillStyle = ramped(tc, rhomb, sv, NEXTGEN_THIN);
+                tc.fill();
+            }
+        }
+        tc.globalAlpha = tileStyle.opacity;
+    }
+
+    /**
+     * The next generation's edges and nothing else — the figure's arrows,
+     * including the ones hiding under the tile's own edges. The long diagonal
+     * is a thick' diagonal and is not one of them.
+     *
+     * Its own switch, and drawn after every face: Jake wants the deflation
+     * readable over whatever coloring is underneath, which is the same reason
+     * penta-edge exists.
+     */
+    function drawNextGenEdge(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, cx: number, cy: number,
+    ) {
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;
+        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+            tc.globalAlpha = tileStyle.opacity * alpha;
+            tc.strokeStyle = "#777";
+            tc.lineWidth = tileStyle.boldEdges ? 2 : 1;
             tc.beginPath();
-            poly.forEach(([x, y], i) => {
-                const [px, py] = mathToScreen(x, y, cx, cy);
-                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
-            });
-            tc.closePath();
-            tc.fillStyle = ramped(tc, rhomb, sv, NEXTGEN_THIN);
-            tc.fill();
-        }
-        // The next generation's edges, as thin lines — the figure's arrows,
-        // including the ones under the tile's own edges. The long diagonal is a
-        // thick' diagonal and is not drawn. With the edges layer off this is
-        // the deflated tiling, edges and all.
-        tc.strokeStyle = "#777";
-        tc.lineWidth = 1;
-        tc.beginPath();
-        for (const [a, b] of d.edges) {
-            const [ax, ay] = mathToScreen(a[0], a[1], cx, cy);
-            const [bx, by] = mathToScreen(b[0], b[1], cx, cy);
-            tc.moveTo(ax, ay);
-            tc.lineTo(bx, by);
-        }
-        tc.stroke();
+            for (const [a, b] of rhombDeflation(rhomb, lo, levels, extAt).edges) {
+                const [ax, ay] = mathToScreen(a[0], a[1], cx, cy);
+                const [bx, by] = mathToScreen(b[0], b[1], cx, cy);
+                tc.moveTo(ax, ay);
+                tc.lineTo(bx, by);
+            }
+            tc.stroke();
         }
         tc.globalAlpha = tileStyle.opacity;
     }
@@ -2882,7 +2916,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * halves next door, so with the edges layer off the picture is P2.
      */
     const KITE = "#dfe9f3", DART = "#8fa8c2";
-    function drawKites(
+    function drawKitesFace(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], cx: number, cy: number,
     ) {
         tc.fillStyle = ramped(tc, rhomb, sv, KITE);
@@ -2891,28 +2925,40 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const levels = dressingLevels();
         if (levels === null) return;                     // no indices to place it by
         for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
-        tc.globalAlpha = tileStyle.opacity * alpha;
-        const d = rhombKitesDarts(rhomb, lo, levels, extAt);
-        for (const poly of d.darts) {
+            tc.globalAlpha = tileStyle.opacity * alpha;
+            for (const poly of rhombKitesDarts(rhomb, lo, levels, extAt).darts) {
+                tc.beginPath();
+                poly.forEach(([x, y], i) => {
+                    const [px, py] = mathToScreen(x, y, cx, cy);
+                    if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
+                });
+                tc.closePath();
+                tc.fillStyle = ramped(tc, rhomb, sv, DART);
+                tc.fill();
+            }
+        }
+        tc.globalAlpha = tileStyle.opacity;
+    }
+
+    /** P2's edge set alone, on the same terms as drawNextGenEdge. */
+    function drawKitesEdge(
+        tc: CanvasRenderingContext2D, rhomb: Rhomb, cx: number, cy: number,
+    ) {
+        const { lo } = indexRange();
+        const levels = dressingLevels();
+        if (levels === null) return;
+        for (const { extAt, alpha } of dressings(rhomb, lo, levels)) {
+            tc.globalAlpha = tileStyle.opacity * alpha;
+            tc.strokeStyle = "#556";
+            tc.lineWidth = tileStyle.boldEdges ? 2 : 1;
             tc.beginPath();
-            poly.forEach(([x, y], i) => {
-                const [px, py] = mathToScreen(x, y, cx, cy);
-                if (i === 0) tc.moveTo(px, py); else tc.lineTo(px, py);
-            });
-            tc.closePath();
-            tc.fillStyle = ramped(tc, rhomb, sv, DART);
-            tc.fill();
-        }
-        tc.strokeStyle = "#556";
-        tc.lineWidth = 1;
-        tc.beginPath();
-        for (const [a, b] of d.edges) {
-            const [ax, ay] = mathToScreen(a[0], a[1], cx, cy);
-            const [bx, by] = mathToScreen(b[0], b[1], cx, cy);
-            tc.moveTo(ax, ay);
-            tc.lineTo(bx, by);
-        }
-        tc.stroke();
+            for (const [a, b] of rhombKitesDarts(rhomb, lo, levels, extAt).edges) {
+                const [ax, ay] = mathToScreen(a[0], a[1], cx, cy);
+                const [bx, by] = mathToScreen(b[0], b[1], cx, cy);
+                tc.moveTo(ax, ay);
+                tc.lineTo(bx, by);
+            }
+            tc.stroke();
         }
         tc.globalAlpha = tileStyle.opacity;
     }
@@ -3012,16 +3058,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tc.fillStyle = ramped(tc, rhomb, sv, p1Ground());
                     tc.fill();
                 }
-                // Then coarse to fine, and penta LAST: Jake wants penta-edge
-                // over next-penta, and over next-gen, since the point of the
-                // outlines is to read the generation below through them.
+                // Every FACE first, coarse to fine. Each of them begins by
+                // filling the tile, so a face laid after an edge set would
+                // bury it.
                 if (tileStyle.curves) { retrace(); drawCurves(tc, rhomb, sv, cx, cy); }
-                if (tileStyle.nextgen) { retrace(); drawNextGen(tc, rhomb, sv, cx, cy); }
+                if (tileStyle.nextgenFace) { retrace(); drawNextGenFace(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.nextPenta) { retrace(); drawNextPenta(tc, rhomb, sv, cx, cy); }
-                if (tileStyle.kites) { retrace(); drawKites(tc, rhomb, sv, cx, cy); }
-                // penta is NOT here. It is a second pass over the whole
-                // patch, after every tile's ground is down — see drawPentaPass.
+                if (tileStyle.kitesFace) { retrace(); drawKitesFace(tc, rhomb, sv, cx, cy); }
                 if (tileStyle.p1) { retrace(); drawP1(tc, rhomb, sv, cx, cy); }
+                // Then the EDGE sets, over all of them: Jake wants edges on
+                // top, which is the whole point of giving them their own
+                // switch — a generation read through whatever colors it.
+                if (tileStyle.nextgenEdge) drawNextGenEdge(tc, rhomb, cx, cy);
+                if (tileStyle.kitesEdge) drawKitesEdge(tc, rhomb, cx, cy);
+                // penta is NOT here. It is a second pass over the whole patch,
+                // after every tile's ground is down — see drawPentaPass — so
+                // penta-edge still comes out above all of this.
                 tc.restore();
             } else {
                 tc.strokeStyle = dotted ? "#999" : (tileStyle.boldEdges ? "#222" : "#777");
@@ -3778,8 +3830,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             if (model.n === 5) {
                 const fRow = row(panelFor("penrose face"), "penrose face");
                 const dress = (
-                    key: "pentaFace" | "pentaEdge" | "nextgen" | "nextPenta"
-                        | "kites" | "curves",
+                    key: "pentaFace" | "pentaEdge" | "nextgenFace" | "nextgenEdge"
+                        | "nextPenta" | "kitesFace" | "kitesEdge" | "curves",
                     label: string, title: string,
                 ) => {
                     const cb = checkbox(fRow, label, tileStyle[key], (v) => {
@@ -3847,12 +3899,19 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 dress("pentaEdge", "penta-edge", "The same pentagons as OUTLINES and nothing "
                     + "else, so they can be laid over next-gen and the deflation still seen "
                     + "through them. With penta-face as well, filled and outlined.");
-                dress("nextgen", "next-gen", "The deflation: thick gold and thin gray at "
-                    + "1/φ. Switch the face edges off and it IS the next generation.");
+                dress("nextgenFace", "next-gen-face", "The deflation filled: thick gold and "
+                    + "thin gray at 1/φ. With next-gen-edge as well and the face edges off, "
+                    + "the tile IS the next generation.");
+                dress("nextgenEdge", "next-gen-edge", "The next generation's edges and "
+                    + "nothing else, drawn over every face — so the deflation can be read "
+                    + "through whatever is coloring the tiles.");
                 dress("nextPenta", "next-penta", "penta one generation down: the P1 pentagons "
                     + "of the deflated tiling, at 1/φ. The next generation's own rhomb edges "
                     + "are not drawn.");
-                dress("kites", "kites", "P2 on the rhombs: kites light, a dart in every thick.");
+                dress("kitesFace", "kites-face", "P2 on the rhombs, filled: kites light, a "
+                    + "dart in every thick.");
+                dress("kitesEdge", "kites-edge", "P2's edges and nothing else, over every "
+                    + "face — the kite and dart boundaries read through the coloring.");
                 dress("curves", "curves", "The matching curves as filled regions, dark at "
                     + "the arrow corner.");
                 const after = checkbox(fRow, "afterimage", tileStyle.afterimage, (v) => {
