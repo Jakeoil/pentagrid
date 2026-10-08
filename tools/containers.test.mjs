@@ -2591,7 +2591,10 @@ test("innie and outie bow every penta boundary, each pushing into the next", () 
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: false },
-        tileStyle: { pentaFace: true },
+        // The OUTLINE traces the boundary and nothing else. With the face on,
+        // the lens pass would add two arcs an almond to the count — a different
+        // figure, with its own test.
+        tileStyle: { pentaFace: false, pentaEdge: true },
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
@@ -2648,7 +2651,7 @@ test("the boundary dropdown is one family: circles, bisectors, two bends", () =>
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: false },
-        tileStyle: { pentaFace: true },
+        tileStyle: { pentaFace: false, pentaEdge: true },   // the boundary alone
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
@@ -2993,4 +2996,73 @@ test("big rhombs splits into a face and a grid", () => {
     // Either half raises the layer; neither leaves it dark.
     assert.ok(face.on && grid.on);
     assert.equal(run({ bigRhombsFace: false, bigRhombsGrid: false }).on, false);
+});
+
+test("the circles' overlaps are painted blue, and only the circles have any", () => {
+    // Jake: for innie and outie circle, color the intersecting part of the
+    // circle blue, to match stars and Pe5. A bulge and the dent across the same
+    // edge ARE the same arc, so edge neighbors meet exactly; two pentagons
+    // sharing a lone CORNER have circles that cross there and again at its
+    // mirror in the line of centers, and the almond between was painted twice.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: false },
+        tileStyle: { pentaFace: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-tiles");
+    const log = [];
+    layer.ctx.arc = (x, y, r, a0, a1) => { log.push({ t: "arc", sweep: a1 - a0 }); };
+    layer.ctx.fill = function () { log.push({ t: "fill", style: String(this.fillStyle) }); };
+    const run = (style) => {
+        h.setTileStyle({ pentaShape: "innie", pentaBoundary: "circle",
+                         pentaFace: true, pentaEdge: false, ...style });
+        log.length = 0;
+        h.redraw();
+        const deg = (e) => Math.abs(e.sweep) * 180 / Math.PI;
+        return {
+            // A pentagon boundary sweeps 72 degrees an arc; a lens 36.
+            wide: log.filter((e) => e.t === "arc" && Math.abs(deg(e) - 72) < 1e-6).length,
+            lens: log.filter((e) => e.t === "arc" && Math.abs(deg(e) - 36) < 1e-6).length,
+            other: log.filter((e) => e.t === "arc" && Math.abs(deg(e) - 72) > 1e-6
+                                                   && Math.abs(deg(e) - 36) > 1e-6).length,
+            blues: log.map((e, i) => [e, i]).filter(([e]) => e.t === "fill" && e.style === "#0000ff"),
+            pents: log.map((e, i) => [e, i])
+                .filter(([e]) => e.t === "fill" && ["#ffff00", "#e46c0a"].includes(e.style)),
+        };
+    };
+
+    const inn = run({});
+    assert.equal(inn.other, 0, "every arc is a boundary or a lens");
+    assert.ok(inn.wide > 1000, `only ${inn.wide} boundary arcs`);
+    assert.equal(inn.lens % 2, 0, "a lens is two arcs");
+    const innLenses = inn.lens / 2;
+    assert.ok(innLenses > 50, `only ${innLenses} lenses in innie`);
+    // One blue fill per lens, and all of them AFTER the pentagons — a lens has
+    // to go over the two faces that painted it twice. The blues before them are
+    // the P1 ground, one a tile, which is the same color.
+    const lastPent = Math.max(...inn.pents.map(([, i]) => i));
+    const late = inn.blues.filter(([, i]) => i > lastPent);
+    assert.equal(late.length, innLenses, `${late.length} late blues for ${innLenses} lenses`);
+    assert.ok(inn.blues.length > late.length, "the ground is blue too, and comes first");
+
+    // outie overlaps far more — the probe counts 582 against innie's 178.
+    const out = run({ pentaShape: "outie" });
+    const outLenses = out.lens / 2;
+    assert.ok(outLenses > innLenses * 2,
+              `outie should overlap much more (${outLenses} against ${innLenses})`);
+
+    // Nothing else overlaps itself: the straight tiling has no arc at all, and
+    // the bends and the bisectors are not circles.
+    for (const style of [{ pentaShape: "penta" },
+                         { pentaBoundary: "bend18" }, { pentaBoundary: "bend36" },
+                         { pentaBoundary: "bisector" }]) {
+        const r = run(style);
+        assert.equal(r.lens, 0, `${JSON.stringify(style)} drew ${r.lens / 2} lenses`);
+    }
+    // And a lens is a fill, so it waits for the face.
+    assert.equal(run({ pentaFace: false, pentaEdge: true }).lens, 0,
+                 "no face, nothing painted twice, no lens");
 });

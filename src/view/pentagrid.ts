@@ -2500,6 +2500,116 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         }
         return out;
     }
+    /** Is q inside the pentagon as the circles draw it? */
+    function inPentaCircle(q: Vec2, C: Vec2, sides: PentaSide[]): boolean {
+        const R = PENTA_R;
+        const flank = (e: PentaSide, at: Vec2) =>
+            (e.b[0] - e.a[0]) * (at[1] - e.a[1]) - (e.b[1] - e.a[1]) * (at[0] - e.a[0]);
+        let inside = true;
+        for (const e of sides) if (flank(e, q) * flank(e, C) < 0) { inside = false; break; }
+        if (inside) {
+            // Inside the straight pentagon, minus whatever the inward arcs took:
+            // an inward arc is the circle about M, so what it removed is the
+            // part of this side of the chord that lies within R of M.
+            for (const e of sides)
+                if (!e.outward && Math.hypot(q[0] - e.M[0], q[1] - e.M[1]) < R) return false;
+            return true;
+        }
+        // Outside it, only an outward arc can reach: within R of the center and
+        // past the chord.
+        for (const e of sides) {
+            if (!e.outward) continue;
+            if (Math.hypot(q[0] - C[0], q[1] - C[1]) >= R) continue;
+            if (flank(e, q) * flank(e, C) < 0) return true;
+        }
+        return false;
+    }
+    /**
+     * The lenses where two of the circles cross, in the blue of the stars.
+     *
+     * Jake: for innie and outie circle, color the intersecting part of the
+     * circle blue, to match stars and Pe5. There is such a part, and it is the
+     * one place the construction is not a tiling. A bulge and the dent across
+     * the same edge are the same arc, so neighbors that share an EDGE meet
+     * exactly. Two that share one CORNER are another matter: their centers are
+     * 2·sin36/φ apart against a diameter of 2/φ², so their circles cross — at
+     * that corner, and again at its mirror in the line of centers — and where
+     * both pentagons bulge that way, the almond between the two crossings is
+     * painted twice, by whichever drew last. Blue settles it, and it is the
+     * blue of what is around them.
+     *
+     * Measured on the sun: 178 lenses in innie and 582 in outie, which is 0.10
+     * and 0.33 of the 36 square units sampled — the whole of the overlap a
+     * Monte Carlo finds there, to within its noise.
+     */
+    function drawLensPass(
+        tc: CanvasRenderingContext2D, pieces: Map<string, Piece>, cx: number, cy: number,
+    ) {
+        const sides = new Map<string, { C: Vec2; sides: PentaSide[]; piece: Piece }>();
+        const corners = new Map<string, string[]>();
+        for (const [key, piece] of pieces) {
+            const C = centroid(piece.pts);
+            sides.set(key, { C, sides: pentaSides(piece.pts, piece.kind, C), piece });
+            for (const [vx, vy] of piece.pts) {
+                const vk = centerKey(vx, vy);
+                const at = corners.get(vk);
+                if (at) at.push(key); else corners.set(vk, [key]);
+            }
+        }
+        const R = PENTA_R * scale;
+        const done = new Set<string>();
+        tc.save();
+        for (const [vk, list] of corners) {
+            if (list.length < 2) continue;
+            for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+                const pair = list[i] < list[j] ? `${list[i]}|${list[j]}` : `${list[j]}|${list[i]}`;
+                if (done.has(pair)) continue;
+                const A = sides.get(list[i])!, B = sides.get(list[j])!;
+                // Two corners in common means a shared edge, and those meet
+                // exactly; only a lone shared corner makes a lens.
+                let shared = 0;
+                for (const u of A.piece.pts)
+                    for (const w of B.piece.pts)
+                        if (centerKey(u[0], u[1]) === centerKey(w[0], w[1])) shared++;
+                if (shared !== 1) continue;
+                done.add(pair);
+                const mid: Vec2 = [(A.C[0] + B.C[0]) / 2, (A.C[1] + B.C[1]) / 2];
+                if (!inPentaCircle(mid, A.C, A.sides)) continue;
+                if (!inPentaCircle(mid, B.C, B.sides)) continue;
+                // The two crossings: this corner, and its mirror in the line of
+                // centers, which is the corner reflected through `mid`'s own
+                // perpendicular — so v' = 2·foot − v, the foot being where the
+                // line of centers takes v.
+                const v = A.piece.pts.find(([x, y]) => centerKey(x, y) === vk)!;
+                const ux = B.C[0] - A.C[0], uy = B.C[1] - A.C[1];
+                const uu = ux * ux + uy * uy;
+                const t = ((v[0] - A.C[0]) * ux + (v[1] - A.C[1]) * uy) / uu;
+                const foot: Vec2 = [A.C[0] + ux * t, A.C[1] + uy * t];
+                const vp: Vec2 = [2 * foot[0] - v[0], 2 * foot[1] - v[1]];
+                const [sv1x, sv1y] = mathToScreen(v[0], v[1], cx, cy);
+                const [sv2x, sv2y] = mathToScreen(vp[0], vp[1], cx, cy);
+                const arc = (at: Vec2, from: [number, number], to: [number, number]) => {
+                    const [sx, sy] = mathToScreen(at[0], at[1], cx, cy);
+                    const a0 = Math.atan2(from[1] - sy, from[0] - sx);
+                    let d = Math.atan2(to[1] - sy, to[0] - sx) - a0;
+                    while (d > Math.PI) d -= 2 * Math.PI;
+                    while (d < -Math.PI) d += 2 * Math.PI;   // the minor arc, 36°
+                    tc.arc(sx, sy, R, a0, a0 + d, d < 0);
+                };
+                tc.beginPath();
+                tc.moveTo(sv1x, sv1y);
+                arc(A.C, [sv1x, sv1y], [sv2x, sv2y]);
+                arc(B.C, [sv2x, sv2y], [sv1x, sv1y]);
+                tc.closePath();
+                tc.globalAlpha = tileStyle.opacity
+                    * Math.min(A.piece.alpha, B.piece.alpha);
+                tc.fillStyle = ramped(tc, A.piece.rhomb, A.piece.sv, p1Ground());
+                tc.fill();
+            }
+        }
+        tc.restore();
+    }
+
     /**
      * The group P1's pentagons, ONCE over the whole patch.
      *
@@ -2799,6 +2909,34 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * across the edge, which is the neighbor's center, it bulges in. So the
      * whole choice is which center, and the cycle decides it.
      */
+    interface PentaSide { a: Vec2; b: Vec2; M: Vec2; outward: boolean }
+    /**
+     * Each boundary of a penta pentagon, with which way the cycle bows it.
+     *
+     * `M` is the mirror of the center across that edge — the chord's midpoint
+     * is the foot of the perpendicular, so it is just a + b − C — and that is
+     * where the neighboring P1 pentagon sits, so looking it up says what the
+     * edge borders, and blue if nothing. Each pushes into the next: yellow into
+     * blue, blue into orange, orange into yellow, and `outie` runs it the other
+     * way.
+     */
+    function pentaSides(pts: readonly Vec2[], kind: "Pe3" | "Pe1", C: Vec2): PentaSide[] {
+        const { kinds } = pentaKinds();
+        const pushesInto = kind === "Pe3" ? "blue" : "Pe3";
+        const innie = tileStyle.pentaShape === "innie";
+        return pts.map((a, i) => {
+            const b = pts[(i + 1) % pts.length];
+            const M: Vec2 = [a[0] + b[0] - C[0], a[1] + b[1] - C[1]];
+            const across = kinds.get(centerKey(M[0], M[1])) ?? "blue";
+            return { a, b, M, outward: (across === pushesInto) === innie };
+        });
+    }
+    const centroid = (pts: readonly Vec2[]): Vec2 => {
+        let x = 0, y = 0;
+        for (const [px, py] of pts) { x += px; y += py; }
+        return [x / pts.length, y / pts.length];
+    };
+
     function tracePentagon(
         tc: CanvasRenderingContext2D, pts: readonly Vec2[], kind: "Pe3" | "Pe1",
         cx: number, cy: number,
@@ -2813,23 +2951,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             tc.closePath();
             return;
         }
-        let ox = 0, oy = 0;
-        for (const [x, y] of pts) { ox += x; oy += y; }
-        const C: Vec2 = [ox / pts.length, oy / pts.length];
-        const { kinds } = pentaKinds();
-        // Each pushes into the next: yellow into blue, blue into orange,
-        // orange into yellow. `outie` runs it the other way.
-        const pushesInto = kind === "Pe3" ? "blue" : "Pe3";
+        const C = centroid(pts);
+        const sides = pentaSides(pts, kind, C);
         const R = PENTA_R * scale;
         tc.beginPath();
         tc.moveTo(screen[0][0], screen[0][1]);
         for (let i = 0; i < pts.length; i++) {
-            const a = pts[i], b = pts[(i + 1) % pts.length];
-            // The mirror of the center across the edge: the chord's midpoint is
-            // the foot of the perpendicular, so it is just a + b − C.
-            const M: Vec2 = [a[0] + b[0] - C[0], a[1] + b[1] - C[1]];
-            const across = kinds.get(centerKey(M[0], M[1])) ?? "blue";
-            const outward = (across === pushesInto) === (shape === "innie");
+            const { a, b, M, outward } = sides[i];
             const next = screen[(i + 1) % pts.length];
             const form = tileStyle.pentaBoundary;
             // bisector falls back to the circle where the wedges cannot be
@@ -2874,18 +3002,18 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * by where the pentagon is. Before, each half took its own tile's shade and
      * a straddling pentagon came out in two tones.
      */
-    function drawPentaPass(
-        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
-        part: "face" | "edge",
-    ) {
+    interface Piece {
+        pts: [number, number][]; kind: "Pe3" | "Pe1"; alpha: number;
+        rhomb: Rhomb; sv: [number, number][];
+    }
+    /** Every penta pentagon of the patch, once, by its center. */
+    function pentaPieces(
+        rhombs: Rhomb[], cx: number, cy: number,
+    ): Map<string, Piece> {
+        const pieces = new Map<string, Piece>();
         const { lo } = indexRange();
         const levels = dressingLevels();
-        if (levels === null) return;                     // no indices to place it by
-        interface Piece {
-            pts: [number, number][]; kind: "Pe3" | "Pe1"; alpha: number;
-            rhomb: Rhomb; sv: [number, number][];
-        }
-        const pieces = new Map<string, Piece>();
+        if (levels === null) return pieces;              // no indices to place it by
         for (const rhomb of rhombs) {
             const sv = rhomb.vertices.map(([vx, vy]) =>
                 mathToScreen(vx, vy, cx, cy)) as [number, number][];
@@ -2911,6 +3039,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (parts.yellow) keep(parts.yellow, "Pe3");
             }
         }
+        return pieces;
+    }
+
+    function drawPentaPass(
+        tc: CanvasRenderingContext2D, pieces: Map<string, Piece>,
+        cx: number, cy: number, part: "face" | "edge",
+    ) {
         tc.save();
         tc.lineJoin = "round";
         for (const piece of pieces.values()) {
@@ -3119,6 +3254,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         fill: boolean, dotted = false,
     ) {
         if (dotted) { tc.save(); tc.setLineDash([2, 3]); }
+        // Collected once and read by the face pass, the lenses and the edge
+        // pass, which are at three different heights.
+        let pentaPass: { pieces: Map<string, Piece>; cx: number; cy: number } | null = null;
         for (const rhomb of rhombs) {
             const sv = rhomb.vertices.map(([vx, vy]) =>
                 mathToScreen(vx, vy, cx, cy)) as [number, number][];
@@ -3217,7 +3355,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // the loop, where the passes came after it.
         if (fill) {
             if (tileStyle.p1Face) drawP1Pass(tc, rhombs, cx, cy, "face");
-            if (tileStyle.pentaFace) drawPentaPass(tc, rhombs, cx, cy, "face");
+            if (tileStyle.pentaFace || tileStyle.pentaEdge) {
+                const pieces = pentaPieces(rhombs, cx, cy);
+                if (tileStyle.pentaFace) drawPentaPass(tc, pieces, cx, cy, "face");
+                // The circles are the one boundary that overlaps itself, and
+                // the almonds go in blue over the faces that painted them.
+                if (tileStyle.pentaFace && tileStyle.pentaBoundary === "circle"
+                    && tileStyle.pentaShape !== "penta") {
+                    drawLensPass(tc, pieces, cx, cy);
+                }
+                pentaPass = { pieces, cx, cy };
+            }
             if (tileStyle.p1Grid) drawP1Pass(tc, rhombs, cx, cy, "edge");
             if (tileStyle.nextgenEdge || tileStyle.kitesEdge) {
                 for (const rhomb of rhombs) {
@@ -3225,7 +3373,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     if (tileStyle.nextgenEdge) drawNextGenEdge(tc, rhomb, cx, cy);
                 }
             }
-            if (tileStyle.pentaEdge) drawPentaPass(tc, rhombs, cx, cy, "edge");
+            if (tileStyle.pentaEdge && pentaPass) {
+                drawPentaPass(tc, pentaPass.pieces, pentaPass.cx, pentaPass.cy, "edge");
+            }
         }
         // The outlines last, over everything. They used to be drawn with each
         // tile, which was the same thing while the dressings were clipped to
