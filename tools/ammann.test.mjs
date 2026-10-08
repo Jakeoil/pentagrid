@@ -195,3 +195,143 @@ test("the offsets are the mosaic's, read off penrose-screen.js", () => {
     near(PHI / 2, Math.cos(Math.PI / 5));
     near(AMMANN_POINTS.thick[0][1] + AMMANN_POINTS.thin[0][1], 1);
 });
+
+// ── The bars as their own object (PLAN §7.4) ─────────────────────────
+
+import { ammannBars, ammannFit, ammannChain, AMMANN_WINDOW } from "../dist/geometry/ammann.js";
+
+/** A patch's bars, by family, as sorted position lists. */
+function barsOf(gamma, reach = 16) {
+    const pg = makePentagrid(5, gamma);
+    const rhombs = collectRhombs(pg, { xMin: -reach, xMax: reach, yMin: -reach, yMax: reach },
+                                 { gain: 2.5 });
+    let lo = Infinity;
+    for (const r of rhombs) for (const K of r.kTuples) {
+        lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+    }
+    const all = ammannBars(pg, rhombs, lo);
+    const fams = new Map();
+    for (const b of all) {
+        if (!fams.has(b.family)) fams.set(b.family, []);
+        fams.get(b.family).push(b.at);
+    }
+    return { all, fams };
+}
+
+test("a bar is an object with provenance, the way a rhomb has one", () => {
+    // A chord knows its family; it did not know WHICH bar of that family it
+    // belonged to, where a rhomb has carried its (j, nj) all along.
+    const { all, fams } = barsOf(SUN);
+    assert.equal(fams.size, 5, "five families");
+    assert.ok(all.length > 100, `only ${all.length} bars`);
+    for (const [, pos] of fams) {
+        // Ascending, distinct, and indexed from the lowest in view.
+        for (let i = 1; i < pos.length; i++) assert.ok(pos[i] > pos[i - 1]);
+    }
+    for (const [family, pos] of fams) {
+        const mine = all.filter((b) => b.family === family);
+        assert.deepEqual(mine.map((b) => b.index), mine.map((_, i) => i));
+        assert.equal(mine.length, pos.length);
+    }
+    // Every chord of the patch lands on one of them — that is what assembly is.
+    const pg = makePentagrid(5, SUN);
+    const rhombs = collectRhombs(pg, { xMin: -16, xMax: 16, yMin: -16, yMax: 16 }, { gain: 2.5 });
+    let lo = Infinity;
+    for (const r of rhombs) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+    const seats = new Set(all.map((b) => `${b.family}|${b.at.toFixed(9)}`));
+    let chords = 0;
+    for (const r of rhombs) for (const c of rhombAmmann(pg, r, lo)) {
+        chords++;
+        assert.ok(seats.has(`${c.family}|${ammannOffset(pg, c).toFixed(9)}`),
+                  "a chord with no bar to sit on");
+    }
+    assert.ok(chords > all.length * 10, `${chords} chords over ${all.length} bars`);
+});
+
+test("a family is a Fibonacci chain of window exactly phi, and the cut round-trips", () => {
+    // PLAN §7.4: one module c + S·(ℤ + φℤ) for all five families, and a family
+    // is the members whose conjugate lies in an interval of width φ. Fit the cut
+    // off the assembled bars, generate the family back from it, and the two sets
+    // must agree exactly — which is the characterization, and the generator a
+    // grid of bars needs.
+    assert.ok(Math.abs(AMMANN_WINDOW - PHI) < 1e-15, "the window is phi");
+    for (const [name, gamma] of [
+        ["the sun", SUN],
+        ["an odd sum 1", [0.37, 0.11, 0.29, 0.08, 0.15]],
+        ["sum 0", [0.3, -0.1, 0.2, -0.25, -0.15]],
+    ]) {
+        const { fams } = barsOf(gamma);
+        for (const [j, pos] of fams) {
+            const cut = ammannFit(pos);
+            assert.equal(cut.outside, 0, `${name} j${j}: ${cut.outside} bars off the module`);
+            assert.equal(cut.fitted, pos.length);
+            assert.ok(cut.chain, `${name} j${j}: not a chain of window phi`);
+            assert.ok(cut.wHi - cut.wLo < 0.1,
+                      `${name} j${j}: the bracket should be tight, got ${cut.wHi - cut.wLo}`);
+            // Generate over the interior, clear of the rim where the patch ends
+            // mid-chain, and ask for the same bars back.
+            const from = pos[2], to = pos[pos.length - 3];
+            const want = pos.filter((p) => p >= from - 1e-9 && p <= to + 1e-9);
+            const got = ammannChain(cut.c, (cut.wLo + cut.wHi) / 2, from, to);
+            assert.equal(got.length, want.length,
+                         `${name} j${j}: generated ${got.length} for ${want.length}`);
+            got.forEach((p, i) => assert.ok(Math.abs(p - want[i]) < 1e-7,
+                                            `${name} j${j}: bar ${i} off by ${p - want[i]}`));
+        }
+    }
+});
+
+test("the window is phi only on Penrose — off it the bars overflow it", () => {
+    // The matching rule in a number, and it needs no reference to gamma. On a
+    // Penrose patch the conjugates of a family sit inside a window of width phi
+    // with room to spare, so the bracket on where that window starts is open.
+    // Off Penrose the bars the broken figure adds have nowhere in the window to
+    // sit: the span saturates phi and the bracket shuts, and no chain of width
+    // phi can reproduce the family.
+    const slack = (pos) => {
+        const cut = ammannFit(pos);
+        return { cut, bracket: cut.wHi - cut.wLo };
+    };
+    for (const [, pos] of barsOf(SUN).fams) {
+        const { bracket } = slack(pos);
+        assert.ok(bracket > 0.03, `on Penrose the bracket should be open, got ${bracket}`);
+    }
+    for (const [j, pos] of barsOf([0.2, 0.2, 0.2, 0.2, 0.3]).fams) {   // sum 1.1
+        const { cut, bracket } = slack(pos);
+        assert.ok(bracket <= 1e-6,
+                  `j${j} off Penrose: the bracket should be shut, got ${bracket}`);
+        // And the generator cannot give the family back, whatever w is tried.
+        const from = pos[2], to = pos[pos.length - 3];
+        const want = pos.filter((p) => p >= from - 1e-9 && p <= to + 1e-9);
+        let best = 0;
+        for (let t = 0; t <= 20; t++) {
+            const w = cut.wLo + (cut.wHi - cut.wLo) * (t / 20);
+            const got = ammannChain(cut.c, w, from, to);
+            const hit = got.filter((p) => want.some((q) => Math.abs(p - q) < 1e-7)).length;
+            best = Math.max(best, hit - (got.length - hit));
+        }
+        assert.ok(best < want.length,
+                  `j${j} off Penrose: a chain of window phi reproduced the family`);
+    }
+});
+
+test("the two gaps fall in the ratio phi, which is phi bars to a gridline", () => {
+    // The Fibonacci word has L and S in the ratio phi, so the average gap is
+    // S(2+phi)/phi^2 = 1.545085 — and the gridlines of a family sit 5/2 apart
+    // in tiling coordinates, so there are 2.5/1.545085 = phi bars to a line.
+    const { fams } = barsOf(SUN, 20);
+    for (const [j, pos] of fams) {
+        let short = 0, long = 0, total = 0;
+        for (let i = 1; i < pos.length; i++) {
+            const g = pos[i] - pos[i - 1];
+            total += g;
+            if (Math.abs(g - AMMANN_LONG) < 1e-6) long++; else short++;
+        }
+        assert.ok(Math.abs(long / short - PHI) < 0.2,
+                  `j${j}: ${long} long to ${short} short is ${(long / short).toFixed(3)}`);
+        const mean = total / (pos.length - 1);
+        const want = AMMANN_SHORT * (2 + PHI) / (PHI * PHI);
+        assert.ok(Math.abs(mean - want) < 0.03, `j${j}: mean gap ${mean} against ${want}`);
+        assert.ok(Math.abs(2.5 / want - PHI) < 1e-9, "phi bars to a gridline");
+    }
+});

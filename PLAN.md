@@ -82,12 +82,12 @@ overloading one page. There is no explorations index; the nav is it.
 Nothing here blocks anything. Ordered by how likely they are to be wanted.
 
 1. **Ammann bars, as first-class citizens.** Asked for 2026-10-08; the plan and
-   the measurements are §7. Steps 1 and 2 are built — `geometry/ammann.ts`, the
-   `ammann` switch in classic red, six tests in `tools/ammann.test.mjs`. What
-   is left is §7.4 (`ammannLines`: every bar of every family sits in ONE module
-   c + S·(ℤ + φℤ), so what is open is the cut's window, not an offset per
-   family), §7.5 (the reticulum switch, bars → tiling) and §7.6 (the hover and
-   the readout).
+   the measurements are §7. Steps 1 to 3 are built — `geometry/ammann.ts`, the
+   `ammann` switch in classic red, bar objects, the cut and its generator, ten
+   tests in `tools/ammann.test.mjs`. One number is open: the window position w
+   as a closed form in γ, which is what would let a bar family be read off γ
+   with no tiles. Then §7.5 (the reticulum switch, bars → tiling) and §7.6 (the
+   hover and the readout).
 2. **Draw the nudged lines.** A reading of a 2k-gon comes from a configuration
    of the concurrent lines pulled apart; `nudgeOf` names it and the readout
    says it, but nothing draws it. That is the one thing left from §5.0 that
@@ -3465,12 +3465,45 @@ export function ammannLines(
 ): { family: number; at: number }[];
 ```
 
-Two ways to close it, and they check each other:
+**BUILT 2026-10-08, and the characterization is proved.** What `ammann.ts` now
+carries, each fact an assertion in `tools/ammann.test.mjs`:
 
-- **Fit it.** Read the window off the assembled chords for a spread of γ — the
-  probe already has every bar position as (a, b) in the module — and find which
-  (a, b) belong to family j. Cheap, and it is the measurement above carried one
-  step further.
+- `ammannBars(pg, rhombs, lo)` assembles the chords into **bar objects** —
+  `{ family, at, index }` — which is the provenance a chord lacked: a rhomb has
+  known its `(j, nj)` all along, a chord knew only its family. Every chord of a
+  patch lands on one of them, over a thousand chords onto a hundred-odd bars.
+- A family **is a Fibonacci chain of window exactly φ**. `ammannFit` reads the
+  cut off an assembled family — the module offset c, and a BRACKET on the
+  window position, since a patch shows a finite stretch of an infinite chain
+  and the conjugates seen never reach the window's ends. Twenty-odd bars
+  bracket it to 0.056, which is φ⁻⁶.
+- `ammannChain(c, w, from, to)` generates a family from its cut, exactly: two
+  linear conditions on (a, b), one from the position range and one from the
+  window, so b runs over an interval and a over another for each b. **The round
+  trip is exact** — fit the cut off the bars, generate the family back, and the
+  sets agree to 1e-7, on the sun, on an uneven Σγ = 1 and on Σγ = 0, all five
+  families each time. That is the generator a grid of bars needs, since it
+  extends a family past the tiles it was read from.
+- **The window is φ only on Penrose, and that is the matching rule in a
+  number.** On a Penrose patch the conjugates fit inside φ with room to spare,
+  so the bracket is open. Off it the bars the broken figure adds have nowhere in
+  the window to sit: the span saturates φ, the bracket shuts, and no chain of
+  width φ reproduces the family at any w. So "the bars come out straight iff the
+  tiling is Penrose" is testable from the bars alone, with no reference to γ.
+- The two gaps fall in the ratio φ, so the average gap is S(2+φ)/φ² = 1.545085,
+  and the gridlines of a family sit 5/2 apart in tiling coordinates: **φ bars to
+  a gridline**, exactly.
+
+**What is still open** is the one number: the window position w as a closed form
+in γ. It is bracketed per family per patch and the brackets narrow like φ⁻ⁿ with
+the patch, so a fit is enough to extend a chain — but a closed form is what
+would make `ammannLines` read off γ with no tiles at all, and §7.5's dual
+honest rather than circular. Two ways in, and they check each other:
+
+- **Fit it.** `ammannFit` brackets w already; sample a spread of γ and regress
+  the bracket midpoints. The observed endpoints are themselves φ powers — the
+  sun's family 0 brackets w into [−φ⁻⁵, −φ⁻⁷] — which says w lives in the
+  conjugate lattice and a short search inside a bracket should land it exactly.
 - **Derive it.** The bar positions should be the image of the gridline positions
   under the inflation, since L/S = φ and the inflation is the φ map. §5.17 has
   the inflation γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ at λφ; the guess is that a bar family is a

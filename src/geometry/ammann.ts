@@ -129,3 +129,157 @@ export function ammannOffset(pg: Pentagrid, c: AmmannChord): number {
     const [vx, vy] = pg.directions[c.family];
     return c.a[0] * vx + c.a[1] * vy;
 }
+
+// ── The bars as their own object ──────────────────────────────────────
+//
+// A chord is a bar's piece inside one tile. A BAR is the whole line, and until
+// now nothing held one: a chord knew its family but not which bar of that
+// family it belonged to, where a rhomb has known its (j, nj) all along. This is
+// that provenance.
+//
+// What a family's bar set IS, measured (PLAN §7.4): take any one bar as the
+// reference and every bar of every family sits at c + S·(a + bφ) for small
+// integers a, b — one module for all five, not five offsets — and a family is
+// the members whose CONJUGATE a + b(1−φ) lies in an interval of width exactly
+// φ. A Fibonacci chain, in other words, which is what two gaps in the ratio φ
+// arranged in the Fibonacci word has to be. Zero exceptions over four gammas
+// including a non-Penrose one.
+//
+// So a family is three numbers: the module offset c, the window position w, and
+// the width, which is always φ. `ammannFit` reads them off an assembled family
+// and `ammannChain` generates the family from them, which is the round trip
+// that proves the characterization — and the generator a grid of bars needs,
+// since it extends a family beyond the tiles it was read from.
+
+/** The window's width in the conjugate coordinate. Measured, and exactly φ. */
+export const AMMANN_WINDOW = PHI;
+/** The conjugate of φ: the other root of x² = x + 1. */
+const PHI_BAR = 1 - PHI;
+const ROOT5 = Math.sqrt(5);
+
+export interface AmmannBar {
+    family: number;
+    /** Where it sits along its family's normal: x·v[family] = at. */
+    at: number;
+    /** Its place in the family, ascending, counted from the lowest in view. */
+    index: number;
+}
+
+/**
+ * The bars of a patch, assembled from the chords: every chord of a family that
+ * reports the same offset is the same bar.
+ *
+ * Takes the rhombs the caller has already collected rather than collecting its
+ * own, so a view pays for the patch once.
+ */
+export function ammannBars(
+    pg: Pentagrid, rhombs: readonly Rhomb[], lo: number, levels = 4,
+): AmmannBar[] {
+    const byFamily = new Map<number, Set<number>>();
+    for (const r of rhombs) {
+        for (const c of rhombAmmann(pg, r, lo, levels)) {
+            const at = Number(ammannOffset(pg, c).toFixed(9));
+            const set = byFamily.get(c.family);
+            if (set) set.add(at); else byFamily.set(c.family, new Set([at]));
+        }
+    }
+    const out: AmmannBar[] = [];
+    for (const [family, set] of [...byFamily].sort((a, b) => a[0] - b[0])) {
+        [...set].sort((a, b) => a - b)
+            .forEach((at, index) => out.push({ family, at, index }));
+    }
+    return out;
+}
+
+/**
+ * Write x as a + bφ over the integers, or null if it is not in ℤ[φ].
+ *
+ * Searched rather than solved: the conjugate would give b directly, but we only
+ * have the real embedding, and the coefficients that occur are small — eleven
+ * at most over a patch.
+ */
+function asZphi(x: number, reach = 2000): [number, number] | null {
+    for (let b = -reach; b <= reach; b++) {
+        const a = x - b * PHI;
+        if (Math.abs(a - Math.round(a)) < 1e-7) return [Math.round(a), b];
+    }
+    return null;
+}
+
+export interface AmmannCut {
+    /** The module offset: every bar is at c + S·(a + bφ). */
+    c: number;
+    /** The window is [w, w + φ) in the conjugate. Bracketed, not exact. */
+    wLo: number;
+    wHi: number;
+    /** How many of the positions were in the module at all. Should be all. */
+    fitted: number;
+    outside: number;
+    /**
+     * Whether the family IS a Fibonacci chain of window φ — which holds exactly
+     * when the bracket is a bracket, `wLo <= wHi`.
+     *
+     * It fails off Penrose, and that is the matching rule in a number. The
+     * conjugates of a chain of window φ span less than φ in any finite stretch;
+     * off a Penrose patch they span MORE, because the bars there are not quite
+     * straight and the extra ones have nowhere in the window to sit. So "the
+     * bars come out straight iff the tiling is Penrose" is testable from the
+     * bars alone, with no reference to γ.
+     */
+    chain: boolean;
+}
+
+/**
+ * The cut behind one family: its module offset and its window.
+ *
+ * The window is BRACKETED rather than solved. A patch shows a finite stretch of
+ * an infinite chain, so the conjugates seen fall inside the true window without
+ * reaching its ends: w ∈ [max − φ, min]. Twenty-odd bars bracket it to about
+ * 0.05, and more tiles narrow it. What w is in closed form from γ is the open
+ * part of PLAN §7.4; until it is closed, a fit is how a chain gets extended.
+ */
+export function ammannFit(positions: readonly number[]): AmmannCut {
+    const sorted = [...positions].sort((a, b) => a - b);
+    const c = sorted[0];
+    let min = Infinity, max = -Infinity, fitted = 0, outside = 0;
+    for (const p of sorted) {
+        const ab = asZphi((p - c) / AMMANN_SHORT);
+        if (!ab) { outside++; continue; }
+        const u = ab[0] + ab[1] * PHI_BAR;
+        if (u < min) min = u;
+        if (u > max) max = u;
+        fitted++;
+    }
+    const wLo = max - AMMANN_WINDOW, wHi = min;
+    return { c, wLo, wHi, fitted, outside, chain: wLo <= wHi + 1e-9 };
+}
+
+/**
+ * One family's bars, from its cut: the generator.
+ *
+ * Every point of the module is c + S·(a + bφ); the window keeps those whose
+ * conjugate a + b(1−φ) lies in [w, w+φ). Two linear conditions on (a, b) — one
+ * from the position range, one from the window — so b runs over an interval and
+ * a over another for each b, and the enumeration is exact with no searching.
+ */
+export function ammannChain(
+    c: number, w: number, from: number, to: number,
+): number[] {
+    const x0 = (from - c) / AMMANN_SHORT, x1 = (to - c) / AMMANN_SHORT;
+    // a + bφ = X and a + bφ̄ = U give b = (X − U)/√5.
+    const bLo = Math.floor((x0 - (w + AMMANN_WINDOW)) / ROOT5) - 1;
+    const bHi = Math.ceil((x1 - w) / ROOT5) + 1;
+    const out: number[] = [];
+    for (let b = bLo; b <= bHi; b++) {
+        const aFrom = Math.max(x0 - b * PHI, w - b * PHI_BAR);
+        const aTo = Math.min(x1 - b * PHI, w + AMMANN_WINDOW - b * PHI_BAR);
+        for (let a = Math.ceil(aFrom - 1e-9); a <= aTo + 1e-9; a++) {
+            const u = a + b * PHI_BAR;
+            if (u < w - 1e-9 || u >= w + AMMANN_WINDOW - 1e-9) continue;
+            const p = c + AMMANN_SHORT * (a + b * PHI);
+            if (p < from - 1e-9 || p > to + 1e-9) continue;
+            out.push(p);
+        }
+    }
+    return out.sort((a, b) => a - b);
+}
