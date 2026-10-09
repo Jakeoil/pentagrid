@@ -32,6 +32,39 @@ export interface Pentagrid {
      * `directions`, which is de Bruijn's.
      */
     readonly edges?: readonly Vec2[];
+    /**
+     * Where each family's lines actually are, when they are not the periodic
+     * n − γⱼ.
+     *
+     * A family has always been an arithmetic progression: line n of family j at
+     * x·vⱼ = n − γⱼ. It does not have to be. A `LineSet` says where line n
+     * sits and which line a position is past, and everything downstream — the
+     * crossings, the K-tuple, the dual — goes through those two questions and
+     * nothing else. Omitted, or a null entry, means the periodic default, and
+     * the arithmetic is the same arithmetic as before.
+     *
+     * This is what makes the Ammann quasilattice a GRID rather than a
+     * decoration: its families are Fibonacci chains, two spacings in the ratio
+     * φ, and the dual of that grid is a Penrose tiling one generation down.
+     * It is also what `ribbons` wants (PLAN §7.3a) — a family carrying a line
+     * SET rather than all of ℤ is the same generalization, seen smaller.
+     */
+    readonly lines?: readonly (LineSet | null)[];
+}
+
+/**
+ * Where one family's lines are, as two questions.
+ *
+ * `at` must be strictly increasing in n, and `indexAt` its inverse in the
+ * ceiling sense: the smallest n whose line is at or past t. For the periodic
+ * family those are n − γ and ⌈t + γ⌉, which is exactly what the pentagrid has
+ * always computed.
+ */
+export interface LineSet {
+    /** Where line n sits: x·v = at(n). Strictly increasing. */
+    at(n: number): number;
+    /** The smallest n with at(n) >= t. */
+    indexAt(t: number): number;
 }
 
 export interface ViewRect {

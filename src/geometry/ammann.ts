@@ -34,7 +34,7 @@
  * breaks, where superposed tiles carry no dressing at all and the bars they
  * would have carried leave gaps of L − S.
  */
-import type { Pentagrid, Rhomb, Vec2 } from "./types.js";
+import type { LineSet, Pentagrid, Rhomb, Vec2 } from "./types.js";
 import { extremeCorner, PHI } from "./decor.js";
 
 /** The gap between neighboring bars of one family: these two and no others. */
@@ -313,4 +313,68 @@ export function ammannPerp(pg: Pentagrid, family: number): number {
         q += pg.gamma[i] * Math.cos(4 * Math.PI * (i - family) / pg.n);
     }
     return q;
+}
+
+/**
+ * One family of the Ammann quasilattice, as a `LineSet` the pentagrid can use.
+ *
+ * Socolar and Steinhardt's Eq. (3) at ρ = σ = τ (PLAN §7.4a) is the closed
+ * form, and it is O(1) in the line number, which is why a family can be a
+ * function rather than a list:
+ *
+ *     at(n) = T·( n + α + (1/φ)⌊n/φ + β⌋ )
+ *
+ * with T the short spacing, α the phase and β the cut. In our terms α = c/T
+ * and β = −w/φ, so `ammannFit`'s output feeds straight in. The spacings are T
+ * and φT in the Fibonacci word, two gaps in the ratio φ, which is what makes
+ * the dual of five of these a Penrose tiling — one generation down from the
+ * one the bars were read off.
+ *
+ * `indexAt` inverts it: at(n) grows like T·n·(1 + 1/φ²), so the estimate is
+ * exact to a line or two and a short walk finishes it.
+ */
+export function fibonacciLines(T: number, alpha: number, beta: number): LineSet {
+    const at = (n: number) => T * (n + alpha + Math.floor(n / PHI + beta) / PHI);
+    const DEN = 1 + 1 / (PHI * PHI);
+    return {
+        at,
+        indexAt(t: number): number {
+            let n = Math.round((t / T - alpha - beta / PHI) / DEN);
+            // at() is increasing, so walk to the smallest n with at(n) >= t.
+            // The tolerance is there so that indexAt(at(n)) is n and not n+1:
+            // at() is a float, and landing a hair under its own value would
+            // cost a whole line.
+            const EPS = 1e-9;
+            while (at(n) < t - EPS) n++;
+            while (at(n - 1) >= t - EPS) n--;
+            return n + 0;        // Math.round can hand back -0; a line is 0.
+        },
+    };
+}
+
+/**
+ * The five families of a patch's quasilattice, ready for `collectRhombs`.
+ *
+ * Positions are divided by `gain` because a Pentagrid places its lines in GRID
+ * coordinates and the bars are measured in the tiling's, which the
+ * registration separates by exactly that factor.
+ */
+export function ammannLineSets(
+    pg: Pentagrid, rhombs: readonly Rhomb[], lo: number, levels = 4, gain = 1,
+): (LineSet | null)[] {
+    const byFamily = new Map<number, number[]>();
+    for (const b of ammannBars(pg, rhombs, lo, levels)) {
+        const got = byFamily.get(b.family);
+        if (got) got.push(b.at); else byFamily.set(b.family, [b.at]);
+    }
+    const out: (LineSet | null)[] = [];
+    for (let j = 0; j < pg.n; j++) {
+        const pos = byFamily.get(j);
+        if (!pos || pos.length < 3) { out.push(null); continue; }
+        const cut = ammannFit(pos);
+        if (!cut.chain) { out.push(null); continue; }
+        const w = (cut.wLo + cut.wHi) / 2;
+        out.push(fibonacciLines(AMMANN_SHORT / gain, cut.c / AMMANN_SHORT, -w / PHI));
+    }
+    return out;
 }

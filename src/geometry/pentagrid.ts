@@ -42,6 +42,29 @@ export function makeDirections(verticalSymmetry: boolean, n: number = NUM_GRIDS)
     return out;
 }
 
+/**
+ * Where line n of family j sits: the value of x·vⱼ on it.
+ *
+ * The periodic answer is n − γⱼ, and that is what every family gives unless
+ * `pg.lines` says otherwise. Everything that asks the grid where a line is
+ * comes through here.
+ */
+export function linePos(pg: Pentagrid, j: number, n: number): number {
+    const set = pg.lines?.[j];
+    return set ? set.at(n) : n - pg.gamma[j];
+}
+
+/**
+ * Which line of family j a position is at or before — the index function.
+ *
+ * The periodic answer is ⌈t + γⱼ⌉, which is K_j, so this IS de Bruijn's index
+ * generalized: the smallest n whose line is at or past t.
+ */
+export function lineIndexAt(pg: Pentagrid, j: number, t: number): number {
+    const set = pg.lines?.[j];
+    return set ? set.indexAt(t - K_EPS) : Math.ceil(t + pg.gamma[j] - K_EPS);
+}
+
 /** Where line nj of family j meets line nk of family k. Null if parallel. */
 export function solveIntersection(
     pg: Pentagrid, j: number, k: number, nj: number, nk: number,
@@ -50,8 +73,8 @@ export function solveIntersection(
     const [ck, sk] = pg.directions[k];
     const det = cj * sk - sj * ck;
     if (Math.abs(det) < 1e-10) return null;
-    const rj = nj - pg.gamma[j];
-    const rk = nk - pg.gamma[k];
+    const rj = linePos(pg, j, nj);
+    const rk = linePos(pg, k, nk);
     return [(sk * rj - sj * rk) / det, (cj * rk - ck * rj) / det];
 }
 
@@ -60,7 +83,7 @@ export function computeKTuple(pg: Pentagrid, x: number, y: number): number[] {
     const K: number[] = [];
     for (let j = 0; j < pg.n; j++) {
         const dot = pg.directions[j][0] * x + pg.directions[j][1] * y;
-        K.push(Math.ceil(dot + pg.gamma[j] - K_EPS));
+        K.push(lineIndexAt(pg, j, dot));
     }
     return K;
 }
@@ -93,7 +116,7 @@ export function computeRhomb(
         else if (i === k) Ki = nk;
         else {
             const dot = pg.directions[i][0] * x0 + pg.directions[i][1] * y0;
-            Ki = Math.ceil(dot + pg.gamma[i] - K_EPS);
+            Ki = lineIndexAt(pg, i, dot);
         }
         baseK.push(Ki);
         fx += Ki * edge[i][0];
@@ -185,12 +208,33 @@ export function collectRhombs(
     ) / gain;
     const maxN = Math.min(Math.ceil(maxCoord) + 5, cap);
 
+    /**
+     * How far family j reaches across the view, in its own line numbers.
+     *
+     * A periodic family takes the old symmetric window, which is what every
+     * existing caller gets and what the tests are written against. A family
+     * carrying a LineSet is not centered on anything, so its window is read off
+     * the rect: project the corners onto vⱼ and ask the set.
+     */
+    const span = (j: number): [number, number] => {
+        const set = pg.lines?.[j];
+        if (!set) return [-maxN, maxN];
+        const [vx, vy] = pg.directions[j];
+        let lo = Infinity, hi = -Infinity;
+        for (const [x, y] of [[vis.xMin, vis.yMin], [vis.xMax, vis.yMin],
+                              [vis.xMin, vis.yMax], [vis.xMax, vis.yMax]] as Vec2[]) {
+            const d = (vx * x + vy * y) / gain;
+            if (d < lo) lo = d;
+            if (d > hi) hi = d;
+        }
+        return [set.indexAt(lo) - 2, set.indexAt(hi) + 2];
+    };
+
     const lines = opts.lines;
     /** The line indices family j contributes: all of them, or just the one. */
     const range = (j: number): [number, number] => {
         const fixed = lines?.[j];
-        return (fixed === null || fixed === undefined)
-            ? [-maxN, maxN] : [fixed, fixed];
+        return (fixed === null || fixed === undefined) ? span(j) : [fixed, fixed];
     };
 
     const only = opts.only ?? null;
@@ -202,11 +246,11 @@ export function collectRhombs(
     const rhombs: Rhomb[] = [];
     for (let j = 0; j < pg.n; j++) {
         if (!ribbons && active && !active[j]) continue;
-        const [jLo, jHi] = ribbons ? [-maxN, maxN] : range(j);
+        const [jLo, jHi] = ribbons ? span(j) : range(j);
         for (let k = j + 1; k < pg.n; k++) {
             if (!ribbons && active && !active[k]) continue;
             if (!ribbons && only !== null && j !== only && k !== only) continue;
-            const [kLo, kHi] = ribbons ? [-maxN, maxN] : range(k);
+            const [kLo, kHi] = ribbons ? span(k) : range(k);
             for (let nj = jLo; nj <= jHi; nj++) {
                 for (let nk = kLo; nk <= kHi; nk++) {
                     // On a selected gridline through either of its families.
@@ -237,11 +281,12 @@ export function lineRange(pg: Pentagrid, j: number, vis: ViewRect): [number, num
         [vis.xMin, vis.yMax], [vis.xMax, vis.yMax],
     ];
     for (const [x, y] of corners) {
-        const d = vx * x + vy * y + pg.gamma[j];
+        const d = vx * x + vy * y;
         if (d < lo) lo = d;
         if (d > hi) hi = d;
     }
-    return [Math.ceil(lo) - 1, Math.floor(hi) + 1];
+    if (pg.lines?.[j]) return [lineIndexAt(pg, j, lo) - 1, lineIndexAt(pg, j, hi) + 1];
+    return [Math.ceil(lo + pg.gamma[j]) - 1, Math.floor(hi + pg.gamma[j]) + 1];
 }
 
 /** A piece of one gridline, between two consecutive crossings on it. */

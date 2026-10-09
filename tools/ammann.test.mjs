@@ -411,3 +411,93 @@ test("the window is the perp projection of gamma: w = C - q/S, one C for five", 
                   `j${j}: dw ${dw.toFixed(5)} against -dq/S ${(-dq / AMMANN_SHORT).toFixed(5)}`);
     }
 });
+
+// ── A family that carries any line set (PLAN §7.4, step 2) ───────────
+
+import { fibonacciLines, ammannLineSets } from "../dist/geometry/ammann.js";
+import { linePos, lineIndexAt } from "../dist/geometry/pentagrid.js";
+
+test("a family without a line set is the periodic family it always was", () => {
+    // The generalization has to be invisible where nothing uses it: line n of
+    // family j at n - gamma_j, and the index the ceiling it has always been.
+    const pg = makePentagrid(5, [0.37, 0.11, 0.29, 0.08, 0.15]);
+    for (let j = 0; j < 5; j++) {
+        for (let n = -6; n <= 6; n++) {
+            assert.ok(Math.abs(linePos(pg, j, n) - (n - pg.gamma[j])) < 1e-15);
+        }
+        for (const t of [-2.4, -0.5, 0, 0.3, 1.9]) {
+            assert.equal(lineIndexAt(pg, j, t), Math.ceil(t + pg.gamma[j] - 1e-9));
+        }
+    }
+});
+
+test("a Fibonacci family is Eq. (3), and at/indexAt invert each other", () => {
+    // Socolar-Steinhardt Eq. (3) at rho = sigma = tau, which is the closed form
+    // for one family of the Ammann quasilattice — O(1) in the line number, so a
+    // family can be a function and not a list.
+    const T = AMMANN_SHORT, alpha = -14.740828, beta = 0.656541;
+    const set = fibonacciLines(T, alpha, beta);
+    // Two spacings, in the ratio phi, and nothing else.
+    const gaps = new Set();
+    for (let n = -60; n < 60; n++) gaps.add((set.at(n + 1) - set.at(n)).toFixed(6));
+    assert.deepEqual([...gaps].sort(), [T.toFixed(6), (T * PHI).toFixed(6)]);
+    // Strictly increasing, and the index is its ceiling inverse.
+    for (let n = -60; n <= 60; n++) {
+        assert.ok(set.at(n) < set.at(n + 1));
+        assert.equal(set.indexAt(set.at(n)), n, `indexAt(at(${n}))`);
+        assert.equal(set.indexAt(set.at(n) + 1e-6), n + 1, "and a hair past it is the next");
+    }
+});
+
+test("the line sets reproduce the bars they were read from", () => {
+    const pg = makePentagrid(5, SUN);
+    const rhombs = collectRhombs(pg, { xMin: -14, xMax: 14, yMin: -14, yMax: 14 }, { gain: 2.5 });
+    let lo = Infinity;
+    for (const r of rhombs) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+    const sets = ammannLineSets(pg, rhombs, lo, 4, 1);       // tiling units
+    const bars = new Map();
+    for (const b of ammannBars(pg, rhombs, lo)) {
+        if (!bars.has(b.family)) bars.set(b.family, []);
+        bars.get(b.family).push(b.at);
+    }
+    assert.equal(sets.filter(Boolean).length, 5, "all five families should fit");
+    let checked = 0;
+    for (const [j, pos] of bars) {
+        for (const p of pos) {
+            const n = sets[j].indexAt(p);
+            assert.ok(Math.abs(sets[j].at(n) - p) < 1e-7,
+                      `j${j}: the set misses a measured bar by ${sets[j].at(n) - p}`);
+            checked++;
+        }
+    }
+    assert.ok(checked > 100, `only ${checked} bars checked`);
+});
+
+test("a pentagrid whose families are Fibonacci chains still dualizes", () => {
+    // The point of step 2: the dual does not care how a family is spaced. It
+    // asks where line n is and which line a point is past, and those are the
+    // only two questions a LineSet answers.
+    const pg = makePentagrid(5, SUN);
+    const rhombs = collectRhombs(pg, { xMin: -14, xMax: 14, yMin: -14, yMax: 14 }, { gain: 2.5 });
+    let lo = Infinity;
+    for (const r of rhombs) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+    const quasi = {
+        n: 5, directions: pg.directions, gamma: pg.gamma,
+        lines: ammannLineSets(pg, rhombs, lo, 4, 2.5),       // grid units
+    };
+    const dual = collectRhombs(quasi, { xMin: -8, xMax: 8, yMin: -8, yMax: 8 }, { gain: 2.5 });
+    assert.ok(dual.length > 200, `only ${dual.length} rhombs from the quasilattice`);
+    // Rhombs, with the same two prototiles and the same unit edge.
+    let thick = 0;
+    for (const r of dual) {
+        if (r.thick) thick++;
+        for (let i = 0; i < 4; i++) {
+            const a = r.vertices[i], b = r.vertices[(i + 1) % 4];
+            assert.ok(Math.abs(Math.hypot(b[0] - a[0], b[1] - a[1]) - 1) < 1e-9);
+        }
+    }
+    const thin = dual.length - thick;
+    assert.ok(thick > 0 && thin > 0, `${thick} thick, ${thin} thin`);
+    assert.ok(Math.abs(thick / thin - PHI) < 0.2,
+              `thick to thin is ${(thick / thin).toFixed(3)}, should approach phi`);
+});
