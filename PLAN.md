@@ -84,10 +84,10 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
 1. **Ammann bars, as first-class citizens.** Asked for 2026-10-08; the plan and
    the measurements are §7. Steps 1 to 3 are built — `geometry/ammann.ts`, the
    `ammann` switch in classic red, bar objects, the cut and its generator, ten
-   tests in `tools/ammann.test.mjs`. One number is open: the window position w
-   as a closed form in γ. Socolar and Steinhardt 1986 give it — §7.4a has the
-   dictionary and their Eq. (23) — and what remains is matching conventions.
-   Then §7.5 (the reticulum switch: bars dualize to the DEFLATION, not to the
+   tests in `tools/ammann.test.mjs`, and §7.4's open number is closed: the
+   window is w_j = C − q_j/S off γ's perp projection, which is Socolar and
+   Steinhardt's Eq. (23) once their γₙ is read as our perp projection over φ.
+   Next is §7.5 (the reticulum switch: bars dualize to the DEFLATION, not to the
    tiling — their correction, §7.4a) and §7.6 (the hover and the readout).
 2. **Draw the nudged lines.** A reading of a 2k-gon comes from a configuration
    of the concurrent lines pulled apart; `nudgeOf` names it and the readout
@@ -3495,8 +3495,33 @@ carries, each fact an assertion in `tools/ammann.test.mjs`:
   and the gridlines of a family sit 5/2 apart in tiling coordinates: **φ bars to
   a gridline**, exactly.
 
-**What is still open** is the one number: the window position w as a closed form
-in γ. It is bracketed per family per patch and the brackets narrow like φ⁻ⁿ with
+**CLOSED, 2026-10-08.** The window position is
+
+    w_j = C − q_j / S,     q_j = Σᵢ γᵢ cos(4π(i−j)/5)
+
+— q_j is γ's PERPENDICULAR-space component along direction j, which is why the
+sun, where every q_j is zero, puts all five windows at the same place. There is
+one C for the whole tiling and not one per family: measured over eight γ at a
+patch of 260 bars, the five C agree to 0.003 against a bracket of 0.0025. The
+slope was pinned by scanning γ along a sum-preserving path and taking
+unwrapped differences: κ = −0.8891, −0.9017, −0.8978 on three families, against
+−2/√5 = −0.89443 and nothing else near (−φ/2 = −0.809 is ten brackets away).
+And 2/√5 is 1/S, so the law carries no constant of its own.
+
+C is fixed by Σγ, which is an integer on a Penrose patch and is the only case
+where the chain exists. In units of 1/√5 it is a member of ℤ[φ]:
+
+| Σγ | −1 | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|---|
+| C√5 | −2 | 0 | −φ | −1 | −φ² |
+
+`ammannPerp(pg, j)` computes q_j, and `tools/ammann.test.mjs` asserts the law,
+the constant per Σγ, and the slope. What this buys: the five windows follow
+from γ with no tiles, so a bar family can be generated anywhere once C is
+known — and C is one number for the whole figure, so ONE measured bar
+calibrates all five families.
+
+**What was open** was this one number. It is bracketed per family per patch and the brackets narrow like φ⁻ⁿ with
 the patch, so a fit is enough to extend a chain — but a closed form is what
 would make `ammannLines` read off γ with no tiles at all, and §7.5's dual
 honest rather than circular. Two ways in, and they check each other:
@@ -3562,15 +3587,28 @@ measured mean gap, S(2+φ)/φ². In our variables that is
     w = φ²·(c/S) − φ/2 − (φ²+1)·γ
 
 so with one c shared across the families, w should be affine in γⱼ with slope
-−(φ²+1) = −3.618. **A first check does not reconcile**: fitting our bracketed
-w against γ over four patches gives slopes of 0, −1.6, −1.8, −2.1 and residuals
-up to 0.4, where the brackets are only ±0.03 wide. The gap is a convention, not
-a disagreement — their γₙ is in units of the periodic spacing and signed
-against ours, their eₙ numbering need not be our family numbering, and the
-paper says plainly that an umklapp "leaves the quasiperiodic pentagrid
-unchanged and shifts the expression on the right-hand side by an integer", so
-each family carries an unknown integer. Pinning the convention is finite work
-and is what is left of §7.4.
+−(φ²+1) = −3.618 and NO cross terms, their relation being diagonal in n.
+
+**Reconciled, 2026-10-08, and the difference is one change of basis.** Measured,
+w_j is affine in γ with slope −1/S = −2/√5 and it DOES have cross terms: the
+dependence is on q_j = Σᵢ γᵢ cos(4π(i−j)/5), γ's perpendicular-space component
+along direction j. Put the two together — their dγₙ/dw against our dq_j/dw —
+and
+
+    γₙ^SS  =  q_j / (S(φ²+1))  =  2 q_j / (5φ)
+
+where 5/2 is our registration gain. Substituting that into Eq. (23) reproduces
+our measured coefficient exactly: the q_j term comes out at 1/(S φ² (1+1/φ²))
+= 1/4.045085 = 2/(5φ), both ways, to every digit measured. **Their γₙ is our
+perp projection, over φ, in grid units.** What is left over is the constant,
+which is the umklapp they name — "an umklapp leaves the quasiperiodic pentagrid
+unchanged and shifts the expression on the right-hand side by an integer" —
+and which we measure as C(Σγ) in §7.4.
+
+So the first check failing was not a disagreement: it was fitting a diagonal
+law to a figure whose answer is the perp projection, which for the sun is
+indistinguishable (every q_j is zero there and all five windows coincide) and
+for an uneven γ is not.
 
 **And they correct §7.5 before it is built.** *"The dual of the Ammann
 quasilattice, now treated as a quasiperiodic pentagrid, is the DEFLATION of its

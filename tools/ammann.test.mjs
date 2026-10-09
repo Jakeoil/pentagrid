@@ -198,7 +198,7 @@ test("the offsets are the mosaic's, read off penrose-screen.js", () => {
 
 // ── The bars as their own object (PLAN §7.4) ─────────────────────────
 
-import { ammannBars, ammannFit, ammannChain, AMMANN_WINDOW } from "../dist/geometry/ammann.js";
+import { ammannBars, ammannFit, ammannChain, ammannPerp, AMMANN_WINDOW } from "../dist/geometry/ammann.js";
 
 /** A patch's bars, by family, as sorted position lists. */
 function barsOf(gamma, reach = 16) {
@@ -333,5 +333,81 @@ test("the two gaps fall in the ratio phi, which is phi bars to a gridline", () =
         const want = AMMANN_SHORT * (2 + PHI) / (PHI * PHI);
         assert.ok(Math.abs(mean - want) < 0.03, `j${j}: mean gap ${mean} against ${want}`);
         assert.ok(Math.abs(2.5 / want - PHI) < 1e-9, "phi bars to a gridline");
+    }
+});
+
+test("the window is the perp projection of gamma: w = C - q/S, one C for five", () => {
+    // PLAN §7.4, and Socolar-Steinhardt Eq. (23) in our coordinates. The slope
+    // is -1/S exactly and the constant is shared by all five families, which is
+    // why the sun — where every q_j is zero — puts all five windows together.
+    const BAR = 1 - PHI;
+    const asZphi = (x) => {
+        for (let b = -200000; b <= 200000; b++) {
+            const a = x - b * PHI;
+            if (Math.abs(a - Math.round(a)) < 1e-6) return [Math.round(a), b];
+        }
+        return null;
+    };
+    /** Every family's window against ONE shared reference bar. */
+    const windows = (gamma, reach = 150) => {
+        const pg = makePentagrid(5, gamma);
+        const rhombs = collectRhombs(pg, { xMin: -reach, xMax: reach, yMin: -reach, yMax: reach },
+                                     { gain: 2.5 });
+        let lo = Infinity;
+        for (const r of rhombs) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+        const fams = new Map();
+        for (const b of ammannBars(pg, rhombs, lo)) {
+            if (!fams.has(b.family)) fams.set(b.family, []);
+            fams.get(b.family).push(b.at);
+        }
+        const first = fams.get(0);
+        const c = first.reduce((best, v) => Math.abs(v) < Math.abs(best) ? v : best, first[0]);
+        return [...fams].sort((a, b) => a[0] - b[0]).map(([j, pos]) => {
+            let min = Infinity, max = -Infinity;
+            for (const p of pos) {
+                const f = asZphi((p - c) / AMMANN_SHORT);
+                if (!f) continue;
+                const u = f[0] + f[1] * BAR;
+                min = Math.min(min, u); max = Math.max(max, u);
+            }
+            return { j, w: (max - PHI + min) / 2, err: (min - (max - PHI)) / 2 };
+        });
+    };
+
+    const R5 = Math.sqrt(5);
+    for (const [gamma, want] of [
+        [[0.3, -0.1, 0.2, -0.25, -0.15], 0],            // sum 0
+        [[0.2, 0.2, 0.2, 0.2, 0.2], -PHI],              // sum 1, the sun
+        [[0.37, 0.11, 0.29, 0.08, 0.15], -PHI],         // sum 1, uneven
+        [[0.5, 0.3, 0.4, 0.6, 0.2], -1],                // sum 2
+    ]) {
+        const pg = makePentagrid(5, gamma);
+        const w = windows(gamma);
+        // C = w_j + q_j/S must be the same number for every family.
+        const C = w.map((x) => x.w + ammannPerp(pg, x.j) / AMMANN_SHORT);
+        const spread = Math.max(...C) - Math.min(...C);
+        const tol = 2 * Math.max(...w.map((x) => x.err)) + 1e-9;
+        assert.ok(spread < tol,
+                  `C spread ${spread.toFixed(5)} over a bracket of ${tol.toFixed(5)}: `
+                  + C.map((v) => v.toFixed(5)).join(" "));
+        // And C, in units of 1/root5, is the member of Z[phi] the sum picks.
+        const mean = C.reduce((a, b) => a + b, 0) / C.length;
+        assert.ok(Math.abs(mean * R5 - want) < 0.02,
+                  `sum ${gamma.reduce((a, b) => a + b, 0)}: C*root5 = ${(mean * R5).toFixed(4)}`
+                  + ` against ${want.toFixed(4)}`);
+    }
+
+    // The slope: moving gamma along a sum-preserving path moves every window by
+    // minus its own perp component over S, and the family whose perp does not
+    // move does not move.
+    const base = [0.31, 0.13, 0.27, 0.09, 0.20];
+    const step = base.slice(); step[0] += 0.06; step[1] -= 0.06;
+    const w0 = windows(base), w1 = windows(step);
+    const pg0 = makePentagrid(5, base), pg1 = makePentagrid(5, step);
+    for (let j = 0; j < 5; j++) {
+        const dw = w1[j].w - w0[j].w;
+        const dq = ammannPerp(pg1, j) - ammannPerp(pg0, j);
+        assert.ok(Math.abs(dw - (-dq / AMMANN_SHORT)) < 0.01,
+                  `j${j}: dw ${dw.toFixed(5)} against -dq/S ${(-dq / AMMANN_SHORT).toFixed(5)}`);
     }
 });

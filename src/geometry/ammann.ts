@@ -283,3 +283,34 @@ export function ammannChain(
     }
     return out.sort((a, b) => a - b);
 }
+
+/**
+ * The window's position, as a closed form in γ — PLAN §7.4, measured.
+ *
+ *     w_j = C − q_j / S,   q_j = Σᵢ γᵢ cos(4π(i−j)/5)
+ *
+ * q_j is γ's PERPENDICULAR-space component along direction j, which is why the
+ * sun — every γ equal, so q_j = 0 for all j — puts all five windows at the same
+ * place. One C for the whole tiling, not one per family: measured over eight
+ * γ at a patch of 260, the five C agree to 0.003 against a bracket of 0.0025.
+ *
+ * C is fixed by Σγ, which is an integer on a Penrose patch and is the only
+ * case where the chain exists at all. In units of 1/√5 it reads off as a
+ * member of ℤ[φ]:
+ *
+ *     Σγ   −1    0    1    2    3
+ *     C√5  −2    0   −φ   −1  −φ²
+ *
+ * This is Socolar and Steinhardt's Eq. (23) in our coordinates — see PLAN
+ * §7.4a. Their relation is diagonal in n and ours is not, and the whole of the
+ * difference is that their γₙ is OUR perp projection: matching the two gives
+ * γₙ^SS = q_j/(S(φ²+1)) = 2q_j/(5φ), where 5/2 is the registration gain. The
+ * coefficient comes out exactly, both ways.
+ */
+export function ammannPerp(pg: Pentagrid, family: number): number {
+    let q = 0;
+    for (let i = 0; i < pg.n; i++) {
+        q += pg.gamma[i] * Math.cos(4 * Math.PI * (i - family) / pg.n);
+    }
+    return q;
+}
