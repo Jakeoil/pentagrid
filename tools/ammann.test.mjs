@@ -501,3 +501,94 @@ test("a pentagrid whose families are Fibonacci chains still dualizes", () => {
     assert.ok(Math.abs(thick / thin - PHI) < 0.2,
               `thick to thin is ${(thick / thin).toFixed(3)}, should approach phi`);
 });
+
+// ── The proof: the dual of the quasilattice is the deflation (§7.5) ──
+
+import { ammannCut, ammannGrid } from "../dist/geometry/ammann.js";
+
+/** Every vertex of the tiling γ makes, over a square of the given reach. */
+function tilingVertices(gamma, reach) {
+    const sub = collectRhombs(makePentagrid(5, gamma),
+        { xMin: -reach, xMax: reach, yMin: -reach, yMax: reach }, { gain: 2.5 });
+    const out = new Set();
+    for (const r of sub) for (const [x, y] of r.vertices) {
+        out.add(`${Math.round(x * 1e4)},${Math.round(y * 1e4)}`);
+    }
+    return out;
+}
+
+test("the quasilattice comes off gamma alone, with no tiles and no fit", () => {
+    // ammannCut reads c and C off the sum; ammannPerp gives the window per
+    // family. No patch, no bracket — and it reproduces every bar a patch has.
+    for (const gamma of [[0.2, 0.2, 0.2, 0.2, 0.2], [0.5, 0.3, 0.4, 0.6, 0.2],
+                         [0.3, -0.1, 0.2, -0.25, -0.15], [0.7, 0.5, 0.6, 0.8, 0.4]]) {
+        const pg = makePentagrid(5, gamma);
+        const sets = ammannGrid(pg, 1);
+        assert.ok(sets, "a Penrose gamma has a quasilattice");
+        const rhombs = collectRhombs(pg, { xMin: -16, xMax: 16, yMin: -16, yMax: 16 },
+                                     { gain: 2.5 });
+        let lo = Infinity;
+        for (const r of rhombs) for (const K of r.kTuples) lo = Math.min(lo, K.reduce((a, b) => a + b, 0));
+        let bars = 0;
+        for (const b of ammannBars(pg, rhombs, lo)) {
+            const n = sets[b.family].indexAt(b.at);
+            assert.ok(Math.abs(sets[b.family].at(n) - b.at) < 1e-6,
+                      `sum ${gamma.reduce((a, c) => a + c, 0)}: a bar the cut misses`);
+            bars++;
+        }
+        assert.ok(bars > 100, `only ${bars} bars checked`);
+    }
+    // Off Penrose there is no chain, and the cut says so rather than guessing.
+    assert.equal(ammannCut(makePentagrid(5, [0.2, 0.2, 0.2, 0.2, 0.3])), null);
+    assert.equal(ammannGrid(makePentagrid(5, [0.2, 0.2, 0.2, 0.2, 0.3])), null);
+});
+
+test("THE PROOF: the dual of the quasilattice is the deflation", () => {
+    // Socolar and Steinhardt: "The dual of the Ammann quasilattice, now treated
+    // as a quasiperiodic pentagrid, is the DEFLATION of its associated tiling."
+    // Not the tiling — which is what we expected before reading them, and what
+    // this test rules out at the same time.
+    for (const gamma of [[0.2, 0.2, 0.2, 0.2, 0.2],          // the sun, sum 1
+                         [0.5, 0.3, 0.4, 0.6, 0.2],          // uneven, sum 2
+                         [0.3, -0.1, 0.2, -0.25, -0.15]]) {  // uneven, sum 0
+        const pg = makePentagrid(5, gamma);
+        const quasi = { n: 5, directions: pg.directions, gamma, lines: ammannGrid(pg, 2.5) };
+        const dual = collectRhombs(quasi, { xMin: -9, xMax: 9, yMin: -9, yMax: 9 },
+                                   { gain: 2.5 });
+        assert.ok(dual.length > 300, `only ${dual.length} rhombs`);
+        const pts = [...new Set(dual.flatMap((r) => r.vertices
+            .map(([x, y]) => `${Math.round(x * 1e4)},${Math.round(y * 1e4)}`)))]
+            .map((s) => s.split(",").map((v) => Number(v) / 1e4));
+
+        const defl = gamma.map((_, j) => -(gamma[(j + 2) % 5] + gamma[(j + 3) % 5]));
+        const target = tilingVertices(defl, 16);
+        const plain = tilingVertices(gamma, 16);
+
+        // The dual is fixed only up to a translation: the bar indices have no
+        // canonical origin, so f(K) can slide by any Σ mⱼvⱼ. Anchor the vertex
+        // nearest the origin onto each target vertex and take the best.
+        const match = (set) => {
+            const anchor = pts.reduce((p, q) => Math.hypot(...q) < Math.hypot(...p) ? q : p);
+            let best = 0;
+            for (const k of set) {
+                const [bx, by] = k.split(",").map((v) => Number(v) / 1e4);
+                const tx = bx - anchor[0], ty = by - anchor[1];
+                if (Math.hypot(bx, by) > 6) continue;
+                let inside = 0, hit = 0;
+                for (const [x, y] of pts) {
+                    const px = x + tx, py = y + ty;
+                    if (Math.hypot(px, py) > 6) continue;
+                    inside++;
+                    if (set.has(`${Math.round(px * 1e4)},${Math.round(py * 1e4)}`)) hit++;
+                }
+                if (inside > 50 && hit / inside > best) best = hit / inside;
+            }
+            return best;
+        };
+        const sum = gamma.reduce((a, b) => a + b, 0);
+        assert.equal(match(target), 1,
+                     `sum ${sum}: the dual should BE the deflation, every vertex`);
+        assert.ok(match(plain) < 0.95,
+                  `sum ${sum}: and it should not be the tiling itself`);
+    }
+});

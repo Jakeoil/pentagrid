@@ -3685,7 +3685,34 @@ existing `collectRhombs` is written for ℤ-spaced families, so the work is
 letting a family carry an arbitrary sorted position list — which is also what
 the reticulum's own non-uniform modes would want.
 
-The proof is a test, not a picture: build the tiling from the bars of a given γ,
+**PROVED, 2026-10-08.** `ammannGrid(pg, gain)` builds the five Fibonacci
+families from γ alone — no patch, no fit, no bracket — using `ammannCut` for
+the two numbers the figure needs and `ammannPerp` for the window per family.
+Fed to `collectRhombs`, the dual of those five families is the **deflation**,
+exactly:
+
+| Σγ | dual vs the deflation | dual vs the tiling itself |
+|---|---|---|
+| 1, the sun | **151/151** | 93/140 |
+| 2, uneven | **138/138** | 111/144 |
+| 0, uneven | **136/136** | 115/136 |
+
+Every vertex, at rotation 0, no reflection, over a disc of 6 — and nothing like
+a match against the tiling the bars were read off, which was the expectation
+before reading Socolar. The dual is fixed only up to a translation, since the
+bar indices have no canonical origin and f(K) can slide by any Σmⱼvⱼ, so the
+test anchors the vertex nearest the origin onto each target vertex and takes
+the best.
+
+**And it only worked with the cut exact.** Fitted from a patch, the match wobbled
+between 58% and 95% and moved with the patch size: `ammannFit` brackets w to
+±0.005 and `asZphi` starts dropping members at large patches, so the chain
+drifts from the true one far from its reference, and one flipped gap in one
+family is a whole ribbon of the dual. The closed form of §7.4 is what made the
+difference, which is the best argument for it there is.
+
+The older plan for this section follows, for the record. The proof is a test,
+not a picture: build the tiling from the bars of a given γ,
 and assert its vertices are those of the **deflation** of that γ's tiling —
 γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃) at 1/φ, which §5.17 and `nextPentas` already compute, and
 which §7.4a says is what the dual of an Ammann quasilattice is. Not the tiling

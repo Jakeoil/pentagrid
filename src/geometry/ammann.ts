@@ -378,3 +378,61 @@ export function ammannLineSets(
     }
     return out;
 }
+
+/**
+ * The cut behind a whole quasilattice, from γ alone — no tiles.
+ *
+ * Two numbers for the figure, one window per family (PLAN §7.4):
+ *
+ *     the module offset   c,  shared by all five
+ *     the window          w_j = C − q_j/S,  q_j = ammannPerp
+ *
+ * and c and C are fixed by Σγ, which is an integer on a Penrose patch. They
+ * repeat with period five, because adding 1 to every γⱼ adds 1 to every Kⱼ and
+ * so translates the tiling by Σvⱼ = 0 — the same tiling, hence the same bars,
+ * five further along the sum. Measured, both in closed form:
+ *
+ *     Σγ mod 5   0        1     2      3      4
+ *     4c         4 − φ²   φ²   −1/φ    1/φ   −φ²
+ *     C√5        0       −φ    −1     −φ²    −2
+ *
+ * Why these numbers are what they are is not derived. That they are exact is:
+ * built from them, the chain reproduces every measured bar of a patch, and its
+ * dual is the deflation to the last vertex.
+ */
+export function ammannCut(pg: Pentagrid): { c: number; C: number } | null {
+    let sum = 0;
+    for (const g of pg.gamma) sum += g;
+    const m = Math.round(sum);
+    if (Math.abs(sum - m) > 1e-9) return null;      // off Penrose there is no chain
+    const i = ((m % 5) + 5) % 5;
+    const R5 = Math.sqrt(5), P2 = PHI * PHI;
+    const c4 = [4 - P2, P2, -1 / PHI, 1 / PHI, -P2][i];
+    const C5 = [0, -PHI, -1, -P2, -2][i];
+    return { c: c4 / 4, C: C5 / R5 };
+}
+
+/**
+ * The Ammann quasilattice of γ, as five `LineSet`s — the grid, from the grid.
+ *
+ * This is what makes the bars a first-class object rather than a reading off
+ * the tiles: no patch, no fit, no bracket. Give it a pentagrid and it gives
+ * back the five Fibonacci families, exact and unbounded.
+ *
+ * `gain` divides the positions, because a Pentagrid places its lines in GRID
+ * coordinates and the bars are measured in the tiling's — pass the same gain
+ * the tiles were collected at (5/2 here) and the dual registers.
+ *
+ * Null off a Penrose patch, where the bars do not come out straight and there
+ * is no chain to describe.
+ */
+export function ammannGrid(pg: Pentagrid, gain = 1): (LineSet | null)[] | null {
+    const cut = ammannCut(pg);
+    if (!cut) return null;
+    const out: (LineSet | null)[] = [];
+    for (let j = 0; j < pg.n; j++) {
+        const w = cut.C - ammannPerp(pg, j) / AMMANN_SHORT;
+        out.push(fibonacciLines(AMMANN_SHORT / gain, cut.c / AMMANN_SHORT, -w / PHI));
+    }
+    return out;
+}
