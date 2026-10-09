@@ -17,7 +17,7 @@ import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js
 import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
-import { rhombAmmann } from "../geometry/ammann.js";
+import { rhombAmmann, ammannBars } from "../geometry/ammann.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
 import { mountGammaControls } from "./controls.js";
@@ -341,6 +341,16 @@ export interface Features {
     axes: boolean;
     kRegions: boolean;
     kLabels: boolean;
+    /**
+     * The Ammann quasilattice, drawn ON the grid: the bars as full lines, in
+     * the family colors, so the two spacings can be read against each other.
+     *
+     * A gridline family is evenly spaced; its bar family is not — two gaps in
+     * the ratio φ, in the Fibonacci word, φ bars to a gridline. Seeing that is
+     * the whole point of drawing it here rather than as a tile decoration,
+     * which the `ammann` switch under penrose face already does in red.
+     */
+    ammannGrid: boolean;
     intersectionDots: boolean;
     penroseTiles: boolean;
     penroseEdges: boolean;
@@ -568,6 +578,7 @@ export const LAYER_FEATURE: Record<string, keyof Features> = {
     axes: "axes",
     dots: "intersectionDots",
     klabels: "kLabels",
+    "ammann-grid": "ammannGrid",
     "penrose-tiles": "penroseTiles",
     "penrose-edges": "penroseEdges",
     "penrose-decor": "penroseDecor",
@@ -977,7 +988,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     const NO_FEATURES: Features = {
         gridLines: true, axes: false,
-        kRegions: false, kLabels: false, intersectionDots: false,
+        kRegions: false, kLabels: false, ammannGrid: false, intersectionDots: false,
         penroseTiles: false, penroseEdges: false, penroseVertices: false,
         penroseDecor: false,
         arrows: false,
@@ -1272,6 +1283,21 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         visible: () => features.intersectionDots,
         draw: (c) => withView(gridView(), () =>
             drawIntersectionDots(c.ctx, c.cx, c.cy, computeRect())),
+    });
+
+    stack.add({
+        /**
+         * The Ammann quasilattice. Jake: draw it in normal colors so the
+         * spacing shows, and on the grid.
+         *
+         * So: z 11, immediately over the gridlines, in the same family colors,
+         * and in the TILING frame rather than the grid's — which is where the
+         * bars are measured and where the registration puts the two together.
+         * Under the tiles, like the grid itself, because it is a grid object.
+         */
+        id: "ammann-grid", label: "Ammann", z: 11, group: "Pentagrid",
+        visible: () => features.ammannGrid && model.n === 5,
+        draw: (c) => drawAmmannGrid(c.ctx, c.w, c.h, c.cx, c.cy),
     });
 
     stack.add({
@@ -3535,6 +3561,39 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (dotted) tc.restore();
     }
 
+    /**
+     * The quasilattice: every bar of every family, as a full line.
+     *
+     * The bars are assembled from the patch — a chord knows its family and its
+     * offset, and chords that agree on both are one bar — so the lines reach
+     * as far as the tiles do, which is the view and a margin. Drawn in the
+     * TILING frame, since that is where the offsets are measured.
+     */
+    function drawAmmannGrid(
+        tc: CanvasRenderingContext2D, w: number, h: number, cx: number, cy: number,
+    ) {
+        const levels = dressingLevels();
+        if (levels === null) return;                 // nothing to place them by
+        const { lo } = indexRange();
+        const bars = ammannBars(model, currentRhombs().filter((r) => !isStacked(r)), lo, levels);
+        const extent = Math.hypot(w, h);
+        tc.save();
+        tc.lineWidth = gridLineWidth;
+        for (const bar of bars) {
+            const [vx, vy] = directions[bar.family];
+            const px = -vy, py = vx;                 // along the line
+            const ox = vx * bar.at, oy = vy * bar.at;
+            const [x1, y1] = mathToScreen(ox - px * extent, oy - py * extent, cx, cy);
+            const [x2, y2] = mathToScreen(ox + px * extent, oy + py * extent, cx, cy);
+            tc.strokeStyle = COLORS[bar.family % COLORS.length];
+            tc.beginPath();
+            tc.moveTo(x1, y1);
+            tc.lineTo(x2, y2);
+            tc.stroke();
+        }
+        tc.restore();
+    }
+
     // ── K-region visualization ────────────────────────────────────────
 
     function hslToRgb(h: number, s: number, l: number): [number, number, number] {
@@ -4190,6 +4249,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // always in front.
         const extras = row(layerPanelDiv, "style");
         featureToggle(extras, "kLabels", "K-labels");
+        featureToggle(extras, "ammannGrid", "ammann").title =
+            "The Ammann quasilattice drawn ON the grid, in the family colors: the bars "
+            + "as full lines rather than the per-tile chords the penrose-face switch "
+            + "draws in red. A gridline family is evenly spaced and its bar family is "
+            + "not — two gaps in the ratio φ, in Conway's musical sequence, and φ bars "
+            + "to a gridline. Under the tiles, as a grid object should be.";
         slider(extras, "gridline width", "How thick the grid lines are drawn.",
             { min: 0.5, max: 4, step: 0.5 }, gridLineWidth, (v) => v.toFixed(1),
             (v) => { gridLineWidth = v; draw(); });

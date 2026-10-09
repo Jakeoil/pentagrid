@@ -272,6 +272,7 @@ Front to back. z decides the order; the group is where the switch lives.
 | 30 | `penrose-tiles` | Tiles | Penrose | `penroseTiles` |
 | 29 | `dots` | Dots | Pentagrid | `intersectionDots` |
 | 28 | `klabels` | K-labels | Pentagrid | `kLabels` |
+| 11 | `ammann-grid` | Ammann | Pentagrid | `ammannGrid` |
 | 10 | `grid` | Grid | Pentagrid | family flags |
 | 5 | `background` | K-regions | Pentagrid | `kRegions` |
 

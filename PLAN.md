@@ -3654,6 +3654,26 @@ anything but the deflation, something upstream is wrong.
 The switch itself goes in the reticulum section, beside the other line-source
 choices.
 
+### 7.5a The quasilattice, drawn — BUILT 2026-10-08
+
+Jake: *"Draw the quasilattice, but in normal colors, we can see the spacing...
+It's drawn on the grid I'm assuming."* Yes, and that settles where it goes.
+
+`ammann-grid`, z 11 — immediately over the gridlines, under the tiles, in the
+Pentagrid group — strokes every bar as a full LINE in its family's own color,
+where the `ammann` switch under penrose face draws the per-tile chords in red.
+The switch is in the grid section's `style` row beside K-labels. Drawn in the
+TILING frame, which is where the offsets are measured and where the
+registration puts the two figures together.
+
+The point of putting it there is that the comparison is immediate: a gridline
+family is evenly spaced, its bar family is not — two gaps in the ratio φ, in
+Conway's musical sequence, φ bars to a gridline. Both in the same five colors,
+one over the other.
+
+Under the tiles, like the grid itself, because it is a grid object. Turn the
+faces off to read it against the gridlines, which is what it is for.
+
 ### 7.6 First-class, the rest of it
 
 - **A hover.** Bar → the ribbon it marks. One-way, grid-side, under the rules

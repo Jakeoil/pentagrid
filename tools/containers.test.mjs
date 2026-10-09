@@ -3243,3 +3243,49 @@ test("bend 36 paints its overlaps blue as well, and bend 18 has none to paint", 
                  "outie bend 18 overlaps nothing either");
     assert.equal(run({ pentaShape: "penta" }), 0, "and the straight tiling cannot");
 });
+
+test("the ammann quasilattice draws on the grid, in the family colors", () => {
+    // Jake: draw the quasilattice, in normal colors so we can see the spacing,
+    // on the grid. So it is the bars as full LINES — one stroke a bar, not the
+    // five chords a tile the red penrose-face switch draws — immediately over
+    // the gridlines and in the same five colors, so the even spacing and the
+    // Fibonacci one can be read against each other.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { gridLines: true, penroseTiles: false, ammannGrid: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("ammann-grid");
+    assert.ok(layer, "no ammann-grid layer");
+    assert.equal(layer.visible(), false, "off by default");
+    assert.ok(layer.z > h.stack.get("grid").z, "over the gridlines");
+    assert.ok(layer.z < h.stack.get("penrose-tiles").z, "and under the tiles");
+
+    const strokes = [];
+    layer.ctx.stroke = function () { strokes.push(String(this.strokeStyle)); };
+    h.setFeatures({ ammannGrid: true }, { merge: true });
+    h.redraw();
+    assert.ok(layer.visible(), "the switch raises it");
+    assert.ok(strokes.length > 50, `only ${strokes.length} bars drawn`);
+
+    // The family colors, all five of them, and nothing else — no red here.
+    const grid = h.stack.get("grid");
+    const gridColors = [];
+    grid.ctx.stroke = function () { gridColors.push(String(this.strokeStyle)); };
+    h.redraw();
+    const palette = new Set(gridColors);
+    assert.equal(palette.size, 5, "the grid should use five colors");
+    for (const c of new Set(strokes)) {
+        assert.ok(palette.has(c), `${c} is not a family color`);
+    }
+    assert.equal(new Set(strokes).size, 5, "all five families should be drawn");
+
+    // One stroke a bar: the count matches what ammannBars reports, and it is
+    // far fewer than the chords, which are five to a tile.
+    const n = strokes.length;
+    h.setFeatures({ ammannGrid: false }, { merge: true });
+    h.redraw();
+    assert.equal(strokes.length, n, "nothing drawn with the switch off");
+});
