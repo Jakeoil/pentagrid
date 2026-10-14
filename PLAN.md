@@ -3804,8 +3804,37 @@ Three sources, one object, and the whole section hangs off it. Dietl's Lemma 6:
           π(C²)   the golden rhomb, which is every face of all five
 
 Project a k-cube from ℝ⁶ into 3-space and you get a golden isozonohedron;
-Coxeter's five are exactly k = 3, 3, 4, 5, 6. **And there are exactly two at
-k = 3** because the icosahedral group acts transitively on the six diagonals
+Coxeter's five are exactly k = 3, 3, 4, 5, 6.
+
+**And the ladder does not stop there — it goes down to the rhomb, and that is
+the emphasis** (Jake, 2026-10-14, pointing at Dietl's figure 35, the five as a
+row of Zometool models). π(C²) is the golden rhomb, and Dietl says plainly
+that *"the faces of these bodies are golden rhombs congruent to π(C²)"*. So it
+is not five solids and then, separately, a face. It is **one operation at every
+rung**:
+
+| k | π(C^k) | what it is in the tiling |
+|---|---|---|
+| 6 | K30, the triacontahedron | the window |
+| 5 | F20, the rhombic icosahedron | the lens |
+| 4 | B12, Bilinski's dodecahedron | the minilens |
+| 3 | A6 and O6, two rhombohedra | **the tiles** |
+| 2 | the golden rhomb | **the face of all of them** |
+| 1 | an edge | the generator eⱼ |
+| 0 | a vertex | the origin |
+
+Every rung is the face-figure of the one above, and the whole row is a single
+projection with k turned up. A page that shows only k = 3…6 shows solids; a
+page that runs 0 to 6 shows a **construction**, and the rhomb stops being a
+given and becomes the k = 2 case.
+
+The plane already has most of this and we built it without seeing the ladder:
+§5.0's singularity solids are π(C³), π(C⁴), π(C⁵) — hexagon, octagon, decagon
+— and a Penrose tile is π(C²). The pentagrid can show rungs 0 to 5 and cannot
+reach 6; the hexagrid adds the top. That is the whole relationship between the
+two halves of the section, in one sentence.
+
+**And there are exactly two at k = 3** because the icosahedral group acts transitively on the six diagonals
 and on their pairs but NOT on their triples: a triple is either a chain or an
 equilateral triangle, two orbits, two rhombohedra. That is §5.0's K122/K113
 split one dimension up, and §5.0 measured the volumes at a ratio of exactly φ
@@ -3948,12 +3977,14 @@ with **explode** and **cut** and nothing else in the frame.
    already have: a flat Penrose patch folds up, every rhomb goes rigid, and the
    fold angles are 36/72/108. One page, mostly the existing picture, ending on
    the question the rest answers — *what is the solid this is the surface of?*
-2. **The cube's shadow** — π(C^k) for k = 2 to 6, one generator added at a
-   time. The golden rhomb becomes a rhombohedron becomes Bilinski's
-   dodecahedron becomes Fedorov's icosahedron becomes Kepler's triacontahedron:
-   the five isozonohedra as one construction, not a list. Explode shows each
-   one as its rhombohedra — 4, 10, 20 — which is the same statement as the
-   projection, seen from inside.
+2. **The cube's shadow** — π(C^k) for k = 0 to 6, one generator added at a
+   time, **all the way down to the rhomb**. A vertex, an edge, the golden
+   rhomb, the two rhombohedra, Bilinski's dodecahedron, Fedorov's icosahedron,
+   Kepler's triacontahedron: not five isozonohedra in a row but one operation
+   with k on a slider, and the face of every solid is the rung two below it.
+   Dietl's figure 35 is the still version of this page; the point of ours is
+   that k moves. Explode then shows each one as its rhombohedra — 4, 10, 20 —
+   which is the same statement as the projection, seen from inside.
 3. **Why two rhombohedra** — the icosahedral group on triples of diagonals:
    chain or equilateral, and nothing else. Acute and oblate, volumes in the
    ratio φ. Cross-reference §5.0, which found this in the plane.
