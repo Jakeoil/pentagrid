@@ -3849,15 +3849,29 @@ So the arc of §5.0 — a singularity is not a defect, it is a solid — turns o
 to be the standard way to build the 3D tiling. We arrived at it from the wrong
 end and can now say so.
 
-### 8.4 What it is FOR: exploding diagrams and cutaways
+### 8.4 What it is FOR: scenery AND anatomy, alternating
 
-Jake, deciding the shape of the whole thing: *"The goal would be exploding
-diagrams and cutaways of small sections."*
+Jake, deciding the shape: *"The goal would be exploding diagrams and cutaways
+of small sections."* And then, correcting a false dichotomy of mine: *"2D
+sections would be scenery, because larger patches."*
 
-That is not scenery, it is **anatomy**, and it settles a great deal. The
-section is not a big packing to fly around; it is a small number of cells taken
-apart so you can see what they are made of. Which is exactly what these objects
-are good for, because every one of them dissects:
+Which is right, and better than what I had written. It is not a choice between
+the two — it is a **rhythm**. A Penrose patch is large and is taken in at a
+glance: that is the wide shot, and the 2D pages are it. A zonohedron is small
+and has to be taken apart: that is the close shot, and the 3D pages are it.
+The section alternates, and each 3D page answers a question the 2D page before
+it raised.
+
+| | the 2D pages | the 3D pages |
+|---|---|---|
+| | scenery — a large patch | anatomy — one small solid |
+| scale | hundreds of tiles | tens of cells |
+| what it shows | that a pattern exists | what one piece is made of |
+| the control | γ, the grid, the reading | **explode** and **cut** |
+| what is hard | nothing new — this is built | the exactness of the dissection |
+
+What makes the close shots worth having is that every one of these solids
+dissects:
 
 | cell | dissects into |
 |---|---|
@@ -3866,59 +3880,69 @@ are good for, because every one of them dissects:
 | K30, the triacontahedron | **20** — ten acute, ten oblate |
 
 An exploded triacontahedron IS the statement that the window is built from the
-two tiles. You cannot say it in words nearly as well.
+two tiles, and no sentence says it as well.
 
-**Explode is a float and a `render(t)`, so rule 4.2 holds.** It is the same
-parameter the growth pages already have: `grow.html` carries each rhomb from
-its crossing at (n/2)·x₀ to its place at f, and the 3D version carries each
-cell from the assembled solid out along its own axis. One slider, one
-continuous map, no animation library — and the existing 2D pages are the
-precedent, not an exception to it.
+### 8.5 three.js is already decided — next door
 
-**Cutaway is a clipping plane**, which is the one thing a painter's algorithm
-flatly cannot do: you can sort faces back to front, but you cannot sort the
-half of a face that survives a cut. three.js has `clippingPlanes` as a
-first-class renderer feature, with the cap rendered as its own pass. A cut
-through a packing showing the cells in section is the other half of the
-argument.
+I drafted a section arguing for three.js as a first dependency and setting
+terms for it. Unnecessary: **wieringa-roof has done all of it**, and the terms
+I was about to propose are the ones it already uses.
 
-So the three.js case rests on three things the canvas cannot do at all —
-intersecting solids, clipping, and real occlusion among hundreds of cells — and
-one it does badly, picking.
+    wieringa-roof/vendor/   three.module.js, three.core.min.js,
+                            OrbitControls, LineSegments2,
+                            LineSegmentsGeometry, LineMaterial
+    an importmap in each 3D page, "three" → ./vendor/three.module.js
+    src/*3d.ts for the renderers, geometry in its own modules, tested apart
 
-### 8.5 three.js: the first runtime dependency, and the terms
+Vendored, pinned, no npm runtime install, importmap per page. Copy the pattern
+rather than re-deciding it. Rule 4.2 is unthreatened: the roof's explode is a
+slider and a render, which is a float and a `render(t)`.
 
-The roof draws 3D today by sorting faces back to front on a 2D canvas, and
-roof.html says so with some pride: *"no 3D library, and the ordering is exact."*
-That holds for a convex-ish surface of golden rhombs. It does not hold for what
-this section needs — nested solids, a window containing a tiling, a cut plane
-through a packing, hundreds of cells with real occlusion, and picking. A
-painter's algorithm cannot sort intersecting geometry, and these intersect:
-Dietl's theorem 3.12 is literally *two triacontahedra intersecting in a flat
-tile*.
+**And more than the pattern — take the work.** Jake: *"Take some inspiration
+from the cage in Wieringa, some very impressive 3D in bands vs Kowalewski."*
+What is there:
 
-Terms, so the dependency stays honest:
+- **`rhombohedra.html`, the Cage.** The twenty cells of a triacontahedron as a
+  wireframe you can turn and pull apart: explode, color by acute/obtuse or one
+  hue per cell or by axis, either family alone, faces on or off, auto-turn.
+  This is the exploding diagram, built. Its explode mechanic is the one to
+  keep: **each cell moves along the direction of its own center**, so zero
+  reassembles exactly and full travel is the same arrangement magnified, and
+  faces go translucent while the cells are close, since assembled they share
+  every internal face.
+- **`src/dissect.ts` and `tools/dissect.mjs`.** The dissection, and its proof:
+  twenty cells one per triple, ten and ten, ratio φ, volumes summing to
+  4√(5+2√5), every corner inside the solid, no two cells overlapping, 93,809
+  sampled interior points each in exactly one cell. The module says the
+  dissection is one of many rather than pretending it is canonical.
+- **Kowalewski five and bands, on 3D cells.** `EXCEPTIONAL.md`: *"Color comes
+  from Kowalewski five or from bands."* These are pentagrid's two colorings
+  (§ the system dropdown) already carried into three dimensions, which is the
+  "very impressive 3D" Jake is pointing at — and it means the 2D and 3D halves
+  of this section can be colored the same way and read as one argument.
+- **`src/cutaway.ts`.** Cutting, with the geometry done exactly and
+  `tools/cutaway.mjs` checking it against a closed form. A different cut
+  (spheres, not planes through a packing) but the same standard of proof.
+- **Fat lines.** `LineSegments2` is vendored, so a cage can have real line
+  width, which plain WebGL lines cannot.
 
-- **Vendored, pinned, no npm runtime install.** `vendor/three.module.js` and
-  the one addon we need (`OrbitControls`), committed. An importmap in the 3D
-  pages only. GitHub Pages serves them; nothing else on the site changes.
-- **A hand-written `.d.ts`** for the handful of classes we touch, rather than
-  `@types/three`. The build stays plain `tsc` with no dependency resolution.
-- **The mathematics never imports it.** `geometry/` stays DOM-free and
-  WebGL-free, and `npm test` never loads three. Only `view/three/` does.
-- **Rule 4.2 still stands.** No animation library. A parameter is a float and a
-  `render(t)`, in 3D as in 2D.
-- `tools/pagecheck.mjs` cannot run WebGL, so the 3D pages need either a
-  `getContext("webgl2") → null` early-out in the container or their own
-  smoke test. Decide when the first page exists.
+**So the division of labor is clean.** wieringa-roof has the solids, the
+renderer, the dissection and the colorings; pentagrid has the grid — the
+duality, `zonohedron.ts`, `ammann.ts`, and a `LineSet` that does not care how
+many dimensions it is in. The 3D section brings the roof's stack here because
+the mathematics is here and the stack travels more easily than the
+mathematics. The cost is honest and should be said: a second copy of the
+three.js container, in two projects that do not share a build. If that becomes
+painful, the answer is a shared module, not a merge.
 
 ### 8.6 The pages
 
 In the vein of the discrete strand: a short sequence, each page one idea, the
 previous page's object carried into the next.
 
-Each is a small figure with two controls — **explode** and **cut** — and the
-page's own object in the middle of them.
+Wide, close, wide, close. The odd pages are scenery — a large patch, the grid,
+the thing you take in at a glance — and the even ones are anatomy, one solid
+with **explode** and **cut** and nothing else in the frame.
 
 1. **The roof** — the intro Jake asked for, and short. The Wieringa lift we
    already have: a flat Penrose patch folds up, every rhomb goes rigid, and the
@@ -3949,10 +3973,17 @@ page's own object in the middle of them.
 1. `geometry/zono3.ts` — the six icosahedral generators, π(C^k) for k = 3…6,
    the two rhombohedra and their orbit argument, Socolar's Table I as a test
    fixture. DOM-free, tested, no three.js. **This is a session, and it is the
-   whole mathematical spine.** Everything after it is presentation.
-2. three.js vendored, a `view/three/` container with orbit, lighting, **an
-   explode parameter and a clipping plane** — those two are the container's
-   job, not each page's — and page 2 as the first thing to look at.
+   whole mathematical spine.** Everything after it is presentation. Check it
+   against wieringa-roof's `dissect.ts` while writing: the triacontahedron's
+   twenty cells are already verified there, so the two should agree, and if
+   they do not one of them is wrong.
+2. three.js vendored FROM wieringa-roof — the same six files and the same
+   importmap — and a `view/three/` container with orbit, lighting, **an
+   explode parameter and a clipping plane**, those two being the container's
+   job and not each page's. Read `rhombohedra3d.ts` before writing it: the
+   explode law (each cell along its own center) and the translucency-while-
+   close trick are both worth taking as they are. Page 2 is the first thing
+   to look at.
 3. Pages 1 and 3.
 4. The hexagrid in `geometry/` — the 6-direction grid, its dual, and the
    Fibonacci families from §7's `fibonacciLines` (which already generalizes:
