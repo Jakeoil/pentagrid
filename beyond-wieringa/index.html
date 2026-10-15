@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beyond Wieringa</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg">
+    <link rel="stylesheet" href="../site.css">
+    <style>
+        .stage {
+            height: min(62vh, 520px);
+            border: 1px solid var(--rule);
+            border-radius: 6px;
+            margin: 18px 0 10px;
+            touch-action: none;
+            background: #fbfbfc;
+        }
+        .dials { display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
+                 font-size: 13px; margin-bottom: 6px; }
+        .dials label { display: flex; gap: 7px; align-items: center; }
+        .dials input[type=range] { width: 130px; }
+        .solidname { font-size: 15px; margin: 2px 0 2px; }
+        .readout { font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+                   color: var(--ink-faint); }
+        .ladder { border-collapse: collapse; font-size: 13px; margin: 10px 0 18px; }
+        .ladder td, .ladder th { padding: 3px 12px 3px 0; text-align: left; }
+        .ladder th { color: var(--ink-faint); font-weight: 400; }
+        .buildid { font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+                   color: var(--ink-faint); }
+    </style>
+</head>
+<body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="../" draggable="false">Home</a>
+    <a href="../roof.html" draggable="false">Roof</a>
+    <a href="./" draggable="false" aria-current="page">Beyond Wieringa</a>
+</nav>
+<div class="wrap">
+    <h1>Beyond Wieringa</h1>
+    <h2>The golden zonohedra, as one construction</h2>
+
+    <p>The <a href="../roof.html">Wieringa roof</a> stands a flat tiling up and both
+    rhombs become the same golden rhombus. That is where this starts and not where it
+    stops. Dietl and Eschenburg prove that the five <b>golden isozonohedra</b> &mdash;
+    Coxeter's list, every face a golden rhomb &mdash; are all projections of cubes from
+    six-dimensional space: K<sub>30</sub> = &pi;(C<sup>6</sup>), F<sub>20</sub> =
+    &pi;(C<sup>5</sup>), B<sub>12</sub> = &pi;(C<sup>4</sup>), and the two rhombohedra at
+    <i>k</i> = 3. The golden rhomb itself is &pi;(C<sup>2</sup>).</p>
+
+    <p>So it is not five solids and, separately, a face. It is <b>one operation with
+    <i>k</i> turned up</b>, and every rung is the face of the one above. Move the slider.</p>
+
+    <div id="stage" class="stage"></div>
+    <div class="dials">
+        <label>k <input id="k" type="range" min="0" max="6" step="1" value="6"></label>
+        <label>explode <input id="explode" type="range" min="0" max="1" step="0.01" value="0"></label>
+        <label>cut <input id="cut" type="range" min="0" max="1" step="0.01" value="1"></label>
+        <label><input id="edges" type="checkbox" checked> edges</label>
+        <label><input id="spin" type="checkbox"> turn</label>
+    </div>
+    <div id="solidname" class="solidname"></div>
+    <div id="readout" class="readout"></div>
+
+    <h3>The ladder</h3>
+    <table class="ladder">
+        <tr><th>k</th><th>&pi;(C<sup>k</sup>)</th><th>vertices</th><th>faces</th><th>in the tiling</th></tr>
+        <tr><td>2</td><td>the golden rhomb</td><td>4</td><td>1</td><td>the face of all of them</td></tr>
+        <tr><td>3</td><td>two rhombohedra, A<sub>6</sub> and O<sub>6</sub></td><td>8</td><td>6</td><td><b>the tiles</b></td></tr>
+        <tr><td>4</td><td>Bilinski's dodecahedron</td><td>14</td><td>12</td><td>the minilens</td></tr>
+        <tr><td>5</td><td>Fedorov's rhombic icosahedron</td><td>22</td><td>20</td><td>the lens</td></tr>
+        <tr><td>6</td><td>Kepler's triacontahedron</td><td>32</td><td>30</td><td>the window</td></tr>
+    </table>
+
+    <p>The vertex counts are not measured but forced. Whether a subset of the generators
+    lands on the hull is a question about <em>directions</em>: the sum over
+    <i>T</i> is a vertex exactly when some <b>c</b> is positive on <i>T</i> and negative
+    off it, so vertices correspond to the open regions of an arrangement of <i>k</i>
+    great circles &mdash; and such an arrangement has <b>k<sup>2</sup> &minus; k +
+    2</b> of them. That is 8, 14, 22, 32. The faces are k(k&minus;1), and Euler holds
+    at every rung.</p>
+
+    <p><b>Exploding pulls the faces off</b>, each along its own outward normal, so zero
+    reassembles exactly. Thirty rhombs come off a triacontahedron, twenty off an
+    icosahedron, six off a rhombohedron &mdash; and they are all the same rhomb, which
+    is the <i>k</i> = 2 rung seen from the solids above it. Faces are colored by the
+    <b>pair of axes</b> that spans them, the same grammar the bands use in the plane.</p>
+
+    <p>And the plane has most of this ladder already, built before any of it was read:
+    &sect;5.0's singularity solids are &pi;(C<sup>3</sup>), &pi;(C<sup>4</sup>) and
+    &pi;(C<sup>5</sup>) &mdash; the hexagon, the octagon and the decagon &mdash; and a
+    Penrose tile is &pi;(C<sup>2</sup>). What the pentagrid cannot reach is
+    <i>k</i> = 6: that needs a sixth zone, a family of lines with no direction, which
+    the plane has nowhere to put. The icosahedral hexagrid has it, and the rest of this
+    section is about what it builds.</p>
+
+    <p class="buildid" id="buildid"></p>
+</div>
+
+<script type="importmap">
+{
+    "imports": {
+        "three": "../vendor/three.module.js",
+        "three/addons/controls/OrbitControls.js": "../vendor/OrbitControls.js"
+    }
+}
+</script>
+<script type="module" src="../dist/app/beyond.js"></script>
+</body>
+</html>

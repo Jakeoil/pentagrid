@@ -13,7 +13,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = new URL("..", import.meta.url).pathname;
-const SKIP_DIRS = new Set(["node_modules", "dist", ".git", ".github", "jake"]);
+// `vendor` is three.js, copied in by `npm run vendor` and not ours to respell.
+const SKIP_DIRS = new Set(["node_modules", "dist", ".git", ".github", "jake", "vendor"]);
 const TEXT = /\.(ts|mjs|js|html|md|css|json)$/;
 const SELF = "tools/spelling.test.mjs";
 

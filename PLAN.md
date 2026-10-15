@@ -4008,7 +4008,25 @@ with **explode** and **cut** and nothing else in the frame.
    against wieringa-roof's `dissect.ts` while writing: the triacontahedron's
    twenty cells are already verified there, so the two should agree, and if
    they do not one of them is wrong.
-2. three.js vendored FROM wieringa-roof — the same six files and the same
+2. ~~three.js vendored, the container, page 2.~~ **BUILT 2026-10-14.** `three`
+   and `@types/three` as devDependencies and a `vendor` script, which is the
+   roof's arrangement exactly: npm at build time, three vendored files served
+   by an importmap, no runtime dependency. `view/zono3d.ts` is the container
+   (rule 4.1) with orbit, flat matte lighting, explode and a clipping plane;
+   `beyond-wieringa/index.html` is the page, linked from home as an aside
+   beside Discrete directions. **Explode pulls the FACES off, not cells** —
+   each along its own outward normal, so zero reassembles exactly — which says
+   the thing the cells cannot yet: thirty rhombs off a triacontahedron, twenty
+   off an icosahedron, six off a rhombohedron, and they are all one rhomb.
+   Faces are colored by the pair of axes that spans them, the bands grammar.
+   `tools/beyond.test.mjs` is the pagecheck substitute: WebGL will not run in
+   node, so it checks instead that every id the app reaches for is in the page,
+   that the importmap and the script point at files that exist, that every bare
+   specifier the view imports is mapped, and that geometry/ imports neither
+   three nor the DOM. The cell dissection, and exploding into cells, is its own
+   step.
+
+   The original note, for the record: three.js vendored FROM wieringa-roof — the same six files and the same
    importmap — and a `view/three/` container with orbit, lighting, **an
    explode parameter and a clipping plane**, those two being the container's
    job and not each page's. Read `rhombohedra3d.ts` before writing it: the
