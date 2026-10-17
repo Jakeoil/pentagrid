@@ -303,7 +303,72 @@ map is ℤ[ζ₅]'s), and the 2k-gons (`resolve.ts` is written for five).
 
 ## 5. The record
 
-Newest first. Each entry is dated to the session that found it.
+Newest first. Each entry is dated to the session that found it. (The
+numbering counts down from 5.0 for anything found after it: §5.-1 is newer
+than §5.0, not older.)
+
+### 5.-1 The spokes, and the musical sequence they carry (Jake, 2026-10-17)
+
+Jake: *"The spokes are those thin and thick hexagons arranged in a fibinacci
+(musical) sequence. Their configurations varies intimately with that of the
+decagon. SLLSLLSLSLLSLSL… They actually pass through the decagon."* And then
+the claim: *"there are not just valid penrose tilings in the decagon paths (10
+of those) but a couple of paths where two skewbs (thin and thick) remain. when
+this happens, one of the spokes continues the musical sequence."*
+
+**Both halves hold, and the second is sharper than it sounds.**
+`tools/spokes.mjs` prints it, `tools/spokes.test.mjs` asserts it.
+
+**A spoke is a line of hexagons, and there are five of them.** At Γ = 0 a reach
+of 26 holds 390 three-folds and one five-fold and no four-fold, which is
+§5.12's catalog. The three-folds of a given triple are **exactly collinear**,
+to 1e-15 — one line per triple — and the ten lines fall into **five
+directions, two triples each**. Every one of those pairs is one K113 and one
+K122: a thin skewb and a thick sharing a spoke. Which is §5.12's couples read
+geometrically rather than arithmetically. All five lines pass through the
+origin, so every spoke passes through the decagon, as Jake says.
+
+**The sequence is in the labels, not the lengths.** Each triple alone is
+periodic along its spoke, spacing g, and the two triples on one line have
+spacings g and φg. Their union therefore takes **48 distinct gap values** —
+two incommensurate progressions interleaved — so the musical sequence is not
+in the distances. It is in **which** hexagon comes next, thin or thick. Read
+thin as S and thick as L that is SLSSLSSLSLSS…, whose complement is
+LSLLSLLSLSLL… — and Jake's SLLSLLSLSLLSLSL is that from its second letter,
+character for character.
+
+**The decagon is a defect in it, and the defect is measurable.** Each triple's
+own spacing is g everywhere except at the origin, where it is **2g**: the slot
+that spoke's hexagon would occupy is taken by the five-fold instead. Exactly
+one double gap per spoke, always at the decagon. So the merged word is not
+quite Sturmian, and the way it fails says how badly: its factor complexity
+runs 2 3 4 5 6 7 8 then **10 12 14 16**, departing from n + 1 at n = 8, which
+is the signature of a single missing letter.
+
+**And at a wall it heals — which is Jake's claim, proved.** Take ε = (0, 0, 0,
+t, −t): the sum is held so the patch stays Penrose, and §5.12's rule — γ_L
+integral and γ_P + γ_Q integral — keeps the triple 012 concurrent and *forces*
+its partner 134 along with it. Measured at t = 0.013:
+
+- exactly **two** triples survive, 012 and 134 — one K113 and one K122, a thin
+  skewb and a thick, which is what "two skewbs remain" means
+- they are the two triples of **one spoke**, the 72° line
+- the other eight spokes are gone entirely, and so is the decagon
+- each of the two gains **exactly one** hexagon, in the slot the decagon had
+- and the word becomes Sturmian: complexity exactly **n + 1** for every n
+  tested, and a genuine **factor of the Fibonacci word**
+
+So the decagon is the one place the musical sequence is interrupted, and a
+wall of the jiggle is where a couple steps in to complete it. The ten
+cartwheel readings (§5.0's correction) are the chambers of that same sphere;
+the walls between them are these. A chamber resolves everything and has no
+spokes at all.
+
+**What this does not yet say** is the thing the Ammann work would: whether the
+spoke's musical sequence and the Ammann bars' are the *same* sequence — same
+slope, same window, one figure seen two ways — or two Fibonacci chains that
+happen to share a ratio. §7.4's closed form makes that testable and it is not
+done.
 
 ### 5.0 The singularities are golden zonohedra, standing up on the roof (2026-09-24)
 
