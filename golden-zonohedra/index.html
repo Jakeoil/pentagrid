@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Beyond Wieringa</title>
+    <title>Golden zonohedra</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="stylesheet" href="../site.css">
     <style>
@@ -34,11 +34,11 @@
     <span class="brand">Pentagrid</span>
     <a href="../" draggable="false">Home</a>
     <a href="../roof.html" draggable="false">Roof</a>
-    <a href="./" draggable="false" aria-current="page">Beyond Wieringa</a>
+    <a href="./" draggable="false" aria-current="page">Golden zonohedra</a>
 </nav>
 <div class="wrap">
-    <h1>Beyond Wieringa</h1>
-    <h2>The golden zonohedra, as one construction</h2>
+    <h1>Golden zonohedra</h1>
+    <h2>Coxeter's five, as one construction</h2>
 
     <p>The <a href="../roof.html">Wieringa roof</a> stands a flat tiling up and both
     rhombs become the same golden rhombus. That is where this starts and not where it
@@ -49,14 +49,20 @@
     <i>k</i> = 3. The golden rhomb itself is &pi;(C<sup>2</sup>).</p>
 
     <p>So it is not five solids and, separately, a face. It is <b>one operation with
-    <i>k</i> turned up</b>, and every rung is the face of the one above. Move the slider.</p>
+    <i>k</i> turned up</b>, and every rung is the face of the one above. The list has
+    eight entries for seven rungs, because <i>k</i> = 3 is two solids and not one.</p>
+
+    <p>For Dietl's figure 35, set faces to <b>none</b> and edges to <b>ball and
+    stick</b>: that is the Zometool build, each strut colored by the one axis it runs
+    along.</p>
 
     <div id="stage" class="stage"></div>
     <div class="dials">
-        <label>k <input id="k" type="range" min="0" max="6" step="1" value="6"></label>
+        <label>solid <select id="solid"></select></label>
+        <label>edges <select id="edges"></select></label>
+        <label>faces <select id="faces"></select></label>
         <label>explode <input id="explode" type="range" min="0" max="1" step="0.01" value="0"></label>
         <label>cut <input id="cut" type="range" min="0" max="1" step="0.01" value="1"></label>
-        <label><input id="edges" type="checkbox" checked> edges</label>
         <label><input id="spin" type="checkbox"> turn</label>
     </div>
     <div id="solidname" class="solidname"></div>
@@ -66,7 +72,8 @@
     <table class="ladder">
         <tr><th>k</th><th>&pi;(C<sup>k</sup>)</th><th>vertices</th><th>faces</th><th>in the tiling</th></tr>
         <tr><td>2</td><td>the golden rhomb</td><td>4</td><td>1</td><td>the face of all of them</td></tr>
-        <tr><td>3</td><td>two rhombohedra, A<sub>6</sub> and O<sub>6</sub></td><td>8</td><td>6</td><td><b>the tiles</b></td></tr>
+        <tr><td>3</td><td>O<sub>6</sub>, oblate &mdash; a chain of axes</td><td>8</td><td>6</td><td><b>a tile</b></td></tr>
+        <tr><td>3</td><td>A<sub>6</sub>, acute &mdash; an equilateral triple</td><td>8</td><td>6</td><td><b>the other tile</b></td></tr>
         <tr><td>4</td><td>Bilinski's dodecahedron</td><td>14</td><td>12</td><td>the minilens</td></tr>
         <tr><td>5</td><td>Fedorov's rhombic icosahedron</td><td>22</td><td>20</td><td>the lens</td></tr>
         <tr><td>6</td><td>Kepler's triacontahedron</td><td>32</td><td>30</td><td>the window</td></tr>
@@ -83,8 +90,18 @@
     <p><b>Exploding pulls the faces off</b>, each along its own outward normal, so zero
     reassembles exactly. Thirty rhombs come off a triacontahedron, twenty off an
     icosahedron, six off a rhombohedron &mdash; and they are all the same rhomb, which
-    is the <i>k</i> = 2 rung seen from the solids above it. Faces are colored by the
-    <b>pair of axes</b> that spans them, the same grammar the bands use in the plane.</p>
+    is the <i>k</i> = 2 rung seen from the solids above it.</p>
+
+    <p>The two colorings say different things. A <b>face</b> takes the pair of axes that
+    spans it &mdash; the bands grammar the tiles use in the plane, so a face says which
+    two zones made it. A <b>stick</b> takes the one axis it runs along, six colors,
+    which is Zometool's own convention.</p>
+
+    <p>And there are exactly two rhombohedra for a reason that is a group action rather
+    than a measurement: the icosahedral group is transitive on the six axes and on their
+    pairs, and <em>not</em> on their triples &mdash; a triple is a chain or an
+    equilateral triangle, and those are the two orbits, ten each. Their volumes are
+    0.470228 and 0.760845, in the ratio &phi;, the oblate the smaller.</p>
 
     <p>And the plane has most of this ladder already, built before any of it was read:
     &sect;5.0's singularity solids are &pi;(C<sup>3</sup>), &pi;(C<sup>4</sup>) and
@@ -105,6 +122,6 @@
     }
 }
 </script>
-<script type="module" src="../dist/app/beyond.js"></script>
+<script type="module" src="../dist/app/golden.js"></script>
 </body>
 </html>

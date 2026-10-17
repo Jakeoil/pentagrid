@@ -4013,7 +4013,7 @@ with **explode** and **cut** and nothing else in the frame.
    roof's arrangement exactly: npm at build time, three vendored files served
    by an importmap, no runtime dependency. `view/zono3d.ts` is the container
    (rule 4.1) with orbit, flat matte lighting, explode and a clipping plane;
-   `beyond-wieringa/index.html` is the page, linked from home as an aside
+   `golden-zonohedra/index.html` is the page, linked from home as an aside
    beside Discrete directions. **Explode pulls the FACES off, not cells** —
    each along its own outward normal, so zero reassembles exactly — which says
    the thing the cells cannot yet: thirty rhombs off a triacontahedron, twenty
@@ -4025,6 +4025,18 @@ with **explode** and **cut** and nothing else in the frame.
    specifier the view imports is mapped, and that geometry/ imports neither
    three nor the DOM. The cell dissection, and exploding into cells, is its own
    step.
+
+   **Named 2026-10-17.** Jake: *"Not beyond-wieringa. Make name
+   golden-zonohedra."* So the directory, the page and the nav entry are
+   `golden-zonohedra`, which says what is on the page rather than what the
+   page is past. And the controls in the same breath: *"k should be a dropdown
+   with the short names (K30, F20 etc, rhomb, edge, point). Edge is a dropdown
+   none, thin, ball and colored stick. Face none, transparent, solid."* Built.
+   The solid dropdown has EIGHT entries for seven rungs, because k = 3 is two
+   solids and a list of names can say that where a slider on k cannot: O6 the
+   oblate, from a chain of axes (012), and A6 the acute, from an equilateral
+   triple (013). Faces off plus ball-and-stick IS Dietl's figure 35, each
+   strut colored by the one axis it runs along.
 
    The original note, for the record: three.js vendored FROM wieringa-roof — the same six files and the same
    importmap — and a `view/three/` container with orbit, lighting, **an

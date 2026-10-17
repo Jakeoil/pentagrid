@@ -1,4 +1,4 @@
-// The Beyond Wieringa page is wired: every id the app reaches for exists, the
+// The Golden zonohedra page is wired: every id the app reaches for exists, the
 // importmap points at files that are there, and the script it loads was built.
 //
 // This is the pagecheck guard in the one form that works for a WebGL page.
@@ -11,19 +11,38 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 
-const HTML = readFileSync("beyond-wieringa/index.html", "utf8");
-const APP = readFileSync("src/app/beyond.ts", "utf8");
+const HTML = readFileSync("golden-zonohedra/index.html", "utf8");
+const APP = readFileSync("src/app/golden.ts", "utf8");
+
+/**
+ * Every id the app names, however it names it.
+ *
+ * The app reaches for an element three ways — `getElementById` directly, and
+ * through the `slider` and `pick` helpers — and a pattern that knows only some
+ * of them passes while blind to the rest. That happened: when the k slider
+ * became three dropdowns the test still passed and was checking none of them.
+ * So the list of helpers lives here, and the count below is a floor that has
+ * to be raised deliberately.
+ */
+function appIds(src) {
+    return [...src.matchAll(/(?:getElementById|slider|pick)\("([^"]+)"/g)].map((m) => m[1]);
+}
 
 test("every id the page script looks up is in the html", () => {
-    // Both ways the app names one: directly, and through the slider helper.
-    const wanted = [
-        ...[...APP.matchAll(/getElementById\("([^"]+)"\)/g)].map((m) => m[1]),
-        ...[...APP.matchAll(/slider\("([^"]+)"/g)].map((m) => m[1]),
-        ...[...APP.matchAll(/\["([a-z]+)", "[a-z]+"\]/g)].map((m) => m[1]),
-    ];
-    assert.ok(wanted.length >= 7, `only ${wanted.length} ids found in the app: ${wanted}`);
+    const wanted = appIds(APP);
+    assert.ok(wanted.length >= 10, `only ${wanted.length} ids found in the app: ${wanted}`);
     for (const id of wanted) {
         assert.ok(HTML.includes(`id="${id}"`), `#${id} is reached for but not in the page`);
+    }
+});
+
+test("and every id in the html is one the script uses", () => {
+    // The other direction, which is what a rename leaves behind: a control
+    // still on the page and wired to nothing.
+    const onPage = [...HTML.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+    const used = new Set(appIds(APP));
+    for (const id of onPage) {
+        assert.ok(used.has(id), `#${id} is in the page and nothing reads it`);
     }
 });
 
