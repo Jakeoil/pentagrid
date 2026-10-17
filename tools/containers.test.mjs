@@ -1840,12 +1840,14 @@ test("the solid is its edges and the bands crossing on them", () => {
     assert.equal(fills, collapsed * 3, `${fills} against ${collapsed} faces at grow 0`);
 });
 
-test("the legacy 2k-gon drawing is derived from solids, not switched", () => {
-    // Jake, 2026-10-17: "Get rid of 2kgon-legacy." The switch goes; the rule
-    // it wanted is what its own note always said — the legacy drawing stands
-    // until the solid is there to say it better. Which also keeps the flat
-    // pages, who have no solids layer, holding the only drawing of a stack
-    // they have.
+test("a superposed tile is not drawn at all — the legacy 2k-gon drawing is gone", () => {
+    // Jake, twice: "Get rid of 2kgon-legacy", and then "It should have been
+    // turned off. I see the legacy ghost lines in the decagon." The first
+    // attempt derived it from `solids`, which left exactly those ghosts
+    // whenever the solids were down. It is now unconditional: no fill, no
+    // edge, no band on a tile that is part of a stack. The band still arrives
+    // at the polygon and leaves on the far side — the gap quads carry that,
+    // and it owes nothing to the tiling inside.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);       // stacks everywhere
     v.set({ grow: 0.6, fold: 1, band: 0.5, solids: false });
@@ -1854,20 +1856,14 @@ test("the legacy 2k-gon drawing is derived from solids, not switched", () => {
     let fills = 0;
     layer.ctx.fill = () => { fills++; };
     v.redraw();
-    const legacy = fills;
+    const down = fills;
 
     v.set({ solids: true });
     fills = 0;
     v.redraw();
-    const quiet = fills;
-
-    // Three fills per tile go with the in-tile strips — the two bands and the
-    // patch where they cross — so the drop is 3 per superposed tile, on top of
-    // the runs across each polygon. Nothing of a band is left inside one.
-    assert.ok(quiet < legacy, `nothing was suppressed (${quiet} of ${legacy})`);
-    // The tiles outside the polygons keep theirs, so most of it survives.
-    assert.ok(quiet > legacy * 0.4, `too much went: ${quiet} of ${legacy}`);
-    // And the flag is gone rather than renamed.
+    // Raising the solid adds nothing to this layer and takes nothing away:
+    // the stacks were already silent, which is what the ghosts were.
+    assert.equal(fills, down, `the solids switch still moves the tiling (${fills} vs ${down})`);
     assert.equal("stackBands" in v.get(), false, "stackBands should be gone");
 });
 
@@ -1927,27 +1923,29 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     assert.equal(texts.filter((t) => t === "0").length, 1, "one ghost, at the decagon");
 });
 
-test("roof: with the solid up, the polygon is left to its own color", () => {
+test("roof: the polygon is left to its own color, solid or no solid", () => {
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);
-    v.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true, solids: false });
+    const plain = createGrowthView({ container: host(), lift: true });
+    plain.pentagrid.gamma.setLocked(-1);
+    plain.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);   // no stacks
 
-    const growth = v.pentagrid.stack.get("growth");
-    let fills = 0, strokes = 0;
-    growth.ctx.fill = () => { fills++; };
-    growth.ctx.stroke = () => { strokes++; };
-    fills = 0; strokes = 0;
-    v.redraw();
-    const withIt = { fills, strokes };
-
-    v.set({ solids: true });
-    fills = 0; strokes = 0;
-    v.redraw();
-    // Nothing of a superposed tile is drawn: no fill, no edge, no band.
-    assert.ok(fills < withIt.fills, `no fills went (${fills} of ${withIt.fills})`);
-    assert.ok(strokes < withIt.strokes, `no edges went (${strokes} of ${withIt.strokes})`);
-    // and the tiles outside the polygons are untouched
-    assert.ok(fills > withIt.fills * 0.4, `too much went: ${fills} of ${withIt.fills}`);
+    const count = (view) => {
+        const growth = view.pentagrid.stack.get("growth");
+        let fills = 0, strokes = 0;
+        growth.ctx.fill = () => { fills++; };
+        growth.ctx.stroke = () => { strokes++; };
+        view.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true });
+        view.redraw();
+        return { fills, strokes };
+    };
+    const singular = count(v), regular = count(plain);
+    // The singular patch has 50 of its tiles stacked and draws none of them,
+    // so it spends far less on tile bodies than a regular patch of the same
+    // reach — which is the whole of what the ghosts were adding.
+    assert.ok(singular.fills < regular.fills,
+              `the stacks are still being drawn (${singular.fills} vs ${regular.fills})`);
+    assert.ok(singular.strokes < regular.strokes, "and still being outlined");
 });
 
 test("the panel reads in three sections, and split puts the third on the right", () => {
@@ -3302,36 +3300,45 @@ test("the ammann quasilattice draws on the grid, in the family colors", () => {
     assert.equal(strokes.length, n, "nothing drawn with the switch off");
 });
 
-test("the Kowalewski five is an alternative to the bands, not a brightness", () => {
-    // Jake, 2026-10-17: "Add a kowalewski coloring (under the bands)." Both key
-    // on the same pair of families and say different things about it: bands
-    // blends the two, so a color names a PAIR; Kowalewski is c = 3(j+k) mod 5,
-    // so the two rhombs meeting along an axis share a color and a color names
-    // ONE direction. Five against ten.
+test("Kowalewski is a decoration, under the bands rather than instead of them", () => {
+    // Jake, 2026-10-17: "I meant a checkbox, not to add to dropdown. I meant
+    // that it would be a decoration like kites, etc." So it paints the tile's
+    // BODY — the ground every other dressing sits on — and the bands run over
+    // it. The two then say different things at once: five colors naming an
+    // axis underneath, ten naming a pair on top.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setLocked(-1);
     v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
-    v.set({ grow: 1, fold: 1, band: 0.5, solids: false });
+    v.set({ grow: 1, fold: 0, band: 0.5, solids: false, kowalewski: false });
 
     const layer = v.pentagrid.stack.get("growth");
     const seen = [];
     layer.ctx.fill = function () { seen.push(String(this.fillStyle)); };
-    const run = (color) => {
-        v.set({ color });
+    const run = (on) => {
+        v.set({ kowalewski: on });
         seen.length = 0;
         v.redraw();
-        return new Set(seen);
+        return seen.slice();
     };
-    // Shading tints every color by height, so count the DISTINCT hues rather
-    // than the strings: at full fold a roof face is tinted by its own level.
-    const bands = run("bands"), kow = run("kowalewski");
-    assert.ok(bands.size > 10, `only ${bands.size} band colors`);
-    assert.ok(kow.size > 1, "Kowalewski drew nothing");
-    assert.notDeepEqual([...bands].sort(), [...kow].sort(), "the two schemes agree");
-    assert.equal(v.get().color, "kowalewski");
-    // Flat, with no height to tint by, the counts are the schemes themselves.
-    v.set({ fold: 0 });
-    const flatBands = run("bands"), flatKow = run("kowalewski");
-    assert.ok(flatKow.size < flatBands.size,
-              `five should beat ten: ${flatKow.size} against ${flatBands.size}`);
+    const off = run(false), on = run(true);
+    assert.equal(off.length, on.length, "it should recolor, not add or drop fills");
+    // The ground is whatever one color most of the tiles share with it off —
+    // a pale gray, tinted by the lighting rather than named here.
+    const tally = (list) => {
+        const t = new Map();
+        for (const c of list) t.set(c, (t.get(c) ?? 0) + 1);
+        return t;
+    };
+    const offT = tally(off), onT = tally(on);
+    const [ground, howMany] = [...offT].sort((a, b) => b[1] - a[1])[0];
+    assert.ok(howMany > 200, `the ground should be most of the fills, got ${howMany}`);
+    assert.ok(!onT.has(ground), "Kowalewski should replace the plain ground entirely");
+    // And replace it with several: five colors where there was one.
+    assert.ok(onT.size > offT.size + 2,
+              `${onT.size} colors against ${offT.size}: the five did not arrive`);
+    // The bands are untouched — drawn after, in their own palette.
+    for (const [c, nOff] of offT) {
+        if (c === ground) continue;
+        assert.equal(onT.get(c), nOff, `a band color moved: ${c}`);
+    }
 });

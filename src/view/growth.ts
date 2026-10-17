@@ -52,9 +52,7 @@ const KOWALEWSKI: RGB[] = ["#e4a05c", "#7fbf9b", "#8e9bd4", "#d98ba8", "#b5b35c"
     .map(rgbOf);
 const kowalewskiOf = (j: number, k: number, n: number): RGB =>
     KOWALEWSKI[(((3 * (j + k)) % n) + n) % n % KOWALEWSKI.length];
-/** The face color for a rhomb of families j, k, under whichever scheme is on. */
-const faceColor = (scheme: "bands" | "kowalewski", j: number, k: number, n: number): RGB =>
-    scheme === "kowalewski" ? kowalewskiOf(j, k, n) : MIX[j][k];
+
 
 export type Vec3 = [number, number, number];
 
@@ -165,22 +163,28 @@ export interface GrowthState {
      */
     pairGhost: boolean;
     /**
-     * How a face is colored.
+     * The Kowalewski five, as a DECORATION — a tile style like kites or penta,
+     * not a second band palette. Jake, 2026-10-17: "I meant a checkbox... it
+     * would be a decoration like kites, etc."
      *
-     * `bands` is the pair of families it is spanned by, blended — ten
-     * composites, the scheme the page was built on. `kowalewski` is the five:
-     * c = 3(j + k) mod 5, which is the coloring in which the two rhombs
-     * meeting along an axis share it, so a color names an AXIS rather than a
-     * pair. Both key on the same (j, k) and say different things about it,
-     * which is why they are alternatives rather than a toggle.
+     * c = 3(j + k) mod 5, and what it buys is an AXIS: the thin pair
+     * {c−1, c+1} and the thick pair {c−2, c+2} both sum to 2c, so the two
+     * rhombs meeting along vc share a color. Where the bands name a PAIR of
+     * directions in ten composites, this names ONE in five. It paints the
+     * tile's body, so the bands can run over it and say the other thing at
+     * the same time.
      */
-    color: "bands" | "kowalewski";
-    // The legacy drawing of a 2k-gon — bands running straight across it, from
-    // before the solids knew what was inside one — used to be a switch. It is
-    // now derived, which is what its own note always said it wanted: it is on
-    // until `solids` is, and then the solid is saying it better. So the roof
-    // loses a checkbox and the flat pages, which have no solids layer, keep
-    // the only drawing of a stack they have.
+    kowalewski: boolean;
+    // GONE, 2026-10-17: the legacy drawing of a 2k-gon — bands running
+    // straight across it, from before the solids knew what was inside one.
+    // Jake: "I told you to get rid of 2k-legacy. It should have been turned
+    // off. I see the legacy ghost lines in the decagon." First I made it
+    // derive from `solids`, which left exactly those ghosts whenever the
+    // solids were down. A superposed tile is now never drawn: no fill, no
+    // edge, no band. What is there is the 2k-gon in its own color, the solid
+    // if it is up, and the band arriving at the polygon and leaving it on the
+    // far side — which the gap quads carry, and which owes nothing to the
+    // tiling inside.
     /**
      * The matching arcs on the tiles. Unlike the dressings these need no index
      * at all — every edge is +vⱼ from one of its ends and that orientation is
@@ -217,7 +221,7 @@ const DEFAULTS: GrowthState = {
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false,
     arcs: false, index: false,
-    edgeStyle: "thin", color: "bands",
+    edgeStyle: "thin", kowalewski: false,
 };
 
 /** What a rhombohedron's angle code means, at n = 5. PLAN §5.0. */
@@ -1051,7 +1055,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // drawn at all: no fill, no edges, no bands. What is
                         // there is the 2k-gon, in the 2k-gon's own color, and
                         // the solid if it is on.
-                        if (state.solids && onStack(r)) continue;
+                        if (onStack(r)) continue;
                         let k = 1;
                         if (shaded) {
                             const A = world(r, dirs, 0, 0);
@@ -1066,9 +1070,16 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         }
                         if (grow > 0.02) {
                             trace(r, BODY);
+                            // The ground, under every other dressing. Kowalewski
+                            // is one of them and the coarsest: it colors the
+                            // whole tile by its axis, so the finer dressings
+                            // and the bands both read over it.
                             ctx.fillStyle = tint(
                                 kitesOn ? KITE : nextOn ? NEXTGEN_THICK
-                                    : state.p1 || pentaOn ? rgbOf(P1_STAR) : [255, 255, 255], k);
+                                    : state.p1 || pentaOn ? rgbOf(P1_STAR)
+                                    : state.kowalewski
+                                        ? kowalewskiOf(r.j, r.k, dirs.length)
+                                        : [255, 255, 255], k);
                             ctx.fill();
                             if (kitesOn) for (const { extAt, alpha } of readings(r)) {
                                 ctx.globalAlpha = alpha;
@@ -1148,8 +1159,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             ctx.fillStyle = tint(rgbOf(FAMILY_COLORS[r.k]), k);
                             ctx.fill();
                             trace(r, [[lo, lo], [hi, lo], [hi, hi], [lo, hi]]);
-                            ctx.fillStyle = tint(
-                                faceColor(state.color, r.j, r.k, dirs.length), k);
+                            ctx.fillStyle = tint(MIX[r.j][r.k], k);
                             ctx.fill();
                         }
                         if (grow > 0.02 && state.edgeStyle !== "none") {
@@ -1204,10 +1214,6 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                 // opposite one, which is fixed by the outline and
                                 // owes nothing to the tiling inside. The gap
                                 // quads below carry it there either way.
-                                if (nd.kind === "stack" && !state.solids) {
-                                    const chain = stackChain(nd, rib.fam, dirs, lo, hi, rib);
-                                    for (let m = 1; m < chain.length; m++) quad(chain[m - 1], chain[m]);
-                                }
                                 if (i === 0 || grow >= 0.999) continue;
                                 const a = nodeSeam(rib.nodes[i - 1], rib.fam, dirs, rib);
                                 const b = nodeSeam(nd, rib.fam, dirs, rib);
@@ -1223,8 +1229,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // the tiles are still points, the center patch once they are not.
                     for (const r of rhombs) {
                         if (grow < 0.04) {
-                            ctx.fillStyle = tint(
-                                faceColor(state.color, r.j, r.k, dirs.length), 1);
+                            ctx.fillStyle = tint(MIX[r.j][r.k], 1);
                             const c = S(world(r, dirs, 0.5, 0.5));
                             ctx.beginPath();
                             ctx.arc(c.x, c.y, 2.5, 0, 2 * Math.PI);
