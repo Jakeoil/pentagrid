@@ -6,7 +6,7 @@
 // of the exercise.
 
 import { createGrowthView } from "../view/growth.js";
-import { bindSliders, bindToggles, mountGammaControls, mountFloatingReticulum } from "../view/controls.js";
+import { bindSliders, bindSelects, mountGammaControls, mountFloatingReticulum } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("grow7-view");
@@ -22,7 +22,7 @@ if (host) {
         { id: "grow7-t", key: "grow", format: (v) => v.toFixed(2) },
         { id: "grow7-w", key: "band", format: (v) => `${Math.round(v * 100)}%` },
     ]);
-    bindToggles(view, [{ id: "grow7-edges", key: "boldEdges" }]);
+    bindSelects(view, [{ id: "grow7-edges", key: "edgeStyle" }]);
 
     const gammaHost = document.getElementById("grow7-gamma");
     if (gammaHost) {

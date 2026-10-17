@@ -361,13 +361,20 @@ test("a page that names a size keeps it, and is pinned", () => {
     assert.equal(h.stack.w, 340, "an explicitly sized view must not reflow");
 });
 
-test("bold edges is off by default and switchable", () => {
+test("edges are a three-way: none, thin, thick", () => {
+    // Jake, 2026-10-17: "Instead of edges, a dropdown: none, thin, thick."
+    // `none` is a real answer and a checkbox could not say it — with the bands
+    // or the Kowalewski five carrying the color, an outline on every tile is
+    // noise and the roof's creases read from the shading alone.
     const v = createGrowthView({ container: host() });
-    assert.equal(v.get().boldEdges, false, "edges should start faint");
-    v.set({ boldEdges: true });
-    assert.equal(v.get().boldEdges, true);
+    assert.equal(v.get().edgeStyle, "thin", "edges should start faint");
+    for (const style of ["none", "thick", "thin"]) {
+        v.set({ edgeStyle: style });
+        assert.equal(v.get().edgeStyle, style);
+    }
+    v.set({ edgeStyle: "thick" });
     v.set({ grow: 0.7 });
-    assert.equal(v.get().boldEdges, true, "an unrelated set cleared the switch");
+    assert.equal(v.get().edgeStyle, "thick", "an unrelated set cleared the choice");
 });
 
 test("drawing survives both edge settings at every stage", () => {
@@ -1833,30 +1840,35 @@ test("the solid is its edges and the bands crossing on them", () => {
     assert.equal(fills, collapsed * 3, `${fills} against ${collapsed} faces at grow 0`);
 });
 
-test("2k-gon bands off leaves nothing of a band inside the polygon", () => {
+test("the legacy 2k-gon drawing is derived from solids, not switched", () => {
+    // Jake, 2026-10-17: "Get rid of 2kgon-legacy." The switch goes; the rule
+    // it wanted is what its own note always said — the legacy drawing stands
+    // until the solid is there to say it better. Which also keeps the flat
+    // pages, who have no solids layer, holding the only drawing of a stack
+    // they have.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);       // stacks everywhere
-    v.set({ grow: 0.6, fold: 1, band: 0.5, stackBands: true });
+    v.set({ grow: 0.6, fold: 1, band: 0.5, solids: false });
 
     const layer = v.pentagrid.stack.get("growth");
     let fills = 0;
     layer.ctx.fill = () => { fills++; };
     v.redraw();
-    const withThem = fills;
+    const legacy = fills;
 
-    v.set({ stackBands: false });
+    v.set({ solids: true });
     fills = 0;
     v.redraw();
-    const without = fills;
+    const quiet = fills;
 
     // Three fills per tile go with the in-tile strips — the two bands and the
     // patch where they cross — so the drop is 3 per superposed tile, on top of
     // the runs across each polygon. Nothing of a band is left inside one.
-    assert.ok(without < withThem, `nothing was suppressed (${without} of ${withThem})`);
-    assert.equal((withThem - without) % 3 === 0 || withThem - without > 3, true,
-                 `an odd amount went: ${withThem - without}`);
+    assert.ok(quiet < legacy, `nothing was suppressed (${quiet} of ${legacy})`);
     // The tiles outside the polygons keep theirs, so most of it survives.
-    assert.ok(without > withThem * 0.4, `too much went: ${without} of ${withThem}`);
+    assert.ok(quiet > legacy * 0.4, `too much went: ${quiet} of ${legacy}`);
+    // And the flag is gone rather than renamed.
+    assert.equal("stackBands" in v.get(), false, "stackBands should be gone");
 });
 
 test("roof: the arcs and the index circles, and the dressings at a singular preset", () => {
@@ -1915,10 +1927,10 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     assert.equal(texts.filter((t) => t === "0").length, 1, "one ghost, at the decagon");
 });
 
-test("roof: 2kgon-legacy off leaves the polygon to its own color", () => {
+test("roof: with the solid up, the polygon is left to its own color", () => {
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);
-    v.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true, stackBands: true });
+    v.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true, solids: false });
 
     const growth = v.pentagrid.stack.get("growth");
     let fills = 0, strokes = 0;
@@ -1928,7 +1940,7 @@ test("roof: 2kgon-legacy off leaves the polygon to its own color", () => {
     v.redraw();
     const withIt = { fills, strokes };
 
-    v.set({ stackBands: false });
+    v.set({ solids: true });
     fills = 0; strokes = 0;
     v.redraw();
     // Nothing of a superposed tile is drawn: no fill, no edge, no band.
@@ -3288,4 +3300,38 @@ test("the ammann quasilattice draws on the grid, in the family colors", () => {
     h.setFeatures({ ammannGrid: false }, { merge: true });
     h.redraw();
     assert.equal(strokes.length, n, "nothing drawn with the switch off");
+});
+
+test("the Kowalewski five is an alternative to the bands, not a brightness", () => {
+    // Jake, 2026-10-17: "Add a kowalewski coloring (under the bands)." Both key
+    // on the same pair of families and say different things about it: bands
+    // blends the two, so a color names a PAIR; Kowalewski is c = 3(j+k) mod 5,
+    // so the two rhombs meeting along an axis share a color and a color names
+    // ONE direction. Five against ten.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setLocked(-1);
+    v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    v.set({ grow: 1, fold: 1, band: 0.5, solids: false });
+
+    const layer = v.pentagrid.stack.get("growth");
+    const seen = [];
+    layer.ctx.fill = function () { seen.push(String(this.fillStyle)); };
+    const run = (color) => {
+        v.set({ color });
+        seen.length = 0;
+        v.redraw();
+        return new Set(seen);
+    };
+    // Shading tints every color by height, so count the DISTINCT hues rather
+    // than the strings: at full fold a roof face is tinted by its own level.
+    const bands = run("bands"), kow = run("kowalewski");
+    assert.ok(bands.size > 10, `only ${bands.size} band colors`);
+    assert.ok(kow.size > 1, "Kowalewski drew nothing");
+    assert.notDeepEqual([...bands].sort(), [...kow].sort(), "the two schemes agree");
+    assert.equal(v.get().color, "kowalewski");
+    // Flat, with no height to tint by, the counts are the schemes themselves.
+    v.set({ fold: 0 });
+    const flatBands = run("bands"), flatKow = run("kowalewski");
+    assert.ok(flatKow.size < flatBands.size,
+              `five should beat ten: ${flatKow.size} against ${flatBands.size}`);
 });

@@ -5,7 +5,7 @@
 
 import { createGrowthView } from "../view/growth.js";
 import {
-    bindSliders, bindToggles, mountGammaControls, mountFloatingReticulum,
+    bindSliders, bindToggles, bindSelects, mountGammaControls, mountFloatingReticulum,
 } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
@@ -19,15 +19,17 @@ if (host) {
     });
     bindSliders(view, [
         { id: "roof-t", key: "grow", format: (v) => v.toFixed(2) },
-        { id: "roof-fold", key: "fold", format: (v) => `${Math.round(v * 100)}%` },
         { id: "roof-band", key: "band", format: (v) => `${Math.round(v * 100)}%` },
         // Both wrap per singularity against its own count — a hexagon has two
         // readings, a decagon 62 — so one control drives every solid on screen.
         { id: "roof-reading", key: "reading", format: (v) => `${v + 1}` },
         { id: "roof-flip", key: "pick", format: (v) => `${v + 1}` },
     ]);
+    bindSelects(view, [
+        { id: "roof-edges", key: "edgeStyle" },
+        { id: "roof-color", key: "color" },
+    ]);
     bindToggles(view, [
-        { id: "roof-edges", key: "boldEdges" },
         { id: "roof-penta", key: "penta" },
         { id: "roof-nextgen", key: "nextgen" },
         { id: "roof-kites", key: "kites" },
@@ -37,8 +39,18 @@ if (host) {
         { id: "roof-2kgons", key: "showResolutions" },
         { id: "roof-solids", key: "solids" },
         { id: "roof-pair", key: "pairGhost" },
-        { id: "roof-stackbands", key: "stackBands" },
     ]);
+
+    // Fold is a checkbox here and a float underneath: the geometry wants a
+    // continuous parameter — it is the whole of the lift — and the roof only
+    // ever wants the two ends of it. Up by default, since a roof page that
+    // opens flat is a tiling page.
+    const fold = document.getElementById("roof-fold") as HTMLInputElement | null;
+    if (fold) {
+        const apply = () => view.set({ fold: fold.checked ? 1 : 0 });
+        fold.addEventListener("change", apply);
+        apply();
+    }
 
     // Nothing draws the solids layer when it is off, so nothing clears its note.
     const solids = document.getElementById("roof-solids") as HTMLInputElement | null;

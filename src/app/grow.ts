@@ -6,7 +6,7 @@
 
 import { createGrowthView } from "../view/growth.js";
 import {
-    bindSliders, bindToggles, mountGammaControls, mountFloatingReticulum,
+    bindSliders, bindToggles, bindSelects, mountGammaControls, mountFloatingReticulum,
 } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
@@ -17,8 +17,8 @@ if (host) {
         { id: "grow-t", key: "grow", format: (v) => v.toFixed(2) },
         { id: "grow-w", key: "band", format: (v) => `${Math.round(v * 100)}%` },
     ]);
+    bindSelects(view, [{ id: "grow-edges", key: "edgeStyle" }]);
     bindToggles(view, [
-        { id: "grow-edges", key: "boldEdges" },
         { id: "grow-2kgons", key: "showResolutions" },
         { id: "grow-p1", key: "p1" },
         { id: "grow-penta", key: "penta" },

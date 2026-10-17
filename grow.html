@@ -41,7 +41,12 @@
             <input type="range" id="grow-t" min="0" max="1" step="0.005" value="0"></label>
         <label><span class="cap">band <span class="val" id="grow-w-value">50%</span></span>
             <input type="range" id="grow-w" min="0" max="1" step="0.02" value="0.5"></label>
-        <label class="check"><input type="checkbox" id="grow-edges"> bold edges</label>
+        <label><span class="cap">edges</span>
+            <select id="grow-edges">
+                <option value="none">none</option>
+                <option value="thin" selected>thin</option>
+                <option value="thick">thick</option>
+            </select></label>
         <label class="check"><input type="checkbox" id="grow-2kgons"> 2<i>k</i>-gons</label>
         <label class="check"><input type="checkbox" id="grow-p1"> P1</label>
         <label class="check"><input type="checkbox" id="grow-penta"> penta</label>

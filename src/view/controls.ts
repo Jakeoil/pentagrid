@@ -29,6 +29,9 @@ type NumericKey = {
 type BooleanKey = {
     [K in keyof GrowthState]: GrowthState[K] extends boolean ? K : never
 }[keyof GrowthState];
+type StringKey = {
+    [K in keyof GrowthState]: GrowthState[K] extends string ? K : never
+}[keyof GrowthState];
 
 export interface SliderSpec {
     /** Element id of the range input. */
@@ -173,6 +176,32 @@ export function bindToggles(view: GrowthHandle, specs: readonly ToggleSpec[]) {
             view.set({ [spec.key]: !!input.checked } as Partial<GrowthState>);
         };
         input.addEventListener("change", apply);
+        apply();
+    }
+}
+
+/** A control whose value is one of a few names: an edge style, a coloring. */
+export interface SelectSpec {
+    id: string;
+    key: StringKey;
+}
+
+/**
+ * Bind a `<select>` to a state key that holds one of a few names.
+ *
+ * The third kind of control, beside the slider and the toggle. A boolean says
+ * on or off and a slider says how much; this says WHICH, and the difference
+ * matters wherever the answers are alternatives rather than degrees — edges
+ * none/thin/thick, color bands/Kowalewski.
+ */
+export function bindSelects(view: GrowthHandle, specs: readonly SelectSpec[]) {
+    for (const spec of specs) {
+        const el = document.getElementById(spec.id) as HTMLSelectElement | null;
+        if (!el) continue;
+        const apply = () => {
+            view.set({ [spec.key]: el.value } as unknown as Partial<GrowthState>);
+        };
+        el.addEventListener("change", apply);
         apply();
     }
 }
@@ -338,8 +367,15 @@ export function mountReticulum(
             symInput.checked = false;
             mirror = false;
             mirrorInput.checked = false;
+            // γ₀ floats and the SUM is held, rather than the sum floating.
+            // Jake, 2026-10-17: a preset is a point in the singularity
+            // catalog and the catalog is indexed by Σγ — the decagon needs
+            // every γⱼ integral, a couple needs Σγ ∈ ℤ — so the thing to
+            // preserve while exploring around one is the total. Locked at −1
+            // the first dial you touch moved the sum and left the class.
             set.setLocked(-1);
             set.setValues(p.gamma.map((q) => q / p.den));
+            set.setLocked(0);
             // The popup stays up, like settings: dismissed by its own button,
             // so a run through the catalog is one click per entry. Jake.
             opts.onPreset?.(p.name);

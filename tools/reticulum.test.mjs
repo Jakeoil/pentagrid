@@ -639,3 +639,32 @@ test("the rim takes the shape of whatever directions it is given, and the labels
         else assert.ok(spread > 0.01, `the discrete rim should be visibly irregular, got ${spread}`);
     }
 });
+
+test("a preset locks gamma 0, so the sum is what survives a dial", () => {
+    // Jake, 2026-10-17: "We want to preserve the sum in those cases, so set
+    // gamma 0 to float instead of sum. In fact, this should be done for sun
+    // star and deca too." Which is every preset, and the reason is the
+    // catalog: it is indexed by Σγ — a decagon needs every γⱼ integral, a
+    // couple needs Σγ ∈ ℤ — so the total is the thing to hold while looking
+    // around one. Locked at −1, the first dial moved the sum and left the class.
+    const set = createGammaSet({ guard: false });
+    const container = host();
+    mountReticulum(set, container, { colors: ["#000", "#000", "#000", "#000", "#000"] });
+
+    const presets = [];
+    walk(container, (c) => {
+        if (String(c.className).includes("preset") && c.textContent) presets.push(c);
+    });
+    assert.ok(presets.length >= 5, `only ${presets.length} presets found`);
+
+    for (const b of presets) {
+        b.on.click[0]();
+        assert.equal(set.getLocked(), 0, `${b.textContent} did not lock gamma 0`);
+        const before = set.values().reduce((a, g) => a + g, 0);
+        // Move a dial that is NOT the locked one; the sum must not follow.
+        set.setValue(2, set.values()[2] + 0.07);
+        const after = set.values().reduce((a, g) => a + g, 0);
+        assert.ok(Math.abs(after - before) < 1e-9,
+                  `${b.textContent}: the sum moved ${before} -> ${after}`);
+    }
+});

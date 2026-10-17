@@ -39,6 +39,23 @@ const MIX: RGB[][] = FAMILY_COLORS.map((a) => FAMILY_COLORS.map((b) => {
 const tint = (c: RGB, k: number) =>
     `rgb(${Math.round(c[0] * k)},${Math.round(c[1] * k)},${Math.round(c[2] * k)})`;
 
+/**
+ * The Kowalewski five. Arbitrary colors; the partition is the content.
+ *
+ * A rhomb spanned by families j and k takes c = 3(j + k) mod 5, and what that
+ * buys is an AXIS: the thin pair {c−1, c+1} and the thick pair {c−2, c+2} both
+ * sum to 2c, so the two rhombs that meet along vc share a color. Where bands
+ * gives ten composites naming a PAIR of directions, this gives five naming
+ * one — which is why the two are alternatives and not a brightness setting.
+ */
+const KOWALEWSKI: RGB[] = ["#e4a05c", "#7fbf9b", "#8e9bd4", "#d98ba8", "#b5b35c"]
+    .map(rgbOf);
+const kowalewskiOf = (j: number, k: number, n: number): RGB =>
+    KOWALEWSKI[(((3 * (j + k)) % n) + n) % n % KOWALEWSKI.length];
+/** The face color for a rhomb of families j, k, under whichever scheme is on. */
+const faceColor = (scheme: "bands" | "kowalewski", j: number, k: number, n: number): RGB =>
+    scheme === "kowalewski" ? kowalewskiOf(j, k, n) : MIX[j][k];
+
 export type Vec3 = [number, number, number];
 
 export interface GrowthConfig {
@@ -80,7 +97,14 @@ export interface GrowthState {
     /** Camera tilt from the horizon, radians. π/2 looks straight down. */
     elevation: number;
     /** Draw tile edges as real lines rather than the default hairline ghost. */
-    boldEdges: boolean;
+    /**
+     * The tile outlines: none at all, a hairline, or bold.
+     *
+     * Three states rather than two because `none` is a real answer here — with
+     * the bands or the Kowalewski five carrying the color, an outline on every
+     * tile is noise, and the roof's creases read from the shading alone.
+     */
+    edgeStyle: "none" | "thin" | "thick";
     /**
      * Paint the P1 tiling on the tiles: blue, with each pentagon clipped to the
      * tiles it reaches. The pieces are carried in the tile's own (a, b)
@@ -141,17 +165,22 @@ export interface GrowthState {
      */
     pairGhost: boolean;
     /**
-     * Keep running the bands straight across a 2k-gon, the way they did before
-     * the solids knew what was inside one.
+     * How a face is colored.
      *
-     * That crossing was drawn on the family's ZONE — enter by the side parallel
-     * to the family, leave by the opposite one — and asserted nothing about the
-     * tiling in between, because there was no tiling to assert. Now there is:
-     * the solid routes each band through the reading's own faces. The old one is
-     * kept because it is what every page but this one still shows, and switched
-     * off when the solid is saying it better.
+     * `bands` is the pair of families it is spanned by, blended — ten
+     * composites, the scheme the page was built on. `kowalewski` is the five:
+     * c = 3(j + k) mod 5, which is the coloring in which the two rhombs
+     * meeting along an axis share it, so a color names an AXIS rather than a
+     * pair. Both key on the same (j, k) and say different things about it,
+     * which is why they are alternatives rather than a toggle.
      */
-    stackBands: boolean;
+    color: "bands" | "kowalewski";
+    // The legacy drawing of a 2k-gon — bands running straight across it, from
+    // before the solids knew what was inside one — used to be a switch. It is
+    // now derived, which is what its own note always said it wanted: it is on
+    // until `solids` is, and then the solid is saying it better. So the roof
+    // loses a checkbox and the flat pages, which have no solids layer, keep
+    // the only drawing of a stack they have.
     /**
      * The matching arcs on the tiles. Unlike the dressings these need no index
      * at all — every edge is +vⱼ from one of its ends and that orientation is
@@ -186,9 +215,9 @@ const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
-    solids: false, reading: 0, pick: 0, pairGhost: false, stackBands: true,
+    solids: false, reading: 0, pick: 0, pairGhost: false,
     arcs: false, index: false,
-    boldEdges: false,
+    edgeStyle: "thin", color: "bands",
 };
 
 /** What a rhombohedron's angle code means, at n = 5. PLAN §5.0. */
@@ -1022,7 +1051,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // drawn at all: no fill, no edges, no bands. What is
                         // there is the 2k-gon, in the 2k-gon's own color, and
                         // the solid if it is on.
-                        if (!state.stackBands && onStack(r)) continue;
+                        if (state.solids && onStack(r)) continue;
                         let k = 1;
                         if (shaded) {
                             const A = world(r, dirs, 0, 0);
@@ -1119,20 +1148,22 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             ctx.fillStyle = tint(rgbOf(FAMILY_COLORS[r.k]), k);
                             ctx.fill();
                             trace(r, [[lo, lo], [hi, lo], [hi, hi], [lo, hi]]);
-                            ctx.fillStyle = tint(MIX[r.j][r.k], k);
+                            ctx.fillStyle = tint(
+                                faceColor(state.color, r.j, r.k, dirs.length), k);
                             ctx.fill();
                         }
-                        if (grow > 0.02) {
+                        if (grow > 0.02 && state.edgeStyle !== "none") {
                             // Bold still tracks the shading, so creases keep
                             // reading on the roof; it just stops being a ghost.
-                            ctx.strokeStyle = state.boldEdges
+                            const bold = state.edgeStyle === "thick";
+                            ctx.strokeStyle = bold
                                 ? (shaded
                                     ? `rgba(0,0,0,${(0.55 + 0.35 * k).toFixed(3)})`
                                     : "rgba(0,0,0,0.85)")
                                 : (shaded
                                     ? `rgba(0,0,0,${(0.10 + 0.18 * k).toFixed(3)})`
                                     : "rgba(0,0,0,0.28)");
-                            ctx.lineWidth = state.boldEdges
+                            ctx.lineWidth = bold
                                 ? Math.max(1.6, Math.min(4, v.scale * 0.03))
                                 : 1;
                             trace(r, BODY);
@@ -1173,7 +1204,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                 // opposite one, which is fixed by the outline and
                                 // owes nothing to the tiling inside. The gap
                                 // quads below carry it there either way.
-                                if (nd.kind === "stack" && state.stackBands) {
+                                if (nd.kind === "stack" && !state.solids) {
                                     const chain = stackChain(nd, rib.fam, dirs, lo, hi, rib);
                                     for (let m = 1; m < chain.length; m++) quad(chain[m - 1], chain[m]);
                                 }
@@ -1192,7 +1223,8 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // the tiles are still points, the center patch once they are not.
                     for (const r of rhombs) {
                         if (grow < 0.04) {
-                            ctx.fillStyle = tint(MIX[r.j][r.k], 1);
+                            ctx.fillStyle = tint(
+                                faceColor(state.color, r.j, r.k, dirs.length), 1);
                             const c = S(world(r, dirs, 0.5, 0.5));
                             ctx.beginPath();
                             ctx.arc(c.x, c.y, 2.5, 0, 2 * Math.PI);

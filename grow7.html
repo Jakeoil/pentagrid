@@ -44,7 +44,12 @@
             <input type="range" id="grow7-t" min="0" max="1" step="0.005" value="0"></label>
         <label><span class="cap">band <span class="val" id="grow7-w-value">50%</span></span>
             <input type="range" id="grow7-w" min="0" max="1" step="0.02" value="0.5"></label>
-        <label class="check"><input type="checkbox" id="grow7-edges"> bold edges</label>
+        <label><span class="cap">edges</span>
+            <select id="grow7-edges">
+                <option value="none">none</option>
+                <option value="thin" selected>thin</option>
+                <option value="thick">thick</option>
+            </select></label>
     </div>
     <div id="grow7-gamma"></div>
     <p class="hint" style="margin:0 0 12px">band at 0 leaves bare lines &middot; 100% fills the tile</p>
