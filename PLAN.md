@@ -371,6 +371,49 @@ slope, same window, one figure seen two ways — or two Fibonacci chains that
 happen to share a ratio. §7.4's closed form makes that testable and it is not
 done.
 
+### 5.-1a Every reading is wrong at the border, and why (Jake, 2026-10-17)
+
+Jake, looking at the roof at Γ = 0: *"Every reading is wrong, not legal
+penrose — P(0). All reading showing identically oriented tiles at border
+between big purple and pink. The bands at the border should not fit on a line
+segment."*
+
+Right, at every position of the slider. The invariant is Socolar's: in the
+dual of a pentagrid two **adjacent cells can never have both the same shape
+and the same orientation**, and a rhomb's (j, k) is exactly shape and
+orientation, so the test is that no edge is shared by two rhombs of equal
+(j, k). `tools/border.mjs` runs it, `tools/border.test.mjs` holds it.
+
+- **The unresolved patch is clean.** 412 rhombs, 634 shared edges, zero
+  same-(j, k) adjacencies. The tiling is not where the trouble is.
+- **A reading on its own is clean.** Inside one 2k-gon every face carries its
+  own generator pair, so a violation can only happen at a **border** — which
+  is exactly where Jake saw it, between the big purple decagon and a pink
+  hexagon. They sit 2.5045 apart and their outlines touch.
+- **Every slider position leaves exactly two.** Zero of ten are clean.
+- **And it is not forced.** For each of the decagon's ten readings, every
+  neighboring hexagon has one of its two readings that avoids the clash.
+  Zero hexagons stuck, at all ten positions.
+
+So the readings are not wrong — **the choice is missing**. One slider drives
+every solid, wrapped against each one's own count: the decagon takes N mod 10
+and a hexagon N mod 2, and nothing couples them. The hexagons are never asked
+to agree with the decagon, and at two places they do not. The fix is to
+**choose rather than wrap**, and since a clean choice always exists, choosing
+can always succeed.
+
+What that means for the control is a design question and Jake's to settle. The
+slider would select the decagon's reading — the free one — and each hexagon
+would then take whichever of its two the border allows. A hexagon with no
+decagon nearby keeps a free choice, so the control may want to stay a slider
+for those and become derived near a 2k-gon that outranks it. Not built.
+
+This is also the answer to the earlier *"when going through readings, find
+illegal ones"*: all 62 readings of the decagon are legal tilings of the
+decagon (measured — every interior edge shared by exactly two faces, every rim
+2k, at k = 3, 4 and 5), and the illegality is in how they are combined, not in
+the readings themselves.
+
 ### 5.0 The singularities are golden zonohedra, standing up on the roof (2026-09-24)
 
 Jake: *I believe the 3 line singularities are a Necker cube type golden
