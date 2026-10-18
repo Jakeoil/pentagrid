@@ -402,11 +402,28 @@ to agree with the decagon, and at two places they do not. The fix is to
 **choose rather than wrap**, and since a clean choice always exists, choosing
 can always succeed.
 
-What that means for the control is a design question and Jake's to settle. The
-slider would select the decagon's reading — the free one — and each hexagon
-would then take whichever of its two the border allows. A hexagon with no
-decagon nearby keeps a free choice, so the control may want to stay a slider
-for those and become derived near a 2k-gon that outranks it. Not built.
+**Built the same day.** Jake settled it: *"My understanding is that the
+decagon combinations drive the reading. As you go through the combinations,
+ensure that connected pentagons agree."* (And the wiggling he could see while
+scrolling the readings was the absence of exactly that — each solid wrapping
+the same number against its own count, so the hexagons flipped with its
+parity.)
+
+`geometry/cascade.ts` does it. The sites are visited **biggest first and then
+outward** — the decagon takes the control's value, so it drives; every other
+site takes the first reading in its own pool that clashes with nothing already
+placed, starting from the control's value so the picture still moves when the
+slider does. A `(pair, edge)` index makes each check a lookup rather than a
+sweep. Greedy, no backtracking, and it reports what it achieved rather than
+assuming: `clashes` is in the result.
+
+Measured on the sun's singular patch, 55 sites — one decagon and 54 hexagons —
+at all ten positions: **zero clashes**, with only **two** of the 54 hexagons
+ever overruled. So the wrap was nearly right and wrong in exactly two places,
+which is why the picture looked almost correct.
+
+The view caches the plan on γ and the control's value, since a draw asks for
+it once per solid and the answer does not change between them.
 
 This is also the answer to the earlier *"when going through readings, find
 illegal ones"*: all 62 readings of the decagon are legal tilings of the

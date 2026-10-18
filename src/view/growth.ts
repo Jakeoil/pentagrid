@@ -16,6 +16,8 @@ import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency, angleCode } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { zonohedronOf, zonogonAnchor, popcount } from "../geometry/zonohedron.js";
+import { cascade } from "../geometry/cascade.js";
+import type { CascadeSite } from "../geometry/cascade.js";
 import { penroseCondition } from "../geometry/gamma.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
 import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, rhombArcs } from "../geometry/decor.js";
@@ -307,6 +309,43 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      * a point is a pair of lines crossing twice over, which is nothing; three is
      * the first real concurrency.
      */
+    /**
+     * Which reading every singularity takes, for the patch as a whole.
+     *
+     * The control picks the biggest one's — the decagon drives — and the rest
+     * are chosen to agree with it across their shared borders, outward from
+     * it. See geometry/cascade.ts for the rule and PLAN §5.-1a for the bug it
+     * fixes. Cached on γ and the control's value, since a draw asks for it
+     * once per solid and the answer is the same every time.
+     */
+    let planCache: Map<string, { pool: number[]; slot: number }> | null = null;
+    let planKey = "";
+    function readingPlan(
+        pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
+    ): Map<string, { pool: number[]; slot: number }> {
+        const held = penroseCondition(
+            pg.gamma.reduce((t, g) => t + g, 0), pg.directions.length) === true;
+        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}|${held}`
+            + `|${rhombs.length}`;
+        if (planCache && key === planKey) return planCache;
+        const sites: CascadeSite[] = [];
+        const at: string[] = [];
+        for (const c of stacksOf(rhombs)) {
+            const res = resolveConcurrency(pg, c);
+            if (!res) continue;
+            sites.push({ families: res.families, outline: res.outline, outlineK: res.outlineK });
+            at.push(`${c.x.toFixed(6)},${c.y.toFixed(6)}`);
+        }
+        const out = new Map<string, { pool: number[]; slot: number }>();
+        if (sites.length) {
+            const plan = cascade(pg, sites, reading, held);
+            sites.forEach((_, i) => out.set(at[i], { pool: plan.pools[i], slot: plan.readings[i] }));
+        }
+        planCache = out;
+        planKey = key;
+        return out;
+    }
+
     function stacksOf(rhombs: readonly Rhomb[]): Concurrency[] {
         const byPoint = new Map<string, Rhomb[]>();
         for (const r of rhombs) {
@@ -743,6 +782,15 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     let report = "";
                     let widest = 0;
 
+                    // Which reading each singularity takes, decided ONCE for
+                    // the whole patch rather than wrapped per solid. The
+                    // decagon drives and the rest agree with it — Jake's
+                    // design, and §5.-1a's bug: wrapping one number against
+                    // each solid's own count left two illegal borders at
+                    // every position of the control, zero of ten clean,
+                    // although a clean choice always existed.
+                    const plan = readingPlan(model as Pentagrid, currentRhombs(), reading);
+
                     for (const c of stacksOf(currentRhombs())) {
                         const res = resolveConcurrency(model as Pentagrid, c);
                         if (!res) continue;
@@ -759,12 +807,14 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // grid already says which readings exist.
                         const held = penroseCondition(
                             model.gamma.reduce((t, g) => t + g, 0), dirs.length) === true;
-                        const pool = held && z.penrose.length ? z.penrose
-                            : z.readings.map((_, i) => i);
+                        const seat = plan.get(`${c.x.toFixed(6)},${c.y.toFixed(6)}`);
+                        const pool = seat ? seat.pool
+                            : (held && z.penrose.length ? z.penrose
+                                : z.readings.map((_, i) => i));
                         const count = z.readings.length ? pool.length : 0;
-                        const bases = count
-                            ? z.readings[pool[((reading % count) + count) % count]]
-                            : z.lower;
+                        const slot = seat ? seat.slot
+                            : ((reading % Math.max(count, 1)) + count) % Math.max(count, 1);
+                        const bases = count ? z.readings[pool[slot]] : z.lower;
                         const flips = z.flips(bases);
                         const turn = flips.length
                             ? flips[((pick % flips.length) + flips.length) % flips.length]
@@ -858,7 +908,6 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
 
                         if (res.families.length > widest) {
                             widest = res.families.length;
-                            const slot = count ? ((reading % count) + count) % count : 0;
                             const which = count ? pool[slot] : 0;
                             // Say what made the reading, not just which one it is:
                             // the nudge that pulls the lines apart into it.

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 import { collectRhombs } from "../dist/geometry/pentagrid.js";
 import { zonohedronOf, zonogonAnchor } from "../dist/geometry/zonohedron.js";
+import { cascade } from "../dist/geometry/cascade.js";
 
 const set = createGammaSet({ guard: false });
 set.setLocked(-1);
@@ -27,13 +28,16 @@ const deca = stacks.find((s) => s.fams.length === 5);
 const hexes = stacks.filter((s) => s.fams.length === 3);
 
 /** One stack's faces, placed in the plane, for a given reading. */
-function placed(stack, reading) {
+function placed(stack, reading, outline, outlineK) {
     const z = zonohedronOf(dirs, stack.fams);
-    const anchor = zonogonAnchor(z, stack.rhombs.flatMap((r) => r.vertices),
-                                 stack.rhombs.flatMap((r) => r.kTuples), dirs);
-    const pool = z.penrose.length ? z.penrose : z.readings.map((_, i) => i);
+    const anchor = zonogonAnchor(z, outline ?? stack.rhombs.flatMap((r) => r.vertices),
+                                 outlineK ?? stack.rhombs.flatMap((r) => r.kTuples), dirs);
     const bases = z.readings.length
-        ? z.readings[pool[((reading % pool.length) + pool.length) % pool.length]]
+        ? z.readings[outline ? reading
+            : (z.penrose.length ? z.penrose : z.readings.map((_, i) => i))[
+                ((reading % (z.penrose.length || z.readings.length))
+                 + (z.penrose.length || z.readings.length))
+                % (z.penrose.length || z.readings.length)]]
         : z.lower;
     const pt = (mask) => {
         let x = anchor.origin[0], y = anchor.origin[1];
@@ -81,19 +85,56 @@ test("the unresolved patch obeys Socolar's adjacency rule", () => {
     assert.equal(bad, 0, `${bad} same-orientation adjacencies in the raw patch`);
 });
 
-test("KNOWN BUG: every slider position leaves an illegal border", () => {
-    // Jake: "Every reading is wrong, not legal penrose." One slider drives
-    // every solid, wrapped against its own count — the decagon N mod 10, a
-    // hexagon N mod 2 — and nothing couples them, so the hexagons are never
-    // asked to agree with the decagon. This asserts the bug so that fixing it
-    // has to come here and say so.
-    assert.ok(deca, "no decagon at Gamma = 0");
+test("the cascade: the decagon drives and every border comes out legal", () => {
+    // Jake: "My understanding is that the decagon combinations drive the
+    // reading. As you go through the combinations, ensure that connected
+    // pentagons agree." Which is what geometry/cascade.ts does — biggest site
+    // first takes the control's value, the rest are visited outward and each
+    // takes the first reading in its own pool that clashes with nothing
+    // already placed.
+    //
+    // Before it, the control wrapped one number against each solid's own
+    // count and left exactly TWO illegal borders at every one of the ten
+    // positions, zero clean. This asserts the fix at all ten.
+    const sites = [deca, ...hexes].map((s) => ({
+        families: s.fams,
+        outline: s.rhombs.flatMap((r) => r.vertices),
+        outlineK: s.rhombs.flatMap((r) => r.kTuples),
+    }));
     for (let N = 0; N < 10; N++) {
-        const D = placed(deca, N);
-        let v = 0;
-        for (const h of hexes) v += clash(D, placed(h, N));
-        assert.equal(v, 2, `N=${N}: expected the known two clashes, got ${v}`);
+        const plan = cascade(model, sites, N, true);
+        assert.equal(plan.clashes, 0, `N=${N}: ${plan.clashes} borders still illegal`);
+        // And measured independently of the planner, by placing what it chose.
+        const drawn = sites.map((s, i) =>
+            placed({ fams: s.families, rhombs: [] }, plan.pools[i][plan.readings[i]],
+                   s.outline, s.outlineK));
+        let bad = 0;
+        for (let i = 0; i < drawn.length; i++) {
+            for (let j = i + 1; j < drawn.length; j++) bad += clash(drawn[i], drawn[j]);
+        }
+        assert.equal(bad, 0, `N=${N}: ${bad} same-orientation adjacencies on the page`);
     }
+});
+
+test("the decagon really is the one that drives", () => {
+    // The control's value lands on the decagon; everything else follows. So
+    // moving the slider moves the decagon through all ten of its readings.
+    const sites = [deca, ...hexes].map((s) => ({
+        families: s.fams,
+        outline: s.rhombs.flatMap((r) => r.vertices),
+        outlineK: s.rhombs.flatMap((r) => r.kTuples),
+    }));
+    const seen = new Set();
+    for (let N = 0; N < 10; N++) {
+        const plan = cascade(model, sites, N, true);
+        assert.equal(plan.readings[0], N, `N=${N}: the decagon took ${plan.readings[0]}`);
+        seen.add(plan.pools[0][plan.readings[0]]);
+        // Few hexagons have to deviate: the wrap is right most of the time,
+        // and the cascade only overrules it where the border demands.
+        assert.ok(plan.followed < 6,
+                  `N=${N}: ${plan.followed} hexagons overruled, expected a handful`);
+    }
+    assert.equal(seen.size, 10, "all ten of the decagon's readings are reachable");
 });
 
 test("and it is not forced: a clean choice always exists", () => {
