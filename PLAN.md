@@ -357,6 +357,7 @@ its partner 134 along with it. Measured at t = 0.013:
 - each of the two gains **exactly one** hexagon, in the slot the decagon had
 - and the word becomes Sturmian: complexity exactly **n + 1** for every n
   tested, and a genuine **factor of the Fibonacci word**
+- with the two signs of t giving the two central orderings, SL and LS
 
 So the decagon is the one place the musical sequence is interrupted, and a
 wall of the jiggle is where a couple steps in to complete it. The ten

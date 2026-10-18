@@ -86,8 +86,50 @@ test("the word along a spoke is Jake's, and the decagon is a defect in it", () =
     // never does. One missing letter, at the decagon.
     assert.notEqual(sturmianUpto(w), 0, "Gamma = 0 should NOT be Sturmian");
     assert.deepEqual(complexity(w, 8), [2, 3, 4, 5, 6, 7, 8, 10],
-                     "the break is at n = 8, the signature of one defect");
+                     "the break is at n = 8 — two letters are missing");
     assert.equal(fibWord(2000).includes(swapped), false, "nor a Fibonacci factor");
+});
+
+test("the two walls give the two central orderings, SL and LS", () => {
+    // Jake, 2026-10-17: "the two sides not in the decagon can be connected
+    // inside the pentagon by a long/short or a short/long. Both sequences are
+    // sturmian." Which is the pair of bi-infinite completions of a Sturmian
+    // word at its discontinuity — the lower and the upper coding, agreeing
+    // away from the center and differing only in the order of the two letters
+    // at it. The sign of the jiggle picks which.
+    const PAIR = ["012", "134"];
+    const near = (gamma) => {
+        const all = spokes(gamma, 14);
+        const pts = [];
+        for (const t of PAIR) {
+            const c = shapeOf(t) === "113" ? "S" : "L";
+            for (const p of all.get(t) ?? []) pts.push({ p, c });
+        }
+        const th = (72 * Math.PI) / 180, ux = Math.cos(th), uy = Math.sin(th);
+        for (const a of pts) a.s = a.p[0] * ux + a.p[1] * uy;
+        pts.sort((a, b) => a.s - b.s);
+        return pts.filter((a) => Math.abs(a.s) < 3.2);
+    };
+    const zero = near([0, 0, 0, 0, 0]).map((a) => a.c).join("");
+    const up = near([0, 0, 0, 0.013, -0.013]);
+    const down = near([0, 0, 0, -0.013, 0.013]);
+    assert.equal(zero, "SSLSSLSS", "Gamma = 0 is cut at the origin");
+    assert.equal(up.map((a) => a.c).join(""), "SSLSSLSLSS");
+    assert.equal(down.map((a) => a.c).join(""), "SSLSLSSLSS");
+
+    // Both restore exactly two letters, one S and one L, and the orders differ.
+    for (const w of [up, down]) {
+        assert.equal(w.length, zero.length + 2, "two letters come back");
+        const mid = w.filter((a) => Math.abs(a.s) < 0.5).map((a) => a.c).join("");
+        assert.equal(mid.length, 2, `the central pair: ${mid}`);
+    }
+    const midUp = up.filter((a) => Math.abs(a.s) < 0.5).map((a) => a.c).join("");
+    const midDown = down.filter((a) => Math.abs(a.s) < 0.5).map((a) => a.c).join("");
+    assert.deepEqual([midUp, midDown].sort(), ["LS", "SL"], "the two orderings");
+
+    // And away from the center the two agree, letter for letter.
+    const far = (w) => w.filter((a) => Math.abs(a.s) > 0.5).map((a) => a.c).join("");
+    assert.equal(far(up), far(down), "they should differ only at the center");
 });
 
 test("THE CLAIM: at a wall the couple survives and the spoke heals", () => {
