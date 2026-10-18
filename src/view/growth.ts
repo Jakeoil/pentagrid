@@ -833,10 +833,17 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         ctx.fillStyle = big
                             ? "rgba(140, 90, 175, 0.12)" : "rgba(214, 90, 170, 0.10)";
                         ctx.fill();
-                        ctx.strokeStyle = big
-                            ? "rgba(122, 72, 160, 0.9)" : "rgba(196, 70, 152, 0.9)";
-                        ctx.lineWidth = 1.4;
-                        ctx.stroke();
+                        // The polygon's own outline answers to the edge
+                        // control like everything else. Jake: "when I turn off
+                        // edges, I expect the 2kgon edges to be turned off too."
+                        if (state.edgeStyle !== "none") {
+                            const bold = state.edgeStyle === "thick";
+                            ctx.strokeStyle = big
+                                ? `rgba(122, 72, 160, ${bold ? 0.95 : 0.6})`
+                                : `rgba(196, 70, 152, ${bold ? 0.95 : 0.6})`;
+                            ctx.lineWidth = bold ? 2.2 : 1.1;
+                            ctx.stroke();
+                        }
                     }
                 },
             });
@@ -1243,7 +1250,28 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
                     const { lo: idxLo, levels } = patchLevels(rhombs, stackKeys);
                     const placeable = levels === 4 || (levels === 5 && state.offPenrose);
-                    const readings = (r: Rhomb) => dressingReadings(r, idxLo, levels);
+    /**
+     * Which readings a tile's dressings take — and for a SEATED tile, by the
+     * index the reading gave it rather than the one its own K-tuple carries.
+     *
+     * Jake: "when I turn on penta, kites, or next-gen decoration, the
+     * decorations are not oriented correctly." They were placed from
+     * `r.kTuples`, which at a singularity is whichever resolution
+     * `computeRhomb` happened to pick — not the one the reading chose. A
+     * dressing's ORIENTATION is which corner is the index extreme, so a wrong
+     * index is a turned decoration. Mirrors `dressingReadings`, with the
+     * seated index in place of the K-tuple sum.
+     */
+                    const readings = (r: Rhomb) => {
+                        const seat = seats?.get(r);
+                        if (!seat) return dressingReadings(r, idxLo, levels);
+                        const m = seat.index - idxLo + 1;          // v0's level
+                        if (m < 1 || m + 2 > levels) return [];
+                        if (m === 1) return [{ extAt: 0 as const, alpha: 1 }];
+                        if (m + 2 === levels) return [{ extAt: 2 as const, alpha: 1 }];
+                        return [{ extAt: 0 as const, alpha: 0.5 },
+                                { extAt: 2 as const, alpha: 0.5 }];
+                    };
                     const pentaOn = state.penta && placeable;
                     const nextOn = state.nextgen && placeable;
                     const kitesOn = state.kites && placeable;

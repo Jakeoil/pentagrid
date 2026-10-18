@@ -3383,3 +3383,61 @@ test("Kowalewski is a decoration, under the bands rather than instead of them", 
         assert.equal(onT.get(c), nOff, `a band color moved: ${c}`);
     }
 });
+
+test("a seated tile's dressings are oriented by its SEATED index", () => {
+    // Jake: "when I turn on penta, kites, or next-gen decoration, the
+    // decorations are not oriented correctly." They were placed from
+    // r.kTuples, which at a singularity is whichever resolution computeRhomb
+    // happened to pick — not the one the reading chose. A dressing's
+    // orientation IS which corner is the index extreme, so a wrong index is a
+    // turned decoration.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    const growth = v.pentagrid.stack.get("growth");
+    const marks = [];
+    growth.ctx.moveTo = (x, y) => { marks.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
+    const run = (style) => {
+        // reading included in the base: `set` merges, so leaving it out let
+        // one iteration's reading leak into the next and the comparison
+        // silently compared a thing with itself.
+        v.set({ grow: 1, fold: 1, resolve: true, solids: false, reading: 0,
+                showResolutions: false, penta: false, kites: false, nextgen: false,
+                ...style });
+        marks.length = 0;
+        v.redraw();
+        return marks.join("|");
+    };
+    // A dressing must appear at all on the seated tiles, and must move when
+    // the reading does — if it were pinned to the rhomb's own K-tuple it
+    // would sit still while the tile moved out from under it.
+    for (const style of [{ penta: true }, { kites: true }, { nextgen: true }]) {
+        const bare = run({});
+        const dressed = run(style);
+        assert.ok(dressed.length > bare.length,
+                  `${Object.keys(style)[0]} drew nothing extra`);
+        const moved = run({ ...style, reading: 4 });
+        assert.notEqual(moved, dressed,
+                        `${Object.keys(style)[0]} did not follow the reading`);
+    }
+});
+
+test("the 2k-gon outline answers to the edge control", () => {
+    // Jake: "when I turn off edges, I expect the 2kgon edges to be turned off
+    // too." The polygon is part of the drawing, not a separate kind of thing.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    const res = v.pentagrid.stack.get("resolutions");
+    let strokes = 0, widths = [];
+    res.ctx.stroke = function () { strokes++; widths.push(this.lineWidth); };
+    const run = (edgeStyle) => {
+        v.set({ showResolutions: true, edgeStyle });
+        strokes = 0; widths = [];
+        v.redraw();
+        return { strokes, widths };
+    };
+    assert.ok(run("thin").strokes > 20, "the outlines should be there by default");
+    assert.equal(run("none").strokes, 0, "none means none, here too");
+    const thick = run("thick");
+    assert.ok(thick.strokes > 20 && Math.max(...thick.widths) > 2,
+              "thick should draw them heavier");
+});

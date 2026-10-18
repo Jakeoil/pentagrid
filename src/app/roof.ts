@@ -8,6 +8,7 @@ import {
     bindSliders, bindToggles, bindSelects, mountGammaControls, mountFloatingReticulum,
 } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
+import { BUILD_ID } from "../build-id.js";
 
 const host = document.getElementById("roof-view");
 if (host) {
@@ -52,6 +53,10 @@ if (host) {
         fold.addEventListener("change", apply);
         apply();
     }
+
+    // Jake could not find it: the stamp, under the viewport with the readout.
+    const stamp = document.getElementById("roof-buildid");
+    if (stamp) stamp.textContent = `build id ${BUILD_ID}`;
 
     // Nothing draws the solids layer when it is off, so nothing clears its note.
     const solids = document.getElementById("roof-solids") as HTMLInputElement | null;
