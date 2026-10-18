@@ -450,6 +450,28 @@ Measured: the seated rhombs fill their 2k-gon's outline to a relative error of
 than a decoration. A stack with no reading to seat it is still drawn as
 nothing: there is no honest position for it.
 
+**The seat has to carry the INDEX too**, and the first version did not. Jake:
+*"scrolling through reading looks fine from straight on, but at angle rhombs
+do not have correct location."* Exactly the symptom of a right (x, y) and a
+wrong z: a corner stands at RISE·(index + popcount), and a rhomb seated at a
+mask its own K-tuple did not predict is in the right place in the plane and
+the wrong place in height — invisible looking straight down and wrong from
+every angle. `faceSeats` now returns `{ at, index }` with the index being
+anchor + popcount of the mask, and `world` takes the height from the seat.
+The index LAYER reads the same seats, so a mark sits on the corner it marks
+and says the number that corner really has.
+
+A consequence worth having: **a resolved decagon has no ghost center.** The
+0-and-5 vertex of §5.8 exists only while the singularity is unresolved; seat
+the tiles and there is a real corner there with a real index, and the whole
+patch reads 1..4.
+
+Also from that pass: a `resolve` switch, since there was no way to turn the
+reading off and see the unresolved picture again; the 2k-gon wash dropped to
+0.12 and 0.10 so the decorations under it read; the seated tiles to 0.22; and
+the solid's own face outlines now answer to the edge control like everything
+else.
+
 This is also the answer to the earlier *"when going through readings, find
 illegal ones"*: all 62 readings of the decagon are legal tilings of the
 decagon (measured — every interior edge shared by exactly two faces, every rim

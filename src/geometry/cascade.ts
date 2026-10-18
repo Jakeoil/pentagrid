@@ -175,22 +175,43 @@ export function cascade(
  * Which is the point: the tiles placed this way are REAL tiles, with real
  * indices, so every dressing the page has works on them unchanged.
  */
+export interface Seat {
+    /** The base corner, in tiling coordinates. */
+    at: Vec2;
+    /**
+     * Its de Bruijn index — anchor + popcount of the mask.
+     *
+     * Carried because the HEIGHT is index-driven, not position-driven: a
+     * corner stands at RISE·(index + popcount) and a rhomb seated at a mask
+     * its own K-tuple did not predict would be at the right place in the
+     * plane and the wrong one in z. Which is invisible looking straight down
+     * and wrong from any angle — Jake: "scrolling through reading looks fine
+     * from straight on, but at angle rhombs do not have correct location."
+     */
+    index: number;
+}
+
 export function faceSeats(
     pg: Pentagrid, site: CascadeSite, reading: number,
-): Map<string, Vec2> {
+): Map<string, Seat> {
     const dirs = pg.directions;
     const z = zonohedronOf(dirs, site.families);
-    const origin = zonogonAnchor(z, site.outline, site.outlineK, dirs).origin;
+    const anchor = zonogonAnchor(z, site.outline, site.outlineK, dirs);
     const bases = z.readings.length ? z.readings[reading] : z.lower;
-    const out = new Map<string, Vec2>();
+    const out = new Map<string, Seat>();
     z.pairs.forEach((pr, i) => {
-        let x = origin[0], y = origin[1];
+        let x = anchor.origin[0], y = anchor.origin[1], bits = 0;
         const m = bases[i];
         for (let l = 0; l < z.k; l++) {
-            if (m >> l & 1) { x += dirs[z.fams[l]][0]; y += dirs[z.fams[l]][1]; }
+            if (m >> l & 1) {
+                x += dirs[z.fams[l]][0];
+                y += dirs[z.fams[l]][1];
+                bits++;
+            }
         }
         const a = z.fams[pr[0]], b = z.fams[pr[1]];
-        out.set(a < b ? `${a},${b}` : `${b},${a}`, [x, y]);
+        out.set(a < b ? `${a},${b}` : `${b},${a}`,
+                { at: [x, y], index: anchor.index + bits });
     });
     return out;
 }

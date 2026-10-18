@@ -37,6 +37,7 @@ if (host) {
         { id: "roof-offp", key: "offPenrose" },
         { id: "roof-arcs", key: "arcs" },
         { id: "roof-2kgons", key: "showResolutions" },
+        { id: "roof-resolve", key: "resolve" },
         { id: "roof-solids", key: "solids" },
         { id: "roof-pair", key: "pairGhost" },
     ]);

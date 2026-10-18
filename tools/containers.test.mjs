@@ -1909,18 +1909,27 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     assert.ok(idx, "no index layer");
     const texts = [];
     idx.ctx.fillText = (t) => { texts.push(t); };
-    v.set({ indexStyle: "numbers" });
+    v.set({ indexStyle: "numbers", resolve: false });
     texts.length = 0;
     v.redraw();
     assert.ok(texts.length > 100, `only ${texts.length} index circles`);
     const levels = [...new Set(texts)].sort();
     assert.deepEqual(levels.filter((t) => t !== "0"), ["1", "2", "3", "4"],
                      `a Penrose patch reads 1..4, got ${levels}`);
-    // The one 0 is the decagon's ghost center, which carries index 0 and 5 at
-    // once — the only place index 0 turns up anywhere (PLAN §5.8). The stacks
-    // are out of the RANGE, so they cannot shift the other numbers, but the
-    // ghost is still a vertex and still gets marked.
+    // UNRESOLVED, the one 0 is the decagon's ghost center, which carries index
+    // 0 and 5 at once — the only place index 0 turns up anywhere (PLAN §5.8).
     assert.equal(texts.filter((t) => t === "0").length, 1, "one ghost, at the decagon");
+
+    // RESOLVED, there is no ghost: the reading seats a real corner there, with
+    // a real index, and the marks say the seated one. Which is the point of
+    // carrying the index on the seat — Jake, "indexes should show correct
+    // placement while reading."
+    v.set({ resolve: true });
+    texts.length = 0;
+    v.redraw();
+    assert.equal(texts.filter((t) => t === "0").length, 0,
+                 "a resolved decagon has no ghost center");
+    assert.deepEqual([...new Set(texts)].sort(), ["1", "2", "3", "4"]);
 
     // Pool balls say the same numbers, and shade them. Jake, 2026-10-17:
     // 1 yellow, 2 blue, 3 red, 4 purple, 0 white — the solid set, and 1..4 is
@@ -1933,7 +1942,8 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     texts.length = 0; grads = 0;
     v.redraw();
     assert.ok(grads > 100, `only ${grads} balls shaded`);
-    assert.deepEqual([...new Set(texts)].sort(), levels, "the same numbers");
+    assert.deepEqual([...new Set(texts)].sort(), ["1", "2", "3", "4"],
+                     "the same numbers the resolved patch just gave");
 
     v.set({ indexStyle: "none" });
     texts.length = 0;

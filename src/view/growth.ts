@@ -17,6 +17,7 @@ import { resolveConcurrency, angleCode } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { zonohedronOf, zonogonAnchor, popcount } from "../geometry/zonohedron.js";
 import { cascade, faceSeats } from "../geometry/cascade.js";
+import type { Seat } from "../geometry/cascade.js";
 import type { CascadeSite } from "../geometry/cascade.js";
 import { penroseCondition } from "../geometry/gamma.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
@@ -194,6 +195,15 @@ export interface GrowthState {
      */
     arcs: boolean;
     /**
+     * Resolve the 2k-gons: seat each one's tiles where its reading puts them.
+     *
+     * Off, a stack is drawn as nothing and the polygon is empty, which is the
+     * honest picture of an unresolved singularity. Jake: "There is no good way
+     * to turn off reading." Now there is, and the reading slider is inert
+     * while it is off.
+     */
+    resolve: boolean;
+    /**
      * The de Bruijn index at every dual vertex: nothing, a number in a white
      * circle, or a pool ball.
      *
@@ -232,7 +242,7 @@ const DART: [number, number, number] = [143, 168, 194];
  * the thing being read, and a full-strength tiling underneath competes with
  * it. Faint, and every dressing comes through at the same strength.
  */
-const SEATED_ALPHA = 0.42;
+const SEATED_ALPHA = 0.22;
 
 /**
  * The pool balls, by index. Jake: 1 yellow, 2 blue, 3 red, 4 purple, 0 white.
@@ -256,7 +266,7 @@ const DEFAULTS: GrowthState = {
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false,
-    arcs: false, indexStyle: "none",
+    arcs: false, resolve: true, indexStyle: "none",
     edgeStyle: "thin", kowalewski: false,
 };
 
@@ -305,7 +315,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      * K-tuples, so every dressing works on it unchanged and the index it is
      * placed by is still its own. Jake: "color the penrose legal tiles."
      */
-    let seats: Map<Rhomb, Vec2> | null = null;
+    let seats: Map<Rhomb, Seat> | null = null;
 
     function world(r: Rhomb, dirs: readonly Vec2[], a: number, b: number): Vec3 {
         const { grow, fold } = state;
@@ -317,13 +327,17 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         // A seat moves the base corner and nothing else. tileLocal keeps
         // using the rhomb's own vertices, so a dressing computed in the
         // old place maps to the right (a, b) and lands in the new one.
-        const v0 = seats?.get(r) ?? r.vertices[0];
+        const seat = seats?.get(r);
+        const v0 = seat ? seat.at : r.vertices[0];
         const cx = v0[0] + (vj[0] + vk[0]) / 2, cy = v0[1] + (vj[1] + vk[1]) / 2;
         const x = (1 - grow) * gain * r.x0 + grow * cx
             + grow * ((a - 0.5) * vj[0] + (b - 0.5) * vk[0]);
         const y = (1 - grow) * gain * r.y0 + grow * cy
             + grow * ((a - 0.5) * vj[1] + (b - 0.5) * vk[1]);
-        const m = vertexIndex(r.kTuples[0]);
+        // The height is the INDEX, not the position: a corner stands at
+        // RISE*(index + popcount). A seated rhomb carries the index of the
+        // mask it was seated at, which its own K-tuple need not predict.
+        const m = seat ? seat.index : vertexIndex(r.kTuples[0]);
         return [x, y, fold * grow * RISE * (m + a + b)];
     }
 
@@ -353,16 +367,16 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      * family pair — so a rhomb keeps everything that makes it what it is and
      * only moves. Cached with the plan, on γ and the control's value.
      */
-    let seatCache: Map<Rhomb, Vec2> | null = null;
+    let seatCache: Map<Rhomb, Seat> | null = null;
     let seatKey = "";
     function seatsFor(
         pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
-    ): Map<Rhomb, Vec2> {
+    ): Map<Rhomb, Seat> {
         const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}`
             + `|${rhombs.length}`;
         if (seatCache && key === seatKey) return seatCache;
         const plan = readingPlan(pg, rhombs, reading);
-        const out = new Map<Rhomb, Vec2>();
+        const out = new Map<Rhomb, Seat>();
         const byPoint = new Map<string, Rhomb[]>();
         for (const r of rhombs) {
             const k = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
@@ -811,9 +825,13 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // hexagons are the common case and the ones that come in
                         // a column. With the legacy drawing off this color is
                         // the whole of what is inside the polygon.
+                        // Lighter than it was: with a reading seating real
+                        // tiles underneath, the wash has to be something you
+                        // see THROUGH. Jake: "The center decagon is opaque and
+                        // decorations don't show through."
                         const big = r.families.length > 3;
                         ctx.fillStyle = big
-                            ? "rgba(140, 90, 175, 0.26)" : "rgba(214, 90, 170, 0.22)";
+                            ? "rgba(140, 90, 175, 0.12)" : "rgba(214, 90, 170, 0.10)";
                         ctx.fill();
                         ctx.strokeStyle = big
                             ? "rgba(122, 72, 160, 0.9)" : "rgba(196, 70, 152, 0.9)";
@@ -1018,8 +1036,14 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         });
                         ctx.closePath();
                         if (f.kind === "edge") {
-                            ctx.lineWidth = 1.1;
-                            ctx.strokeStyle = "rgba(28, 34, 44, 0.55)";
+                            // The solid's own face outlines answer to the same
+                            // control the tiles do. Jake: "edges don't obey
+                            // edge setting."
+                            if (state.edgeStyle === "none") continue;
+                            const bold = state.edgeStyle === "thick";
+                            ctx.lineWidth = bold ? 2.2 : 1.1;
+                            ctx.strokeStyle = bold
+                                ? "rgba(18, 22, 30, 0.85)" : "rgba(28, 34, 44, 0.55)";
                             ctx.stroke();
                             continue;
                         }
@@ -1114,6 +1138,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const stacks = stackKeysOf(rhombs);
                     const { lo } = patchLevels(rhombs, stacks);
                     if (!Number.isFinite(lo)) return;
+                    // Same seats the tiles use, so a mark sits on the corner it
+                    // is marking and says the index that corner really has.
+                    seats = state.resolve
+                        ? seatsFor(model as Pentagrid, rhombs, state.reading) : null;
                     const R = Math.max(6, Math.min(10, v.scale * 0.11));
                     ctx.font = `bold ${Math.round(R * 1.4)}px sans-serif`;
                     ctx.textAlign = "center";
@@ -1124,13 +1152,15 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     for (const r of rhombs) {
                         for (let i = 0; i < 4; i++) {
                             const [a, b] = [[0, 0], [1, 0], [1, 1], [0, 1]][i];
-                            const K = r.kTuples[i];
-                            const key = `${Math.round(r.vertices[i][0] * 1e4)},`
-                                + `${Math.round(r.vertices[i][1] * 1e4)},${vertexIndex(K)}`;
+                            const seat = seats?.get(r);
+                            const idx = seat
+                                ? seat.index + a + b
+                                : vertexIndex(r.kTuples[i]);
+                            const p = S(world(r, dirs, a, b));
+                            const key = `${Math.round(p.x * 1e3)},${Math.round(p.y * 1e3)},${idx}`;
                             if (seen.has(key)) continue;
                             seen.add(key);
-                            const p = S(world(r, dirs, a, b));
-                            marks.push({ x: p.x, y: p.y, d: p.d, m: vertexIndex(K) - lo + 1 });
+                            marks.push({ x: p.x, y: p.y, d: p.d, m: idx - lo + 1 });
                         }
                     }
                     marks.sort((p, q) => q.d - p.d);          // far first
@@ -1208,7 +1238,8 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // `world` then puts it where the tile is, lifted or not.
                     // The reading's seats, so the tiles inside a 2k-gon can be
                     // drawn where that reading puts them rather than left out.
-                    seats = seatsFor(model as Pentagrid, rhombs, state.reading);
+                    seats = state.resolve
+                        ? seatsFor(model as Pentagrid, rhombs, state.reading) : null;
                     const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
                     const { lo: idxLo, levels } = patchLevels(rhombs, stackKeys);
                     const placeable = levels === 4 || (levels === 5 && state.offPenrose);
