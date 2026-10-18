@@ -162,3 +162,35 @@ export function cascade(
     }
     return { readings, pools, clashes, followed };
 }
+
+/**
+ * Where each of a site's rhombs sits under a chosen reading, by family pair.
+ *
+ * The C(k,2) rhombs superposed on a concurrency are exactly the faces of its
+ * zonogon — one per pair — so a reading does not invent tiles, it says where
+ * the ones already there go. This hands back the base corner of each, keyed
+ * `"j,k"`, which is enough to move a rhomb that already knows its own shape
+ * and its own K-tuples.
+ *
+ * Which is the point: the tiles placed this way are REAL tiles, with real
+ * indices, so every dressing the page has works on them unchanged.
+ */
+export function faceSeats(
+    pg: Pentagrid, site: CascadeSite, reading: number,
+): Map<string, Vec2> {
+    const dirs = pg.directions;
+    const z = zonohedronOf(dirs, site.families);
+    const origin = zonogonAnchor(z, site.outline, site.outlineK, dirs).origin;
+    const bases = z.readings.length ? z.readings[reading] : z.lower;
+    const out = new Map<string, Vec2>();
+    z.pairs.forEach((pr, i) => {
+        let x = origin[0], y = origin[1];
+        const m = bases[i];
+        for (let l = 0; l < z.k; l++) {
+            if (m >> l & 1) { x += dirs[z.fams[l]][0]; y += dirs[z.fams[l]][1]; }
+        }
+        const a = z.fams[pr[0]], b = z.fams[pr[1]];
+        out.set(a < b ? `${a},${b}` : `${b},${a}`, [x, y]);
+    });
+    return out;
+}

@@ -425,6 +425,31 @@ which is why the picture looked almost correct.
 The view caches the plan on γ and the control's value, since a draw asks for
 it once per solid and the answer does not change between them.
 
+**And then the tiles themselves** (Jake, same day): *"While doing reading,
+color the penrose legal tiles, but dress them transparently, e.g. if
+kowalewski on put transparent color down, put transparent kite down. There
+should be no off penrose tiles."*
+
+So a 2k-gon is no longer empty. The C(k,2) rhombs superposed on a concurrency
+**are** the faces of its zonogon, one per pair, so a reading does not invent
+tiles — it says where the ones already there go. `faceSeats` returns the base
+corner of each by family pair, and `world` uses a rhomb's seat in place of its
+own base corner. Nothing else about the rhomb changes: same shape, same
+families, same K-tuples, so **every dressing works on it unchanged** and the
+index it is placed by is still its own. `tileLocal` keeps using the rhomb's
+own vertices, so a dressing computed in the old position maps to the right
+(a, b) and lands in the new one.
+
+Drawn at 0.42, and the dressings compose with that rather than replacing it —
+they set `globalAlpha` themselves for the half-strength readings, so the
+seated factor multiplies in. The solid standing over them is the thing being
+read and a full-strength tiling underneath competes with it.
+
+Measured: the seated rhombs fill their 2k-gon's outline to a relative error of
+**9e-16** — no gap and no overlap, which is what makes them a tiling rather
+than a decoration. A stack with no reading to seat it is still drawn as
+nothing: there is no honest position for it.
+
 This is also the answer to the earlier *"when going through readings, find
 illegal ones"*: all 62 readings of the decagon are legal tilings of the
 decagon (measured — every interior edge shared by exactly two faces, every rim

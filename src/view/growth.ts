@@ -16,7 +16,7 @@ import { RISE, vertexIndex } from "../geometry/roof.js";
 import { resolveConcurrency, angleCode } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { zonohedronOf, zonogonAnchor, popcount } from "../geometry/zonohedron.js";
-import { cascade } from "../geometry/cascade.js";
+import { cascade, faceSeats } from "../geometry/cascade.js";
 import type { CascadeSite } from "../geometry/cascade.js";
 import { penroseCondition } from "../geometry/gamma.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
@@ -223,6 +223,16 @@ const NEXTGEN_THICK: [number, number, number] = [247, 208, 88];
 const NEXTGEN_THIN: [number, number, number] = [182, 182, 182];
 const KITE: [number, number, number] = [223, 233, 243];
 const DART: [number, number, number] = [143, 168, 194];
+/**
+ * How solid a tile seated by a reading is drawn.
+ *
+ * Jake: "color the penrose legal tiles, but dress them transparently." They
+ * ARE legal tiles — the reading places them and the cascade makes the borders
+ * legal — so they belong in the picture; but the solid standing over them is
+ * the thing being read, and a full-strength tiling underneath competes with
+ * it. Faint, and every dressing comes through at the same strength.
+ */
+const SEATED_ALPHA = 0.42;
 
 /**
  * The pool balls, by index. Jake: 1 yellow, 2 blue, 3 red, 4 purple, 0 white.
@@ -285,13 +295,29 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     let handle: PentagridHandle | null = null;
 
     /** A tile's local (a,b), at the current grow and fold, in world space. */
+    /**
+     * Where a rhomb inside a 2k-gon has been SEATED by the current reading.
+     *
+     * The C(k,2) rhombs superposed on a concurrency are the faces of its
+     * zonogon, one per pair, so a reading does not invent tiles — it says
+     * where the ones already there go. Seating moves a rhomb's base corner
+     * and nothing else: it keeps its own shape, its own families and its own
+     * K-tuples, so every dressing works on it unchanged and the index it is
+     * placed by is still its own. Jake: "color the penrose legal tiles."
+     */
+    let seats: Map<Rhomb, Vec2> | null = null;
+
     function world(r: Rhomb, dirs: readonly Vec2[], a: number, b: number): Vec3 {
         const { grow, fold } = state;
         // The registration gain, so a tile at grow = 0 sits on the crossing that
         // made it. It is n/2 because Sum_j v_j v_j^T = (n/2)I — 5/2 here for the
         // pentagrid, 7/2 for a heptagrid — and dirs already knows n.
         const gain = dirs.length / 2;
-        const vj = dirs[r.j], vk = dirs[r.k], v0 = r.vertices[0];
+        const vj = dirs[r.j], vk = dirs[r.k];
+        // A seat moves the base corner and nothing else. tileLocal keeps
+        // using the rhomb's own vertices, so a dressing computed in the
+        // old place maps to the right (a, b) and lands in the new one.
+        const v0 = seats?.get(r) ?? r.vertices[0];
         const cx = v0[0] + (vj[0] + vk[0]) / 2, cy = v0[1] + (vj[1] + vk[1]) / 2;
         const x = (1 - grow) * gain * r.x0 + grow * cx
             + grow * ((a - 0.5) * vj[0] + (b - 0.5) * vk[0]);
@@ -320,6 +346,49 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      */
     let planCache: Map<string, { pool: number[]; slot: number }> | null = null;
     let planKey = "";
+    /**
+     * Where the current reading seats each tile that lives inside a 2k-gon.
+     *
+     * One entry per superposed rhomb, matched to its zonogon face by its own
+     * family pair — so a rhomb keeps everything that makes it what it is and
+     * only moves. Cached with the plan, on γ and the control's value.
+     */
+    let seatCache: Map<Rhomb, Vec2> | null = null;
+    let seatKey = "";
+    function seatsFor(
+        pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
+    ): Map<Rhomb, Vec2> {
+        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}`
+            + `|${rhombs.length}`;
+        if (seatCache && key === seatKey) return seatCache;
+        const plan = readingPlan(pg, rhombs, reading);
+        const out = new Map<Rhomb, Vec2>();
+        const byPoint = new Map<string, Rhomb[]>();
+        for (const r of rhombs) {
+            const k = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
+            const at = byPoint.get(k);
+            if (at) at.push(r); else byPoint.set(k, [r]);
+        }
+        for (const c of stacksOf(rhombs)) {
+            const at = `${c.x.toFixed(6)},${c.y.toFixed(6)}`;
+            const seat = plan.get(at);
+            const group = byPoint.get(at);
+            if (!seat || !group) continue;
+            const res = resolveConcurrency(pg, c);
+            if (!res) continue;
+            const where = faceSeats(pg, {
+                families: res.families, outline: res.outline, outlineK: res.outlineK,
+            }, seat.pool[seat.slot]);
+            for (const r of group) {
+                const p = where.get(r.j < r.k ? `${r.j},${r.k}` : `${r.k},${r.j}`);
+                if (p) out.set(r, p);
+            }
+        }
+        seatCache = out;
+        seatKey = key;
+        return out;
+    }
+
     function readingPlan(
         pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
     ): Map<string, { pool: number[]; slot: number }> {
@@ -1137,6 +1206,9 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // The P1 pentagons, once per draw. A piece is mapped into the
                     // tile's (a, b) frame by solving p = v0 + a*vj + b*vk, and
                     // `world` then puts it where the tile is, lifted or not.
+                    // The reading's seats, so the tiles inside a 2k-gon can be
+                    // drawn where that reading puts them rather than left out.
+                    seats = seatsFor(model as Pentagrid, rhombs, state.reading);
                     const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
                     const { lo: idxLo, levels } = patchLevels(rhombs, stackKeys);
                     const placeable = levels === 4 || (levels === 5 && state.offPenrose);
@@ -1151,7 +1223,20 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // drawn at all: no fill, no edges, no bands. What is
                         // there is the 2k-gon, in the 2k-gon's own color, and
                         // the solid if it is on.
-                        if (onStack(r)) continue;
+                        // A tile in a 2k-gon is drawn when the reading has
+                        // seated it — it is a legal Penrose tile and belongs in
+                        // the picture — and faintly, because the solid above it
+                        // is the thing being read and this is its shadow.
+                        // Unseated, it is still nothing: a stack with no reading
+                        // to place it has no honest position to be drawn at.
+                        const seated = seats?.has(r) ?? false;
+                        if (onStack(r) && !seated) continue;
+                        // Seated tiles are drawn faint, and every dressing
+                        // on them composes with that rather than replacing
+                        // it — the dressings set globalAlpha themselves for
+                        // the half-strength readings, so A multiplies in.
+                        const A = seated ? SEATED_ALPHA : 1;
+                        ctx.globalAlpha = A;
                         let k = 1;
                         if (shaded) {
                             const A = world(r, dirs, 0, 0);
@@ -1178,7 +1263,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                         : [255, 255, 255], k);
                             ctx.fill();
                             if (kitesOn) for (const { extAt, alpha } of readings(r)) {
-                                ctx.globalAlpha = alpha;
+                                ctx.globalAlpha = A * alpha;
                                 const d = rhombKitesDarts(r, idxLo, levels, extAt);
                                 for (const poly of d.darts) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
@@ -1196,10 +1281,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.lineTo(pb.x, pb.y);
                                 }
                                 ctx.stroke();
-                                ctx.globalAlpha = 1;
+                                ctx.globalAlpha = A;
                             }
                             if (nextOn) for (const { extAt, alpha } of readings(r)) {
-                                ctx.globalAlpha = alpha;
+                                ctx.globalAlpha = A * alpha;
                                 const d = rhombDeflation(r, idxLo, levels, extAt);
                                 for (const poly of d.gray) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
@@ -1217,10 +1302,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.lineTo(pb.x, pb.y);
                                 }
                                 ctx.stroke();
-                                ctx.globalAlpha = 1;
+                                ctx.globalAlpha = A;
                             }
                             if (pentaOn) for (const { extAt, alpha } of readings(r)) {
-                                ctx.globalAlpha = alpha;
+                                ctx.globalAlpha = A * alpha;
                                 const parts = rhombPentagons(r, idxLo, levels, extAt);
                                 const pieces: [number[][], string][] = parts.orange.map(
                                     (o) => [o, P1_FILL.Pe1] as [number[][], string]);
@@ -1232,7 +1317,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.fillStyle = tint(rgbOf(fill), k);
                                     ctx.fill();
                                 }
-                                ctx.globalAlpha = 1;
+                                ctx.globalAlpha = A;
                             }
                             if (state.p1) {
                                 const mx = (r.vertices[0][0] + r.vertices[2][0]) / 2;
@@ -1275,6 +1360,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             trace(r, BODY);
                             ctx.stroke();
                         }
+                        ctx.globalAlpha = 1;
                     }
 
                     // The grid lines, still attached. Each tile's band is

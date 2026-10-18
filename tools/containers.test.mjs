@@ -1941,29 +1941,42 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     assert.equal(texts.length, 0, "none means none");
 });
 
-test("roof: the polygon is left to its own color, solid or no solid", () => {
+test("roof: a reading seats the tiles inside a 2k-gon, and dresses them faintly", () => {
+    // Jake, 2026-10-18: "While doing reading, color the penrose legal tiles,
+    // but dress them transparently... There should be no off penrose tiles."
+    //
+    // The C(k,2) rhombs superposed on a concurrency ARE the faces of its
+    // zonogon, one per pair, so a reading does not invent tiles — it says
+    // where the ones already there go. Seated, they are legal Penrose tiles
+    // with their own families and their own K-tuples, so every dressing works
+    // on them unchanged; they are drawn faint because the solid over them is
+    // the thing being read.
     const v = createGrowthView({ container: host(), lift: true });
-    v.pentagrid.gamma.setSum(0, true);
-    const plain = createGrowthView({ container: host(), lift: true });
-    plain.pentagrid.gamma.setLocked(-1);
-    plain.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);   // no stacks
+    v.pentagrid.gamma.setSum(0, true);           // stacks everywhere
+    const growth = v.pentagrid.stack.get("growth");
+    const alphas = [];
+    let fills = 0;
+    growth.ctx.fill = function () { fills++; alphas.push(this.globalAlpha); };
+    v.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true, solids: false });
+    v.redraw();
 
-    const count = (view) => {
-        const growth = view.pentagrid.stack.get("growth");
-        let fills = 0, strokes = 0;
-        growth.ctx.fill = () => { fills++; };
-        growth.ctx.stroke = () => { strokes++; };
-        view.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true });
-        view.redraw();
-        return { fills, strokes };
-    };
-    const singular = count(v), regular = count(plain);
-    // The singular patch has 50 of its tiles stacked and draws none of them,
-    // so it spends far less on tile bodies than a regular patch of the same
-    // reach — which is the whole of what the ghosts were adding.
-    assert.ok(singular.fills < regular.fills,
-              `the stacks are still being drawn (${singular.fills} vs ${regular.fills})`);
-    assert.ok(singular.strokes < regular.strokes, "and still being outlined");
+    // Faint fills exist, which the old drawing had none of: nothing inside a
+    // 2k-gon was drawn at all.
+    const faint = alphas.filter((a) => a > 0 && a < 0.99).length;
+    assert.ok(faint > 20, `only ${faint} faint fills — the stacks are not seated`);
+    assert.ok(fills > faint, "and the tiles outside are still solid");
+
+    // Moving the reading moves them: a different reading seats them elsewhere.
+    const where = [];
+    growth.ctx.moveTo = (x, y) => { where.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
+    v.set({ reading: 0 });
+    where.length = 0;
+    v.redraw();
+    const first = where.join("|");
+    v.set({ reading: 3 });
+    where.length = 0;
+    v.redraw();
+    assert.notEqual(where.join("|"), first, "the reading does not move the tiles");
 });
 
 test("the panel reads in three sections, and split puts the third on the right", () => {
