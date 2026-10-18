@@ -970,10 +970,45 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // so it takes the mixed color the whole face used to
                         // carry, and the rhomb reads as a rhomb.
                         const lo = 0.5 - state.band / 2, hi = 0.5 + state.band / 2;
-                        for (let p = 0; p < z.pairs.length; p++) {
+
+                        /**
+                         * With the reading OFF, every state at once.
+                         *
+                         * Jake: "skewbs should have both paths through the
+                         * Necker cube shown. This indicates it is showing all
+                         * its states simultaneously." So the faces drawn are
+                         * not one surface's but the UNION over every reading
+                         * the grid can reach — deduplicated by (face, mask),
+                         * since most placements are shared between readings
+                         * and drawing one twice would double its band.
+                         *
+                         * A skewb has two placements per face, which are the
+                         * two Necker states. The decagon has six per face over
+                         * its ten readings, 60 placements for 10 faces, and is
+                         * the mess Jake predicts.
+                         */
+                        const states: { p: number; m: number }[] = [];
+                        if (state.resolve || !count) {
+                            for (let p = 0; p < z.pairs.length; p++) {
+                                states.push({ p, m: bases[p] });
+                            }
+                        } else {
+                            const seenState = new Set<string>();
+                            for (const ri of pool) {
+                                const b = z.readings[ri];
+                                for (let p = 0; p < z.pairs.length; p++) {
+                                    const k = `${p}|${b[p]}`;
+                                    if (seenState.has(k)) continue;
+                                    seenState.add(k);
+                                    states.push({ p, m: b[p] });
+                                }
+                            }
+                        }
+                        for (const st of states) {
+                            const p = st.p;
                             const [i, j] = z.pairs[p];
-                            const m = bases[p];
-                            const w = z.face(bases, p).map(corner);
+                            const m = st.m;
+                            const w = z.faceAt(m, p).map(corner);
                             const q = quad(w);
                             const d0 = depth(q);
                             facets.push({ pts: q, d: d0, kind: "edge" });

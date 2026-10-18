@@ -3482,3 +3482,48 @@ test("arcs reach a seated tile, and not an unseated stack", () => {
     assert.ok(bare > 100, `only ${bare} arcs on the unresolved patch`);
     assert.ok(seated > bare, `${seated} against ${bare}: the seated tiles got none`);
 });
+
+test("reading off shows every state at once — both Necker paths on a skewb", () => {
+    // Jake: "When reading is off... skewbs should have both paths through the
+    // Necker cube shown. This indicates it is showing all its states
+    // simultaneously." So the faces drawn are not one surface's but the UNION
+    // over every reading the grid can reach, deduplicated by (face, mask) —
+    // most placements are shared between readings and drawing one twice would
+    // double its band.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setLocked(-1);
+    v.pentagrid.gamma.setValues([0, 0, 0, 0.1, -0.1]);     // a lone couple
+    const layer = v.pentagrid.stack.get("solids");
+    let fills = 0;
+    layer.ctx.fill = () => { fills++; };
+    const run = (resolve) => {
+        v.set({ solids: true, grow: 1, fold: 1, band: 0.5, resolve });
+        fills = 0;
+        v.redraw();
+        return fills;
+    };
+    const one = run(true), all = run(false);
+    assert.ok(one > 0, "a reading should draw something");
+    // A skewb has exactly two readings and two placements per face, so the
+    // superposition is exactly twice the surface. Not approximately.
+    assert.equal(all, one * 2, `${all} against ${one}: not both Necker states`);
+});
+
+test("and on the decagon the superposition is the mess it should be", () => {
+    // Ten readings over ten faces, but only six distinct placements per face,
+    // so the union is well short of ten times the surface and well over it.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    const layer = v.pentagrid.stack.get("solids");
+    let fills = 0;
+    layer.ctx.fill = () => { fills++; };
+    const run = (resolve) => {
+        v.set({ solids: true, grow: 1, fold: 1, band: 0.5, resolve });
+        fills = 0;
+        v.redraw();
+        return fills;
+    };
+    const one = run(true), all = run(false);
+    assert.ok(all > one * 1.5, `${all} against ${one}: too few states drawn`);
+    assert.ok(all < one * 6, `${all} against ${one}: placements are being repeated`);
+});

@@ -99,6 +99,12 @@ export interface Zonohedron {
     flips(bases: readonly number[]): ZonoFlip[];
     /** A face's four corners, as generator masks, in order round it. */
     face(bases: readonly number[], pair: number): [number, number, number, number];
+    /**
+     * The same, from one face's base mask alone — what a superposition needs,
+     * since it gathers placements from several readings and has no single
+     * `bases` to index.
+     */
+    faceAt(mask: number, pair: number): [number, number, number, number];
     /** The order one family's ribbon crosses the others, as local indices. */
     route(bases: readonly number[], fam: number): number[];
 }
@@ -366,12 +372,20 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
         return bases ? byBases.get(bases.join(",")) ?? null : null;
     };
 
-    const face = (bases: readonly number[], pair: number) => {
+    /**
+     * A face's four corners from its own base mask.
+     *
+     * `face` reads that mask out of a whole reading; this takes it directly,
+     * which is what a SUPERPOSITION needs — drawing every state at once means
+     * gathering placements from several readings, with no single `bases` left
+     * to index into.
+     */
+    const faceAt = (mask: number, pair: number) => {
         const [i, j] = pairs[pair];
-        const m = bases[pair];
-        return [m, m | (1 << i), m | (1 << i) | (1 << j), m | (1 << j)] as
+        return [mask, mask | (1 << i), mask | (1 << i) | (1 << j), mask | (1 << j)] as
             [number, number, number, number];
     };
+    const face = (bases: readonly number[], pair: number) => faceAt(bases[pair], pair);
 
     /**
      * A family's ribbon, read off its own rhombs.
@@ -423,6 +437,6 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
 
     return {
         k, fams, pairs, cells, lower, readings, nudgeOf, readingOf, penrose,
-        flips, face, route,
+        flips, face, faceAt, route,
     };
 }
