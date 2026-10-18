@@ -372,8 +372,13 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     function seatsFor(
         pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
     ): Map<Rhomb, Seat> {
-        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}`
-            + `|${rhombs.length}`;
+        // Keyed on the STACKS, not the rhomb count: panning changes which
+        // tiles are collected without necessarily changing how many, and a
+        // stale seat map is a tiling drawn in the wrong place. Jake:
+        // "refreshing is iffy when I move through viewport."
+        const stackKeys = stacksOf(rhombs)
+            .map((c) => `${c.x.toFixed(6)},${c.y.toFixed(6)}`).sort().join(";");
+        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}|${stackKeys}`;
         if (seatCache && key === seatKey) return seatCache;
         const plan = readingPlan(pg, rhombs, reading);
         const out = new Map<Rhomb, Seat>();
@@ -408,8 +413,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     ): Map<string, { pool: number[]; slot: number }> {
         const held = penroseCondition(
             pg.gamma.reduce((t, g) => t + g, 0), pg.directions.length) === true;
-        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}|${held}`
-            + `|${rhombs.length}`;
+        const stackKeys = stacksOf(rhombs)
+            .map((c) => `${c.x.toFixed(6)},${c.y.toFixed(6)}`).sort().join(";");
+        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}`
+            + `|${held}|${stackKeys}`;
         if (planCache && key === planKey) return planCache;
         const sites: CascadeSite[] = [];
         const at: string[] = [];
@@ -1101,11 +1108,19 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const S = (p: Vec3) => toScreen(p, v, cx, cy);
                     const rhombs = currentRhombs();
                     const stacks = stackKeysOf(rhombs);
+                    // The seats, so an arc on a resolved 2k-gon rides with its
+                    // tile. Jake: "I just noticed that arcs is not
+                    // implemented" — they were, and skipped on every stack,
+                    // which before a reading was right (an arc asserts a
+                    // matching a superposition does not have) and after one is
+                    // not: a seated tile is a legal tile and its arcs join.
+                    seats = state.resolve
+                        ? seatsFor(model as Pentagrid, rhombs, state.reading) : null;
                     ctx.lineWidth = 1.6;
                     ctx.lineCap = "round";
                     const STEPS = 14;
                     for (const r of rhombs) {
-                        if (isOnStack(stacks, r)) continue;
+                        if (isOnStack(stacks, r) && !seats?.has(r)) continue;
                         for (const arc of rhombArcs(model as Pentagrid, r)) {
                             let d = arc.a2 - arc.a1;
                             while (d > Math.PI) d -= 2 * Math.PI;
@@ -1290,12 +1305,13 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // to place it has no honest position to be drawn at.
                         const seated = seats?.has(r) ?? false;
                         if (onStack(r) && !seated) continue;
-                        // Seated tiles are drawn faint, and every dressing
-                        // on them composes with that rather than replacing
-                        // it — the dressings set globalAlpha themselves for
-                        // the half-strength readings, so A multiplies in.
+                        // The BODY of a seated tile is faint; its decorations
+                        // are not. Jake, twice: "the decorations are still
+                        // washed out." The first version put one alpha on the
+                        // whole tile, so dressing and ground faded together and
+                        // the thing you wanted to read faded with the thing you
+                        // wanted to see through. Only the ground takes A.
                         const A = seated ? SEATED_ALPHA : 1;
-                        ctx.globalAlpha = A;
                         let k = 1;
                         if (shaded) {
                             const A = world(r, dirs, 0, 0);
@@ -1309,6 +1325,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             k = 0.62 + 0.38 * Math.abs((n[0] * 0.35 - n[1] * 0.30 + n[2] * 0.89) / nl);
                         }
                         if (grow > 0.02) {
+                            ctx.globalAlpha = A;
                             trace(r, BODY);
                             // The ground, under every other dressing. Kowalewski
                             // is one of them and the coarsest: it colors the
@@ -1321,8 +1338,9 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                         ? kowalewskiOf(r.j, r.k, dirs.length)
                                         : [255, 255, 255], k);
                             ctx.fill();
+                            ctx.globalAlpha = 1;      // the dressings at full
                             if (kitesOn) for (const { extAt, alpha } of readings(r)) {
-                                ctx.globalAlpha = A * alpha;
+                                ctx.globalAlpha = alpha;
                                 const d = rhombKitesDarts(r, idxLo, levels, extAt);
                                 for (const poly of d.darts) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
@@ -1340,10 +1358,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.lineTo(pb.x, pb.y);
                                 }
                                 ctx.stroke();
-                                ctx.globalAlpha = A;
+                                ctx.globalAlpha = 1;
                             }
                             if (nextOn) for (const { extAt, alpha } of readings(r)) {
-                                ctx.globalAlpha = A * alpha;
+                                ctx.globalAlpha = alpha;
                                 const d = rhombDeflation(r, idxLo, levels, extAt);
                                 for (const poly of d.gray) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
@@ -1361,10 +1379,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.lineTo(pb.x, pb.y);
                                 }
                                 ctx.stroke();
-                                ctx.globalAlpha = A;
+                                ctx.globalAlpha = 1;
                             }
                             if (pentaOn) for (const { extAt, alpha } of readings(r)) {
-                                ctx.globalAlpha = A * alpha;
+                                ctx.globalAlpha = alpha;
                                 const parts = rhombPentagons(r, idxLo, levels, extAt);
                                 const pieces: [number[][], string][] = parts.orange.map(
                                     (o) => [o, P1_FILL.Pe1] as [number[][], string]);
@@ -1376,7 +1394,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     ctx.fillStyle = tint(rgbOf(fill), k);
                                     ctx.fill();
                                 }
-                                ctx.globalAlpha = A;
+                                ctx.globalAlpha = 1;
                             }
                             if (state.p1) {
                                 const mx = (r.vertices[0][0] + r.vertices[2][0]) / 2;
@@ -1403,6 +1421,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             ctx.fill();
                         }
                         if (grow > 0.02 && state.edgeStyle !== "none") {
+                            ctx.globalAlpha = A;
                             // Bold still tracks the shading, so creases keep
                             // reading on the roof; it just stops being a ghost.
                             const bold = state.edgeStyle === "thick";

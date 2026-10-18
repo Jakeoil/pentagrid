@@ -3441,3 +3441,44 @@ test("the 2k-gon outline answers to the edge control", () => {
     assert.ok(thick.strokes > 20 && Math.max(...thick.widths) > 2,
               "thick should draw them heavier");
 });
+
+test("a seated tile is faint but its decorations are not", () => {
+    // Jake, twice: "the decorations are still washed out." The first version
+    // put one alpha on the whole tile, so the dressing faded with the ground —
+    // the thing you want to read faded with the thing you want to see through.
+    // Only the ground takes it.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    const growth = v.pentagrid.stack.get("growth");
+    const alphas = [];
+    growth.ctx.fill = function () { alphas.push(this.globalAlpha); };
+    v.set({ grow: 1, fold: 1, resolve: true, solids: false,
+            showResolutions: false, penta: true });
+    alphas.length = 0;
+    v.redraw();
+    const faint = alphas.filter((a) => a < 0.5).length;
+    const full = alphas.filter((a) => a > 0.99).length;
+    assert.ok(faint > 50, `${faint} faint fills — the grounds should be faint`);
+    assert.ok(full > faint * 4,
+              `${full} full fills against ${faint} faint: the dressings are washed out`);
+});
+
+test("arcs reach a seated tile, and not an unseated stack", () => {
+    // They were skipped on every stack, which before a reading is right — an
+    // arc asserts a matching a superposition does not have — and after one is
+    // wrong, since a seated tile is a legal tile and its arcs join.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    const layer = v.pentagrid.stack.get("arcs");
+    let strokes = 0;
+    layer.ctx.stroke = () => { strokes++; };
+    const run = (resolve) => {
+        v.set({ arcs: true, grow: 1, fold: 1, resolve });
+        strokes = 0;
+        v.redraw();
+        return strokes;
+    };
+    const bare = run(false), seated = run(true);
+    assert.ok(bare > 100, `only ${bare} arcs on the unresolved patch`);
+    assert.ok(seated > bare, `${seated} against ${bare}: the seated tiles got none`);
+});
