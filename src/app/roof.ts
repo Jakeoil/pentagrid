@@ -25,7 +25,10 @@ if (host) {
         { id: "roof-reading", key: "reading", format: (v) => `${v + 1}` },
         { id: "roof-flip", key: "pick", format: (v) => `${v + 1}` },
     ]);
-    bindSelects(view, [{ id: "roof-edges", key: "edgeStyle" }]);
+    bindSelects(view, [
+        { id: "roof-edges", key: "edgeStyle" },
+        { id: "roof-index", key: "indexStyle" },
+    ]);
     bindToggles(view, [
         { id: "roof-penta", key: "penta" },
         { id: "roof-nextgen", key: "nextgen" },
@@ -33,7 +36,6 @@ if (host) {
         { id: "roof-kowalewski", key: "kowalewski" },
         { id: "roof-offp", key: "offPenrose" },
         { id: "roof-arcs", key: "arcs" },
-        { id: "roof-index", key: "index" },
         { id: "roof-2kgons", key: "showResolutions" },
         { id: "roof-solids", key: "solids" },
         { id: "roof-pair", key: "pairGhost" },

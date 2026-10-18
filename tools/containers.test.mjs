@@ -1909,7 +1909,7 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     assert.ok(idx, "no index layer");
     const texts = [];
     idx.ctx.fillText = (t) => { texts.push(t); };
-    v.set({ index: true });
+    v.set({ indexStyle: "numbers" });
     texts.length = 0;
     v.redraw();
     assert.ok(texts.length > 100, `only ${texts.length} index circles`);
@@ -1921,6 +1921,24 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     // are out of the RANGE, so they cannot shift the other numbers, but the
     // ghost is still a vertex and still gets marked.
     assert.equal(texts.filter((t) => t === "0").length, 1, "one ghost, at the decagon");
+
+    // Pool balls say the same numbers, and shade them. Jake, 2026-10-17:
+    // 1 yellow, 2 blue, 3 red, 4 purple, 0 white — the solid set, and 1..4 is
+    // exactly the levels a Penrose patch stands on. A ball is a radial
+    // gradient in the same circle, so it costs one gradient per mark and the
+    // text is unchanged.
+    let grads = 0;
+    idx.ctx.createRadialGradient = () => { grads++; return { addColorStop() {} }; };
+    v.set({ indexStyle: "pool" });
+    texts.length = 0; grads = 0;
+    v.redraw();
+    assert.ok(grads > 100, `only ${grads} balls shaded`);
+    assert.deepEqual([...new Set(texts)].sort(), levels, "the same numbers");
+
+    v.set({ indexStyle: "none" });
+    texts.length = 0;
+    v.redraw();
+    assert.equal(texts.length, 0, "none means none");
 });
 
 test("roof: the polygon is left to its own color, solid or no solid", () => {

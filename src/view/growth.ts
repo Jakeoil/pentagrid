@@ -192,10 +192,17 @@ export interface GrowthState {
      */
     arcs: boolean;
     /**
-     * Each dual vertex marked with its de Bruijn index, in a white circle.
-     * The same 1..4 the dressings are placed by, and 1..5 off Penrose.
+     * The de Bruijn index at every dual vertex: nothing, a number in a white
+     * circle, or a pool ball.
+     *
+     * The balls are Jake's, 2026-10-17 — 1 yellow, 2 blue, 3 red, 4 purple,
+     * 0 white — and they are the solid-color set, 1 to 4 being exactly the
+     * levels a Penrose patch stands on. A ball is a radial gradient in a
+     * circle, which is all a sphere's silhouette ever is, so it costs one
+     * `arc` and stays crisp at any zoom. The white 0 is the cue ball and
+     * turns up only off Penrose, where the index takes a fifth value.
      */
-    index: boolean;
+    indexStyle: "none" | "numbers" | "pool";
 }
 
 export interface GrowthHandle {
@@ -215,12 +222,29 @@ const NEXTGEN_THIN: [number, number, number] = [182, 182, 182];
 const KITE: [number, number, number] = [223, 233, 243];
 const DART: [number, number, number] = [143, 168, 194];
 
+/**
+ * The pool balls, by index. Jake: 1 yellow, 2 blue, 3 red, 4 purple, 0 white.
+ *
+ * Three stops each — a lit face, the body, a darkened rim — which is what
+ * turns a flat disc into a sphere. 1 to 4 are the levels a Penrose patch
+ * stands on; 0 is the cue ball and appears only off Penrose, where the index
+ * takes a fifth value.
+ */
+const POOL: Record<number, { lit: string; body: string; rim: string }> = {
+    0: { lit: "#ffffff", body: "#f2f0e8", rim: "#b9b6ab" },
+    1: { lit: "#fff6c2", body: "#f2c230", rim: "#9c7a0d" },
+    2: { lit: "#bcd8ff", body: "#2f6fd0", rim: "#163a76" },
+    3: { lit: "#ffc4b4", body: "#d4342a", rim: "#7d1510" },
+    4: { lit: "#e2c9f2", body: "#7a3fa8", rim: "#41215c" },
+    5: { lit: "#ffd9b8", body: "#e07a28", rim: "#8a4310" },
+};
+
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false,
-    arcs: false, index: false,
+    arcs: false, indexStyle: "none",
     edgeStyle: "thin", kowalewski: false,
 };
 
@@ -963,7 +987,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                  * One circle per vertex however many tiles meet there.
                  */
                 id: "vertex-index", label: "Index", z: 44, group: "Exploration",
-                visible: () => state.index,
+                visible: () => state.indexStyle !== "none",
                 draw: ({ ctx, cx, cy }) => {
                     const v = getView();
                     const dirs = model.directions;
@@ -992,13 +1016,36 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         }
                     }
                     marks.sort((p, q) => q.d - p.d);          // far first
+                    const pool = state.indexStyle === "pool";
                     for (const mk of marks) {
+                        const hue = pool ? (POOL[mk.m] ?? POOL[0]) : null;
                         ctx.beginPath();
                         ctx.arc(mk.x, mk.y, R, 0, 2 * Math.PI);
-                        ctx.fillStyle = "#fff";
+                        if (hue) {
+                            // A sphere's outline is always a circle, so a ball
+                            // is a radial gradient in one: the highlight up and
+                            // left of center, the body falling to a dark rim.
+                            const g = ctx.createRadialGradient(
+                                mk.x - R * 0.35, mk.y - R * 0.4, R * 0.08,
+                                mk.x, mk.y, R * 1.05);
+                            g.addColorStop(0, hue.lit);
+                            g.addColorStop(0.55, hue.body);
+                            g.addColorStop(1, hue.rim);
+                            ctx.fillStyle = g;
+                        } else {
+                            ctx.fillStyle = "#fff";
+                        }
                         ctx.fill();
-                        ctx.strokeStyle = "#111";
+                        ctx.strokeStyle = hue ? "rgba(0,0,0,0.35)" : "#111";
                         ctx.stroke();
+                        if (pool) {
+                            // The number rides a white disc, as it does on a
+                            // real ball, so it reads over any body color.
+                            ctx.beginPath();
+                            ctx.arc(mk.x, mk.y, R * 0.56, 0, 2 * Math.PI);
+                            ctx.fillStyle = "#fbfbf7";
+                            ctx.fill();
+                        }
                         ctx.fillStyle = "#111";
                         ctx.fillText(String(mk.m), mk.x, mk.y + 0.5);
                     }
