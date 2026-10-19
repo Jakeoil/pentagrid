@@ -402,7 +402,40 @@ to agree with the decagon, and at two places they do not. The fix is to
 **choose rather than wrap**, and since a clean choice always exists, choosing
 can always succeed.
 
-**Built the same day.** Jake settled it: *"My understanding is that the
+**Rewritten 2026-10-19, and the first version was wrong in a way worth
+keeping on the record.** It walked the sites largest-first and gave each the
+first reading that clashed with nothing already placed. That satisfied
+Socolar's adjacency rule — zero clashes, measured, at every position — and
+still produced tilings Jake could see were wrong: *"still seeing
+mismatch/discontinuity between thick and thin skewbs... it looks upside down.
+A wrong superposition. Consistently wrong."*
+
+He was right and the rule was too weak to catch it. **A resolution of a
+singular pentagrid is not a free choice per polygon.** It is one perturbation
+of the five families, ε, and every concurrency is resolved by the relative
+signs of the εⱼ that meet there. Fifty-odd hexagons do not make fifty-odd
+independent decisions; they all read the same five numbers. A greedy walk can
+satisfy every pairwise constraint and still describe no perturbation at all —
+which is precisely a tiling that is locally legal everywhere and globally
+impossible.
+
+So `cascade` now enumerates the nudges and keeps the ones that resolve EVERY
+site. Measured at Γ = 0 with 39 sites: of the **50** vectors in {−1,0,1}⁵ with
+Σε = 0, exactly **10** resolve everything, and they are precisely the
+decagon's ten Penrose readings' own nudges. The decagon still drives, as Jake
+said — but now because it genuinely parametrizes the whole patch rather than
+because it is visited first. `zonohedron.readingOf` was already there and is
+what each site reads its own answer from.
+
+And the other **40** are the walls: each leaves some singularity standing,
+which is §5.-1's couple of surviving skewbs and the spoke that completes its
+musical sequence. The two halves of this section turn out to be the same
+enumeration seen twice.
+
+The greedy walk survives as the fallback for a patch no single nudge resolves,
+and reports through `clashes` rather than pretending.
+
+**The original note.** Jake settled it: *"My understanding is that the
 decagon combinations drive the reading. As you go through the combinations,
 ensure that connected pentagons agree."* (And the wiggling he could see while
 scrolling the readings was the absence of exactly that — each solid wrapping

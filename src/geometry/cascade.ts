@@ -89,6 +89,12 @@ const claimKeys = (p: Placed[]): string[] => {
     return out;
 };
 
+/**
+ * A tile that is already placed and cannot move — one of the ordinary rhombs
+ * around a 2k-gon, which the greedy fallback must agree with.
+ */
+export interface FixedTile { j: number; k: number; pts: readonly Vec2[] }
+
 export interface CascadeResult {
     /** Reading index per site, into that site's own pool. */
     readings: number[];
@@ -101,58 +107,115 @@ export interface CascadeResult {
 }
 
 /**
- * Assign every site a reading, largest first and outward.
+ * Every nudge in {−1, 0, 1}^n, excluding the one that moves nothing.
  *
- * `reading` is the control's value: the biggest site takes it, wrapped against
- * its own pool, and everything else follows. `penrose` says whether to hold
- * the sites to the readings a Penrose grid can reach.
+ * `sumZero` keeps Σε = 0, which is the Penrose condition on the perturbation:
+ * a resolution that moves the total leaves the LI class.
+ */
+export function nudgeVectors(n: number, sumZero: boolean): number[][] {
+    const out: number[][] = [];
+    const v: number[] = [];
+    const rec = (i: number, s: number) => {
+        if (i === n) {
+            if ((!sumZero || s === 0) && v.some((x) => x)) out.push([...v]);
+            return;
+        }
+        for (const d of [-1, 0, 1]) { v.push(d); rec(i + 1, s + d); v.pop(); }
+    };
+    rec(0, 0);
+    return out;
+}
+
+/**
+ * Assign every site a reading — from ONE nudge, not one choice per site.
+ *
+ * This replaced a greedy walk that gave each 2k-gon the first reading clashing
+ * with nothing already placed. That satisfied Socolar's adjacency rule — zero
+ * clashes, measured — and still produced tilings Jake could see were wrong:
+ * *"still seeing mismatch/discontinuity between thick and thin skewbs... it
+ * looks upside down. A wrong superposition. Consistently wrong."*
+ *
+ * He was right, and the rule was too weak to catch it. A resolution of a
+ * singular pentagrid is not a free choice per polygon: it is ONE perturbation
+ * of the five families, ε, and every concurrency is resolved by the relative
+ * signs of the εⱼ that meet there. Fifty-odd hexagons do not make fifty-odd
+ * independent decisions — they all read the same five numbers. A greedy walk
+ * can satisfy every pairwise constraint and still describe no perturbation at
+ * all, which is exactly a tiling that is locally legal everywhere and globally
+ * impossible.
+ *
+ * So: enumerate the nudges, keep the ones that resolve EVERY site, and let the
+ * control pick among those. Measured at Γ = 0 with 39 sites: of the 50 nudges
+ * in {−1,0,1}⁵ with Σε = 0, exactly **10** resolve everything, and they are
+ * precisely the decagon's ten Penrose readings' own nudges. So the decagon
+ * still drives, as Jake said — but now because it genuinely parametrizes the
+ * whole patch, not because it is visited first. The other 40 leave some
+ * singularity standing: those are the WALLS of §5.-1, where a couple survives.
+ *
+ * Off Penrose, or on a patch no single nudge resolves, it falls back to the
+ * greedy walk and says so through `clashes`.
  */
 export function cascade(
     pg: Pentagrid, sites: readonly CascadeSite[], reading: number, penrose: boolean,
+    fixed: readonly FixedTile[] = [],
 ): CascadeResult {
     const dirs = pg.directions;
     const n = sites.length;
-    const zs: Zonohedron[] = [];
-    const anchors: Vec2[] = [];
-    const pools: number[][] = [];
-    for (const s of sites) {
-        const z = zonohedronOf(dirs, s.families);
-        zs.push(z);
-        anchors.push(zonogonAnchor(z, s.outline, s.outlineK, dirs).origin);
-        const pool = penrose && z.penrose.length ? [...z.penrose]
-            : z.readings.map((_, i) => i);
-        pools.push(pool.length ? pool : [0]);
+    const zs = sites.map((s) => zonohedronOf(dirs, s.families));
+    const pools = zs.map((z) => z.readings.map((_, i) => i));
+
+    // ── the nudge-driven answer, when there is one
+    if (n) {
+        const seen = new Map<string, number[]>();
+        for (const e of nudgeVectors(pg.directions.length, penrose)) {
+            const out: number[] = [];
+            let whole = true;
+            for (let i = 0; i < n; i++) {
+                const r = zs[i].readingOf(sites[i].families.map((j) => e[j]));
+                if (r === null) { whole = false; break; }
+                out.push(r);
+            }
+            if (whole && !seen.has(out.join(","))) seen.set(out.join(","), out);
+        }
+        const ways = [...seen.values()].sort((a, b) => {
+            for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] - b[i];
+            return 0;
+        });
+        if (ways.length) {
+            const w = ((reading % ways.length) + ways.length) % ways.length;
+            return { readings: ways[w], pools, clashes: 0, followed: ways.length };
+        }
     }
-    // Biggest first: the decagon drives, then the octagons, then the hexagons.
-    // Within a size, nearest the origin first, so the order does not wander
-    // with the window.
+
+    // ── no single nudge does it: the greedy walk, and an honest clash count
+    const anchors: Vec2[] = sites.map((s, i) =>
+        zonogonAnchor(zs[i], s.outline, s.outlineK, dirs).origin);
     const order = sites.map((_, i) => i).sort((a, b) => {
         const d = sites[b].families.length - sites[a].families.length;
         if (d) return d;
         const ca = anchors[a], cb = anchors[b];
         return (ca[0] * ca[0] + ca[1] * ca[1]) - (cb[0] * cb[0] + cb[1] * cb[1]);
     });
-
     const readings = new Array<number>(n).fill(0);
     const claimed: Claimed = new Map();
-    let clashes = 0, followed = 0;
-    let first = true;
+    for (const t of fixed) {
+        for (let i = 0; i < 4; i++) {
+            claimed.set(`${t.j},${t.k}|${EDGE(t.pts[i] as Vec2, t.pts[(i + 1) % 4] as Vec2)}`, -1);
+        }
+    }
+    let clashes = 0, followed = 0, first = true;
     for (const i of order) {
-        const z = zs[i], pool = pools[i];
+        const z = zs[i], pool = pools[i].length ? pools[i] : [0];
         const wrapped = ((reading % pool.length) + pool.length) % pool.length;
-        // The control's value for the first site; for the rest, start there and
-        // walk, so a slider still moves the whole picture.
-        const tries: number[] = [];
-        for (let t = 0; t < pool.length; t++) tries.push((wrapped + t) % pool.length);
-
-        let chose = -1, best = Infinity, bestKeys: string[] = [];
-        for (const t of tries) {
-            const bases = z.readings.length ? z.readings[pool[t]] : z.lower;
+        let chose = 0, best = Infinity, bestKeys: string[] = [];
+        for (let t = 0; t < pool.length; t++) {
+            const at = (wrapped + t) % pool.length;
+            const bases = z.readings.length ? z.readings[pool[at]] : z.lower;
             const keys = claimKeys(place(z, anchors[i], bases, dirs));
             let bad = 0;
             for (const k of keys) if (claimed.has(k)) bad++;
-            if (bad === 0) { chose = t; bestKeys = keys; best = 0; break; }
-            if (bad < best) { best = bad; chose = t; bestKeys = keys; }
+            if (bad === 0) { chose = at; bestKeys = keys; best = 0; break; }
+            if (bad < best) { best = bad; chose = at; bestKeys = keys; }
         }
         readings[i] = chose;
         if (!first && chose !== wrapped) followed++;

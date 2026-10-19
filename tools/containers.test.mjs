@@ -3442,25 +3442,35 @@ test("the 2k-gon outline answers to the edge control", () => {
               "thick should draw them heavier");
 });
 
-test("a seated tile is faint but its decorations are not", () => {
-    // Jake, twice: "the decorations are still washed out." The first version
-    // put one alpha on the whole tile, so the dressing faded with the ground —
-    // the thing you want to read faded with the thing you want to see through.
-    // Only the ground takes it.
+test("a BARE seated tile is a hint; a dressed one is drawn in full", () => {
+    // Two complaints, and they pull opposite ways until you separate the
+    // cases. "Dress them transparently" — so a tile the reading seats should
+    // not compete with the solid above it. Then "the decorations are still
+    // washed out", and "in pentas, the blue fields are not being rendered":
+    // penta's blue field IS the tile's ground, so fading the ground of a
+    // DRESSED tile erases the dressing's own background. Bare, it is a hint.
+    // Dressed, it is the drawing.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);
     const growth = v.pentagrid.stack.get("growth");
     const alphas = [];
     growth.ctx.fill = function () { alphas.push(this.globalAlpha); };
-    v.set({ grow: 1, fold: 1, resolve: true, solids: false,
-            showResolutions: false, penta: true });
-    alphas.length = 0;
-    v.redraw();
-    const faint = alphas.filter((a) => a < 0.5).length;
-    const full = alphas.filter((a) => a > 0.99).length;
-    assert.ok(faint > 50, `${faint} faint fills — the grounds should be faint`);
-    assert.ok(full > faint * 4,
-              `${full} full fills against ${faint} faint: the dressings are washed out`);
+    const run = (style) => {
+        v.set({ grow: 1, fold: 1, resolve: true, solids: false, showResolutions: false,
+                penta: false, kites: false, nextgen: false, p1: false,
+                kowalewski: false, ...style });
+        alphas.length = 0;
+        v.redraw();
+        return alphas.slice();
+    };
+    const bare = run({});
+    assert.ok(bare.filter((a) => a < 0.5).length > 20,
+              "a bare seated tile should be faint");
+    // With penta on, nothing is faint: the blue field has to read.
+    const dressed = run({ penta: true });
+    assert.equal(dressed.filter((a) => a < 0.5).length, 0,
+                 "a dressed seated tile should be drawn in full");
+    assert.ok(dressed.length > bare.length, "and penta should add to it");
 });
 
 test("arcs reach a seated tile, and not an unseated stack", () => {
@@ -3526,4 +3536,29 @@ test("and on the decagon the superposition is the mess it should be", () => {
     const one = run(true), all = run(false);
     assert.ok(all > one * 1.5, `${all} against ${one}: too few states drawn`);
     assert.ok(all < one * 6, `${all} against ${one}: placements are being repeated`);
+});
+
+test("a seat survives recollection — the tiles do not vanish", () => {
+    // Jake: "reading tiles still do disappear, difficult to get back without
+    // scrolling to next reading." The seat map was keyed by the Rhomb OBJECT,
+    // and currentRhombs builds new objects whenever it recollects, so a
+    // cached map matched nothing and every tile inside a 2k-gon went. Keyed
+    // now by the crossing and the two families, both of which survive a
+    // rebuild.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);
+    const growth = v.pentagrid.stack.get("growth");
+    let fills = 0;
+    growth.ctx.fill = () => { fills++; };
+    const count = () => { fills = 0; v.redraw(); return fills; };
+    v.set({ grow: 1, fold: 1, resolve: true, solids: false, showResolutions: false });
+    const first = count();
+    assert.ok(first > 100, `only ${first} fills`);
+    // Force a recollect the way panning does, then draw again.
+    v.set({ grow: 0.999 });
+    v.set({ grow: 1 });
+    assert.equal(count(), first, "the seated tiles went missing after a recollect");
+    // And again after the gamma is re-set to the same place.
+    v.pentagrid.gamma.setSum(0, true);
+    assert.equal(count(), first, "and after the gamma was re-applied");
 });

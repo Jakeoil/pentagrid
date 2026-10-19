@@ -315,7 +315,19 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      * K-tuples, so every dressing works on it unchanged and the index it is
      * placed by is still its own. Jake: "color the penrose legal tiles."
      */
-    let seats: Map<Rhomb, Seat> | null = null;
+    let seats: Map<string, Seat> | null = null;
+    /**
+     * A rhomb's name, stable across recollection.
+     *
+     * The seat map used to be keyed by the Rhomb OBJECT, and `currentRhombs`
+     * builds new objects whenever it recollects — so a cached map silently
+     * matched nothing and every tile inside a 2k-gon vanished until something
+     * invalidated the cache. Jake: "reading tiles still do disappear,
+     * difficult to get back without scrolling to the next reading." Its
+     * crossing and its two families name it, and both survive a rebuild.
+     */
+    const seatKeyOf = (r: Rhomb) =>
+        `${r.x0.toFixed(6)},${r.y0.toFixed(6)}|${r.j},${r.k}`;
 
     function world(r: Rhomb, dirs: readonly Vec2[], a: number, b: number): Vec3 {
         const { grow, fold } = state;
@@ -327,7 +339,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         // A seat moves the base corner and nothing else. tileLocal keeps
         // using the rhomb's own vertices, so a dressing computed in the
         // old place maps to the right (a, b) and lands in the new one.
-        const seat = seats?.get(r);
+        const seat = seats?.get(seatKeyOf(r));
         const v0 = seat ? seat.at : r.vertices[0];
         const cx = v0[0] + (vj[0] + vk[0]) / 2, cy = v0[1] + (vj[1] + vk[1]) / 2;
         const x = (1 - grow) * gain * r.x0 + grow * cx
@@ -367,11 +379,11 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      * family pair — so a rhomb keeps everything that makes it what it is and
      * only moves. Cached with the plan, on γ and the control's value.
      */
-    let seatCache: Map<Rhomb, Seat> | null = null;
+    let seatCache: Map<string, Seat> | null = null;
     let seatKey = "";
     function seatsFor(
         pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
-    ): Map<Rhomb, Seat> {
+    ): Map<string, Seat> {
         // Keyed on the STACKS, not the rhomb count: panning changes which
         // tiles are collected without necessarily changing how many, and a
         // stale seat map is a tiling drawn in the wrong place. Jake:
@@ -381,7 +393,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}|${stackKeys}`;
         if (seatCache && key === seatKey) return seatCache;
         const plan = readingPlan(pg, rhombs, reading);
-        const out = new Map<Rhomb, Seat>();
+        const out = new Map<string, Seat>();
         const byPoint = new Map<string, Rhomb[]>();
         for (const r of rhombs) {
             const k = `${r.x0.toFixed(6)},${r.y0.toFixed(6)}`;
@@ -400,7 +412,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             }, seat.pool[seat.slot]);
             for (const r of group) {
                 const p = where.get(r.j < r.k ? `${r.j},${r.k}` : `${r.k},${r.j}`);
-                if (p) out.set(r, p);
+                if (p) out.set(seatKeyOf(r), p);
             }
         }
         seatCache = out;
@@ -426,9 +438,24 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             sites.push({ families: res.families, outline: res.outline, outlineK: res.outlineK });
             at.push(`${c.x.toFixed(6)},${c.y.toFixed(6)}`);
         }
+        // The ordinary tiles, as the boundary condition every reading has to
+        // meet. A stacked rhomb has no fixed place and is not one of them.
+        const stuck = new Set<string>();
+        for (const c of stacksOf(rhombs)) stuck.add(`${c.x.toFixed(6)},${c.y.toFixed(6)}`);
+        const fixed = [];
+        for (const r of rhombs) {
+            if (stuck.has(`${r.x0.toFixed(6)},${r.y0.toFixed(6)}`)) continue;
+            const v0 = r.vertices[0], vj = pg.directions[r.j], vk = pg.directions[r.k];
+            fixed.push({
+                j: r.j, k: r.k,
+                pts: [v0, [v0[0] + vj[0], v0[1] + vj[1]],
+                      [v0[0] + vj[0] + vk[0], v0[1] + vj[1] + vk[1]],
+                      [v0[0] + vk[0], v0[1] + vk[1]]] as Vec2[],
+            });
+        }
         const out = new Map<string, { pool: number[]; slot: number }>();
         if (sites.length) {
-            const plan = cascade(pg, sites, reading, held);
+            const plan = cascade(pg, sites, reading, held, fixed);
             sites.forEach((_, i) => out.set(at[i], { pool: plan.pools[i], slot: plan.readings[i] }));
         }
         planCache = out;
@@ -1155,7 +1182,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     ctx.lineCap = "round";
                     const STEPS = 14;
                     for (const r of rhombs) {
-                        if (isOnStack(stacks, r) && !seats?.has(r)) continue;
+                        if (isOnStack(stacks, r) && !seats?.has(seatKeyOf(r))) continue;
                         for (const arc of rhombArcs(model as Pentagrid, r)) {
                             let d = arc.a2 - arc.a1;
                             while (d > Math.PI) d -= 2 * Math.PI;
@@ -1209,7 +1236,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     for (const r of rhombs) {
                         for (let i = 0; i < 4; i++) {
                             const [a, b] = [[0, 0], [1, 0], [1, 1], [0, 1]][i];
-                            const seat = seats?.get(r);
+                            const seat = seats?.get(seatKeyOf(r));
                             const idx = seat
                                 ? seat.index + a + b
                                 : vertexIndex(r.kTuples[i]);
@@ -1313,7 +1340,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      * seated index in place of the K-tuple sum.
      */
                     const readings = (r: Rhomb) => {
-                        const seat = seats?.get(r);
+                        const seat = seats?.get(seatKeyOf(r));
                         if (!seat) return dressingReadings(r, idxLo, levels);
                         const m = seat.index - idxLo + 1;          // v0's level
                         if (m < 1 || m + 2 > levels) return [];
@@ -1338,7 +1365,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // is the thing being read and this is its shadow.
                         // Unseated, it is still nothing: a stack with no reading
                         // to place it has no honest position to be drawn at.
-                        const seated = seats?.has(r) ?? false;
+                        const seated = seats?.has(seatKeyOf(r)) ?? false;
                         if (onStack(r) && !seated) continue;
                         // The BODY of a seated tile is faint; its decorations
                         // are not. Jake, twice: "the decorations are still
@@ -1346,7 +1373,15 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // whole tile, so dressing and ground faded together and
                         // the thing you wanted to read faded with the thing you
                         // wanted to see through. Only the ground takes A.
-                        const A = seated ? SEATED_ALPHA : 1;
+                        // Faint only when the tile is BARE. Jake: "in pentas,
+                        // the blue fields are not being rendered" — penta's
+                        // field IS the tile's ground, so fading the ground of
+                        // a dressed tile erases the dressing's own background.
+                        // A dressed seated tile is drawn at full strength; a
+                        // bare one stays a hint.
+                        const dressed = pentaOn || nextOn || kitesOn
+                            || state.p1 || state.kowalewski;
+                        const A = seated && !dressed ? SEATED_ALPHA : 1;
                         let k = 1;
                         if (shaded) {
                             const A = world(r, dirs, 0, 0);

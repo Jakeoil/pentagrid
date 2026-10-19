@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { createGammaSet } from "../dist/geometry/gamma.js";
 import { collectRhombs } from "../dist/geometry/pentagrid.js";
 import { zonohedronOf, zonogonAnchor } from "../dist/geometry/zonohedron.js";
-import { cascade } from "../dist/geometry/cascade.js";
+import { cascade, nudgeVectors } from "../dist/geometry/cascade.js";
 
 const set = createGammaSet({ guard: false });
 set.setLocked(-1);
@@ -116,25 +116,74 @@ test("the cascade: the decagon drives and every border comes out legal", () => {
     }
 });
 
-test("the decagon really is the one that drives", () => {
-    // The control's value lands on the decagon; everything else follows. So
-    // moving the slider moves the decagon through all ten of its readings.
+test("the decagon drives, and every site reads the SAME nudge", () => {
+    // The readings are no longer a choice per polygon. They come from one
+    // perturbation of the five families, and every concurrency is resolved by
+    // the relative signs of the epsilons that meet there — so the decagon
+    // drives because it parametrizes the whole patch, not because it is
+    // visited first.
     const sites = [deca, ...hexes].map((s) => ({
         families: s.fams,
         outline: s.rhombs.flatMap((r) => r.vertices),
         outlineK: s.rhombs.flatMap((r) => r.kTuples),
     }));
+    const z = zonohedronOf(dirs, deca.fams);
     const seen = new Set();
     for (let N = 0; N < 10; N++) {
         const plan = cascade(model, sites, N, true);
-        assert.equal(plan.readings[0], N, `N=${N}: the decagon took ${plan.readings[0]}`);
-        seen.add(plan.pools[0][plan.readings[0]]);
-        // Few hexagons have to deviate: the wrap is right most of the time,
-        // and the cascade only overrules it where the border demands.
-        assert.ok(plan.followed < 6,
-                  `N=${N}: ${plan.followed} hexagons overruled, expected a handful`);
+        assert.equal(plan.clashes, 0, `N=${N}: a nudge should clash with nothing`);
+        // The decagon lands on one of ITS ten, and a different one each time.
+        assert.ok(z.penrose.includes(plan.readings[0]),
+                  `N=${N}: the decagon took ${plan.readings[0]}, not a Penrose reading`);
+        seen.add(plan.readings[0]);
+        // And every other site's reading is the one that nudge forces.
+        const e = z.nudgeOf(plan.readings[0]);
+        assert.ok(e, "a Penrose reading has a nudge");
+        for (let i = 1; i < sites.length; i++) {
+            const zi = zonohedronOf(dirs, sites[i].families);
+            const want = zi.readingOf(sites[i].families.map((j) => e[j]));
+            assert.equal(plan.readings[i], want,
+                         `N=${N}, site ${i}: ${plan.readings[i]} against the nudge's ${want}`);
+        }
     }
     assert.equal(seen.size, 10, "all ten of the decagon's readings are reachable");
+});
+
+test("exactly ten nudges resolve the whole patch, and they are the decagon's", () => {
+    // Of the 50 vectors in {-1,0,1}^5 with sum zero, only ten resolve every
+    // singularity at once. The other forty leave one standing — those are the
+    // WALLS of §5.-1, where a couple of skewbs survives and a spoke completes
+    // its musical sequence.
+    const sites = [deca, ...hexes].map((s) => ({
+        families: s.fams,
+        outline: s.rhombs.flatMap((r) => r.vertices),
+        outlineK: s.rhombs.flatMap((r) => r.kTuples),
+    }));
+    const all = nudgeVectors(5, true);
+    assert.equal(all.length, 50, `${all.length} sum-zero nudges in {-1,0,1}^5`);
+    let whole = 0;
+    for (const e of all) {
+        let ok = true;
+        for (const s of sites) {
+            if (zonohedronOf(dirs, s.families).readingOf(s.families.map((j) => e[j])) === null) {
+                ok = false;
+                break;
+            }
+        }
+        if (ok) whole++;
+    }
+    assert.equal(whole, 10, `${whole} nudges resolve everything, want ten`);
+    // And the ten are the decagon's own: its Penrose readings' nudges.
+    const z = zonohedronOf(dirs, deca.fams);
+    assert.equal(z.penrose.length, 10);
+    for (const ri of z.penrose) {
+        const e = z.nudgeOf(ri);
+        for (const s of sites) {
+            assert.notEqual(
+                zonohedronOf(dirs, s.families).readingOf(s.families.map((j) => e[j])), null,
+                `the decagon's reading ${ri} leaves a site standing`);
+        }
+    }
 });
 
 test("and it is not forced: a clean choice always exists", () => {
