@@ -47,7 +47,7 @@
     <div class="bar">
         <label><span class="cap">grow <span class="val" id="roof-t-value">1.00</span></span>
             <input type="range" id="roof-t" min="0" max="1" step="0.005" value="1"></label>
-        <label class="check"><input type="checkbox" id="roof-fold" checked> fold</label>
+        <label class="check"><input type="checkbox" id="roof-flat"> flat</label>
         <label><span class="cap">band <span class="val" id="roof-band-value">50%</span></span>
             <input type="range" id="roof-band" min="0" max="1" step="0.02" value="0.5"></label>
         <label><span class="cap">edges</span>
@@ -56,15 +56,9 @@
                 <option value="normal" selected>normal</option>
                 <option value="bold">bold</option>
             </select></label>
-        <span class="cap">pentaplex</span>
-        <label class="check"><input type="checkbox" id="roof-penta-edge"> edge</label>
-        <label class="check"><input type="checkbox" id="roof-penta-face"> face</label>
-        <span class="cap">next-rhomb</span>
-        <label class="check"><input type="checkbox" id="roof-next-edge"> edge</label>
-        <label class="check"><input type="checkbox" id="roof-next-face"> face</label>
-        <span class="cap">kites</span>
-        <label class="check"><input type="checkbox" id="roof-kites-edge"> edge</label>
-        <label class="check"><input type="checkbox" id="roof-kites-face"> face</label>
+        <label class="check"><input type="checkbox" id="roof-penta"> pentaplex</label>
+        <label class="check"><input type="checkbox" id="roof-nextgen"> next-rhomb</label>
+        <label class="check"><input type="checkbox" id="roof-kites"> kites</label>
         <label class="check"><input type="checkbox" id="roof-kowalewski"> Kowalewski</label>
         <label class="check"><input type="checkbox" id="roof-height"> height</label>
         <label class="check"><input type="checkbox" id="roof-isogloss"> isoglosses</label>
@@ -92,9 +86,9 @@
     <p class="hint" id="roof-buildid"></p>
     <p class="hint"><b>Drag to pan, right-drag to spin and tilt</b>, scroll to zoom.
     Scroll over any slider to step it, shift for ten at a time.
-    <b>fold</b> at 0 lays the roof flat
-    &mdash; the ordinary tiling &mdash; and <b>grow</b> still runs the whole assembly
-    from the pentagrid, now in three dimensions.</p>
+    <b>flat</b> lays the roof down into the ordinary tiling; unchecked, it stands
+    up as golden rhombi. <b>grow</b> still runs the whole assembly from the
+    pentagrid, now in three dimensions.</p>
 
     <p><b>arcs</b> draws the matching curves over the folded tiles. They need no
     index at all &mdash; every edge is +<b>v</b><sub><i>j</i></sub> from one of its

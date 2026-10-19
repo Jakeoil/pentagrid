@@ -31,12 +31,9 @@ if (host) {
         { id: "roof-index", key: "indexStyle" },
     ]);
     bindToggles(view, [
-        { id: "roof-penta-face", key: "pentaFace" },
-        { id: "roof-penta-edge", key: "pentaEdge" },
-        { id: "roof-next-face", key: "nextgenFace" },
-        { id: "roof-next-edge", key: "nextgenEdge" },
-        { id: "roof-kites-face", key: "kitesFace" },
-        { id: "roof-kites-edge", key: "kitesEdge" },
+        { id: "roof-penta", key: "penta" },
+        { id: "roof-nextgen", key: "nextgen" },
+        { id: "roof-kites", key: "kites" },
         { id: "roof-kowalewski", key: "kowalewski" },
         { id: "roof-height", key: "height" },
         { id: "roof-isogloss", key: "isogloss" },
@@ -51,11 +48,15 @@ if (host) {
     // Fold is a checkbox here and a float underneath: the geometry wants a
     // continuous parameter — it is the whole of the lift — and the roof only
     // ever wants the two ends of it. Up by default, since a roof page that
-    // opens flat is a tiling page.
-    const fold = document.getElementById("roof-fold") as HTMLInputElement | null;
-    if (fold) {
-        const apply = () => view.set({ fold: fold.checked ? 1 : 0 });
-        fold.addEventListener("change", apply);
+    // opens flat is a tiling page — which is why the switch reads FLAT and
+    // starts unchecked rather than reading `fold` and starting checked. Jake:
+    // "change fold checkbox to opposite: flat. This reverses the function of
+    // the checkmark. It's more intuitive." A box you tick to make something
+    // happen beats one you untick.
+    const flat = document.getElementById("roof-flat") as HTMLInputElement | null;
+    if (flat) {
+        const apply = () => view.set({ fold: flat.checked ? 0 : 1 });
+        flat.addEventListener("change", apply);
         apply();
     }
 

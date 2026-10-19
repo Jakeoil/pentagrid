@@ -100,7 +100,7 @@ test("next-gen on the roof: gold tiles, gray thin' pieces, and the next generati
         // Both halves: the face paints the pieces, the edge draws the
         // generation's own hairlines. One switch used to do both; method
         // keeps them apart and now so does this.
-        v.set({ grow: 1, nextgenFace: true, nextgenEdge: true });
+        v.set({ grow: 1, nextgen: true });
         const layer = v.pentagrid.stack.get("growth");
         const styles = [];
         let strokes = 0, segments = 0;
@@ -123,7 +123,7 @@ test("next-gen on the roof: gold tiles, gray thin' pieces, and the next generati
         // Off is off: the body fill per tile and nothing more (a lifted white
         // tile shades to a gray of its own, so count fills rather than colors).
         const withPieces = styles.length;
-        v.set({ nextgenFace: false, nextgenEdge: false });
+        v.set({ nextgen: false });
         styles.length = 0;
         v.redraw();
         assert.ok(styles.length < withPieces - 100, `next-gen off should paint no pieces (${styles.length} vs ${withPieces})`);
@@ -1881,11 +1881,11 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     const growth = v.pentagrid.stack.get("growth");
     let fills = 0;
     growth.ctx.fill = () => { fills++; };
-    v.set({ pentaFace: false });
+    v.set({ penta: false });
     fills = 0;
     v.redraw();
     const bare = fills;
-    v.set({ pentaFace: true });
+    v.set({ penta: true });
     fills = 0;
     v.redraw();
     assert.ok(fills > bare, `penta drew nothing at the singular preset (${fills} of ${bare})`);
@@ -1954,7 +1954,7 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     assert.equal(texts.length, 0, "none means none");
 });
 
-test("roof: a reading seats the tiles inside a 2k-gon, and dresses them faintly", () => {
+test("roof: a reading seats the tiles inside a 2k-gon", () => {
     // Jake, 2026-10-18: "While doing reading, color the penrose legal tiles,
     // but dress them transparently... There should be no off penrose tiles."
     //
@@ -1962,22 +1962,24 @@ test("roof: a reading seats the tiles inside a 2k-gon, and dresses them faintly"
     // zonogon, one per pair, so a reading does not invent tiles — it says
     // where the ones already there go. Seated, they are legal Penrose tiles
     // with their own families and their own K-tuples, so every dressing works
-    // on them unchanged; they are drawn faint because the solid over them is
-    // the thing being read.
+    // on them unchanged.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);           // stacks everywhere
     const growth = v.pentagrid.stack.get("growth");
-    const alphas = [];
     let fills = 0;
-    growth.ctx.fill = function () { fills++; alphas.push(this.globalAlpha); };
-    v.set({ resolve: true, grow: 1, fold: 1, band: 0.5, showResolutions: true, solids: false });
-    v.redraw();
-
-    // Faint fills exist, which the old drawing had none of: nothing inside a
-    // 2k-gon was drawn at all.
-    const faint = alphas.filter((a) => a > 0 && a < 0.99).length;
-    assert.ok(faint > 20, `only ${faint} faint fills — the stacks are not seated`);
-    assert.ok(fills > faint, "and the tiles outside are still solid");
+    growth.ctx.fill = () => { fills++; };
+    const run = (resolve) => {
+        v.set({ resolve, grow: 1, fold: 1, band: 0.5,
+                showResolutions: true, solids: false });
+        fills = 0;
+        v.redraw();
+        return fills;
+    };
+    // The old drawing put NOTHING inside a 2k-gon: an unseated stack has no
+    // honest position to be drawn at, so the reading is the whole difference.
+    const bare = run(false), seated = run(true);
+    assert.ok(seated > bare + 20,
+              `${seated} fills against ${bare}: the stacks are not seated`);
 
     // Moving the reading moves them: a different reading seats them elsewhere.
     const where = [];
@@ -3404,7 +3406,7 @@ test("a seated tile's dressings are oriented by its SEATED index", () => {
         // one iteration's reading leak into the next and the comparison
         // silently compared a thing with itself.
         v.set({ grow: 1, fold: 1, resolve: true, solids: false, reading: 0,
-                showResolutions: false, pentaFace: false, kitesFace: false, nextgenFace: false,
+                showResolutions: false, penta: false, kites: false, nextgen: false,
                 ...style });
         marks.length = 0;
         v.redraw();
@@ -3413,7 +3415,7 @@ test("a seated tile's dressings are oriented by its SEATED index", () => {
     // A dressing must appear at all on the seated tiles, and must move when
     // the reading does — if it were pinned to the rhomb's own K-tuple it
     // would sit still while the tile moved out from under it.
-    for (const style of [{ pentaFace: true }, { kitesFace: true }, { nextgenFace: true }]) {
+    for (const style of [{ penta: true }, { kites: true }, { nextgen: true }]) {
         const bare = run({});
         const dressed = run(style);
         assert.ok(dressed.length > bare.length,
@@ -3445,35 +3447,51 @@ test("the 2k-gon outline answers to the edge control", () => {
               "thick should draw them heavier");
 });
 
-test("a BARE seated tile is a hint; a dressed one is drawn in full", () => {
-    // Two complaints, and they pull opposite ways until you separate the
-    // cases. "Dress them transparently" — so a tile the reading seats should
-    // not compete with the solid above it. Then "the decorations are still
-    // washed out", and "in pentas, the blue fields are not being rendered":
-    // penta's blue field IS the tile's ground, so fading the ground of a
-    // DRESSED tile erases the dressing's own background. Bare, it is a hint.
-    // Dressed, it is the drawing.
+test("a bare seated tile is a hint in its OUTLINE, and its face is never faded", () => {
+    // Three complaints over two rounds, and they only stop pulling against
+    // each other once you ask what the fading is actually for.
+    //
+    // "Dress them transparently" — a tile the reading seats should not compete
+    // with the solid above it. Then "the decorations are still washed out" and
+    // "in pentas, the blue fields are not being rendered": penta's blue field
+    // IS the tile's ground, so fading the ground of a dressed tile erases the
+    // dressing's own background. And then: "height shading does not show...
+    // when reading rendered singularity tile permutation", "angle shading is
+    // not expressed as strongly in the singularities as in the normal tiles."
+    //
+    // Both shading treatments modulate the face's lightness, which is exactly
+    // what an alpha on the face weakens — and the fade bought nothing anyway,
+    // since a bare tile's base is white and white at 0.22 over the ground is
+    // white. So no face is ever faded. The hint that remains is the seated
+    // tile's OUTLINE, where fading costs nothing.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setSum(0, true);
     const growth = v.pentagrid.stack.get("growth");
-    const alphas = [];
-    growth.ctx.fill = function () { alphas.push(this.globalAlpha); };
+    const fills = [], strokes = [];
+    growth.ctx.fill = function () { fills.push(this.globalAlpha); };
+    growth.ctx.stroke = function () { strokes.push(this.globalAlpha); };
     const run = (style) => {
         v.set({ grow: 1, fold: 1, resolve: true, solids: false, showResolutions: false,
-                pentaFace: false, kitesFace: false, nextgenFace: false, p1: false,
+                edgeStyle: "normal", isogloss: false,
+                penta: false, kites: false, nextgen: false, p1: false,
                 kowalewski: false, ...style });
-        alphas.length = 0;
+        fills.length = 0; strokes.length = 0;
         v.redraw();
-        return alphas.slice();
+        return { fills: fills.slice(), strokes: strokes.slice() };
     };
     const bare = run({});
-    assert.ok(bare.filter((a) => a < 0.5).length > 20,
-              "a bare seated tile should be faint");
-    // With penta on, nothing is faint: the blue field has to read.
-    const dressed = run({ pentaFace: true });
-    assert.equal(dressed.filter((a) => a < 0.5).length, 0,
+    assert.equal(bare.fills.filter((a) => a < 0.99).length, 0,
+                 "no face should be faded — that is what cost the shading its range");
+    assert.ok(bare.strokes.filter((a) => a < 0.5).length > 20,
+              "a bare seated tile's outline should be faint");
+
+    // With penta on, nothing is faint at all: the tile is the drawing.
+    const dressed = run({ penta: true });
+    assert.equal(dressed.fills.filter((a) => a < 0.99).length, 0,
                  "a dressed seated tile should be drawn in full");
-    assert.ok(dressed.length > bare.length, "and penta should add to it");
+    assert.equal(dressed.strokes.filter((a) => a < 0.5).length, 0,
+                 "and its outline comes up to full with it");
+    assert.ok(dressed.fills.length > bare.fills.length, "and penta should add to it");
 });
 
 test("arcs reach a seated tile, and not an unseated stack", () => {
@@ -3567,31 +3585,52 @@ test("a seat survives recollection — the tiles do not vanish", () => {
 });
 
 test("height and isoglosses reach the roof, as in method", () => {
-    // Jake, seeking parity: "Face shading is a post tile treatment used in
-    // method. In method the button is called 'height'. Implement it here at
-    // 100% ramp. Add isoglosses button and function too."
+    // Jake: "Often called shading, the height treatment takes a decorated face
+    // and applies a gradient based on the vertex instance. Isoglosses are
+    // related: they decorate parallel to the height. Look at how method does
+    // isoglosses."
+    //
+    // So this is the same measurement as method's own ramp test, one page over:
+    // one three-stop gradient per painted face, running along a real diagonal,
+    // with the ends of the ramp actually used across the patch.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setLocked(-1);
     v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
     const growth = v.pentagrid.stack.get("growth");
-    const fills = [];
-    let strokes = 0;
-    growth.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    const grads = [];
+    let fills = 0, strokes = 0;
+    growth.ctx.createLinearGradient = (x0, y0, x1, y1) => {
+        const g = { stops: [], addColorStop: (t, c) => g.stops.push([t, c]),
+                    from: [x0, y0], to: [x1, y1] };
+        grads.push(g);
+        return g;
+    };
+    growth.ctx.fill = () => { fills++; };
     growth.ctx.stroke = () => { strokes++; };
     const run = (style) => {
         v.set({ grow: 1, fold: 0, band: 0.5, edgeStyle: "none",
                 height: false, isogloss: false, ...style });
-        fills.length = 0; strokes = 0;
+        grads.length = 0; fills = 0; strokes = 0;
         v.redraw();
-        return { fills: new Set(fills), strokes };
+        return { grads: [...grads], fills, strokes };
     };
-    // Laid flat with no edges, the ramp is the whole of the difference. It
-    // takes the BANDS as well as the ground: a bare tile's ground is white and
-    // cannot go paler, and the bands are where the roof's color lives.
-    const plain = run({});
+
+    assert.equal(run({}).grads.length, 0, "height off should build no gradients");
+
     const tall = run({ height: true });
-    assert.ok(tall.fills.size > plain.fills.size + 2,
-              `${tall.fills.size} colors against ${plain.fills.size}: no ramp`);
+    assert.ok(tall.fills > 100, `only ${tall.fills} faces`);
+    assert.equal(tall.grads.length, tall.fills, "every painted face gets its own gradient");
+    for (const g of tall.grads) {
+        assert.deepEqual(g.stops.map((s) => s[0]), [0, 0.5, 1], "three stops: low, mid, high");
+        assert.ok(Math.hypot(g.to[0] - g.from[0], g.to[1] - g.from[1]) > 1,
+                  "the gradient runs along a real diagonal");
+    }
+    // The ramp is driven by the VERTEX INSTANCE, so tiles at different indices
+    // get different ends. One color at each end would mean the index is unread.
+    const lows = new Set(tall.grads.map((g) => g.stops[0][1]));
+    const highs = new Set(tall.grads.map((g) => g.stops[2][1]));
+    assert.ok(lows.size >= 2 && highs.size >= 2,
+              `the ramp is flat: ${lows.size} low, ${highs.size} high`);
 
     // Isoglosses are strokes, and they are not the tile outline — the edge
     // control is off here.
@@ -3613,15 +3652,31 @@ test("the tile outlines are one pass, after every fill", () => {
     const log = [];
     growth.ctx.fill = () => { log.push("fill"); };
     growth.ctx.stroke = () => { log.push("stroke"); };
-    v.set({ grow: 1, fold: 1, band: 0, edgeStyle: "bold", isogloss: false,
-            pentaFace: false, kitesFace: false, nextgenFace: false, arcs: false });
-    log.length = 0;
-    v.redraw();
-    const lastFill = log.lastIndexOf("fill");
-    const firstStroke = log.indexOf("stroke");
-    assert.ok(firstStroke > 0, "no outlines were drawn");
-    assert.ok(firstStroke > lastFill,
-              `a fill at ${lastFill} comes after the first outline at ${firstStroke}`);
+    const run = (style) => {
+        v.set({ grow: 1, fold: 1, band: 0, edgeStyle: "bold", isogloss: false,
+                penta: false, kites: false, nextgen: false, arcs: false, ...style });
+        log.length = 0;
+        v.redraw();
+        // The strokes after the last fill: the outline pass, and nothing else.
+        return log.length - 1 - log.lastIndexOf("fill");
+    };
+    const bare = run({});
+    assert.ok(bare > 100, `only ${bare} strokes came after every fill`);
+
+    // And Jake again, on the pentaplex line: "in any case, tile edges, if they
+    // are expressed, should be drawn after tile faces/DECORATIONS." They are,
+    // and turning every decoration on does not move them: the outlines are
+    // collected during the tile loop and flushed once it is over, so the whole
+    // pass is still the tail of the draw and still every tile.
+    //
+    // At LEAST the whole outline pass trails, not exactly it: the last tile
+    // drawn finishes its own decoration edges after its own last fill, and
+    // those trail too. What must not happen is the pass shrinking, which is
+    // what any outline drawn back inside the loop would look like.
+    const dressed = run({ penta: true, kites: true, nextgen: true, isogloss: true });
+    assert.ok(dressed >= bare,
+              `the outline pass lost its place with the decorations on: `
+              + `${dressed} trailing strokes against ${bare}`);
 });
 
 test("the reading is off by default", () => {
@@ -3632,28 +3687,16 @@ test("the reading is off by default", () => {
     assert.equal(v.get().edgeStyle, "normal", "and the edge control reads normal");
 });
 
-test("the growth pages carry method's decoration controls, by method's names", () => {
-    // Jake: "it is a truncated control with defaults. It should have the
-    // levers to keep parity. These things drift so badly."
+test("a decoration draws its face AND its own edge, from one switch", () => {
+    // Jake: "I want the parity to be in implemented functionality. The
+    // controls are just a specialization, so grow and roof have reduced
+    // choice... and the edge referred to here is a component of the
+    // DECORATION, not the tile edge."
     //
-    // The defense is the NAMES. A key that means one thing in method's
-    // tileStyle and another in the growth state is the drift, and it is
-    // invisible until someone compares two screens. This compares them.
-    const v = createGrowthView({ container: host(), lift: true });
-    const state = v.get();
-    for (const key of ["pentaFace", "pentaEdge", "nextgenFace", "nextgenEdge",
-                       "kitesFace", "kitesEdge", "kowalewski", "isogloss",
-                       "p1", "offPenrose", "edgeStyle"]) {
-        assert.ok(key in state, `the growth state has no ${key}`);
-    }
-    // And the truncated originals are gone rather than kept alongside, which
-    // would be two spellings of one idea and the next drift.
-    for (const gone of ["penta", "nextgen", "kites", "boldEdges"]) {
-        assert.equal(gone in state, false, `${gone} should have been replaced`);
-    }
-});
-
-test("a decoration's face and edge are independent, as in method", () => {
+    // So method's two switches per decoration are one here, and the one draws
+    // the whole decoration. What must NOT go missing with the control is the
+    // function: pentaplex had no outline at all before this, which is the
+    // parity that actually mattered.
     const v = createGrowthView({ container: host(), lift: true });
     v.pentagrid.gamma.setLocked(-1);
     v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
@@ -3662,21 +3705,154 @@ test("a decoration's face and edge are independent, as in method", () => {
     growth.ctx.fill = () => { fills++; };
     growth.ctx.stroke = () => { strokes++; };
     const run = (style) => {
+        // The TILE edge off throughout, so what is counted is the
+        // decoration's own edge and nothing else.
         v.set({ grow: 1, fold: 1, band: 0, edgeStyle: "none", isogloss: false,
-                pentaFace: false, pentaEdge: false, nextgenFace: false,
-                nextgenEdge: false, kitesFace: false, kitesEdge: false, ...style });
+                penta: false, nextgen: false, kites: false, ...style });
         fills = 0; strokes = 0;
         v.redraw();
         return { fills, strokes };
     };
     const bare = run({});
+    assert.equal(bare.strokes, 0, "the tile edge is off: nothing should stroke");
     for (const name of ["penta", "nextgen", "kites"]) {
-        const face = run({ [`${name}Face`]: true });
-        const edge = run({ [`${name}Edge`]: true });
-        assert.ok(face.fills > bare.fills, `${name}Face drew no extra fill`);
-        assert.ok(edge.strokes > bare.strokes, `${name}Edge drew no extra stroke`);
-        // Edge alone must not fill the decoration's own pieces.
-        assert.ok(edge.fills < face.fills,
-                  `${name}Edge filled as much as ${name}Face (${edge.fills} vs ${face.fills})`);
+        const on = run({ [name]: true });
+        assert.ok(on.fills > bare.fills, `${name} drew no face`);
+        assert.ok(on.strokes > 0, `${name} drew no edge of its own`);
     }
+});
+
+test("decoration edges stay in their tile: no clip lines, no overrunning isoglosses", () => {
+    // Two reports in one, because both have the same shape — something drawn
+    // per tile that leaves the tile.
+    //
+    // Jake: "seems to be an error in pentaplex. seems to be a vertical line
+    // drawn through the orange pentagons... the line follows the actual tile
+    // edge. method does not have that error." And: "Isoglosses, the parallel
+    // lines must all be within the tile."
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setLocked(-1);
+    v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const growth = v.pentagrid.stack.get("growth");
+
+    // Every path, as the points that built it, and which of them get stroked.
+    let path = [];
+    const strokes = [];
+    growth.ctx.beginPath = () => { path = []; };
+    growth.ctx.moveTo = (x, y) => { path.push(["m", x, y]); };
+    growth.ctx.lineTo = (x, y) => { path.push(["l", x, y]); };
+    growth.ctx.closePath = () => { path.push(["c"]); };
+    growth.ctx.stroke = () => { strokes.push(path.slice()); };
+    growth.ctx.fill = () => {};
+    const run = (style) => {
+        v.set({ grow: 1, fold: 0, band: 0, edgeStyle: "none", height: false,
+                isogloss: false, penta: false, nextgen: false, kites: false,
+                arcs: false, p1: false, resolve: false, ...style });
+        strokes.length = 0;
+        v.redraw();
+        return strokes.map((p) => p.slice());
+    };
+
+    // The tiles themselves, read off the outline pass: a closed quad.
+    const tiles = run({ edgeStyle: "bold" })
+        .filter((p) => p.length === 5 && p[4][0] === "c" && p[0][0] === "m")
+        .map((p) => p.slice(0, 4).map(([, x, y]) => [x, y]));
+    assert.ok(tiles.length > 100, `only ${tiles.length} tile outlines`);
+
+    /** Is p inside the convex polygon q, to within a hair? */
+    const inside = (p, q) => {
+        let area = 0;
+        for (let i = 0; i < q.length; i++) {
+            const a = q[i], b = q[(i + 1) % q.length];
+            area += a[0] * b[1] - b[0] * a[1];
+        }
+        const s = area >= 0 ? 1 : -1;
+        for (let i = 0; i < q.length; i++) {
+            const a = q[i], b = q[(i + 1) % q.length];
+            const ex = b[0] - a[0], ey = b[1] - a[1];
+            const d = s * ((p[0] - a[0]) * ey - (p[1] - a[1]) * ex)
+                      / Math.hypot(ex, ey);
+            if (d > 0.02) return false;        // 0.02 px of slack, no more
+        }
+        return true;
+    };
+    /** The segments of a path, as point pairs. */
+    const segments = (p) => {
+        const out = [];
+        for (let i = 1; i < p.length; i++) {
+            if (p[i][0] !== "l" || p[i - 1][0] === "c") continue;
+            out.push([[p[i - 1][1], p[i - 1][2]], [p[i][1], p[i][2]]]);
+        }
+        return out;
+    };
+
+    // ── the isoglosses: every chord inside the tile it decorates
+    const lines = run({ isogloss: true }).flatMap(segments);
+    assert.ok(lines.length > 100, `only ${lines.length} isogloss chords`);
+    let stray = 0;
+    for (const [a, b] of lines) {
+        const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        if (!tiles.some((t) => inside(a, t) && inside(b, t) && inside(mid, t))) stray++;
+    }
+    assert.equal(stray, 0, `${stray} of ${lines.length} isogloss chords leave their tile`);
+
+    // ── the pentaplex: no stroke along a tile edge
+    //
+    // That was the line: the pentagons are cut to their tile so each tile can
+    // be drawn in its own fold frame, and stroking the cut piece drew the cut.
+    // A pentagon's own edges cross the tile; a clip edge RUNS ALONG one of its
+    // sides, which is the thing to count.
+    const onEdge = (p, a, b) => {
+        const ex = b[0] - a[0], ey = b[1] - a[1];
+        const L = Math.hypot(ex, ey);
+        if (L < 1e-9) return false;
+        const t = ((p[0] - a[0]) * ex + (p[1] - a[1]) * ey) / (L * L);
+        if (t < -0.01 || t > 1.01) return false;
+        return Math.abs((p[0] - a[0]) * ey - (p[1] - a[1]) * ex) / L < 0.05;
+    };
+    const penta = run({ penta: true }).flatMap(segments);
+    assert.ok(penta.length > 100, `only ${penta.length} pentaplex edges`);
+    let onTileEdge = 0;
+    for (const [a, b] of penta) {
+        if (Math.hypot(b[0] - a[0], b[1] - a[1]) < 0.5) continue;
+        const mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+        for (const t of tiles) {
+            let hit = false;
+            for (let i = 0; i < 4 && !hit; i++) {
+                const u = t[i], w = t[(i + 1) % 4];
+                hit = onEdge(a, u, w) && onEdge(b, u, w) && onEdge(mid, u, w);
+            }
+            if (hit) { onTileEdge++; break; }
+        }
+    }
+    assert.equal(onTileEdge, 0,
+                 `${onTileEdge} of ${penta.length} pentaplex strokes run along a tile edge`);
+});
+
+test("the roof's fold switch reads FLAT, and reads it the right way round", () => {
+    // Jake: "change fold checkbox to opposite: flat. This reverses the
+    // function of the checkmark. It's more intuitive." A box you tick to make
+    // something happen beats one you untick, and the roof wants to open folded
+    // — a roof page that opens flat is a tiling page.
+    //
+    // Which is the whole risk here: the label and the sense have to flip
+    // TOGETHER. A `flat` box still wired `checked ? 1 : 0` compiles, passes
+    // every drawing test, and does exactly the wrong thing. Nothing else in
+    // the suite reaches for a roof id, so this is the only thing standing
+    // between that and the page.
+    const html = readFileSync("roof.html", "utf8");
+    const app = readFileSync("src/app/roof.ts", "utf8");
+
+    assert.ok(!html.includes("roof-fold") && !app.includes("roof-fold"),
+              "roof-fold is still referenced somewhere");
+    const box = html.match(/<input type="checkbox" id="roof-flat"([^>]*)>/);
+    assert.ok(box, "no #roof-flat checkbox on the page");
+    assert.ok(!box[1].includes("checked"),
+              "flat starts CHECKED, so the roof opens laid down");
+    assert.ok(/>\s*flat\s*</.test(html.slice(html.indexOf("roof-flat"))),
+              "the checkbox is not labeled flat");
+
+    // checked means flat means fold 0. The inverted form is the bug.
+    assert.ok(/flat\.checked\s*\?\s*0\s*:\s*1/.test(app),
+              "the flat switch is not wired checked -> fold 0");
 });

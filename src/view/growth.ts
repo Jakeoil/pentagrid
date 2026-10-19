@@ -131,20 +131,17 @@ export interface GrowthState {
      * elsewhere. Per tile by construction (rhombPentagons), so the pieces are
      * clipped to the tile and carried in its (a, b) frame like P1's.
      */
-    pentaFace: boolean;
-    pentaEdge: boolean;
+    penta: boolean;
     /**
      * Paint the next generation — the `nextgen` tile style: each tile cut into
      * the deflated tiling's pieces at 1/φ, thick gold and thin gray, with the
      * next generation's edges as hairlines. Per tile by construction, so the
      * pieces ride the tile's (a, b) frame and fold with it on the roof.
      */
-    nextgenFace: boolean;
-    nextgenEdge: boolean;
+    nextgen: boolean;
     /** Paint P2 — the `kites` tile style: kites light, a dart in every thick,
      *  P2's edges as hairlines — per tile, in the tile's (a, b) frame. */
-    kitesFace: boolean;
-    kitesEdge: boolean;
+    kites: boolean;
     /** Draw penta, next-gen and kites off a Penrose patch too — the tiles at the
      *  top or bottom index level; the middle ones stay bare. */
     offPenrose: boolean;
@@ -258,6 +255,8 @@ const DART: [number, number, number] = [143, 168, 194];
  * it. Faint, and every dressing comes through at the same strength.
  */
 const SEATED_ALPHA = 0.22;
+/** The pentaplex outline, as method draws it. */
+const PENTA_EDGE = "rgba(38, 28, 18, 0.85)";
 /** How far the height ramp moves a color, at a full ramp. pentagrid's RAMP. */
 const RAMP = 0.55;
 /** Mix an RGB towards white (t > 0) or black (t < 0). */
@@ -287,10 +286,7 @@ const POOL: Record<number, { lit: string; body: string; rim: string }> = {
 
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
-    showResolutions: false, p1: false,
-    pentaFace: false, pentaEdge: false,
-    nextgenFace: false, nextgenEdge: false,
-    kitesFace: false, kitesEdge: false,
+    showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false,
     arcs: false, resolve: false, indexStyle: "none",
@@ -1345,6 +1341,60 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     };
                     const BODY = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
+                    /**
+                     * Does a point lie on the segment a→b?
+                     *
+                     * Both tests, because a point can be on the LINE and past
+                     * the end of the segment.
+                     */
+                    const onSegment = (p: Vec2, a: Vec2, b: Vec2) => {
+                        const ex = b[0] - a[0], ey = b[1] - a[1];
+                        const L2 = ex * ex + ey * ey;
+                        if (L2 < 1e-18) return false;
+                        const t = ((p[0] - a[0]) * ex + (p[1] - a[1]) * ey) / L2;
+                        if (t < -1e-9 || t > 1 + 1e-9) return false;
+                        const off = (p[0] - a[0]) * ey - (p[1] - a[1]) * ex;
+                        return Math.abs(off) / Math.sqrt(L2) < 1e-7;
+                    };
+                    /**
+                     * Stroke the edges of a clipped piece that belong to the
+                     * SHAPE, and none of the ones the clip introduced.
+                     *
+                     * Jake: "seems to be a vertical line drawn through the
+                     * orange pentagons... the line follows the actual tile
+                     * edge. method does not have that error." It doesn't,
+                     * because method draws the pentagons in one unclipped pass
+                     * over the whole patch. A folded roof cannot: every tile is
+                     * drawn in its own frame, so a pentagon crossing a tile
+                     * edge has to be cut there — and the cut edge is a real
+                     * edge of the piece, which a plain `stroke` then draws.
+                     *
+                     * So the clip stays and the stroke gets choosier. An edge
+                     * whose midpoint lies on the original polygon's boundary is
+                     * the shape's own; anything else came from the knife. The
+                     * two halves either side of a tile edge stroke their own
+                     * parts and together make the one pentagon's outline.
+                     */
+                    const strokeOwnEdges = (
+                        r: Rhomb, piece: readonly Vec2[], shape: readonly Vec2[],
+                    ) => {
+                        ctx.beginPath();
+                        for (let i = 0; i < piece.length; i++) {
+                            const a = piece[i], b = piece[(i + 1) % piece.length];
+                            const mid: Vec2 = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+                            let own = false;
+                            for (let j = 0; j < shape.length && !own; j++) {
+                                own = onSegment(mid, shape[j], shape[(j + 1) % shape.length]);
+                            }
+                            if (!own) continue;
+                            const pa = S(world(r, dirs, ...toLocal(r, a)));
+                            const pb = S(world(r, dirs, ...toLocal(r, b)));
+                            ctx.moveTo(pa.x, pa.y);
+                            ctx.lineTo(pb.x, pb.y);
+                        }
+                        ctx.stroke();
+                    };
+
                     // The P1 pentagons, once per draw. A piece is mapped into the
                     // tile's (a, b) frame by solving p = v0 + a*vj + b*vk, and
                     // `world` then puts it where the tile is, lifted or not.
@@ -1377,28 +1427,46 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         return [{ extAt: 0 as const, alpha: 0.5 },
                                 { extAt: 2 as const, alpha: 0.5 }];
                     };
-                    // Face and edge apart, named as method names them. Jake:
-                    // "it is a truncated control with defaults. It should have
-                    // the levers to keep parity. These things drift so badly."
-                    // Sharing the NAMES is most of the defense: a key that
-                    // means one thing on method and another here is the drift.
-                    const pentaFace = state.pentaFace && placeable;
-                    const pentaEdge = state.pentaEdge && placeable;
-                    const nextFace = state.nextgenFace && placeable;
-                    const nextEdge = state.nextgenEdge && placeable;
-                    const kitesFace = state.kitesFace && placeable;
-                    const kitesEdge = state.kitesEdge && placeable;
-                    const pentaOn = pentaFace || pentaEdge;
-                    const nextOn = nextFace || nextEdge;
-                    const kitesOn = kitesFace || kitesEdge;
+                    // One switch per decoration, drawing its face and then its
+                    // own edge. Jake: "I want the parity to be in implemented
+                    // functionality. The controls are just a specialization, so
+                    // grow and roof have reduced choice... and the edge
+                    // referred to here is a component of the DECORATION, not
+                    // the tile edge." So a decoration is whole here, where
+                    // method splits it in two, and the tile's own edge control
+                    // has nothing to do with any of it.
+                    const pentaOn = state.penta && placeable;
+                    const nextOn = state.nextgen && placeable;
+                    const kitesOn = state.kites && placeable;
                     const toLocal = (r: Rhomb, p: Vec2) => tileLocal(r, dirs, p);
                     const outlines: { r: Rhomb; A: number; k: number }[] = [];
-                    /** Where a tile sits in the patch's index range, as -1..1. */
-                    const rampAt = (r: Rhomb) => {
+                    /**
+                     * method's height treatment: a GRADIENT over the decorated
+                     * face, by vertex index.
+                     *
+                     * Not a flat shade per tile, which is what this was and
+                     * was wrong — Jake: "the height treatment takes a decorated
+                     * face and applies a gradient based on the vertex
+                     * instance." A rhomb's four corners carry three index
+                     * levels, m at v0, m+1 at both middles, m+2 at v2, so the
+                     * gradient runs along the v0→v2 diagonal with a stop at
+                     * each. Its direction IS the direction of increasing
+                     * height, which is what the isoglosses then run across.
+                     */
+                    const rampT = (m: number) =>
+                        ((m - idxLo) / Math.max(levels - 1, 1) - 0.5) * 2;
+                    const indexOf = (r: Rhomb) => {
                         const seat = seats?.get(seatKeyOf(r));
-                        const m = seat ? seat.index : vertexIndex(r.kTuples[0]);
-                        const span = Math.max(levels - 1, 1);
-                        return ((m - idxLo) / span - 0.5) * 2 * RAMP;
+                        return seat ? seat.index : vertexIndex(r.kTuples[0]);
+                    };
+                    const heightFill = (r: Rhomb, base: RGB, k: number) => {
+                        const m = indexOf(r);
+                        const a = S(world(r, dirs, 0, 0)), b = S(world(r, dirs, 1, 1));
+                        const g = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+                        for (const [stop, at] of [[0, m], [0.5, m + 1], [1, m + 2]] as const) {
+                            g.addColorStop(stop, tint(ramped(base, rampT(at) * RAMP), k));
+                        }
+                        return g;
                     };
 
                     for (const { r } of order) {
@@ -1442,32 +1510,54 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             k = 0.62 + 0.38 * Math.abs((n[0] * 0.35 - n[1] * 0.30 + n[2] * 0.89) / nl);
                         }
                         if (grow > 0.02) {
-                            ctx.globalAlpha = A;
                             trace(r, BODY);
                             // The ground, under every other dressing. Kowalewski
                             // is one of them and the coarsest: it colors the
                             // whole tile by its axis, so the finer dressings
                             // and the bands both read over it.
-                            const base: RGB = kitesFace ? KITE : nextFace ? NEXTGEN_THICK
-                                : state.p1 || pentaFace ? rgbOf(P1_STAR)
+                            const base: RGB = kitesOn ? KITE : nextOn ? NEXTGEN_THICK
+                                : state.p1 || pentaOn ? rgbOf(P1_STAR)
                                 : state.kowalewski
                                     ? kowalewskiOf(r.j, r.k, dirs.length)
                                     : [255, 255, 255];
-                            // The height ramp sits OVER the color, as in
-                            // method: pale high, dark low, by de Bruijn index.
-                            ctx.fillStyle = tint(
-                                state.height ? ramped(base, rampAt(r)) : base, k);
+                            // The face at FULL strength, seated or not.
+                            //
+                            // A bare seated tile used to take SEATED_ALPHA
+                            // here, and that cost the height ramp and the angle
+                            // shade their whole range: both modulate the face's
+                            // lightness, which is exactly what the alpha was
+                            // weakening. Jake: "height shading does not show,
+                            // or shows extremely poorly, when reading rendered
+                            // singularity tile permutation" and "angle shading
+                            // is not expressed as strongly in the singularities
+                            // as in the normal tiles." Measured at Γ = 0 with
+                            // the reading on: 246 seated faces, every one at
+                            // 0.22, against 604 ordinary ones at 1 — and the
+                            // gradients themselves were already correct.
+                            //
+                            // It bought nothing either way. A bare tile's base
+                            // is white, so white at 0.22 over the page's ground
+                            // is still white: the alpha never changed how the
+                            // body looked, it only divided the shading by 4.5.
+                            // What marks a singularity is the 2k-gon's own wash,
+                            // drawn OVER the tiles; the faintness still worth
+                            // keeping is the seated tile's OUTLINE, which takes
+                            // A below as it always did.
+                            //
+                            // The ramp sits OVER the color, as in method:
+                            // pale high, dark low, across the face.
+                            ctx.fillStyle = state.height
+                                ? heightFill(r, base, k) : tint(base, k);
                             ctx.fill();
                             ctx.globalAlpha = 1;      // the dressings at full
                             if (kitesOn) for (const { extAt, alpha } of readings(r)) {
                                 ctx.globalAlpha = alpha;
                                 const d = rhombKitesDarts(r, idxLo, levels, extAt);
-                                if (kitesFace) for (const poly of d.darts) {
+                                for (const poly of d.darts) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
                                     ctx.fillStyle = tint(DART, k);
                                     ctx.fill();
                                 }
-                                if (!kitesEdge) { ctx.globalAlpha = 1; continue; }
                                 ctx.strokeStyle = shaded
                                     ? `rgba(0,0,0,${(0.30 + 0.30 * k).toFixed(3)})`
                                     : "rgba(0,0,0,0.55)";
@@ -1484,12 +1574,11 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             if (nextOn) for (const { extAt, alpha } of readings(r)) {
                                 ctx.globalAlpha = alpha;
                                 const d = rhombDeflation(r, idxLo, levels, extAt);
-                                if (nextFace) for (const poly of d.gray) {
+                                for (const poly of d.gray) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
                                     ctx.fillStyle = tint(NEXTGEN_THIN, k);
                                     ctx.fill();
                                 }
-                                if (!nextEdge) { ctx.globalAlpha = 1; continue; }
                                 ctx.strokeStyle = shaded
                                     ? `rgba(0,0,0,${(0.30 + 0.30 * k).toFixed(3)})`
                                     : "rgba(0,0,0,0.55)";
@@ -1513,19 +1602,18 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     const piece = clipToConvex(poly as Vec2[], r.vertices);
                                     if (piece.length < 3) continue;
                                     trace(r, piece.map((p) => toLocal(r, p)));
-                                    if (pentaFace) {
-                                        ctx.fillStyle = tint(rgbOf(fill), k);
-                                        ctx.fill();
-                                    }
-                                    if (pentaEdge) {
-                                        // method's penta-edge: the pentagons as
-                                        // OUTLINES, so the generation below can
-                                        // be read through them.
-                                        ctx.strokeStyle = "rgba(38, 28, 18, 0.85)";
-                                        ctx.lineWidth = state.edgeStyle === "bold" ? 2.6 : 1.6;
-                                        ctx.lineJoin = "round";
-                                        ctx.stroke();
-                                    }
+                                    ctx.fillStyle = tint(rgbOf(fill), k);
+                                    ctx.fill();
+                                    // The decoration's OWN edge, after its
+                                    // face. Nothing to do with the tile edge
+                                    // control: that one draws the tiling, this
+                                    // one is part of the pentaplex — and it
+                                    // traces the PENTAGON, never the tile edge
+                                    // the piece was cut against.
+                                    ctx.strokeStyle = PENTA_EDGE;
+                                    ctx.lineWidth = 1.4;
+                                    ctx.lineJoin = "round";
+                                    strokeOwnEdges(r, piece, poly as Vec2[]);
                                 }
                                 ctx.globalAlpha = 1;
                             }
@@ -1548,30 +1636,58 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             // bare tile, whose ground is white and cannot go
                             // paler — and the bands are where the roof's color
                             // actually lives.
-                            const up = (c: RGB) => state.height ? ramped(c, rampAt(r)) : c;
+                            const up = (c: RGB) =>
+                                state.height ? heightFill(r, c, k) : tint(c, k);
                             trace(r, [[lo, 0], [hi, 0], [hi, 1], [lo, 1]]);
-                            ctx.fillStyle = tint(up(rgbOf(FAMILY_COLORS[r.j])), k);
+                            ctx.fillStyle = up(rgbOf(FAMILY_COLORS[r.j]));
                             ctx.fill();
                             trace(r, [[0, lo], [1, lo], [1, hi], [0, hi]]);
-                            ctx.fillStyle = tint(up(rgbOf(FAMILY_COLORS[r.k])), k);
+                            ctx.fillStyle = up(rgbOf(FAMILY_COLORS[r.k]));
                             ctx.fill();
                             trace(r, [[lo, lo], [hi, lo], [hi, hi], [lo, hi]]);
-                            ctx.fillStyle = tint(up(MIX[r.j][r.k]), k);
+                            ctx.fillStyle = up(MIX[r.j][r.k]);
                             ctx.fill();
                         }
                         if (state.isogloss && grow > 0.02) {
-                            // method's isoglosses: chords across the tile, the
-                            // short way, which read the same folded or flat.
-                            ctx.globalAlpha = A;
+                            // method's isoglosses, and they are not chords in
+                            // some arbitrary direction: they are LEVEL LINES of
+                            // the height. Jake: "isoglosses are related, they
+                            // decorate parallel to the height." The index rises
+                            // along v0→v2, so stepping that diagonal and
+                            // drawing the chord parallel to v1→v3 draws lines
+                            // of constant height — the same direction the
+                            // gradient runs, seen the other way.
+                            //
+                            // Written as the level lines themselves rather
+                            // than as method's fixed-length chords. method can
+                            // afford those because it clips the tile first and
+                            // lets them overrun; the roof draws each tile in
+                            // its own fold frame, and Jake's requirement is
+                            // the simpler statement anyway: "the parallel
+                            // lines must all be within the tile."
+                            //
+                            // Height is linear, m at v0, m+1 at both middles,
+                            // m+2 at v2, so the level a + b = u runs corner to
+                            // corner: under u = 1 it cuts the two edges that
+                            // meet at v0, over it the two that meet at v2, and
+                            // at u = 1 it IS the v1→v3 diagonal, where the two
+                            // formulas agree.
+                            // At full strength too, and for the same reason:
+                            // they are level lines of the height, so fading
+                            // them on a seated tile fades the treatment.
                             ctx.strokeStyle = "rgba(60,60,60,0.45)";
                             ctx.lineWidth = r.thick ? 1.1 : 0.8;
-                            for (let i = 1; i < 7; i++) {
-                                const t = i / 7;
-                                const p0 = S(world(r, dirs, t, 0));
-                                const p1 = S(world(r, dirs, t, 1));
+                            const LINES = 7;
+                            for (let i = 1; i < LINES; i++) {
+                                const u = (2 * i) / LINES;
+                                const [p, q] = u <= 1
+                                    ? [[u, 0], [0, u]]
+                                    : [[1, u - 1], [u - 1, 1]];
+                                const a = S(world(r, dirs, p[0], p[1]));
+                                const b = S(world(r, dirs, q[0], q[1]));
                                 ctx.beginPath();
-                                ctx.moveTo(p0.x, p0.y);
-                                ctx.lineTo(p1.x, p1.y);
+                                ctx.moveTo(a.x, a.y);
+                                ctx.lineTo(b.x, b.y);
                                 ctx.stroke();
                             }
                         }
