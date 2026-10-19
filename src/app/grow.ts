@@ -21,9 +21,15 @@ if (host) {
     bindToggles(view, [
         { id: "grow-2kgons", key: "showResolutions" },
         { id: "grow-p1", key: "p1" },
-        { id: "grow-penta", key: "penta" },
-        { id: "grow-nextgen", key: "nextgen" },
-        { id: "grow-kites", key: "kites" },
+        { id: "grow-penta-face", key: "pentaFace" },
+        { id: "grow-penta-edge", key: "pentaEdge" },
+        { id: "grow-next-face", key: "nextgenFace" },
+        { id: "grow-next-edge", key: "nextgenEdge" },
+        { id: "grow-kites-face", key: "kitesFace" },
+        { id: "grow-kites-edge", key: "kitesEdge" },
+        { id: "grow-kowalewski", key: "kowalewski" },
+        { id: "grow-height", key: "height" },
+        { id: "grow-isogloss", key: "isogloss" },
         { id: "grow-offp", key: "offPenrose" },
     ]);
 

@@ -131,17 +131,20 @@ export interface GrowthState {
      * elsewhere. Per tile by construction (rhombPentagons), so the pieces are
      * clipped to the tile and carried in its (a, b) frame like P1's.
      */
-    penta: boolean;
+    pentaFace: boolean;
+    pentaEdge: boolean;
     /**
      * Paint the next generation — the `nextgen` tile style: each tile cut into
      * the deflated tiling's pieces at 1/φ, thick gold and thin gray, with the
      * next generation's edges as hairlines. Per tile by construction, so the
      * pieces ride the tile's (a, b) frame and fold with it on the roof.
      */
-    nextgen: boolean;
+    nextgenFace: boolean;
+    nextgenEdge: boolean;
     /** Paint P2 — the `kites` tile style: kites light, a dart in every thick,
      *  P2's edges as hairlines — per tile, in the tile's (a, b) frame. */
-    kites: boolean;
+    kitesFace: boolean;
+    kitesEdge: boolean;
     /** Draw penta, next-gen and kites off a Penrose patch too — the tiles at the
      *  top or bottom index level; the middle ones stay bare. */
     offPenrose: boolean;
@@ -284,7 +287,10 @@ const POOL: Record<number, { lit: string; body: string; rim: string }> = {
 
 const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
-    showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
+    showResolutions: false, p1: false,
+    pentaFace: false, pentaEdge: false,
+    nextgenFace: false, nextgenEdge: false,
+    kitesFace: false, kitesEdge: false,
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false,
     arcs: false, resolve: false, indexStyle: "none",
@@ -1371,9 +1377,20 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         return [{ extAt: 0 as const, alpha: 0.5 },
                                 { extAt: 2 as const, alpha: 0.5 }];
                     };
-                    const pentaOn = state.penta && placeable;
-                    const nextOn = state.nextgen && placeable;
-                    const kitesOn = state.kites && placeable;
+                    // Face and edge apart, named as method names them. Jake:
+                    // "it is a truncated control with defaults. It should have
+                    // the levers to keep parity. These things drift so badly."
+                    // Sharing the NAMES is most of the defense: a key that
+                    // means one thing on method and another here is the drift.
+                    const pentaFace = state.pentaFace && placeable;
+                    const pentaEdge = state.pentaEdge && placeable;
+                    const nextFace = state.nextgenFace && placeable;
+                    const nextEdge = state.nextgenEdge && placeable;
+                    const kitesFace = state.kitesFace && placeable;
+                    const kitesEdge = state.kitesEdge && placeable;
+                    const pentaOn = pentaFace || pentaEdge;
+                    const nextOn = nextFace || nextEdge;
+                    const kitesOn = kitesFace || kitesEdge;
                     const toLocal = (r: Rhomb, p: Vec2) => tileLocal(r, dirs, p);
                     const outlines: { r: Rhomb; A: number; k: number }[] = [];
                     /** Where a tile sits in the patch's index range, as -1..1. */
@@ -1431,8 +1448,8 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             // is one of them and the coarsest: it colors the
                             // whole tile by its axis, so the finer dressings
                             // and the bands both read over it.
-                            const base: RGB = kitesOn ? KITE : nextOn ? NEXTGEN_THICK
-                                : state.p1 || pentaOn ? rgbOf(P1_STAR)
+                            const base: RGB = kitesFace ? KITE : nextFace ? NEXTGEN_THICK
+                                : state.p1 || pentaFace ? rgbOf(P1_STAR)
                                 : state.kowalewski
                                     ? kowalewskiOf(r.j, r.k, dirs.length)
                                     : [255, 255, 255];
@@ -1445,11 +1462,12 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             if (kitesOn) for (const { extAt, alpha } of readings(r)) {
                                 ctx.globalAlpha = alpha;
                                 const d = rhombKitesDarts(r, idxLo, levels, extAt);
-                                for (const poly of d.darts) {
+                                if (kitesFace) for (const poly of d.darts) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
                                     ctx.fillStyle = tint(DART, k);
                                     ctx.fill();
                                 }
+                                if (!kitesEdge) { ctx.globalAlpha = 1; continue; }
                                 ctx.strokeStyle = shaded
                                     ? `rgba(0,0,0,${(0.30 + 0.30 * k).toFixed(3)})`
                                     : "rgba(0,0,0,0.55)";
@@ -1466,11 +1484,12 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             if (nextOn) for (const { extAt, alpha } of readings(r)) {
                                 ctx.globalAlpha = alpha;
                                 const d = rhombDeflation(r, idxLo, levels, extAt);
-                                for (const poly of d.gray) {
+                                if (nextFace) for (const poly of d.gray) {
                                     trace(r, poly.map((p) => toLocal(r, p)));
                                     ctx.fillStyle = tint(NEXTGEN_THIN, k);
                                     ctx.fill();
                                 }
+                                if (!nextEdge) { ctx.globalAlpha = 1; continue; }
                                 ctx.strokeStyle = shaded
                                     ? `rgba(0,0,0,${(0.30 + 0.30 * k).toFixed(3)})`
                                     : "rgba(0,0,0,0.55)";
@@ -1494,8 +1513,19 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                     const piece = clipToConvex(poly as Vec2[], r.vertices);
                                     if (piece.length < 3) continue;
                                     trace(r, piece.map((p) => toLocal(r, p)));
-                                    ctx.fillStyle = tint(rgbOf(fill), k);
-                                    ctx.fill();
+                                    if (pentaFace) {
+                                        ctx.fillStyle = tint(rgbOf(fill), k);
+                                        ctx.fill();
+                                    }
+                                    if (pentaEdge) {
+                                        // method's penta-edge: the pentagons as
+                                        // OUTLINES, so the generation below can
+                                        // be read through them.
+                                        ctx.strokeStyle = "rgba(38, 28, 18, 0.85)";
+                                        ctx.lineWidth = state.edgeStyle === "bold" ? 2.6 : 1.6;
+                                        ctx.lineJoin = "round";
+                                        ctx.stroke();
+                                    }
                                 }
                                 ctx.globalAlpha = 1;
                             }

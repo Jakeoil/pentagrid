@@ -97,7 +97,10 @@ test("next-gen on the roof: gold tiles, gray thin' pieces, and the next generati
         const v = createGrowthView({ container: host(), lift });
         v.pentagrid.gamma.setLocked(-1);
         v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);   // the sun
-        v.set({ grow: 1, nextgen: true });
+        // Both halves: the face paints the pieces, the edge draws the
+        // generation's own hairlines. One switch used to do both; method
+        // keeps them apart and now so does this.
+        v.set({ grow: 1, nextgenFace: true, nextgenEdge: true });
         const layer = v.pentagrid.stack.get("growth");
         const styles = [];
         let strokes = 0, segments = 0;
@@ -120,7 +123,7 @@ test("next-gen on the roof: gold tiles, gray thin' pieces, and the next generati
         // Off is off: the body fill per tile and nothing more (a lifted white
         // tile shades to a gray of its own, so count fills rather than colors).
         const withPieces = styles.length;
-        v.set({ nextgen: false });
+        v.set({ nextgenFace: false, nextgenEdge: false });
         styles.length = 0;
         v.redraw();
         assert.ok(styles.length < withPieces - 100, `next-gen off should paint no pieces (${styles.length} vs ${withPieces})`);
@@ -1878,11 +1881,11 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     const growth = v.pentagrid.stack.get("growth");
     let fills = 0;
     growth.ctx.fill = () => { fills++; };
-    v.set({ penta: false });
+    v.set({ pentaFace: false });
     fills = 0;
     v.redraw();
     const bare = fills;
-    v.set({ penta: true });
+    v.set({ pentaFace: true });
     fills = 0;
     v.redraw();
     assert.ok(fills > bare, `penta drew nothing at the singular preset (${fills} of ${bare})`);
@@ -3401,7 +3404,7 @@ test("a seated tile's dressings are oriented by its SEATED index", () => {
         // one iteration's reading leak into the next and the comparison
         // silently compared a thing with itself.
         v.set({ grow: 1, fold: 1, resolve: true, solids: false, reading: 0,
-                showResolutions: false, penta: false, kites: false, nextgen: false,
+                showResolutions: false, pentaFace: false, kitesFace: false, nextgenFace: false,
                 ...style });
         marks.length = 0;
         v.redraw();
@@ -3410,7 +3413,7 @@ test("a seated tile's dressings are oriented by its SEATED index", () => {
     // A dressing must appear at all on the seated tiles, and must move when
     // the reading does — if it were pinned to the rhomb's own K-tuple it
     // would sit still while the tile moved out from under it.
-    for (const style of [{ penta: true }, { kites: true }, { nextgen: true }]) {
+    for (const style of [{ pentaFace: true }, { kitesFace: true }, { nextgenFace: true }]) {
         const bare = run({});
         const dressed = run(style);
         assert.ok(dressed.length > bare.length,
@@ -3457,7 +3460,7 @@ test("a BARE seated tile is a hint; a dressed one is drawn in full", () => {
     growth.ctx.fill = function () { alphas.push(this.globalAlpha); };
     const run = (style) => {
         v.set({ grow: 1, fold: 1, resolve: true, solids: false, showResolutions: false,
-                penta: false, kites: false, nextgen: false, p1: false,
+                pentaFace: false, kitesFace: false, nextgenFace: false, p1: false,
                 kowalewski: false, ...style });
         alphas.length = 0;
         v.redraw();
@@ -3467,7 +3470,7 @@ test("a BARE seated tile is a hint; a dressed one is drawn in full", () => {
     assert.ok(bare.filter((a) => a < 0.5).length > 20,
               "a bare seated tile should be faint");
     // With penta on, nothing is faint: the blue field has to read.
-    const dressed = run({ penta: true });
+    const dressed = run({ pentaFace: true });
     assert.equal(dressed.filter((a) => a < 0.5).length, 0,
                  "a dressed seated tile should be drawn in full");
     assert.ok(dressed.length > bare.length, "and penta should add to it");
@@ -3611,7 +3614,7 @@ test("the tile outlines are one pass, after every fill", () => {
     growth.ctx.fill = () => { log.push("fill"); };
     growth.ctx.stroke = () => { log.push("stroke"); };
     v.set({ grow: 1, fold: 1, band: 0, edgeStyle: "bold", isogloss: false,
-            penta: false, kites: false, nextgen: false, arcs: false });
+            pentaFace: false, kitesFace: false, nextgenFace: false, arcs: false });
     log.length = 0;
     v.redraw();
     const lastFill = log.lastIndexOf("fill");
@@ -3627,4 +3630,53 @@ test("the reading is off by default", () => {
     const v = createGrowthView({ container: host(), lift: true });
     assert.equal(v.get().resolve, false);
     assert.equal(v.get().edgeStyle, "normal", "and the edge control reads normal");
+});
+
+test("the growth pages carry method's decoration controls, by method's names", () => {
+    // Jake: "it is a truncated control with defaults. It should have the
+    // levers to keep parity. These things drift so badly."
+    //
+    // The defense is the NAMES. A key that means one thing in method's
+    // tileStyle and another in the growth state is the drift, and it is
+    // invisible until someone compares two screens. This compares them.
+    const v = createGrowthView({ container: host(), lift: true });
+    const state = v.get();
+    for (const key of ["pentaFace", "pentaEdge", "nextgenFace", "nextgenEdge",
+                       "kitesFace", "kitesEdge", "kowalewski", "isogloss",
+                       "p1", "offPenrose", "edgeStyle"]) {
+        assert.ok(key in state, `the growth state has no ${key}`);
+    }
+    // And the truncated originals are gone rather than kept alongside, which
+    // would be two spellings of one idea and the next drift.
+    for (const gone of ["penta", "nextgen", "kites", "boldEdges"]) {
+        assert.equal(gone in state, false, `${gone} should have been replaced`);
+    }
+});
+
+test("a decoration's face and edge are independent, as in method", () => {
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setLocked(-1);
+    v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const growth = v.pentagrid.stack.get("growth");
+    let fills = 0, strokes = 0;
+    growth.ctx.fill = () => { fills++; };
+    growth.ctx.stroke = () => { strokes++; };
+    const run = (style) => {
+        v.set({ grow: 1, fold: 1, band: 0, edgeStyle: "none", isogloss: false,
+                pentaFace: false, pentaEdge: false, nextgenFace: false,
+                nextgenEdge: false, kitesFace: false, kitesEdge: false, ...style });
+        fills = 0; strokes = 0;
+        v.redraw();
+        return { fills, strokes };
+    };
+    const bare = run({});
+    for (const name of ["penta", "nextgen", "kites"]) {
+        const face = run({ [`${name}Face`]: true });
+        const edge = run({ [`${name}Edge`]: true });
+        assert.ok(face.fills > bare.fills, `${name}Face drew no extra fill`);
+        assert.ok(edge.strokes > bare.strokes, `${name}Edge drew no extra stroke`);
+        // Edge alone must not fill the decoration's own pieces.
+        assert.ok(edge.fills < face.fills,
+                  `${name}Edge filled as much as ${name}Face (${edge.fills} vs ${face.fills})`);
+    }
 });

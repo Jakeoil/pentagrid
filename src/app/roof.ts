@@ -31,9 +31,12 @@ if (host) {
         { id: "roof-index", key: "indexStyle" },
     ]);
     bindToggles(view, [
-        { id: "roof-penta", key: "penta" },
-        { id: "roof-nextgen", key: "nextgen" },
-        { id: "roof-kites", key: "kites" },
+        { id: "roof-penta-face", key: "pentaFace" },
+        { id: "roof-penta-edge", key: "pentaEdge" },
+        { id: "roof-next-face", key: "nextgenFace" },
+        { id: "roof-next-edge", key: "nextgenEdge" },
+        { id: "roof-kites-face", key: "kitesFace" },
+        { id: "roof-kites-edge", key: "kitesEdge" },
         { id: "roof-kowalewski", key: "kowalewski" },
         { id: "roof-height", key: "height" },
         { id: "roof-isogloss", key: "isogloss" },
