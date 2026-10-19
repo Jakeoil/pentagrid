@@ -2534,7 +2534,7 @@ speech — it is structural, and it is why the round trip below is stuck:
         stars       50    400    2965   21210
         Pe:St     4.420  3.515   3.102   2.888     -> phi^2 = 2.618
 
-- Even the **naming** favours the other side: the *star rhomb group* lives at the
+- Even the **naming** favors the other side: the *star rhomb group* lives at the
   center of a `Pe5`, which is the sun. See the vocabulary correction above.
 
 **The counterweight, and the way out.** [[penrose-mosaic-rhomb-groups]] records

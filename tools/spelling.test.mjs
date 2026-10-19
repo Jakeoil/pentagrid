@@ -35,7 +35,8 @@ const FORBIDDEN = [
     ["parameteris", "parameteriz"], ["visualis", "visualiz"],
     ["summaris", "summariz"], ["prioritis", "prioritiz"], ["serialis", "serializ"],
     ["neighbour", "neighbor"], ["behaviour", "behavior"], ["flavour", "flavor"],
-    ["favourit", "favorit"], ["colour", "color"], ["centre", "center"],
+    ["favour", "favor"],       // not "favourit": "favours" slipped through
+    ["colour", "color"], ["centre", "center"],
     ["grey", "gray"], ["defence", "defense"], ["licence", "license"],
     ["practis" + "e", "practice"], ["whilst", "while"], ["amongst", "among"],
     ["judgement", "judgment"], ["programme", "program"],
