@@ -435,6 +435,51 @@ enumeration seen twice.
 The greedy walk survives as the fallback for a patch no single nudge resolves,
 and reports through `clashes` rather than pretending.
 
+#### 5.-1b The census of the 50 (2026-10-19) — `tools/nudges.mjs`
+
+Jake: *"You still count 62 permutation. We know there are only 10 which
+express penrose tiles. There are many others, 20 I believe, that leave a
+single wall of singularites which passes through the decagon leaving four
+penrose tiles and two skewbs."* Both counts hold, and **20 is the sharper
+one** — it names a property of the nudge, where 40 only counts vectors.
+
+**Parity splits the 50 in half before anything geometric happens.** A vector
+in {−1,0,1}⁵ with Σε = 0 moves an even number of lines: three ±1's cannot sum
+to zero. So every nudge moves two lines or four, and there are 20 of the first
+kind (one up, one down, over the 5·4 ordered pairs) and 30 of the second.
+
+| lines moved | resolve everything | leave a wall |
+|---|---|---|
+| 2 | **0** | **20** |
+| 4 | **10** | 20 |
+
+**Not one minimal nudge resolves the decagon.** That is Jake's 20, and it is
+the phason flip he named: *"this occurs when a grid intersection crosses a
+gridline. It is the point of crossing."* The smallest move that holds Σγ is
+exactly the move that cannot pull five concurrent lines into general position —
+it only separates the pair it moves, and the three it leaves alone stay
+concurrent. The ten whole resolutions all move four.
+
+**A wall leaves K113 + K122** — one thin skewb and one thick — and nothing
+else: measured, exactly two surviving concurrencies, both 3-fold. Two skewbs
+are 3 + 3 of the decagon's C(5,2) = 10 rhombs, so **four are placed as
+ordinary Penrose tiles**, which is Jake's *"four penrose tiles and two
+skewbs"* exactly.
+
+**There are 5 walls, one per spoke direction** — 012/134, 013/234, 014/023,
+024/123, 034/124, the same pairs §5.-1 found along the spokes — each reached
+by 8 of the 40 wall nudges, 4 of them minimal. The 8 give 8 distinct tilings,
+so the 50 nudges are 50 distinct states: 10 whole and 40 walled. Nothing is
+over-counted and nothing coincides.
+
+**Which is why 62 must leave the readout.** 62 is the zonogon's
+combinatorics — every rhombic tiling of a regular decagon, found by flips —
+and the grid reaches ten of them. The control's `n/62` was an index into a
+list, not a position in a state space, and it came from `cascade` building its
+`pools` from `z.readings` instead of `z.penrose`. The state space is the
+nudges: **50 positions, 10 whole and 40 walled**, with the wall ones carrying
+a name (which wall, how far it moved) that an index never could.
+
 **The original note.** Jake settled it: *"My understanding is that the
 decagon combinations drive the reading. As you go through the combinations,
 ensure that connected pentagons agree."* (And the wiggling he could see while
