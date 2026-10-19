@@ -361,20 +361,20 @@ test("a page that names a size keeps it, and is pinned", () => {
     assert.equal(h.stack.w, 340, "an explicitly sized view must not reflow");
 });
 
-test("edges are a three-way: none, thin, thick", () => {
+test("edges are a three-way: none, normal, bold", () => {
     // Jake, 2026-10-17: "Instead of edges, a dropdown: none, thin, thick."
     // `none` is a real answer and a checkbox could not say it — with the bands
     // or the Kowalewski five carrying the color, an outline on every tile is
     // noise and the roof's creases read from the shading alone.
     const v = createGrowthView({ container: host() });
-    assert.equal(v.get().edgeStyle, "thin", "edges should start faint");
-    for (const style of ["none", "thick", "thin"]) {
+    assert.equal(v.get().edgeStyle, "normal", "edges should start faint");
+    for (const style of ["none", "bold", "normal"]) {
         v.set({ edgeStyle: style });
         assert.equal(v.get().edgeStyle, style);
     }
-    v.set({ edgeStyle: "thick" });
+    v.set({ edgeStyle: "bold" });
     v.set({ grow: 0.7 });
-    assert.equal(v.get().edgeStyle, "thick", "an unrelated set cleared the choice");
+    assert.equal(v.get().edgeStyle, "bold", "an unrelated set cleared the choice");
 });
 
 test("drawing survives both edge settings at every stage", () => {
@@ -1750,7 +1750,7 @@ test("the solids layer draws a zonohedron per singularity, and the reading moves
     v.redraw();
     assert.equal(fills, 0, "it drew while switched off");
 
-    v.set({ solids: true });
+    v.set({ resolve: true, solids: true });
     v.redraw();
     const first = path.join("|");
     // Every face is four points; 54 hexagons and a decagon are in view at Σγ = 0.
@@ -1780,7 +1780,7 @@ test("the solids layer draws a zonohedron per singularity, and the reading moves
 
 test("a Penrose grid holds the decagon to its ten readings, with no switch", () => {
     const v = createGrowthView({ container: host(), lift: true });
-    v.set({ grow: 1, fold: 1, solids: true });
+    v.set({ resolve: true, grow: 1, fold: 1, solids: true });
 
     const layer = v.pentagrid.stack.get("solids");
     let path = [];
@@ -1967,7 +1967,7 @@ test("roof: a reading seats the tiles inside a 2k-gon, and dresses them faintly"
     const alphas = [];
     let fills = 0;
     growth.ctx.fill = function () { fills++; alphas.push(this.globalAlpha); };
-    v.set({ grow: 1, fold: 1, band: 0.5, showResolutions: true, solids: false });
+    v.set({ resolve: true, grow: 1, fold: 1, band: 0.5, showResolutions: true, solids: false });
     v.redraw();
 
     // Faint fills exist, which the old drawing had none of: nothing inside a
@@ -3435,9 +3435,9 @@ test("the 2k-gon outline answers to the edge control", () => {
         v.redraw();
         return { strokes, widths };
     };
-    assert.ok(run("thin").strokes > 20, "the outlines should be there by default");
+    assert.ok(run("normal").strokes > 20, "the outlines should be there by default");
     assert.equal(run("none").strokes, 0, "none means none, here too");
-    const thick = run("thick");
+    const thick = run("bold");
     assert.ok(thick.strokes > 20 && Math.max(...thick.widths) > 2,
               "thick should draw them heavier");
 });
@@ -3561,4 +3561,70 @@ test("a seat survives recollection — the tiles do not vanish", () => {
     // And again after the gamma is re-set to the same place.
     v.pentagrid.gamma.setSum(0, true);
     assert.equal(count(), first, "and after the gamma was re-applied");
+});
+
+test("height and isoglosses reach the roof, as in method", () => {
+    // Jake, seeking parity: "Face shading is a post tile treatment used in
+    // method. In method the button is called 'height'. Implement it here at
+    // 100% ramp. Add isoglosses button and function too."
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setLocked(-1);
+    v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const growth = v.pentagrid.stack.get("growth");
+    const fills = [];
+    let strokes = 0;
+    growth.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    growth.ctx.stroke = () => { strokes++; };
+    const run = (style) => {
+        v.set({ grow: 1, fold: 0, band: 0.5, edgeStyle: "none",
+                height: false, isogloss: false, ...style });
+        fills.length = 0; strokes = 0;
+        v.redraw();
+        return { fills: new Set(fills), strokes };
+    };
+    // Laid flat with no edges, the ramp is the whole of the difference. It
+    // takes the BANDS as well as the ground: a bare tile's ground is white and
+    // cannot go paler, and the bands are where the roof's color lives.
+    const plain = run({});
+    const tall = run({ height: true });
+    assert.ok(tall.fills.size > plain.fills.size + 2,
+              `${tall.fills.size} colors against ${plain.fills.size}: no ramp`);
+
+    // Isoglosses are strokes, and they are not the tile outline — the edge
+    // control is off here.
+    const bare = run({});
+    const lined = run({ isogloss: true });
+    assert.equal(bare.strokes, 0, "edges off should leave no outline");
+    assert.ok(lined.strokes > 100, `only ${lined.strokes} isogloss chords`);
+});
+
+test("the tile outlines are one pass, after every fill", () => {
+    // Jake: "current heavy edges are sketchy in roof, not consistently thick,
+    // maybe due to placement order." They were: tiles paint far to near, so a
+    // nearer tile's body landed on the edge its neighbor had just stroked.
+    // Drawn now in one pass after all the fills.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setLocked(-1);
+    v.pentagrid.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const growth = v.pentagrid.stack.get("growth");
+    const log = [];
+    growth.ctx.fill = () => { log.push("fill"); };
+    growth.ctx.stroke = () => { log.push("stroke"); };
+    v.set({ grow: 1, fold: 1, band: 0, edgeStyle: "bold", isogloss: false,
+            penta: false, kites: false, nextgen: false, arcs: false });
+    log.length = 0;
+    v.redraw();
+    const lastFill = log.lastIndexOf("fill");
+    const firstStroke = log.indexOf("stroke");
+    assert.ok(firstStroke > 0, "no outlines were drawn");
+    assert.ok(firstStroke > lastFill,
+              `a fill at ${lastFill} comes after the first outline at ${firstStroke}`);
+});
+
+test("the reading is off by default", () => {
+    // Jake: "'reading' off by default." An unresolved singularity is the
+    // honest opening picture, and the solid shows every state at once.
+    const v = createGrowthView({ container: host(), lift: true });
+    assert.equal(v.get().resolve, false);
+    assert.equal(v.get().edgeStyle, "normal", "and the edge control reads normal");
 });

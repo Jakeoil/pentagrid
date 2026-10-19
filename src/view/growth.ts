@@ -105,7 +105,19 @@ export interface GrowthState {
      * the bands or the Kowalewski five carrying the color, an outline on every
      * tile is noise, and the roof's creases read from the shading alone.
      */
-    edgeStyle: "none" | "thin" | "thick";
+    edgeStyle: "none" | "normal" | "bold";
+    /**
+     * The HEIGHT ramp — method's "height", here at a full ramp.
+     *
+     * Shades a tile by its de Bruijn index, pale high and dark low, which is a
+     * post-tile treatment over whatever color the tile already has. On the
+     * roof it says the same thing the relief does and says it flat, so the two
+     * can be checked against each other; laid flat it is the only way to see
+     * the index at all.
+     */
+    height: boolean;
+    /** method's isoglosses: chords across each tile, parallel to its short way. */
+    isogloss: boolean;
     /**
      * Paint the P1 tiling on the tiles: blue, with each pentagon clipped to the
      * tiles it reaches. The pieces are carried in the tile's own (a, b)
@@ -243,6 +255,15 @@ const DART: [number, number, number] = [143, 168, 194];
  * it. Faint, and every dressing comes through at the same strength.
  */
 const SEATED_ALPHA = 0.22;
+/** How far the height ramp moves a color, at a full ramp. pentagrid's RAMP. */
+const RAMP = 0.55;
+/** Mix an RGB towards white (t > 0) or black (t < 0). */
+const ramped = (c: RGB, t: number): RGB => {
+    const to = t >= 0 ? 255 : 0, a = Math.abs(t);
+    return [Math.round(c[0] + (to - c[0]) * a),
+            Math.round(c[1] + (to - c[1]) * a),
+            Math.round(c[2] + (to - c[2]) * a)];
+};
 
 /**
  * The pool balls, by index. Jake: 1 yellow, 2 blue, 3 red, 4 purple, 0 white.
@@ -266,8 +287,9 @@ const DEFAULTS: GrowthState = {
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
     solids: false, reading: 0, pick: 0, pairGhost: false,
-    arcs: false, resolve: true, indexStyle: "none",
-    edgeStyle: "thin", kowalewski: false,
+    arcs: false, resolve: false, indexStyle: "none",
+    height: false, isogloss: false,
+    edgeStyle: "normal", kowalewski: false,
 };
 
 /** What a rhombohedron's angle code means, at n = 5. PLAN §5.0. */
@@ -871,7 +893,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         // control like everything else. Jake: "when I turn off
                         // edges, I expect the 2kgon edges to be turned off too."
                         if (state.edgeStyle !== "none") {
-                            const bold = state.edgeStyle === "thick";
+                            const bold = state.edgeStyle === "bold";
                             ctx.strokeStyle = big
                                 ? `rgba(122, 72, 160, ${bold ? 0.95 : 0.6})`
                                 : `rgba(196, 70, 152, ${bold ? 0.95 : 0.6})`;
@@ -1116,7 +1138,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             // control the tiles do. Jake: "edges don't obey
                             // edge setting."
                             if (state.edgeStyle === "none") continue;
-                            const bold = state.edgeStyle === "thick";
+                            const bold = state.edgeStyle === "bold";
                             ctx.lineWidth = bold ? 2.2 : 1.1;
                             ctx.strokeStyle = bold
                                 ? "rgba(18, 22, 30, 0.85)" : "rgba(28, 34, 44, 0.55)";
@@ -1353,6 +1375,14 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const nextOn = state.nextgen && placeable;
                     const kitesOn = state.kites && placeable;
                     const toLocal = (r: Rhomb, p: Vec2) => tileLocal(r, dirs, p);
+                    const outlines: { r: Rhomb; A: number; k: number }[] = [];
+                    /** Where a tile sits in the patch's index range, as -1..1. */
+                    const rampAt = (r: Rhomb) => {
+                        const seat = seats?.get(seatKeyOf(r));
+                        const m = seat ? seat.index : vertexIndex(r.kTuples[0]);
+                        const span = Math.max(levels - 1, 1);
+                        return ((m - idxLo) / span - 0.5) * 2 * RAMP;
+                    };
 
                     for (const { r } of order) {
                         // With the legacy drawing off, a superposed tile is not
@@ -1401,12 +1431,15 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             // is one of them and the coarsest: it colors the
                             // whole tile by its axis, so the finer dressings
                             // and the bands both read over it.
+                            const base: RGB = kitesOn ? KITE : nextOn ? NEXTGEN_THICK
+                                : state.p1 || pentaOn ? rgbOf(P1_STAR)
+                                : state.kowalewski
+                                    ? kowalewskiOf(r.j, r.k, dirs.length)
+                                    : [255, 255, 255];
+                            // The height ramp sits OVER the color, as in
+                            // method: pale high, dark low, by de Bruijn index.
                             ctx.fillStyle = tint(
-                                kitesOn ? KITE : nextOn ? NEXTGEN_THICK
-                                    : state.p1 || pentaOn ? rgbOf(P1_STAR)
-                                    : state.kowalewski
-                                        ? kowalewskiOf(r.j, r.k, dirs.length)
-                                        : [255, 255, 255], k);
+                                state.height ? ramped(base, rampAt(r)) : base, k);
                             ctx.fill();
                             ctx.globalAlpha = 1;      // the dressings at full
                             if (kitesOn) for (const { extAt, alpha } of readings(r)) {
@@ -1480,32 +1513,71 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             }
                         }
                         if (band > 0.001 && grow > 0.02) {
+                            // The ramp is a POST-TILE treatment, so it takes
+                            // the bands too. Without that it does nothing on a
+                            // bare tile, whose ground is white and cannot go
+                            // paler — and the bands are where the roof's color
+                            // actually lives.
+                            const up = (c: RGB) => state.height ? ramped(c, rampAt(r)) : c;
                             trace(r, [[lo, 0], [hi, 0], [hi, 1], [lo, 1]]);
-                            ctx.fillStyle = tint(rgbOf(FAMILY_COLORS[r.j]), k);
+                            ctx.fillStyle = tint(up(rgbOf(FAMILY_COLORS[r.j])), k);
                             ctx.fill();
                             trace(r, [[0, lo], [1, lo], [1, hi], [0, hi]]);
-                            ctx.fillStyle = tint(rgbOf(FAMILY_COLORS[r.k]), k);
+                            ctx.fillStyle = tint(up(rgbOf(FAMILY_COLORS[r.k])), k);
                             ctx.fill();
                             trace(r, [[lo, lo], [hi, lo], [hi, hi], [lo, hi]]);
-                            ctx.fillStyle = tint(MIX[r.j][r.k], k);
+                            ctx.fillStyle = tint(up(MIX[r.j][r.k]), k);
                             ctx.fill();
                         }
-                        if (grow > 0.02 && state.edgeStyle !== "none") {
+                        if (state.isogloss && grow > 0.02) {
+                            // method's isoglosses: chords across the tile, the
+                            // short way, which read the same folded or flat.
                             ctx.globalAlpha = A;
-                            // Bold still tracks the shading, so creases keep
-                            // reading on the roof; it just stops being a ghost.
-                            const bold = state.edgeStyle === "thick";
+                            ctx.strokeStyle = "rgba(60,60,60,0.45)";
+                            ctx.lineWidth = r.thick ? 1.1 : 0.8;
+                            for (let i = 1; i < 7; i++) {
+                                const t = i / 7;
+                                const p0 = S(world(r, dirs, t, 0));
+                                const p1 = S(world(r, dirs, t, 1));
+                                ctx.beginPath();
+                                ctx.moveTo(p0.x, p0.y);
+                                ctx.lineTo(p1.x, p1.y);
+                                ctx.stroke();
+                            }
+                        }
+                        ctx.globalAlpha = 1;
+                        if (grow > 0.02 && state.edgeStyle !== "none") outlines.push({ r, A, k });
+                    }
+
+                    // The tile outlines, in ONE pass after every fill.
+                    //
+                    // Drawn inside the loop they were overdrawn: tiles are
+                    // painted far to near, so a nearer tile's body landed on
+                    // the edge its neighbor had just stroked and a bold edge
+                    // came out thick in some places and thin in others. Jake:
+                    // "current heavy edges are sketchy in roof, not
+                    // consistently thick, maybe due to placement order." They
+                    // are, and this is the order.
+                    //
+                    // Decoration edges are NOT these: next-rhomb's and kites'
+                    // own hairlines belong to the decoration and stay whatever
+                    // the edge control says — especially at `none`, where the
+                    // tiling loses its outlines and the decoration keeps its.
+                    {
+                        const bold = state.edgeStyle === "bold";
+                        for (const o of outlines) {
+                            ctx.globalAlpha = o.A;
                             ctx.strokeStyle = bold
                                 ? (shaded
-                                    ? `rgba(0,0,0,${(0.55 + 0.35 * k).toFixed(3)})`
+                                    ? `rgba(0,0,0,${(0.55 + 0.35 * o.k).toFixed(3)})`
                                     : "rgba(0,0,0,0.85)")
                                 : (shaded
-                                    ? `rgba(0,0,0,${(0.10 + 0.18 * k).toFixed(3)})`
+                                    ? `rgba(0,0,0,${(0.10 + 0.18 * o.k).toFixed(3)})`
                                     : "rgba(0,0,0,0.28)");
                             ctx.lineWidth = bold
                                 ? Math.max(1.6, Math.min(4, v.scale * 0.03))
                                 : 1;
-                            trace(r, BODY);
+                            trace(o.r, BODY);
                             ctx.stroke();
                         }
                         ctx.globalAlpha = 1;

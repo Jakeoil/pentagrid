@@ -35,6 +35,8 @@ if (host) {
         { id: "roof-nextgen", key: "nextgen" },
         { id: "roof-kites", key: "kites" },
         { id: "roof-kowalewski", key: "kowalewski" },
+        { id: "roof-height", key: "height" },
+        { id: "roof-isogloss", key: "isogloss" },
         { id: "roof-offp", key: "offPenrose" },
         { id: "roof-arcs", key: "arcs" },
         { id: "roof-2kgons", key: "showResolutions" },
