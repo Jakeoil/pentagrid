@@ -105,6 +105,83 @@ export function census() {
     return { z, whole, walls };
 }
 
+/**
+ * A nudge's three coordinates — which is the structure Jake asked for.
+ *
+ * Jake, 2026-10-22: *"The exceptional singularity has 5 modes/directions.
+ * Entering, it encounters two neker scubes/skewbs. It can take the thin-thick
+ * thick-thin direction. and of that, the top or the bottom (or unresolved
+ * both)... So a stepper with 5 values, a boolean with short long, long short,
+ * and finally a three state stepper for the two paths and singularity."*
+ *
+ * Measured, the 50 factor exactly, and all three of his axes are real:
+ *
+ *   **axis** — a family j, 0 to 4, and it means the same thing in both
+ *   branches. A whole resolution is the one that moves every line BUT j. A
+ *   wall is the one that leaves family j's own gridline standing: the two
+ *   surviving triples share exactly j, and their spoke is 90° off v_j, which
+ *   is to say it IS that gridline. *"A single wall of singularities which
+ *   passes through the decagon."*
+ *
+ *   **sense** — the ±ε involution, one bit. ε and −ε always differ in it, and
+ *   each branch reads it its own way: upper against lower surface for a whole
+ *   resolution, thin-then-thick against thick-then-thin along the spoke for a
+ *   wall. One knob, two readings — so it must not be spent twice.
+ *
+ *   **branch** — `whole`, or one of FOUR wall positions, not three. The two
+ *   skewbs slide along the spoke as the nudge grows, and where they end up is
+ *   a state of the grid, not a way of drawing it:
+ *
+ *     `S at center`  the thin skewb stays on the decagon's center, 2 lines
+ *     `L at center`  the thick skewb stays there, 2 lines
+ *     `same side`    both step off, to the same side, 4 lines
+ *     `straddling`   both step off, opposite sides, 4 lines
+ *
+ *   The two centered ones are the minimal nudges — the phason flips — and
+ *   they are why the branch is 5-valued and not 3: `top` and `bottom` are
+ *   already `sense`.
+ *
+ * So 5 × 2 × 5 = 50, and the catalog below is that product in order.
+ */
+export function factor(e) {
+    const standing = surviving(e);
+    if (!standing.length) {
+        const axis = e.findIndex((v) => v === 0);
+        return { axis, sense: Math.sign(e[(axis + 1) % 5]), branch: "whole" };
+    }
+    const triples = standing.map((s) => new Set(s.fams));
+    const axis = [...triples[0]].find((j) => triples[1].has(j));
+    // The spoke, oriented deterministically: v_axis turned a quarter turn. It
+    // is perpendicular to v_axis, measured, so this is the spoke's own line.
+    const v = dirs[axis];
+    const d = [-v[1], v[0]];
+    const at = {};
+    for (const s of standing) {
+        at[shapeOf(s.fams) === "113" ? "S" : "L"] = s.p[0] * d[0] + s.p[1] * d[1];
+    }
+    const EPS = 1e-12;
+    const branch = Math.abs(at.S) < EPS ? "S at center"
+        : Math.abs(at.L) < EPS ? "L at center"
+        : at.S * at.L > 0 ? "same side" : "straddling";
+    return { axis, sense: at.S < at.L ? 1 : -1, branch };
+}
+
+/** The five branches, in the order a control should step through them. */
+export const BRANCHES = ["whole", "S at center", "L at center",
+                         "same side", "straddling"];
+
+/**
+ * All 50 states as (axis, sense, branch) — what the reading control should be
+ * indexing instead of a slot in the zonogon's 62.
+ */
+export function catalog() {
+    const out = [];
+    for (const e of nudgeVectors(5, true)) out.push({ e, ...factor(e) });
+    return out.sort((a, b) =>
+        BRANCHES.indexOf(a.branch) - BRANCHES.indexOf(b.branch)
+        || a.axis - b.axis || b.sense - a.sense);
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
     const { z, whole, walls } = census();
     const all = [...whole.map((w) => w.e), ...[...walls.values()].flat()];
@@ -143,5 +220,21 @@ if (import.meta.url === `file://${process.argv[1]}`) {
 
     const states = new Set(all.map((e) => localTiling(e)));
     console.log(`\n── ${states.size} distinct states in all:`
-        + ` ${whole.length} whole, ${all.length - whole.length} walled\n`);
+        + ` ${whole.length} whole, ${all.length - whole.length} walled`);
+
+    console.log(`\n── and they factor: axis x sense x branch`);
+    const cat = catalog();
+    const seen = new Map();
+    for (const c of cat) {
+        const k = c.branch;
+        if (!seen.has(k)) seen.set(k, new Set());
+        seen.get(k).add(`${c.axis}${c.sense > 0 ? "+" : "-"}`);
+    }
+    for (const b of BRANCHES) {
+        const cells = [...seen.get(b)].sort();
+        console.log(`   ${b.padEnd(12)} ${String(cells.length).padStart(2)}`
+            + `   ${cells.join(" ")}`);
+    }
+    console.log(`   ${BRANCHES.length} branches x 5 axes x 2 senses = `
+        + `${BRANCHES.length * 10}, and the catalog holds ${cat.length}\n`);
 }

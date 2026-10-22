@@ -81,3 +81,77 @@ test("the 50 nudges are 50 distinct tilings: the control has 50 positions, not 6
     assert.equal(new Set(all.map((e) => localTiling(e))).size, 50,
                  "two nudges give the same tiling near the origin");
 });
+
+// ── the factorization Jake proposed, 2026-10-22 ────────────────────────────
+// "The exceptional singularity has 5 modes/directions... a stepper with 5
+// values, a boolean with short long, long short, and finally a three state
+// stepper for the two paths and singularity."
+import { factor, catalog, BRANCHES } from "./nudges.mjs";
+import { makeDirections } from "../dist/geometry/pentagrid.js";
+
+test("the 50 are a 5 x 2 x 5 product: axis, sense, branch", () => {
+    const cat = catalog();
+    assert.equal(cat.length, 50);
+    const cells = new Set(cat.map((c) => `${c.branch}|${c.axis}|${c.sense}`));
+    assert.equal(cells.size, 50, "two nudges share a cell, so this is not a product");
+    // Every cell of the product is occupied: nothing is missing and nothing
+    // doubles up.
+    for (const b of BRANCHES) {
+        for (let j = 0; j < 5; j++) {
+            for (const s of [1, -1]) {
+                assert.ok(cells.has(`${b}|${j}|${s}`), `${b} ${j} ${s} is empty`);
+            }
+        }
+    }
+    assert.equal(BRANCHES.length, 5,
+                 "the branch is 5-valued: whole, plus FOUR wall positions");
+});
+
+test("the axis is family j, and it means the same in both branches", () => {
+    const dirs = makeDirections(true);
+    for (const c of catalog()) {
+        if (c.branch === "whole") {
+            // The whole resolution on axis j is the one that moves every line
+            // but j.
+            assert.equal(c.e[c.axis], 0, `${c.e.join("")} moved its own axis`);
+            assert.equal(c.e.filter((v) => v).length, 4);
+            continue;
+        }
+        // A wall's two triples share exactly j, and their spoke IS family j's
+        // gridline: 90 degrees off v_j, measured.
+        const s = surviving(c.e);
+        assert.equal(s.length, 2);
+        const [a, b] = s.map((x) => new Set(x.fams));
+        assert.deepEqual([...a].filter((x) => b.has(x)), [c.axis],
+                         `${c.e.join("")} does not share its axis`);
+        let d = [s[1].p[0] - s[0].p[0], s[1].p[1] - s[0].p[1]];
+        const L = Math.hypot(...d);
+        const dot = Math.abs((d[0] * dirs[c.axis][0] + d[1] * dirs[c.axis][1]) / L);
+        assert.ok(dot < 1e-9, `the spoke is not perpendicular to v${c.axis}: ${dot}`);
+    }
+});
+
+test("negation flips the sense and nothing else", () => {
+    // Which is why the sense must not be spent twice: top/bottom for a whole
+    // resolution and SL/LS for a wall are the SAME bit, read by two branches.
+    const by = new Map(catalog().map((c) => [c.e.join(","), c]));
+    for (const c of by.values()) {
+        const anti = by.get(c.e.map((v) => -v).join(","));
+        assert.ok(anti, `${c.e.join("")} has no antipode in the catalog`);
+        assert.equal(anti.axis, c.axis, "negation moved the axis");
+        assert.equal(anti.branch, c.branch, "negation moved the branch");
+        assert.equal(anti.sense, -c.sense, "negation did not flip the sense");
+    }
+});
+
+test("the two centered branches are exactly the phason flips", () => {
+    // A minimal nudge leaves one skewb sitting on the decagon's center and
+    // steps the other off along the spoke. Those 20 are Jake's 20.
+    for (const c of catalog()) {
+        const minimal = c.e.filter((v) => v).length === 2;
+        const centered = c.branch === "S at center" || c.branch === "L at center";
+        assert.equal(minimal, centered,
+                     `${c.e.join("")} is ${c.branch} on ${c.e.filter((v)=>v).length} lines`);
+    }
+    assert.equal(catalog().filter((c) => c.branch.endsWith("at center")).length, 20);
+});

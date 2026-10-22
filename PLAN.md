@@ -472,6 +472,48 @@ by 8 of the 40 wall nudges, 4 of them minimal. The 8 give 8 distinct tilings,
 so the 50 nudges are 50 distinct states: 10 whole and 40 walled. Nothing is
 over-counted and nothing coincides.
 
+**And the 50 factor, which is the control's structure (Jake, 2026-10-22).**
+*"The exceptional singularity has 5 modes/directions. Entering, it encounters
+two neker scubes/skewbs. It can take the thin-thick thick-thin direction. and
+of that, the top or the bottom (or unresolved both)... So a stepper with 5
+values, a boolean with short long, long short, and finally a three state
+stepper for the two paths and singularity."* All three axes are real, and
+measured the product is exact — `factor` and `catalog` in `tools/nudges.mjs`:
+
+| axis | sense | branch |
+|---|---|---|
+| a family j, 0–4 | the ±ε involution | `whole` + four wall positions |
+| 5 | 2 | 5 |
+
+**axis** means the same thing in both branches. A whole resolution on j is the
+one that moves every line *but* j. A wall on j leaves family j's own gridline
+standing: its two surviving triples share exactly j, and their spoke is 90°
+off v_j — which is to say the spoke *is* that gridline. Jake's *"single wall of
+singularities which passes through the decagon"* is literally a gridline of the
+pentagrid that never got pulled apart.
+
+**sense** is one bit, and ε and −ε always differ in it. Each branch reads it
+its own way: upper against lower surface for a whole resolution, thin-then-
+thick against thick-then-thin along the spoke for a wall. So it must not be
+spent twice — Jake's boolean and the `top`/`bottom` of his third stepper are
+the same knob, which is the one correction to his sketch.
+
+**branch** is therefore 5-valued, not 3. The two skewbs slide along the spoke
+as the nudge grows, and where they stop is a state of the grid rather than a
+way of drawing it:
+
+| branch | lines moved | the two skewbs |
+|---|---|---|
+| `whole` | 4 | neither survives |
+| `S at center` | 2 | thin on the decagon's center, thick stepped off |
+| `L at center` | 2 | thick on the center, thin stepped off |
+| `same side` | 4 | both off, same side |
+| `straddling` | 4 | both off, opposite sides |
+
+The two centered branches are exactly the 20 minimal nudges — the phason flips
+— so the branch control also *is* the flip control. Every one of the 50 cells
+of 5 × 2 × 5 is occupied exactly once.
+
 **Which is why 62 must leave the readout.** 62 is the zonogon's
 combinatorics — every rhombic tiling of a regular decagon, found by flips —
 and the grid reaches ten of them. The control's `n/62` was an index into a
