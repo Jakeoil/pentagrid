@@ -1982,6 +1982,135 @@ Gold `#f7d058`, gray `#b6b6b6`, from the picture. This is the first inflation
 machinery in the project (§5.17 said "nothing implemented"); it is one step
 down, per tile, with no way yet to iterate or to go up.
 
+### 5.6-a Per-prototile coloring: what the pentaplex actually draws, and what a confined scheme would take (Jake, 2026-10-23 — UNDER DISCUSSION, nothing built)
+
+Jake: *"In method et al, I notice the pentaplex decorations extend beyond the
+tile (which has a blue base). The thick tile obviously draws one yellow
+pentagon and its edges. How about the orange pentagon? is it drawn two times
+on thin rhombs? Does the thick tile also draw and orange tile? Are orange tiles
+drawn twice?"* Then the design question, which is the point of the section:
+
+> *If I wanted to add another decorating method (similar to curves) which
+> confined separate coloring schemes internal to the thin and thick rhomb
+> respectively, with blue one of those colors — what would be good names to
+> distinguish these styles (would want to keep both independently)? Would the
+> innie/outie round/angle logic work correctly in the new decorating method?*
+
+#### What `rhombPentagons` emits, measured
+
+Read off the code and counted over the sun at reach 8 — 498 tiles, 305 thick
+and 193 thin:
+
+| | yellow (Pe3) | orange (Pe1) |
+|---|---|---|
+| per **thick** tile | **1** | **2** |
+| per **thin** tile | 0 | **2** |
+| draws over the patch | 305 | 996 |
+| distinct pentagons | **305** | **533** |
+
+So, to Jake's four questions, in order:
+
+- **The pentaplex overhangs its tile, and that is not incidental.** Only the
+  305 yellows lie wholly inside the tile that drew them; **every orange
+  overhangs**, and over all 1301 draws just **61.7%** of the pentagon area
+  falls inside its own tile. A thick tile's yellow is the one containable
+  figure in the whole decoration.
+- **Yes, the thick tile also draws orange** — two of them, either side of its
+  yellow at distance 2·PENTA_R·cos 36°. The thin draws two and no yellow.
+- **The thin's two oranges are different pentagons**, not one drawn twice:
+  they sit at C + PENTA_R·e₁ and C + PENTA_R·e₂, on the two edges at that
+  corner, PENTA_R = 1/φ².
+- **But orange pentagons ARE drawn twice, 463 of the 533.** 996 draws for 533
+  distinct. By the tiles that emit one (K thick, N thin): **KN 355, KK 108**
+  drawn twice, **K 39, N 31** drawn once. The duplicate is a neighbor reaching
+  over the shared edge, and the two copies are the same polygon to **3.7e-15**
+  — which is why §(the outie-bleed fix) can deduplicate on the center alone and
+  why it must. Yellow never duplicates: 305 draws, 305 distinct, one per thick
+  tile.
+- **No pentagon is ever claimed as both colors**: 0 centers of 838 carry
+  conflicting kinds, so the yellow/orange assignment is globally consistent
+  even though it is computed tile by tile.
+
+The 70 singleton oranges are *not* only the patch rim — the nearest sits 1.18
+from the origin in a patch reaching 13.2 — so a single-emitter orange is a real
+local configuration and not an artifact of collection. Why remains open.
+
+#### Would the innie/outie logic carry over? Partly, and the split is sharp
+
+Three things are tangled under one control, and they separate cleanly:
+
+**The bend transfers as-is.** `bendEdge` needs a chord, an `outward` flag, and
+a center to measure "away" from — nothing else. `bend18` and `bend36` are pure
+local geometry (at 36° the legs are the 72° arc's own tangents, the
+tangent-chord angle being half the arc). `circle` likewise: the arc is the
+pentagon's circumcircle cut at two corners, taken about its own center or the
+mirror of it across the edge. Both would work on any polygon's boundary on day
+one.
+
+**The bisector does not, without new bookkeeping.** `bisectEdge` leans each
+tangent half the adjacent *blue wedge* off the chord, and that wedge comes from
+`freeWedge`, which reads the occupied directions at a corner out of the
+whole-patch arrangement of pentagon centers. A confined scheme has a different
+cell set, so it needs its own occupancy index before `bisector` means anything.
+It already fails soft — falling back to the circle at the rim and at lone-Pe1
+corners — so the fallback path exists.
+
+**The decision of which way to bow does NOT transfer, and this is the real
+answer.** `pentaSides` computes, for each edge, M = a + b − C — the mirror of
+the center across that edge, which is exactly where the neighboring P1 pentagon
+sits — looks up what kind of cell is there, and sets
+
+    outward = (across === pushesInto) === innie
+
+with the cycle yellow → blue → orange → yellow. **So innie/outie is a property
+of the P1 adjacency graph over the whole patch, not of the tile.** It is what
+makes the two sides of every shared edge disagree, one bowing out where the
+other bows in, so the figures interlock with nothing left over.
+
+A scheme confined inside one rhomb has no such graph to consult. Its interior
+segments border the next region in the same tile — a local cycle could decide
+those — but its boundary segments lie *on the tile edge*, where the cell across
+belongs to the neighbor tile's scheme. Two consequences:
+
+- **Outie breaks confinement.** A boundary segment bowed outward leaves the
+  tile by construction. Either outie is refused on boundary segments, or the
+  confinement is nominal and the figure is clipped, or the scheme accepts that
+  its outies overhang — in which case it is not confined and the premise is
+  gone.
+- **Interlocking across a tile edge is not automatic.** The same prototile
+  appears in many orientations and its neighbor may be either prototile, so a
+  per-prototile rule cannot by itself guarantee that the two sides of a tile
+  edge disagree. Making it do so means a rule indexed by the *pair* — which is
+  Socolar's adjacency condition again, and §(the border work) already has the
+  machinery for reading those.
+
+#### Naming
+
+The register in use is plain nouns: pentaplex, next-rhomb, kites, curves,
+bands, ribbons, isogloss, Kowalewski, afterimage, big rhombs, rhomb groups. The
+distinguishing property of the new one is that it stays inside the tile, and
+`pentaplex` is exactly the one that does not. Proposal:
+
+| name | why |
+|---|---|
+| **inlay** (recommended) | marquetry set into a surface — says "inside the tile", which is the whole difference from the pentaplex, and it is short enough for the control |
+| **livery** | a paint scheme belonging to a *kind* of thing; stresses per-prototile rather than confinement |
+| **facings**, **panels** | accurate, flatter |
+| **blazon**, **device** | heraldic, per-shape, but obscure next to the rest of the panel |
+
+`pentaplex` keeps its name and its switch; `inlay` gets its own, so both live
+independently as Jake asks. Note that **Kowalewski is already the degenerate
+case** — it colors the whole face by its axis — so `inlay` is the finer version
+of a thing the panel already has, and the two should probably be neighbors in
+the layout, or `inlay` should subsume `kowalewski` as one of its schemes.
+
+**Open, for Jake:** which regions, inside each prototile, and which gets blue.
+The pentaplex's own answer (PENTA_R = 1/φ², pentagons at the extreme corner)
+is what makes it overhang; a confined scheme needs a dissection of the rhomb
+itself, and the obvious candidates are already in the project — Robinson's
+triangles (§5.5's deflation), the kite/dart cut (§5.4), or the band quads the
+tile style already draws.
+
 ### 5.6 The pentagons tile style — P1 at the big-rhomb scale (2026-09-18)
 
 Jake: *The P1 tile style does not match my expectations.* Right — the `p1`
