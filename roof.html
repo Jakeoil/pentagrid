@@ -73,8 +73,15 @@
         <label class="check"><input type="checkbox" id="roof-2kgons" checked> 2k-gons</label>
         <label class="check"><input type="checkbox" id="roof-solids"> solids</label>
         <label class="check"><input type="checkbox" id="roof-resolve"> reading</label>
-        <label><span class="cap">reading <span class="val" id="roof-reading-value">1</span></span>
-            <input type="range" id="roof-reading" min="0" max="61" step="1" value="0"></label>
+        <label><span class="cap">axis <span class="val" id="roof-axis-value">0</span></span>
+            <input type="range" id="roof-axis" min="0" max="4" step="1" value="0"></label>
+        <label class="check"><input type="checkbox" id="roof-direction" checked> direction</label>
+        <label><span class="cap">paths</span>
+            <select id="roof-paths">
+                <option value="high">high</option>
+                <option value="low">low</option>
+                <option value="both" selected>both</option>
+            </select></label>
         <label class="check"><input type="checkbox" id="roof-pair"> pair</label>
         <label><span class="cap">flip <span class="val" id="roof-flip-value">1</span></span>
             <input type="range" id="roof-flip" min="0" max="4" step="1" value="0"></label>

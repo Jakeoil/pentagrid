@@ -1760,18 +1760,21 @@ test("the solids layer draws a zonohedron per singularity, and the reading moves
     assert.ok(fills > 30, `only ${fills} faces drawn`);
     assert.equal(path.length % 4, 0, "a face is four points");
 
-    for (const reading of [1, 2, 7]) {
+    // The state is (axis, direction, paths) now, not an index into 62.
+    for (const at of [{ axis: 1 }, { axis: 2 }, { direction: -1 },
+                      { paths: "high" }, { paths: "low" }]) {
         path = [];
-        v.set({ reading });
+        v.set(at);
         v.redraw();
-        assert.notEqual(path.join("|"), first, `reading ${reading} drew the same thing`);
+        assert.notEqual(path.join("|"), first,
+                        `${JSON.stringify(at)} drew the same thing`);
     }
 
     // The pair ghost adds three outlines per singularity — an outline now,
     // since the face itself is no longer filled.
     let strokes = 0;
     layer.ctx.stroke = () => { strokes++; };
-    v.set({ reading: 0, pairGhost: false });
+    v.set({ axis: 0, direction: 1, paths: "both", pairGhost: false });
     strokes = 0;
     v.redraw();
     const plain = strokes;
@@ -1790,18 +1793,26 @@ test("a Penrose grid holds the decagon to its ten readings, with no switch", () 
     layer.ctx.moveTo = (x, y) => { path.push(`M${x.toFixed(3)},${y.toFixed(3)}`); };
     layer.ctx.lineTo = (x, y) => { path.push(`L${x.toFixed(3)},${y.toFixed(3)}`); };
 
+    // Every completion the control can reach: 5 anti-gridlines x 2 senses x
+    // high and low. Measured in geometry/walls.ts, those 20 cells land on the
+    // decagon's ten Penrose readings, each reached from the two walls it sits
+    // between — so a full sweep shows ten distinct pictures, not twenty and
+    // certainly not 62. Jake: "we know there are only 10 which express penrose
+    // tiles."
     const sweep = () => {
         const seen = new Set();
-        for (let r = 0; r < 62; r++) {
-            v.set({ reading: r });
-            path = [];
-            v.redraw();
-            seen.add(path.join("|"));
+        for (let axis = 0; axis < 5; axis++) {
+            for (const direction of [1, -1]) {
+                for (const paths of ["high", "low"]) {
+                    v.set({ axis, direction, paths });
+                    path = [];
+                    v.redraw();
+                    seen.add(path.join("|"));
+                }
+            }
         }
         return seen.size;
     };
-    // The sun: every gamma an integer, so Penrose, so the decagon has ten
-    // readings and the hexagons two — ten distinct pictures over a sweep of 62.
     v.pentagrid.gamma.setSum(0, true);
     assert.equal(sweep(), 10, "a Penrose grid should show ten");
 });
@@ -1927,7 +1938,10 @@ test("roof: the arcs and the index circles, and the dressings at a singular pres
     // a real index, and the marks say the seated one. Which is the point of
     // carrying the index on the seat — Jake, "indexes should show correct
     // placement while reading."
-    v.set({ resolve: true });
+    // Resolved to a COMPLETION — `high`, not the default `both`. At `both` the
+    // wall is left standing by design, so the decagon keeps its superposition
+    // and keeps its ghost; it is the completions that seat a real corner there.
+    v.set({ resolve: true, paths: "high" });
     texts.length = 0;
     v.redraw();
     assert.equal(texts.filter((t) => t === "0").length, 0,
@@ -1984,11 +1998,11 @@ test("roof: a reading seats the tiles inside a 2k-gon", () => {
     // Moving the reading moves them: a different reading seats them elsewhere.
     const where = [];
     growth.ctx.moveTo = (x, y) => { where.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
-    v.set({ reading: 0 });
+    v.set({ axis: 0, direction: 1, paths: "high" });
     where.length = 0;
     v.redraw();
     const first = where.join("|");
-    v.set({ reading: 3 });
+    v.set({ axis: 2 });
     where.length = 0;
     v.redraw();
     assert.notEqual(where.join("|"), first, "the reading does not move the tiles");
@@ -3405,7 +3419,8 @@ test("a seated tile's dressings are oriented by its SEATED index", () => {
         // reading included in the base: `set` merges, so leaving it out let
         // one iteration's reading leak into the next and the comparison
         // silently compared a thing with itself.
-        v.set({ grow: 1, fold: 1, resolve: true, solids: false, reading: 0,
+        v.set({ grow: 1, fold: 1, resolve: true, solids: false,
+                axis: 0, direction: 1, paths: "high",
                 showResolutions: false, penta: false, kites: false, nextgen: false,
                 ...style });
         marks.length = 0;
@@ -3420,7 +3435,7 @@ test("a seated tile's dressings are oriented by its SEATED index", () => {
         const dressed = run(style);
         assert.ok(dressed.length > bare.length,
                   `${Object.keys(style)[0]} drew nothing extra`);
-        const moved = run({ ...style, reading: 4 });
+        const moved = run({ ...style, axis: 2 });
         assert.notEqual(moved, dressed,
                         `${Object.keys(style)[0]} did not follow the reading`);
     }
@@ -3855,4 +3870,49 @@ test("the roof's fold switch reads FLAT, and reads it the right way round", () =
     // checked means flat means fold 0. The inverted form is the bug.
     assert.ok(/flat\.checked\s*\?\s*0\s*:\s*1/.test(app),
               "the flat switch is not wired checked -> fold 0");
+});
+
+test("the singularity control is axis x direction x paths, and both leaves the wall standing", () => {
+    // Jake, 2026-10-22: "5 anti gridlines. two configs (call it direction) on
+    // each and high/low/both for paths." And on what it replaced: "you still
+    // count 62 permutation. We know there are only 10 which express penrose
+    // tiles."
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setSum(0, true);           // the exceptional singularity
+    const growth = v.pentagrid.stack.get("growth");
+    let fills = 0;
+    growth.ctx.fill = () => { fills++; };
+    const run = (at) => {
+        v.set({ grow: 1, fold: 1, band: 0, resolve: true, solids: false,
+                showResolutions: false, edgeStyle: "none", isogloss: false,
+                penta: false, nextgen: false, kites: false, arcs: false,
+                axis: 0, direction: 1, ...at });
+        fills = 0;
+        v.redraw();
+        return fills;
+    };
+    // A completion seats every tile; the wall seats only the cells it settled.
+    const high = run({ paths: "high" });
+    const low = run({ paths: "low" });
+    const both = run({ paths: "both" });
+    assert.ok(high > 100, `only ${high} fills at high`);
+    assert.ok(both < high,
+              `both seated as much as high (${both} vs ${high}): `
+              + "the wall is being resolved, not left standing");
+
+    // The defaults are the wall, which is the honest opening picture.
+    const fresh = createGrowthView({ container: host(), lift: true });
+    assert.equal(fresh.get().paths, "both");
+    assert.equal(fresh.get().axis, 0);
+
+    // Every knob moves the picture, and the two completions differ.
+    assert.notEqual(high, low > 0 ? -1 : -2);    // both drew something
+    const where = [];
+    growth.ctx.moveTo = (x, y) => { where.push(`${x.toFixed(2)},${y.toFixed(2)}`); };
+    const snap = (at) => { run(at); where.length = 0; v.redraw(); return where.join("|"); };
+    const base = snap({ paths: "high" });
+    assert.notEqual(snap({ paths: "low" }), base, "high and low draw the same");
+    assert.notEqual(snap({ paths: "high", axis: 2 }), base, "the axis does nothing");
+    assert.notEqual(snap({ paths: "high", direction: -1 }), base,
+                    "the direction does nothing");
 });

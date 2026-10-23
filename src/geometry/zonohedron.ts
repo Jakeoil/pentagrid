@@ -84,6 +84,18 @@ export interface Zonohedron {
      */
     readingOf(displacements: readonly number[]): number | null;
     /**
+     * The same, cell by cell, so a PARTIAL resolution can be read.
+     *
+     * `readingOf` is all-or-nothing: one cell still concurrent and there is no
+     * reading, which is right when a reading is what you want. But a wall
+     * leaves some cells standing and settles the rest, and those rest are real
+     * tiles in real places. Jake, 2026-10-19: the wall through the decagon
+     * leaves *"four penrose tiles and two skewbs"* — and the four have to be
+     * drawn, not swallowed by the superposition. So: a base mask per pair,
+     * null where that pair's cell is still a stack.
+     */
+    partialOf(displacements: readonly number[]): (number | null)[];
+    /**
      * The readings a Penrose grid can reach: those with a configuration whose
      * displacements sum to zero, since Σγ is what the Penrose condition fixes.
      *
@@ -371,6 +383,26 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
         const bases = nudge(e);
         return bases ? byBases.get(bases.join(",")) ?? null : null;
     };
+    const partialOf = (e: readonly number[]): (number | null)[] => {
+        const out: (number | null)[] = [];
+        for (const [i, j] of pairs) {
+            const a = dirs[fams[i]], b = dirs[fams[j]];
+            const det = a[0] * b[1] - a[1] * b[0];
+            if (Math.abs(det) < 1e-12) { out.push(null); continue; }
+            const px = (-e[i] * b[1] + e[j] * a[1]) / det;
+            const py = (b[0] * e[i] - a[0] * e[j]) / det;
+            let m = 0, open = false;
+            for (let l = 0; l < k; l++) {
+                if (l === i || l === j) continue;
+                const v = dirs[fams[l]];
+                const side = px * v[0] + py * v[1] + e[l];
+                if (Math.abs(side) < 1e-9) { open = true; break; }
+                if (side > 0) m |= 1 << l;
+            }
+            out.push(open ? null : m);
+        }
+        return out;
+    };
 
     /**
      * A face's four corners from its own base mask.
@@ -436,7 +468,7 @@ function build(dirs: readonly Vec2[], families: readonly number[]): Zonohedron {
     };
 
     return {
-        k, fams, pairs, cells, lower, readings, nudgeOf, readingOf, penrose,
+        k, fams, pairs, cells, lower, readings, nudgeOf, readingOf, partialOf, penrose,
         flips, face, faceAt, route,
     };
 }

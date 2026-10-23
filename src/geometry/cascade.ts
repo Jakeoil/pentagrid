@@ -102,7 +102,16 @@ export interface CascadeResult {
     pools: number[][];
     /** How many borders are still illegal. Zero whenever the greedy walk succeeds. */
     clashes: number;
-    /** Sites whose choice was forced by a neighbor rather than free. */
+    /**
+     * For a site the nudge left STANDING, its partial resolution: a base mask
+     * per pair, null where that pair is still a stack. Absent for a site with
+     * a whole reading, since `readings` already says it.
+     */
+    partials?: ((number | null)[] | null)[];
+        /**
+     * Sites whose choice was forced by a neighbor rather than free — or, when
+     * a nudge was given outright, how many it left STANDING.
+     */
     followed: number;
 }
 
@@ -158,11 +167,36 @@ export function nudgeVectors(n: number, sumZero: boolean): number[][] {
 export function cascade(
     pg: Pentagrid, sites: readonly CascadeSite[], reading: number, penrose: boolean,
     fixed: readonly FixedTile[] = [],
+    nudge: readonly number[] | null = null,
 ): CascadeResult {
     const dirs = pg.directions;
     const n = sites.length;
     const zs = sites.map((s) => zonohedronOf(dirs, s.families));
     const pools = zs.map((z) => z.readings.map((_, i) => i));
+
+    // ── a nudge given outright: apply it and say what it leaves standing
+    //
+    // The control used to be an index, and the enumeration below had to find
+    // the nudges and wrap a number against however many it found. With the
+    // state space factored (geometry/walls.ts, PLAN §5.-1b) the caller knows
+    // which perturbation it wants, so it passes it. A site the nudge does not
+    // resolve gets −1 and NO seat, which is the honest answer: at a wall the
+    // singularity really is still standing, and Jake wants to see it.
+    if (nudge) {
+        const readings: number[] = [];
+        const partials: ((number | null)[] | null)[] = [];
+        for (let i = 0; i < n; i++) {
+            const e = sites[i].families.map((j) => nudge[j]);
+            const r = zs[i].readingOf(e);
+            readings.push(r ?? -1);
+            // A standing site is not nothing: the nudge settles some of its
+            // cells and leaves the rest stacked. Those settled ones are real
+            // tiles in real places and have to be drawn.
+            partials.push(r === null ? zs[i].partialOf(e) : null);
+        }
+        return { readings, pools, partials, clashes: 0,
+                 followed: readings.filter((r) => r < 0).length };
+    }
 
     // ── the nudge-driven answer, when there is one
     if (n) {
@@ -256,15 +290,20 @@ export interface Seat {
 
 export function faceSeats(
     pg: Pentagrid, site: CascadeSite, reading: number,
+    partial: readonly (number | null)[] | null = null,
 ): Map<string, Seat> {
     const dirs = pg.directions;
     const z = zonohedronOf(dirs, site.families);
     const anchor = zonogonAnchor(z, site.outline, site.outlineK, dirs);
-    const bases = z.readings.length ? z.readings[reading] : z.lower;
+    // A partial overrides the reading, and its nulls are the cells still
+    // stacked: those get no seat and keep their superposition.
+    const bases: readonly (number | null)[] = partial
+        ?? (z.readings.length ? z.readings[reading] : z.lower);
     const out = new Map<string, Seat>();
     z.pairs.forEach((pr, i) => {
         let x = anchor.origin[0], y = anchor.origin[1], bits = 0;
         const m = bases[i];
+        if (m === null) return;
         for (let l = 0; l < z.k; l++) {
             if (m >> l & 1) {
                 x += dirs[z.fams[l]][0];

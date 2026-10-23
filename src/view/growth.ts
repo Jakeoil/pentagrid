@@ -20,6 +20,8 @@ import { cascade, faceSeats } from "../geometry/cascade.js";
 import type { Seat } from "../geometry/cascade.js";
 import type { CascadeSite } from "../geometry/cascade.js";
 import { penroseCondition } from "../geometry/gamma.js";
+import { wallView, skewbCode } from "../geometry/walls.js";
+import type { Paths } from "../geometry/walls.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
 import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, rhombArcs } from "../geometry/decor.js";
 import { clipToConvex } from "../geometry/region.js";
@@ -160,12 +162,34 @@ export interface GrowthState {
      */
     solids: boolean;
     /**
-     * Which reading of that solid — which monotone surface, which rhombic tiling
-     * of the 2k-gon. Wrapped per singularity against its own count, 2 for a
-     * hexagon, 8 for an octagon, 62 for a decagon, so one control drives them
-     * all and 0 is always the lower surface.
+     * The singularity's state, in the three coordinates Jake reads it in.
+     *
+     * 2026-10-22: *"The exceptional singularity has 5 modes/directions...
+     * 5 anti gridlines. two configs (call it direction) on each and
+     * high/low/both for paths."* And on the old control: *"You still count 62
+     * permutation. We know there are only 10 which express penrose tiles."*
+     *
+     * He was right twice over. 62 is the decagon zonogon's combinatorics, and
+     * `n/62` was an index into it rather than a position in a state space. A
+     * resolution is ONE perturbation of the five families (§5.-1), and those
+     * factor (§5.-1b, `geometry/walls.ts`):
+     *
+     *   `axis`      the anti-gridline, 0 to 4: the family whose line is left
+     *               standing, which is the wall through the decagon
+     *   `direction` the ±ε involution: thin-then-thick or thick-then-thin
+     *               along the spoke
+     *   `paths`     the wall's two completions, or the wall itself
+     *
+     * `high` and `low` are the two readings the wall completes to — measured,
+     * exactly two per cell and both Penrose, ordered by their own surface
+     * height. `both` leaves the wall standing, which is a line of
+     * singularities across the whole patch and not just the pair at the
+     * center. 5 × 2 × 2 reaches all ten Penrose readings, each from the two
+     * walls it sits between.
      */
-    reading: number;
+    axis: number;
+    direction: number;
+    paths: Paths;
     /**
      * Which of the current reading's flips the pair control is showing. Wrapped
      * the same way: 3, 4 or 5 are available, and exactly 5 at the extremes.
@@ -237,6 +261,20 @@ export interface GrowthHandle {
     pentagrid: PentagridHandle;
 }
 
+/**
+ * What the plan says about one singularity.
+ *
+ * `partial` is set where the nudge left the site standing but still settled
+ * some of its cells — a wall through the decagon settles four of ten, and
+ * those four are ordinary Penrose tiles. Jake: *"four penrose tiles and two
+ * skewbs."*
+ */
+interface PlanEntry {
+    pool: number[];
+    slot: number;
+    partial: (number | null)[] | null;
+}
+
 /** The two loop families of the arc decoration, as on the flat page. */
 const ARC_COLORS = ["#c1440e", "#1b6ca8"];
 
@@ -288,7 +326,7 @@ const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,
-    solids: false, reading: 0, pick: 0, pairGhost: false,
+    solids: false, axis: 0, direction: 1, paths: "both", pick: 0, pairGhost: false,
     arcs: false, resolve: false, indexStyle: "none",
     height: false, isogloss: false,
     edgeStyle: "normal", kowalewski: false,
@@ -394,7 +432,15 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
      * fixes. Cached on γ and the control's value, since a draw asks for it
      * once per solid and the answer is the same every time.
      */
-    let planCache: Map<string, { pool: number[]; slot: number }> | null = null;
+    let planCache: Map<string, PlanEntry> | null = null;
+    /**
+     * The perturbation the controls currently name, and what it leaves standing.
+     *
+     * One lookup per draw, since `wallView` enumerates. Null off the pentagrid's
+     * five families, where the factorization has nothing to say.
+     */
+    const viewNudge = (pg: Pentagrid) =>
+        wallView(pg.directions, state.axis, state.direction, state.paths);
     let planKey = "";
     /**
      * Where the current reading seats each tile that lives inside a 2k-gon.
@@ -406,7 +452,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     let seatCache: Map<string, Seat> | null = null;
     let seatKey = "";
     function seatsFor(
-        pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
+        pg: Pentagrid, rhombs: readonly Rhomb[],
     ): Map<string, Seat> {
         // Keyed on the STACKS, not the rhomb count: panning changes which
         // tiles are collected without necessarily changing how many, and a
@@ -414,9 +460,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         // "refreshing is iffy when I move through viewport."
         const stackKeys = stacksOf(rhombs)
             .map((c) => `${c.x.toFixed(6)},${c.y.toFixed(6)}`).sort().join(";");
-        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}|${stackKeys}`;
+        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}`
+            + `|${state.axis},${state.direction},${state.paths}|${stackKeys}`;
         if (seatCache && key === seatKey) return seatCache;
-        const plan = readingPlan(pg, rhombs, reading);
+        const plan = readingPlan(pg, rhombs);
         const out = new Map<string, Seat>();
         const byPoint = new Map<string, Rhomb[]>();
         for (const r of rhombs) {
@@ -433,7 +480,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             if (!res) continue;
             const where = faceSeats(pg, {
                 families: res.families, outline: res.outline, outlineK: res.outlineK,
-            }, seat.pool[seat.slot]);
+            }, seat.pool[seat.slot], seat.partial);
             for (const r of group) {
                 const p = where.get(r.j < r.k ? `${r.j},${r.k}` : `${r.k},${r.j}`);
                 if (p) out.set(seatKeyOf(r), p);
@@ -445,14 +492,14 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     }
 
     function readingPlan(
-        pg: Pentagrid, rhombs: readonly Rhomb[], reading: number,
-    ): Map<string, { pool: number[]; slot: number }> {
+        pg: Pentagrid, rhombs: readonly Rhomb[],
+    ): Map<string, PlanEntry> {
         const held = penroseCondition(
             pg.gamma.reduce((t, g) => t + g, 0), pg.directions.length) === true;
         const stackKeys = stacksOf(rhombs)
             .map((c) => `${c.x.toFixed(6)},${c.y.toFixed(6)}`).sort().join(";");
-        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}|${reading}`
-            + `|${held}|${stackKeys}`;
+        const key = `${pg.gamma.map((g) => g.toFixed(9)).join(",")}`
+            + `|${state.axis},${state.direction},${state.paths}|${held}|${stackKeys}`;
         if (planCache && key === planKey) return planCache;
         const sites: CascadeSite[] = [];
         const at: string[] = [];
@@ -477,10 +524,20 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                       [v0[0] + vk[0], v0[1] + vk[1]]] as Vec2[],
             });
         }
-        const out = new Map<string, { pool: number[]; slot: number }>();
+        const out = new Map<string, PlanEntry>();
         if (sites.length) {
-            const plan = cascade(pg, sites, reading, held, fixed);
-            sites.forEach((_, i) => out.set(at[i], { pool: plan.pools[i], slot: plan.readings[i] }));
+            // The controls name the perturbation outright, so the cascade is
+            // told rather than asked. A site the nudge leaves STANDING comes
+            // back as −1 and gets no entry: it keeps its superposition, which
+            // at a wall is the whole point. Jake: "both."
+            const view = viewNudge(pg);
+            const plan = cascade(pg, sites, 0, held, fixed, view ? view.e : null);
+            sites.forEach((_, i) => {
+                const partial = plan.partials?.[i] ?? null;
+                if (plan.readings[i] < 0 && !partial) return;
+                out.set(at[i], { pool: plan.pools[i],
+                                 slot: Math.max(plan.readings[i], 0), partial });
+            });
         }
         planCache = out;
         planKey = key;
@@ -922,7 +979,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     const dirs = model.directions;
                     const S = (p: Vec3) => toScreen(p, v, cx, cy);
                     const gain = dirs.length / 2;
-                    const { grow, fold, reading, pick, pairGhost } = state;
+                    const { grow, fold, pick, pairGhost } = state;
                     // edge: the rhomb's outline, which is all that is left of the
                     // face. band: one family's strip across it. cross: where two
                     // strips overlap, in the mixed color the whole face used to be.
@@ -941,7 +998,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // each solid's own count left two illegal borders at
                     // every position of the control, zero of ten clean,
                     // although a clean choice always existed.
-                    const plan = readingPlan(model as Pentagrid, currentRhombs(), reading);
+                    const plan = readingPlan(model as Pentagrid, currentRhombs());
 
                     for (const c of stacksOf(currentRhombs())) {
                         const res = resolveConcurrency(model as Pentagrid, c);
@@ -964,8 +1021,16 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             : (held && z.penrose.length ? z.penrose
                                 : z.readings.map((_, i) => i));
                         const count = z.readings.length ? pool.length : 0;
-                        const slot = seat ? seat.slot
-                            : ((reading % Math.max(count, 1)) + count) % Math.max(count, 1);
+                        // Seated or STANDING. The nudge the controls name
+                        // resolves most sites and leaves the wall's own alone,
+                        // and a site with no seat has no single surface to
+                        // draw: it keeps its superposition even with the
+                        // reading on. Jake: "high/low/both for paths" — this
+                        // is `both`, and at a wall it is not a choice, it is
+                        // what the grid is doing.
+                        const partial = seat?.partial ?? null;
+                        const resolved = seat !== undefined && !partial;
+                        const slot = seat ? seat.slot : 0;
                         const bases = count ? z.readings[pool[slot]] : z.lower;
                         const flips = z.flips(bases);
                         const turn = flips.length
@@ -1039,9 +1104,29 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                          * the mess Jake predicts.
                          */
                         const states: { p: number; m: number }[] = [];
-                        if (state.resolve || !count) {
+                        if ((state.resolve && resolved) || !count) {
                             for (let p = 0; p < z.pairs.length; p++) {
                                 states.push({ p, m: bases[p] });
+                            }
+                        } else if (state.resolve && partial) {
+                            // A wall: the settled cells once, the standing ones
+                            // superposed. Which is the picture Jake asked for —
+                            // "four penrose tiles and two skewbs" — rather than
+                            // the whole 62-fold stack, most of which the grid
+                            // is not doing here.
+                            const seenState = new Set<string>();
+                            for (let p = 0; p < z.pairs.length; p++) {
+                                if (partial[p] !== null) {
+                                    states.push({ p, m: partial[p]! });
+                                    continue;
+                                }
+                                for (const ri of pool) {
+                                    const m = z.readings[ri][p];
+                                    const k = `${p}|${m}`;
+                                    if (seenState.has(k)) continue;
+                                    seenState.add(k);
+                                    states.push({ p, m });
+                                }
                             }
                         } else {
                             const seenState = new Set<string>();
@@ -1109,11 +1194,21 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                                         : (v > 0 ? "\u2191" : "\u2193").repeat(Math.abs(v));
                                     return `${f}${arrow}`;
                                 }).join(" ");
-                            const at = count
-                                ? `reading ${slot + 1}/${count}`
-                                    + `${held && count < z.readings.length ? " Penrose" : ""}`
+                            // What the STATE is, not where it sits in a list.
+                            //
+                            // This said `reading 22/62`, and Jake: "you still
+                            // count 62 permutation. We know there are only 10
+                            // which express penrose tiles." 62 is the zonogon's
+                            // combinatorics and the index was into that. The
+                            // state is the nudge, and it has a name.
+                            const view = viewNudge(model as Pentagrid);
+                            const at = !count ? "lower surface"
+                                : view ? `axis ${view.axis} · `
+                                    + `${view.sense > 0 ? "thin→thick" : "thick→thin"} · `
+                                    + `${view.paths}`
+                                    + `${resolved ? "" : " · standing"}`
                                     + ` · ${how}`
-                                : "lower surface";
+                                : `reading ${slot + 1}/${count} · ${how}`;
                             let pairText = "no flip";
                             if (turn) {
                                 const fams = turn.cell.map((l) => z.fams[l]);
@@ -1201,7 +1296,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // matching a superposition does not have) and after one is
                     // not: a seated tile is a legal tile and its arcs join.
                     seats = state.resolve
-                        ? seatsFor(model as Pentagrid, rhombs, state.reading) : null;
+                        ? seatsFor(model as Pentagrid, rhombs) : null;
                     ctx.lineWidth = 1.6;
                     ctx.lineCap = "round";
                     const STEPS = 14;
@@ -1249,7 +1344,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // Same seats the tiles use, so a mark sits on the corner it
                     // is marking and says the index that corner really has.
                     seats = state.resolve
-                        ? seatsFor(model as Pentagrid, rhombs, state.reading) : null;
+                        ? seatsFor(model as Pentagrid, rhombs) : null;
                     const R = Math.max(6, Math.min(10, v.scale * 0.11));
                     ctx.font = `bold ${Math.round(R * 1.4)}px sans-serif`;
                     ctx.textAlign = "center";
@@ -1401,7 +1496,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     // The reading's seats, so the tiles inside a 2k-gon can be
                     // drawn where that reading puts them rather than left out.
                     seats = state.resolve
-                        ? seatsFor(model as Pentagrid, rhombs, state.reading) : null;
+                        ? seatsFor(model as Pentagrid, rhombs) : null;
                     const pents = state.p1 ? p1Pentagons(rhombs, dirs) : [];
                     const { lo: idxLo, levels } = patchLevels(rhombs, stackKeys);
                     const placeable = levels === 4 || (levels === 5 && state.offPenrose);

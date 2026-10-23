@@ -21,14 +21,17 @@ if (host) {
     bindSliders(view, [
         { id: "roof-t", key: "grow", format: (v) => v.toFixed(2) },
         { id: "roof-band", key: "band", format: (v) => `${Math.round(v * 100)}%` },
-        // Both wrap per singularity against its own count — a hexagon has two
-        // readings, a decagon 62 — so one control drives every solid on screen.
-        { id: "roof-reading", key: "reading", format: (v) => `${v + 1}` },
+        // The singularity's state in Jake's three coordinates (§5.-1b): the
+        // anti-gridline, the sense, and which of the wall's two completions —
+        // or the wall itself. It replaced a 0..61 slider, which indexed the
+        // decagon zonogon's 62 rhombic tilings where the grid reaches ten.
+        { id: "roof-axis", key: "axis", format: (v) => `${v}` },
         { id: "roof-flip", key: "pick", format: (v) => `${v + 1}` },
     ]);
     bindSelects(view, [
         { id: "roof-edges", key: "edgeStyle" },
         { id: "roof-index", key: "indexStyle" },
+        { id: "roof-paths", key: "paths" },
     ]);
     bindToggles(view, [
         { id: "roof-penta", key: "penta" },
@@ -53,6 +56,17 @@ if (host) {
     // "change fold checkbox to opposite: flat. This reverses the function of
     // the checkmark. It's more intuitive." A box you tick to make something
     // happen beats one you untick.
+    // The sense is +1 or -1 underneath — it is the sign of the perturbation,
+    // and `wallView` reads it as one — so the checkbox maps onto the two signs
+    // rather than onto true and false. Checked is thin-then-thick along the
+    // spoke. Jake: "two configs (call it direction) on each."
+    const dir = document.getElementById("roof-direction") as HTMLInputElement | null;
+    if (dir) {
+        const apply = () => view.set({ direction: dir.checked ? 1 : -1 });
+        dir.addEventListener("change", apply);
+        apply();
+    }
+
     const flat = document.getElementById("roof-flat") as HTMLInputElement | null;
     if (flat) {
         const apply = () => view.set({ fold: flat.checked ? 0 : 1 });

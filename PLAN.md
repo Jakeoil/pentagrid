@@ -514,6 +514,61 @@ The two centered branches are exactly the 20 minimal nudges — the phason flips
 — so the branch control also *is* the flip control. Every one of the 50 cells
 of 5 × 2 × 5 is occupied exactly once.
 
+#### 5.-1c The control, as Jake reads it (2026-10-22) — `geometry/walls.ts`
+
+*"The exceptional singularity has 5 modes/directions. Entering, it encounters
+two neker scubes/skewbs. It can take the thin-thick thick-thin direction. and
+of that, the top or the bottom (or unresolved both)... 5 anti gridlines. two
+configs (call it direction) on each and high/low/both for paths."* And: *"I
+don't see that many."*
+
+He was right about that too, and §5.-1b's five-valued branch was the wrong
+object for a control. **A wall completes to exactly two readings and both are
+Penrose** — measured over every secondary nudge — and which two depends only
+on (axis, sense). Where the two skewbs came to rest along the spoke does not
+change the tiling, only their placement. So the control is his:
+
+| knob | values | what it is |
+|---|---|---|
+| `axis` | 5 | the anti-gridline: family j, whose line is the wall |
+| `direction` | ±1 | the ±ε involution: thin→thick or thick→thin |
+| `paths` | high / low / both | the wall's two completions, or the wall |
+
+**5 × 2 × 2 reaches all ten Penrose readings, each exactly twice** — once from
+each of the two walls it sits between. Measured: every reading 12–21 turns up
+with multiplicity 2 and nothing else turns up at all. `high` and `low` are
+ordered by `surfaceHeight`, the total popcount of the reading's base masks,
+which is literally how high the monotone surface stands — so they are the top
+and the bottom of Jake's sentence and not an arbitrary labeling.
+
+**And `both` is now the 4 + 2 picture, not the 62-fold stack.** `readingOf` is
+all-or-nothing, so a standing site used to fall back to the full superposition
+over its pool. `zonohedron.partialOf` settles it cell by cell: at a wall
+through the decagon **four of the ten cells settle and six stay stacked, and
+the six are exactly the two standing skewbs' own cells** — a cell belongs to a
+skewb when both its families do. So the wall draws four ordinary Penrose tiles
+and two Necker skewbs, which is what Jake asked for in the first place.
+
+The branch of §5.-1b is still the truth about the state space and still what
+`nudgeStates` returns; it is simply not a control. `wallView` picks the minimal
+(phason) representative of each cell, so stepping `high` → `low` across a wall
+holds everything but the two skewbs — which is what makes it a flip and not a
+jump.
+
+**Everything in `walls.ts` is memoized on the direction set**, keyed by the
+`directions` array itself rather than by a string built from its coordinates —
+the string cost more than the lookup it guarded. 30 cold `wallView`s went from
+6044 ms to 115 ms, almost all of it `completions` rebuilding the decagon's
+zonogon per call. And `wholeZono` refuses above `ENUMERATE_UPTO`: asking for the
+whole zonogon of a heptagrid means walking a 14-gon's flip graph, so the
+heptagrid page falls back to the cascade's own search.
+
+(`tools/pagecheck.mjs` on roof takes about 80 seconds, and always did: it clicks
+every button six times, **deflate** among them, and each deflation makes the
+patch φ² denser. Measured identical before and after this change — 172/319/758/
+1856 ms against 164/344/753/1890. Running three pagechecks at once is what makes
+it look like a hang.)
+
 **Which is why 62 must leave the readout.** 62 is the zonogon's
 combinatorics — every rhombic tiling of a regular decagon, found by flips —
 and the grid reaches ten of them. The control's `n/62` was an index into a
