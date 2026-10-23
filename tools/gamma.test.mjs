@@ -748,3 +748,43 @@ test("a preset goes back to the unit grid", () => {
     assert.ok(click.indexOf("set.setGeneration(0)") < click.indexOf("set.setValues"),
               "the generation is reset after the values, so lambda lags one draw");
 });
+
+test("the deflation map's spectrum, and why inflate is its inverse", () => {
+    // PLAN section 5.3. M = -(S^2 + S^3) is multiplication by phi in Z[zeta_5]
+    // and N = S + S^4 is the inverse Jake's inflate uses. Both are polynomials
+    // in the cyclic shift, so the eigenvalues are p(omega^k) -- and the one
+    // that matters for the gauge is the third.
+    const n = 5, PHI = (1 + Math.sqrt(5)) / 2;
+    const shiftPoly = (coeffs) => [...Array(n)].map((_, i) =>
+        [...Array(n)].map((_, j) => {
+            let v = 0;
+            for (const [pow, c] of coeffs) if ((j - i - pow + 2 * n) % n === 0) v += c;
+            return v;
+        }));
+    const eig = (coeffs) => [...Array(n).keys()].map((k) => {
+        let re = 0;
+        for (const [pow, c] of coeffs) re += c * Math.cos(2 * Math.PI * pow * k / n);
+        return +re.toFixed(9);
+    });
+    const Mc = [[2, -1], [3, -1]], Nc = [[1, 1], [4, 1]];
+    // -2 on the all-ones vector, phi on one plane, its Galois conjugate on the other.
+    assert.deepEqual(eig(Mc).slice().sort((a, b) => a - b),
+                     [-2, -1 / PHI, -1 / PHI, PHI, PHI].map((v) => +v.toFixed(9)));
+    assert.deepEqual(eig(Nc).slice().sort((a, b) => a - b),
+                     [-PHI, -PHI, 1 / PHI, 1 / PHI, 2].map((v) => +v.toFixed(9)));
+
+    // N M = I - J, so inflate undoes deflate on both zeta-planes exactly and
+    // differs from it only along the all-ones vector: the composition is
+    // gamma -> gamma - (sum gamma) * 1, which is pure gauge.
+    const M = shiftPoly(Mc), N = shiftPoly(Nc);
+    const NM = N.map((row) => M[0].map((_, j) =>
+        row.reduce((s, v, k) => s + v * M[k][j], 0)));
+    const IJ = [...Array(n)].map((_, i) =>
+        [...Array(n)].map((_, j) => (i === j ? 1 : 0) - 1));
+    assert.deepEqual(NM, IJ, "N M is not I - J");
+
+    // Which is why the gauge has to be fixed: -2 iterated is 2^m.
+    let c = 0.2;
+    for (let i = 0; i < 8; i++) c *= -2;
+    assert.ok(Math.abs(c) > 50, `the all-ones component only reached ${c}`);
+});

@@ -1856,6 +1856,47 @@ every point of the old tiling's Robinson subdivision is a vertex of the new
 tiling at the same screen pixel — the deflation happens in place. The sun
 deflates to the star and inflates back.
 
+**The third eigenvalue, and the gauge (2026-10-23).** Jake, after the blank
+screen: *"I get the change in wavelength, but the change in gammas, what's the
+theory on that."* The paragraphs above are the theory; what they leave out is
+the direction the bug lived in. M = −(S² + S³) is a polynomial in the cyclic
+shift, so its eigenvalues are p(ω^k) at the five fifth roots of unity, and
+they are (computed):
+
+| eigenvector | M = −(S²+S³) | N = S + S⁴ | product |
+|---|---|---|---|
+| 𝟙 (all ones) | **−2** | 2 | −4 |
+| E∥ plane | φ | 1/φ | 1 |
+| E⊥ plane | −1/φ | −φ | 1 |
+
+So **N is the exact inverse of M on both ζ-planes** — φ·(1/φ) = 1 and
+(−1/φ)(−φ) = 1 — and disagrees with it only along 𝟙. Precisely, N·M = I − J
+with J the all-ones matrix (verified entry by entry), so
+
+    inflate(deflate(γ)) = γ − Σγ·𝟙
+
+which is a move purely along 𝟙, and 𝟙 is **gauge**: γⱼ ↦ γⱼ − k for one
+integer k gives Kⱼ ↦ Kⱼ − k and f = Σ Kⱼvⱼ ↦ f − k Σvⱼ = f, because the five
+unit directions sum to zero. The tiling does not move at all.
+
+That is the whole shape of it. The two eigenvalues that carry the geometry are
+a φ and a 1/φ and they are inverse, so deflate and inflate compose to the
+identity *on the tiling*. The −2 carries nothing — along 𝟙 the state is γ mod
+ℤ𝟙, where c ↦ −2c is read mod 1 (the sun's 1/5 ↦ −2/5 ≡ 3/5, as above). But
+the stored **representative** is a real vector, and −2 iterated is 2^m: the
+class is right at every step and the numbers run away. γ went 0.2 → −0.4 →
+−0.8 → 1.6 → −3.2 → −6.4 → −12.8 with Σγ reaching −64, left the band of line
+indices `collectRhombs` searches, and the patch came back empty — 488 tiles at
+the sun, 2 after four steps. The first round trip even looked right, because
+0.2 → −0.8 is exactly a unit shift.
+
+So deflation needs a **gauge fixing**, and `GammaSet.reduce` is it: after every
+deflate or inflate, subtract the same integer from all five offsets, k =
+round(Σγ/5). Exact (a multiple of the denominator), invisible to the tiling,
+and it moves Σγ by 5k — preserving Σγ mod 5 and with it whether Σγ ∈ ℤ, which
+is Penrose. Jake's sequence then returns to the sun *exactly* rather than to a
+translate of it, and forty mixed steps leave no offset outside (−1, 1).
+
 ### 5.4 Kites and darts — P2 read off P3, per tile (2026-09-20)
 
 Jake's three references: Wikipedia's *Penrose tilings P2 and P3* pair (the thin
