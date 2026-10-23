@@ -86,3 +86,161 @@ test("the pentaplex overhangs its tile, and only the yellow does not", () => {
     assert.ok(frac > 0.5 && frac < 0.7,
               `${(100 * frac).toFixed(1)}% of the area is inside its own tile`);
 });
+
+// ── the taxonomy of PLAN section 5.6-a, axes A and B ──────────────────────
+import { rhombDeflation, rhombKitesDarts, rhombArcs, extremeCorner,
+         dressingReadings, ARC_T } from "../dist/geometry/decor.js";
+import { clipToConvex } from "../dist/geometry/region.js";
+
+const patch = (gamma, n = 5) => {
+    const dirs = makeDirections(true, n);
+    const pg = { n, directions: dirs, gamma };
+    const rs = collectRhombs(pg, { xMin: -8, xMax: 8, yMin: -8, yMax: 8 });
+    let lo = Infinity, hi = -Infinity;
+    for (const r of rs) {
+        const m = vertexIndex(r.kTuples[0]);
+        lo = Math.min(lo, m); hi = Math.max(hi, m);
+    }
+    return { pg, rs, lo, levels: hi - lo + 3 };
+};
+const polyArea = (p) => {
+    let s = 0;
+    for (let i = 0; i < p.length; i++) {
+        const a = p[i], b = p[(i + 1) % p.length];
+        s += a[0] * b[1] - b[0] * a[1];
+    }
+    return Math.abs(s) / 2;
+};
+
+test("axis A: next-gen and kites are inlay; only the pentaplex is overlay", () => {
+    // Jake: "The kites and next-gen types can be generated with two styles
+    // also." They can, and the measurement says which one they are now --
+    // both already confined, so the offer is symmetric and real.
+    const { rs, lo, levels } = patch([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const confined = (polysOf) => {
+        let n = 0, fully = 0;
+        for (const r of rs) {
+            for (const p of polysOf(r)) {
+                if (p.length < 3) continue;
+                const c = clipToConvex(p.map((q) => [...q]), r.vertices);
+                const a = polyArea(p), cc = c.length >= 3 ? polyArea(c) : 0;
+                n++;
+                if (Math.abs(cc - a) < 1e-9) fully++;
+            }
+        }
+        return { n, fully };
+    };
+    const next = confined((r) => {
+        const d = rhombDeflation(r, lo, levels);
+        return [...d.gold, ...d.gray];
+    });
+    assert.equal(next.fully, next.n, `next-gen: ${next.fully} of ${next.n} confined`);
+    const kd = confined((r) => {
+        const d = rhombKitesDarts(r, lo, levels);
+        return [...d.kites, ...d.darts];
+    });
+    assert.equal(kd.fully, kd.n, `kites: ${kd.fully} of ${kd.n} confined`);
+    const pen = confined((r) => {
+        const p = rhombPentagons(r, lo, levels);
+        return [...(p.yellow ? [p.yellow] : []), ...p.orange];
+    });
+    assert.ok(pen.fully < pen.n / 3, `pentaplex: ${pen.fully} of ${pen.n} confined`);
+});
+
+test("axis A: arcs are edge-pinned — every endpoint on an edge, and they bow out of the thin", () => {
+    // Jake: "arcs is also of this non-inlay type (classified as edge
+    // decoration, but I'm not sure)." Pinned is the right word: the endpoints
+    // are exactly on the edge, at ARC_T from the tail, which is what makes the
+    // curves join -- and they are NOT confined, leaving the thin tile where its
+    // 36 degree corner is too narrow for the radius 1 - ARC_T arc.
+    const { pg, rs } = patch([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const inTile = (p, V) => {
+        let area = 0;
+        for (let i = 0; i < 4; i++) {
+            const a = V[i], b = V[(i + 1) % 4];
+            area += a[0] * b[1] - b[0] * a[1];
+        }
+        const sg = area >= 0 ? 1 : -1;
+        for (let i = 0; i < 4; i++) {
+            const a = V[i], b = V[(i + 1) % 4];
+            const ex = b[0] - a[0], ey = b[1] - a[1];
+            const d = sg * ((p[0] - a[0]) * ey - (p[1] - a[1]) * ex) / Math.hypot(ex, ey);
+            if (d > 1e-9) return false;
+        }
+        return true;
+    };
+    const onAnEdge = (p, V) => {
+        for (let k = 0; k < 4; k++) {
+            const u = V[k], w = V[(k + 1) % 4];
+            const ex = w[0] - u[0], ey = w[1] - u[1], L = Math.hypot(ex, ey);
+            const s = ((p[0] - u[0]) * ex + (p[1] - u[1]) * ey) / (L * L);
+            const off = Math.abs((p[0] - u[0]) * ey - (p[1] - u[1]) * ex) / L;
+            if (s > -1e-9 && s < 1 + 1e-9 && off < 1e-9) return true;
+        }
+        return false;
+    };
+    let ends = 0, pinned = 0;
+    const out = { thick: 0, thin: 0 }, pts = { thick: 0, thin: 0 };
+    for (const r of rs) {
+        const kind = r.thick ? "thick" : "thin";
+        for (const a of rhombArcs(pg, r)) {
+            let d = a.a2 - a.a1;
+            while (d > Math.PI) d -= 2 * Math.PI;
+            while (d < -Math.PI) d += 2 * Math.PI;
+            for (let i = 0; i <= 20; i++) {
+                const t = a.a1 + d * (i / 20);
+                const p = [a.x + a.r * Math.cos(t), a.y + a.r * Math.sin(t)];
+                pts[kind]++;
+                if (!inTile(p, r.vertices)) out[kind]++;
+                if (i === 0 || i === 20) {
+                    ends++;
+                    if (onAnEdge(p, r.vertices)) pinned++;
+                }
+            }
+        }
+    }
+    assert.equal(pinned, ends, `only ${pinned} of ${ends} arc endpoints sit on an edge`);
+    assert.equal(out.thick, 0, `${out.thick} arc points left a THICK tile`);
+    assert.ok(out.thin > 0, "the arcs no longer bow out of the thin tile");
+    assert.ok(Math.abs(ARC_T - 1 / ((1 + Math.sqrt(5)) / 2) ** 2) < 1e-12);
+});
+
+test("axis B: the arrow is the extreme corner, and only Penrose arrows every tile", () => {
+    // Jake: "Some decorations only work with penrose arrow rhombuses, but some,
+    // like kowalewski, bands, and any wieringa work with any LI (barring
+    // singular exceptions)." The mechanism: extremeCorner exists only when the
+    // tile's four levels touch an END of the patch's index range, and sum gamma
+    // in Z gives exactly four levels -- so every tile has one.
+    const count = (gamma, n = 5) => {
+        const { pg, rs, lo, levels } = patch(gamma, n);
+        let arrowed = 0, ambiguous = 0, arcs = 0;
+        for (const r of rs) {
+            if (extremeCorner(r, lo, levels) !== null) arrowed++;
+            else if (dressingReadings(r, lo, levels).length) ambiguous++;
+            if (rhombArcs(pg, r).length === 2) arcs++;      // no index needed
+        }
+        return { levels, tiles: rs.length, arrowed, ambiguous, arcs };
+    };
+    for (const g of [[0.2, 0.2, 0.2, 0.2, 0.2], [0.4, 0.4, 0.4, 0.4, 0.4],
+                     [0.11, 0.23, 0.31, 0.17, 0.18]]) {
+        const c = count(g);
+        assert.equal(c.levels, 4, `Penrose should span four levels, got ${c.levels}`);
+        assert.equal(c.arrowed, c.tiles,
+                     `${c.arrowed} of ${c.tiles} arrowed on a Penrose patch`);
+        assert.equal(c.ambiguous, 0);
+        assert.equal(c.arcs, c.tiles, "arcs need no arrow");
+    }
+    // Off Penrose: five levels, and most tiles have no end to point at.
+    for (const g of [[0.11, 0.23, 0.31, 0.17, 0.40], [0.1, 0.1, 0.1, 0.1, 0.1]]) {
+        const c = count(g);
+        assert.equal(c.levels, 5, `off Penrose should span five levels, got ${c.levels}`);
+        assert.ok(c.arrowed < c.tiles / 2,
+                  `${c.arrowed} of ${c.tiles} arrowed off Penrose — too many`);
+        assert.ok(c.ambiguous > 0, "nothing ambiguous off Penrose");
+        assert.equal(c.arcs, c.tiles, "arcs should still reach every tile");
+    }
+    // And at n = 7 there is no arrow marking to speak of, but arcs still work.
+    const h = count([0.13, 0.17, 0.19, 0.23, 0.29, 0.31, 0.37], 7);
+    assert.ok(h.arrowed < h.tiles / 4, `${h.arrowed} of ${h.tiles} arrowed on a heptagrid`);
+    assert.equal(h.arcs, h.tiles, "arcs should reach every tile at n = 7");
+});

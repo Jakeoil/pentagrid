@@ -2104,6 +2104,117 @@ case** — it colors the whole face by its axis — so `inlay` is the finer vers
 of a thing the panel already has, and the two should probably be neighbors in
 the layout, or `inlay` should subsume `kowalewski` as one of its schemes.
 
+#### The taxonomy, measured (Jake, 2026-10-23)
+
+Jake: *"Yes, inlay and what else? context? The kites and next-gen types can be
+generated with two styles also. And arcs is also of this non-inlay type
+(classified as edge decoration, but I'm not sure). Some decorations only work
+with penrose arrow rhombuses, but some, like kowalewski, bands, and any
+wieringa work with any LI (barring singular exceptions)."*
+
+He is right on every count, and the three things he names are **three
+independent axes**. Counted over the sun at reach 8, 498 tiles:
+
+**A — where the figure lies.** `inlay` wants an opposite, and `context` is the
+wrong one for this axis (see C). The pair that says it is **inlay / overlay** —
+same suffix, opposite preposition: set *into* one tile against laid *over* the
+patch. A third value is needed for the arcs.
+
+| | pieces | wholly inside their tile | area inside |
+|---|---|---|---|
+| **next-gen** | 2602 | **2602** | **100.0%** |
+| **kites** | 1301 | **1301** | **100.0%** |
+| **pentaplex** | 1301 | 305 | 61.7% |
+
+So Jake's reading is exactly right: **next-gen and kites are already pure
+inlay** and the pentaplex is the only one that is not. "Can be generated with
+two styles also" is therefore a real and symmetric offer — next-gen and kites
+could gain an **overlay** form (whole deflated rhombs, whole kites, crossing
+tile edges and deduplicated the way `drawPentaPass` deduplicates pentagons),
+and the pentaplex could gain an **inlay** form (clipped, which `view/growth.ts`
+already does, together with `strokeOwnEdges` so the clip is not drawn).
+
+**Arcs are a third thing, and the measurement settles Jake's doubt.** Every one
+of the **1992 arc endpoints lies exactly on a tile edge** — at ARC_T = 1/φ²
+from the tail, which `edgeCrossing` computes from the edge alone, so both tiles
+agree and the curves join. That is the sense in which Jake's "edge decoration"
+is right. But they are *not* confined: of 20916 sampled arc points, 1544 fall
+outside their own tile, and they split entirely by prototile —
+
+| | arc points outside their tile |
+|---|---|
+| thick | **0 of 12810 (0.0%)** |
+| thin | **1544 of 8106 (19.0%)** |
+
+— because the thin's 36° corner is too narrow for the radius 1 − ARC_T = 0.618
+arc at v₂. So arcs are **edge-pinned**: fixed where they meet the edge, free to
+bow past it. Proposed third value: `pinned`.
+
+**B — what the decoration reads.** This is Jake's "only work with penrose arrow
+rhombuses", and it has a sharp mechanism.
+
+| reads | decorations | needs |
+|---|---|---|
+| **shape** — r.j, r.k (and v₀/v₂) | bands, Kowalewski, **arcs** | nothing else: any n, any γ |
+| **index** — ΣK via `vertexIndex` | height, isoglosses — Jake's "any wieringa" | nothing else: any n, any γ |
+| **arrow** — `extremeCorner(r, lo, levels)` | pentaplex, next-gen, kites, arrows | the tile's levels at an **end** of the patch's index range |
+
+`rhombArcs` takes no `lo` and no `levels` — it is built from the two direction
+vectors and v₀, v₂ — so **arcs are in the shape class, not the arrow class**.
+They are the one Penrose-looking decoration that needs no Penrose.
+
+And the arrow class is Penrose-only for a reason that can be stated exactly:
+**the arrow IS the extreme corner, which exists only when the tile's four
+levels touch an end of the range.** On a Penrose patch the range is exactly
+four levels, so every tile has one:
+
+| | Σγ | levels | tiles | arrowed | ambiguous |
+|---|---|---|---|---|---|
+| sun | 1 | 4 | 498 | **498** | 0 |
+| star | 2 | 4 | 509 | **509** | 0 |
+| generic Penrose | 1 | 4 | 498 | **498** | 0 |
+| off Penrose | 1.22 | 5 | 512 | 170 | 342 |
+| off Penrose | 0.5 | 5 | 500 | 127 | 373 |
+| heptagrid | 1.69 | 6 | 509 | 56 | 453 |
+
+Σγ ∈ ℤ gives four levels and a complete arrow marking; anything else gives five
+or six and most tiles have no end to point at. `dressingReadings` is the policy
+for those — both candidates at half strength, the union of the alternatives —
+which is Jake's *"barring singular exceptions"* seen from the other side, and
+the second exception is the genuinely singular γ, where tiles stack and there
+is no single position to dress at all (§5.-1's seats).
+
+**C — whether it must consult its neighbors.** Here `context` is the right
+word, and it is **not** the same question as A. Everything in the panel is
+**autonomous** — determined by its own tile — except one thing: the pentaplex's
+innie/outie, where `pentaSides` looks up the cell across each edge (M = a + b −
+C) in a patch-wide index and bows the boundary accordingly. So:
+
+| axis | values |
+|---|---|
+| A where it lies | `inlay` · `overlay` · `pinned` |
+| B what it reads | `shape` · `index` · `arrow` |
+| C what it consults | `autonomous` · `contextual` |
+
+Placing every decoration the panel has:
+
+| decoration | A | B | C |
+|---|---|---|---|
+| bands | inlay | shape | autonomous |
+| Kowalewski | inlay | shape | autonomous |
+| arcs | **pinned** | **shape** | autonomous |
+| height, isoglosses | inlay | index | autonomous |
+| next-gen | inlay | arrow | autonomous |
+| kites | inlay | arrow | autonomous |
+| pentaplex (straight) | **overlay** | arrow | autonomous |
+| pentaplex (innie/outie) | overlay | arrow | **contextual** |
+
+The new confined scheme would be `inlay` · `shape` · `autonomous` — the same
+cell as Kowalewski, which is why §5.6-a already notes Kowalewski is its
+degenerate case. Being in the `shape` class is the valuable part: it would work
+at any n and any γ, like bands and the wieringa treatments, where everything in
+the `arrow` class needs Σγ ∈ ℤ.
+
 **Open, for Jake:** which regions, inside each prototile, and which gets blue.
 The pentaplex's own answer (PENTA_R = 1/φ², pentagons at the extreme corner)
 is what makes it overhang; a confined scheme needs a dissection of the rhomb
