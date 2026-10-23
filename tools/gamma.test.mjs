@@ -6,7 +6,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createGammaSet, describeSum, penroseCondition } from "../dist/geometry/gamma.js";
 import { singularTriples } from "../dist/geometry/regularity.js";
-import { collectRhombs, computeKTuple } from "../dist/geometry/pentagrid.js";
+import { collectRhombs, computeKTuple, makeDirections } from "../dist/geometry/pentagrid.js";
+import { readFileSync } from "node:fs";
 import { liftLocal } from "../dist/geometry/roof.js";
 
 const near = (a, b, eps = 1e-12) => Math.abs(a - b) < eps;
@@ -661,4 +662,89 @@ test("deflate is gamma''_j = -(gamma_{j+2} + gamma_{j+3}) and lambda/phi; inflat
     g.setGeneration(2);
     assert.ok(Math.abs(g.model.lambda - PHI * PHI) < 1e-12);
     assert.deepEqual(g.values(), held, "setGeneration leaves gamma alone");
+});
+
+test("deflate and inflate are inverses, and do not let gamma run away", () => {
+    // Jake, 2026-10-23, on the reticulum: "Set preset on reticulum to sun.
+    // Press deflate... press inflate. phi^0 nothing shows. error."
+    //
+    // Measured, that is exactly what happened: deflation does not preserve the
+    // SCALE of gamma. M's eigenvalue on the all-ones vector is -2, so every
+    // step doubles the sum and the offsets with it --
+    //
+    //   0.2 -> -0.4 -> -0.8 -> 1.6 -> -3.2 -> -6.4 -> -12.8,  sum 1 -> -64
+    //
+    // -- and the band of line indices collectRhombs searches is nowhere near
+    // -64. Every one of those vectors is the SAME tiling as its reduced form,
+    // so nothing was wrong with the mathematics and everything was wrong with
+    // the numbers.
+    // Set up the way the preset popup does: release the total, write the
+    // vector, then hold gamma_0.
+    const g = createGammaSet({ n: 5, den: 100 });
+    g.setGuard(false);
+    g.setLocked(-1);
+    g.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    g.setLocked(0);
+    const sun = g.values().join(",");
+    assert.equal(g.getSum(), 1, "the sun is sum 1");
+    const seen = [];
+    const step = (what) => {
+        g[what]();
+        seen.push(`${what} gen=${g.getGeneration()} sum=${g.getSum()} `
+                  + `g=${g.values().join(",")}`);
+    };
+    // One down, one up: back to the sun exactly, not to a translate of it.
+    step("deflate"); step("inflate");
+    assert.equal(g.getGeneration(), 0, seen.join(" | "));
+    assert.equal(g.values().join(","), sun, `one round trip drifted: ${seen.join(" | ")}`);
+    assert.equal(g.getSum(), 1, "and the sum came back");
+
+    // Two down, two up: Jake's sequence, the one that went blank.
+    seen.length = 0;
+    step("deflate"); step("deflate"); step("inflate"); step("inflate");
+    assert.equal(g.getGeneration(), 0, seen.join(" | "));
+    assert.equal(g.values().join(","), sun, `two round trips drifted: ${seen.join(" | ")}`);
+
+    // And it stays bounded however long you go, which is the actual property:
+    // no sequence of deflations should push an offset out of reach.
+    let worst = 0;
+    for (let i = 0; i < 40; i++) {
+        g[i % 3 === 2 ? "inflate" : "deflate"]();
+        for (const v of g.values()) worst = Math.max(worst, Math.abs(v));
+    }
+    assert.ok(worst < 1, `an offset reached ${worst} over 40 steps`);
+});
+
+test("the uniform integer shift deflation needs is invisible to the tiling", () => {
+    // Why the reduction is allowed at all: K_j(x) = ceil(x.v_j + gamma_j), so
+    // gamma_j -> gamma_j - k gives K_j -> K_j - k and f = sum K_j v_j moves by
+    // -k sum v_j, which is zero because the n unit directions sum to zero.
+    for (const n of [5, 7]) {
+        const dirs = makeDirections(n === 5);
+        let sx = 0, sy = 0;
+        for (const v of dirs) { sx += v[0]; sy += v[1]; }
+        assert.ok(Math.hypot(sx, sy) < 1e-12,
+                  `the ${n} directions do not sum to zero: ${sx}, ${sy}`);
+    }
+    // And end to end: the same patch, gamma shifted by a whole unit.
+    const vis = { xMin: -6, xMax: 6, yMin: -6, yMax: 6 };
+    const dirs = makeDirections(true);
+    const at = (c) => collectRhombs({ n: 5, directions: dirs, gamma: [c, c, c, c, c] }, vis)
+        .map((r) => `${r.x0.toFixed(6)},${r.y0.toFixed(6)},${r.j}${r.k}`)
+        .sort().join("|");
+    assert.equal(at(0.2), at(-0.8), "a unit shift moved the tiling");
+    assert.equal(at(0.2), at(3.2), "three units moved the tiling");
+});
+
+test("a preset goes back to the unit grid", () => {
+    // Jake: "reloading preset does not set phi back to 0 either." The catalog
+    // is written at lambda = phi^0, so a preset that leaves the spacing where
+    // it was describes neither the preset nor the generation.
+    const html = readFileSync("src/view/controls.ts", "utf8");
+    const click = html.slice(html.indexOf('b.title = p.note;'),
+                             html.indexOf('popup.appendChild(b);'));
+    assert.ok(click.includes("set.setGeneration(0)"),
+              "the preset handler does not reset the generation");
+    assert.ok(click.indexOf("set.setGeneration(0)") < click.indexOf("set.setValues"),
+              "the generation is reset after the values, so lambda lags one draw");
 });

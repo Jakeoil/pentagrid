@@ -312,6 +312,43 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     }
 
     /**
+     * Pull every offset back by the same integer, which leaves the tiling
+     * exactly where it is.
+     *
+     * K_j(x) = ⌈x·v_j + γ_j⌉, so γ_j ↦ γ_j − k gives K_j ↦ K_j − k and
+     * f = Σ K_j v_j ↦ f − k Σ v_j = f, because the n unit directions sum to
+     * zero. The tiling does not move; only the bookkeeping does.
+     *
+     * Which has to happen after a deflation, because deflation does not
+     * preserve the SCALE of γ. M's eigenvalue on the all-ones vector is −2, so
+     * Σγ doubles at every step and the offsets double with it. Jake, 2026-10-23,
+     * on the reticulum: sun, then deflate and inflate twice each, and
+     * *"nothing shows. error."* Measured — γ had run 0.2 → −0.4 → −0.8 → 1.6 →
+     * −3.2 → −6.4 → −12.8 per offset and Σγ to −64, which is far outside the
+     * band of line indices `collectRhombs` searches: 488 tiles at the start, 2
+     * at the end. Every one of those γ is the same tiling as its reduced form,
+     * so nothing was wrong with the mathematics and everything was wrong with
+     * the numbers.
+     *
+     * It matters for the indices too, not just the window. `vertexIndex` is
+     * Σ K_j, which a uniform shift moves by n·k — so without this the de Bruijn
+     * levels drift away from 0..n−1 and anything keyed on them (the height
+     * ramp, the pool balls) is reading the wrong number.
+     *
+     * The reduction is a multiple of the denominator, so it is exact, and Σγ
+     * moves by n·k: Σγ mod n is preserved, and with it whether Σγ is an
+     * integer — which is Penrose. The class survives; only the representative
+     * changes.
+     */
+    function reduce() {
+        let total = 0;
+        for (const v of q) total += v;
+        const k = Math.round(total / (n * den));
+        if (!k) return;
+        for (let j = 0; j < n; j++) q[j] -= k * den;
+    }
+
+    /**
      * Move γ off the singular set if it is on it.
      *
      * A triple can only be singular when its lone γ is an integer, so taking
@@ -423,7 +460,8 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
             const next = n === 5 ? q.map((_, j) => -(q[(j + 2) % n] + q[(j + 3) % n])) : q.slice();
             locked = -1;
             for (let j = 0; j < n; j++) q[j] = next[j];
-            uniformIntent = next.every((v) => v === next[0]);
+            reduce();
+            uniformIntent = q.every((v) => v === q[0]);
             generation -= 1;
             model.lambda = Math.pow(PHI, generation);
             settle();
@@ -435,7 +473,8 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
             const next = n === 5 ? q.map((_, j) => q[(j + n - 1) % n] + q[(j + 1) % n] - shift) : q.slice();
             locked = -1;
             for (let j = 0; j < n; j++) q[j] = next[j];
-            uniformIntent = next.every((v) => v === next[0]);
+            reduce();
+            uniformIntent = q.every((v) => v === q[0]);
             generation += 1;
             model.lambda = Math.pow(PHI, generation);
             settle();

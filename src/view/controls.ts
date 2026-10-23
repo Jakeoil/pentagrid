@@ -374,6 +374,12 @@ export function mountReticulum(
             // preserve while exploring around one is the total. Locked at −1
             // the first dial you touch moved the sum and left the class.
             set.setLocked(-1);
+            // Back to the unit grid. A preset is a point in the catalog and
+            // the catalog is written at λ = φ⁰, so loading one after a few
+            // deflations and leaving the spacing where it was described
+            // neither the preset nor the generation. Jake, 2026-10-23:
+            // "reloading preset does not set phi back to 0 either."
+            set.setGeneration(0);
             set.setValues(p.gamma.map((q) => q / p.den));
             set.setLocked(0);
             // The popup stays up, like settings: dismissed by its own button,
