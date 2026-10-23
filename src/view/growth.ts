@@ -1020,6 +1020,24 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                         const pool = seat ? seat.pool
                             : (held && z.penrose.length ? z.penrose
                                 : z.readings.map((_, i) => i));
+                        // What a SUPERPOSITION shows, which is not the same
+                        // list. `pool` is what the single-surface case indexes
+                        // into, and the cascade hands back every reading there
+                        // so that the index means what it says. The states to
+                        // show at once are the ones the grid can actually
+                        // reach, and on a Penrose grid that is ten, not 62 —
+                        // Jake: "we know there are only 10 which express
+                        // penrose tiles."
+                        //
+                        // Reading these off `pool` is what went wrong at
+                        // `both`: the four settled cells were drawn once and
+                        // correctly, and then buried under ghosts from 52
+                        // readings the grid never takes. Jake: "both is
+                        // mistaken about the decagon. The rhombs inside the
+                        // decagon that are unchanged with high and low should
+                        // also be unchanged for both."
+                        const shown = held && z.penrose.length
+                            ? z.penrose : z.readings.map((_, i) => i);
                         const count = z.readings.length ? pool.length : 0;
                         // Seated or STANDING. The nudge the controls name
                         // resolves most sites and leaves the wall's own alone,
@@ -1114,13 +1132,33 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             // "four penrose tiles and two skewbs" — rather than
                             // the whole 62-fold stack, most of which the grid
                             // is not doing here.
+                            // Only the readings that AGREE with what the wall
+                            // already settled.
+                            //
+                            // Jake: "both is mistaken about the decagon. The
+                            // rhombs inside the decagon that are unchanged with
+                            // high and low should also be unchanged for both."
+                            // They were drawn, and then contradicted: the open
+                            // cells superposed over every reachable reading,
+                            // including the eight whose settled cells disagree
+                            // with this wall. Those ghosts are states the grid
+                            // cannot be in while standing on this wall.
+                            //
+                            // Filtered, what survives is exactly the wall's two
+                            // completions — so `both` is the union of high and
+                            // low, which is what it should have been saying all
+                            // along: everything those two agree on, held, and
+                            // the two skewbs showing both of their states.
+                            const agrees = shown.filter((ri) =>
+                                partial.every((m, p) =>
+                                    m === null || z.readings[ri][p] === m));
                             const seenState = new Set<string>();
                             for (let p = 0; p < z.pairs.length; p++) {
                                 if (partial[p] !== null) {
                                     states.push({ p, m: partial[p]! });
                                     continue;
                                 }
-                                for (const ri of pool) {
+                                for (const ri of (agrees.length ? agrees : shown)) {
                                     const m = z.readings[ri][p];
                                     const k = `${p}|${m}`;
                                     if (seenState.has(k)) continue;
@@ -1130,7 +1168,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                             }
                         } else {
                             const seenState = new Set<string>();
-                            for (const ri of pool) {
+                            for (const ri of shown) {
                                 const b = z.readings[ri];
                                 for (let p = 0; p < z.pairs.length; p++) {
                                     const k = `${p}|${b[p]}`;

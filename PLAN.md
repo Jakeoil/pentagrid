@@ -549,6 +549,19 @@ the six are exactly the two standing skewbs' own cells** — a cell belongs to a
 skewb when both its families do. So the wall draws four ordinary Penrose tiles
 and two Necker skewbs, which is what Jake asked for in the first place.
 
+**And `both` is exactly the union of `high` and `low`.** Jake: *"both is
+mistaken about the decagon. The rhombs inside the decagon that are unchanged
+with high and low should also be unchanged for both."* The four settled cells
+were right and were drawn; what contradicted them was the superposition beside
+them, which ran each open cell over every reachable reading — including the
+eight whose settled cells disagree with this wall. Those are states the grid
+cannot be in while standing here. Filtered to the readings that agree with what
+the wall settled, what survives is precisely its two completions, so the whole
+picture is: everything high and low agree on, held, and the two skewbs showing
+both of their states. Measured at Γ = 0 on axis 0 — 250 faces each, 202 in
+common, 250 + 250 − 202 = **298** at `both`, and the same identity on all five
+axes.
+
 The branch of §5.-1b is still the truth about the state space and still what
 `nudgeStates` returns; it is simply not a control. `wallView` picks the minimal
 (phason) representative of each cell, so stepping `high` → `low` across a wall

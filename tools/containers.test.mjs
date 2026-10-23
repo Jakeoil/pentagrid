@@ -3916,3 +3916,62 @@ test("the singularity control is axis x direction x paths, and both leaves the w
     assert.notEqual(snap({ paths: "high", direction: -1 }), base,
                     "the direction does nothing");
 });
+
+test("both is exactly the union of high and low", () => {
+    // Jake, 2026-10-22: "both is mistaken about the decagon. The rhombs inside
+    // the decagon that are unchanged with high and low should also be unchanged
+    // for both."
+    //
+    // The masks were right — a wall settles four of the decagon's ten cells and
+    // they match both completions exactly (walls.test.mjs). And they were drawn.
+    // What contradicted them was the superposition beside them: the open cells
+    // ran over every reachable reading, including the eight whose settled cells
+    // disagree with this wall, so the picture showed states the grid cannot be
+    // in while standing here.
+    //
+    // Filtered to the readings that agree with what the wall settled, what is
+    // left is exactly its two completions. So the statement to hold is the
+    // clean one: `both` draws the union of `high` and `low`, nothing else and
+    // nothing less. Measured at Γ = 0 on axis 0: 250 faces each, 202 in common,
+    // and 250 + 250 − 202 = 298 at `both`.
+    const v = createGrowthView({ container: host(), lift: true });
+    v.pentagrid.gamma.setLocked(-1);
+    v.pentagrid.gamma.setValues([0, 0, 0, 0, 0]);   // the exceptional singularity
+    const solids = v.pentagrid.stack.get("solids");
+    let path = [];
+    const quads = [];
+    solids.ctx.beginPath = () => { path = []; };
+    solids.ctx.moveTo = (x, y) => path.push([x, y]);
+    solids.ctx.lineTo = (x, y) => path.push([x, y]);
+    const keep = () => {
+        if (path.length !== 4) return;
+        quads.push(path.map((p) => p.map((q) => +q.toFixed(2)).join(",")).join("|"));
+    };
+    solids.ctx.fill = keep;
+    solids.ctx.stroke = keep;
+    const run = (paths, axis) => {
+        v.set({ grow: 1, fold: 1, band: 0, resolve: true, solids: true,
+                showResolutions: false, direction: 1, axis, paths });
+        quads.length = 0;
+        v.redraw();
+        return new Set(quads);
+    };
+    for (let axis = 0; axis < 5; axis++) {
+        const hi = run("high", axis), lo = run("low", axis), bo = run("both", axis);
+        assert.ok(hi.size > 20, `only ${hi.size} faces at high, axis ${axis}`);
+        const union = new Set([...hi, ...lo]);
+        const settled = [...hi].filter((q) => lo.has(q));
+        assert.ok(settled.length > 0, `high and low agree on nothing, axis ${axis}`);
+
+        const missing = settled.filter((q) => !bo.has(q));
+        assert.equal(missing.length, 0,
+                     `axis ${axis}: ${missing.length} of ${settled.length} settled `
+                     + "faces are missing at both");
+        const stray = [...bo].filter((q) => !union.has(q));
+        assert.equal(stray.length, 0,
+                     `axis ${axis}: both drew ${stray.length} faces in neither `
+                     + "completion — states this wall cannot be in");
+        assert.equal(bo.size, union.size,
+                     `axis ${axis}: both has ${bo.size} faces, the union ${union.size}`);
+    }
+});
