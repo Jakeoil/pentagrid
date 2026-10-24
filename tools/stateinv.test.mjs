@@ -79,3 +79,27 @@ test("gamma is exactly serializable, which is what lets the reticulum travel", (
     assert.ok(gamma.includes("options.denominator ?? 2000 * n"),
               "the denominator rule moved; PLAN 9.2 quotes den = 2000n");
 });
+
+test("the widget's first three attributes are shipped, and the raster is its own layer", () => {
+    // PLAN 9.8, decided 2026-10-24: a setup serializes as HTML ATTRIBUTES on
+    // the container, and the pattern already exists -- readCanvasSpec reads
+    // three of them today, so the widget's first three attributes are done and
+    // the rest of 9.2's inventory joins them.
+    assert.ok(view.includes('intAttr(el, "data-width")'), "data-width is gone");
+    assert.ok(view.includes('intAttr(el, "data-height")'), "data-height is gone");
+    assert.ok(view.includes('intAttr(el, "data-margin")'), "data-margin is gone");
+
+    // PLAN 5.99, decided the same day: one SVG per CANVAS, and a canvas is a
+    // layer here. That quarantines the one thing which cannot be vector --
+    // drawKRegions is the ENTIRE draw of the `background` layer, so it becomes
+    // one file that can be skipped. If anything else moves into that layer the
+    // quarantine is gone and 5.99 needs revisiting.
+    const at = view.indexOf('id: "background"');
+    assert.ok(at >= 0, "the background layer is gone");
+    // Its draw, which is one line and has to stay one thing.
+    const line = view.slice(view.indexOf("draw:", at),
+                            view.indexOf("\n", view.indexOf("draw:", at)));
+    assert.ok(line.includes("drawKRegions"), `the background layer draws ${line}`);
+    assert.equal((line.match(/draw[A-Z][a-zA-Z]*\(/g) ?? []).length, 1,
+                 `the background layer draws more than the raster: ${line}`);
+});

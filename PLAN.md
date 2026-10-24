@@ -112,14 +112,23 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
 6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
-7. **An SVG renderer beside the canvas.** Jake, 2026-10-24, *"toying with the
-   idea… not a replacement."* §5.99 has the measurements: the layers use 28
-   members of the context and nothing else, so a recording context would need
-   no change to any layer's `draw`. The shape of it is an export rather than a
-   second interactive renderer — 725 nodes for a bare tiling but 32480 with
-   everything on — and four members need decisions: the height ramp's one
-   gradient per face, the inlay's clip per pentagon, `measureText` (no layout
-   in a recorder) and `drawKRegions`, which is a genuine per-pixel raster.
+7. **An SVG export, one file per canvas.** Jake, 2026-10-24: *"The svg should
+   be an export mode only. Only an SVG per canvas for now."* §5.99 has the
+   measurements and the decision. A canvas is a LAYER here, so that is 12 files
+   from method and no compositing at all — each layer already draws to exactly
+   one context, and the one raster layer (`background`, whose whole draw is
+   `drawKRegions`) becomes a file that can simply be skipped. What remains is
+   deduplicating the height ramp's gradient per face and the inlay's clip per
+   pentagon, both now per layer.
+8. **Parameterize the canvases.** Jake, 2026-10-24, five wants; §9 has the plan
+   and his decisions. The state is not a value yet — `PentagridHandle` has
+   every setter and no getter but `getView` — so §9.1 is the first commit and
+   §9.2's inventory (53 booleans, 8 enums, 10 numbers, γ already exact) is the
+   second. The serialized form is **HTML attributes on the container**, not a
+   URL: `readCanvasSpec` already reads three of them, the omission rule is what
+   HTML already means, and *"method.html built from its own embed"* is the
+   completeness test. The reticulum travels as a one-slot stack pulled by a
+   `restore` preset.
 
 ## 4. Standing rules
 
@@ -3978,16 +3987,37 @@ argument.
   record of it — which would make de-dualization (§3 item 3) a matter of
   reading a file, and would give the wieringa net pages something to cut from.
 
-#### Open, for Jake
+#### Decided (Jake, 2026-10-24)
 
-1. **Export or mode?** A download button is a few hundred lines; a live SVG
-   stack is a rendering strategy and needs the node counts above to come down.
-2. **Which layers?** All of them, or the Penrose side only — the grid lines and
-   the reticulum are cheap, `kRegions` is a raster, and the loupe is furniture.
-3. **Data attributes on tiles?** Free to add, and it changes what the file *is*.
-4. **One file or one per layer?** A `<g id="penrose-tiles">` per layer keeps the
-   stack legible and lets the recipient turn things off in the editor, which is
-   the same affordance the panel gives.
+> *"The svg should be an export mode only. Only an SVG per canvas for now."*
+
+**Export only**, so the node counts stop being a constraint — 32480 nodes is a
+fine file and a bad document to hover, and nothing has to hover it.
+
+**One SVG per canvas**, which in this architecture means **one per layer**:
+`LayerStack.add` builds a canvas per layer, stacked by z in one container, so
+method carries **12 drawn layers** (Pentagrid 5: background, grid, dots,
+ammann-grid, klabels · Axes 1 · Penrose 6: penrose-tiles, big-rhombs,
+penrose-edges, penrose-pseudo, penrose-decor, penrose-vertices) and split the
+same set across two containers. That is the cheapest possible shape and it
+dissolves three of the four problems above:
+
+- **No compositing.** Each layer already draws to exactly one context, so a
+  recording context per layer is the whole implementation. No z-order merge, no
+  group nesting across layers, no decision about what a `<g>` means.
+- **The raster is quarantined.** `drawKRegions` is the entire draw of the
+  `background` layer and nothing else is in it, so the one layer that cannot be
+  vector is one file that can simply be skipped — or emitted as an embedded PNG
+  — without touching any other.
+- **The recipient turns layers off by not opening a file**, which was the only
+  thing the per-layer `<g>` was for.
+
+What remains is the gradient and clip deduplication of the two paragraphs
+above, both now per-layer and so smaller, and `measureText`, which only the
+label layers use.
+
+Still open: **data attributes on tiles** (§9.9's point — free to add, and it
+changes what the file *is*).
 
 ## 6. Not built
 
@@ -4881,14 +4911,43 @@ blob with one lifetime, it is three:
 | **page** | `Features`, `TileStyle`, `GrowthState`, layer visibility, view | per page id |
 | **transient** | hover, the loupe, pointer position, the readout | never saved |
 
-*"Create a setting on method, switch to roof, and use it there"* is then exactly:
-write the shared scope on change, read it on load. And the one hazard is **n** —
-`grow7.html` is a heptagrid, so the shared slice carries its own n and a page
-with a different n must refuse it rather than reinterpret five numerators as
-seven. Same for `generation`, which is the pentagrid's only (λ = φᵐ because φ
-is ℤ[ζ₅]'s unit).
+And the one hazard is **n** — `grow7.html` is a heptagrid, so the shared slice
+carries its own n and a page with a different n must refuse it rather than
+reinterpret five numerators as seven. Same for `generation`, which is the
+pentagrid's only (λ = φᵐ because φ is ℤ[ζ₅]'s unit).
 
-### 9.4 Four sinks, one precedence
+**Decided (Jake, 2026-10-24) — a one-slot stack, pulled by a preset.**
+
+> *"Simplify the shared reticulum for now. At the very least, it could be
+> pushed on a stack (single entry stack) when switching pages. Add preset named
+> 'restore' to pull it off the stack on the new page. (In this case the title
+> bar will show what's in the stack, not restore)"*
+
+So not a synchronized shared scope at all — **one slot, written on the way out
+and read on request**:
+
+- **push** the reticulum when leaving a page.
+- **pull** it with a preset named `restore` in the popup the catalog already
+  uses, so the new page's reticulum does not move until asked. Nothing is
+  overwritten behind the user, which is the whole reason this is simpler than a
+  live shared scope: no precedence, no merge, no surprise.
+- the **title bar shows what is in the slot**, not the word `restore` — the slot
+  carries its own name, and `restore` is the verb, not the thing.
+
+It also costs almost nothing: `restore` is one more entry in `PRESET_ORDER`, and
+the preset handler already does exactly the right sequence — release the total,
+write the vector, hold γ₀ — plus `setGeneration(0)` as of 2026-10-23, which here
+must instead take the generation out of the slot.
+
+**And a preset is a jump to a state, not a state.** Jake, answering §9.11's
+third question: *"As for the preset, it only sets things, among them the title
+bar. If things changed, that's what's saved."* So a saved setup records the
+**values**, never the preset's name — the title bar is simply one more thing a
+preset sets, and it is saved like any other field. Changing the preset table
+later therefore cannot change what an old setup means, which is the property
+that was wanted.
+
+### 9.4 Three sinks, one precedence
 
     URL  >  session  >  page defaults
 
@@ -4900,24 +4959,30 @@ is ℤ[ζ₅]'s unit).
 
 A URL present means "show me exactly this", so it must also suppress the
 session for that load, or a shared link would come up wearing the recipient's
-last visit. Writing on change is fine for the session; the URL should change
-only when asked (a "link" button), because a URL that rewrites itself on every
-slider drag destroys the back button.
+last visit.
 
-### 9.5 Defaults, omission, and why old links must keep working
+**Decided (Jake, 2026-10-24):** *"Don't update the URL. Just a copy-to-clipboard
+button would be fine."* So the address bar is never written — no history
+entries, no back-button damage, and no question of when to rewrite. The page
+reads a setup from the URL if one is there and otherwise ignores it entirely;
+producing one is a button that puts the string on the clipboard.
+
+### 9.5 Defaults, omission, and why an old embed must keep working
 
 **A serialized setup carries only what differs from that page's defaults.** Two
 reasons, and the second is the important one:
 
-1. Short links.
-2. **Forward compatibility.** A field added later is absent from an old link and
-   takes its new default, so embedded URLs do not rot. The alternative — a fixed
-   bit layout — invalidates every existing link the first time a switch is
+1. A short, readable string.
+2. **Forward compatibility.** A field added later is absent from an older setup
+   and takes its new default, so embeds do not rot. The alternative — a fixed
+   bit layout — invalidates every existing one the first time a switch is
    added, and this session alone added `pentaOverlay`, `axis`, `direction` and
    `paths`.
 
-So the encoding is a versioned map of differences, not a packed struct: `v` for
-the format, unknown keys ignored, missing keys defaulted. Pack it later if the
+So the encoding is a map of differences, not a packed struct: unknown keys
+ignored, missing keys defaulted. As HTML attributes (§9.8) this is simply what
+HTML already means — an absent attribute is a default and a boolean is present
+or not — so the rule needs no version field and no machinery. Pack it later if
 length ever matters; the omission rule is what cannot be retrofitted.
 
 ### 9.6 Reset is to the PAGE's defaults, not the view's
@@ -4949,15 +5014,52 @@ capture, reset, restore, compare. That is the test that catches a field added to
 section exists to prevent, and the one a single end-to-end round trip would
 miss, since a forgotten boolean usually sits at its default.
 
-### 9.8 Embedding
+### 9.8 Embedding: the canvas as a widget, configured by attributes
 
-The pages are static with no bundler, so an embed is the page plus a query
-string in an `<iframe>`. What it needs beyond §9.4: an `?embed=1` that hides the
-panel and the narrative and leaves the canvas, since the point of an embedded
-figure is the figure. Worth deciding whether an embed is interactive (pan, zoom,
-hover) or inert; inert is one line and is probably right for a blog.
+**Decided (Jake, 2026-10-24), and it redirects the format.**
 
-### 9.9 How this meets §5.99
+> *"Save setups. Currently only works within app. but imagine exporting a
+> library and allowing the canvas to be a widget. The settings would be html
+> attributes. The output would be a string that could be embedded in the apps
+> page to build it. As a goal, it could even be embedded in "method.html"
+> itself."*
+
+So the serialized form is **HTML attributes on the container**, not a query
+string and not a base64 blob. A saved setup is the string you paste:
+
+    <div id="stage" data-width="800" data-penrose-tiles data-color="bands"
+         data-band="0.5" data-penta-face data-penta-shape="innie"></div>
+
+Three consequences, and the third is the valuable one:
+
+- **The pattern already exists.** `readCanvasSpec` reads `data-width`,
+  `data-height` and `data-margin` off `config.container` today — the widget's
+  first three attributes are shipped. The rest of §9.2's inventory joins them.
+- **§9.5's omission rule becomes natural rather than engineered.** An absent
+  attribute is a default, which is what HTML already means, and a boolean is
+  present or not. The versioning falls out: an attribute added later is simply
+  missing from an older embed.
+- **method.html built from its own embed is the completeness test.** If the page
+  can be expressed as attributes on a div, then the attribute surface covers
+  everything the page does, *by construction* — there is nowhere else for state
+  to hide. That is a far better acceptance criterion than any checklist, and it
+  is Jake's own stated goal. It also forces the §9.1 read side to be total: a
+  page that writes its own embed has to be able to read every field it sets.
+
+Open at this level: whether an embedded widget is interactive (pan, zoom,
+hover) or inert. Inert is one line and is probably right for a figure in a blog
+post; the library would want the choice to be an attribute like everything else.
+
+### 9.9 Saved setups, in the app
+
+*"Currently only works within app"* — so the first form is a library the user
+keeps: name a setup, revisit it, and copy its embed string to the clipboard
+(§9.4). The reticulum slot of §9.3 is a special case of the same machinery with
+one unnamed entry, and `restore` is its preset; a named library is the general
+case. Both read and write the same value, which is why §9.10 builds the value
+first and the storage after.
+
+### 9.9b How this meets §5.99
 
 A saved setup is also the name of what an SVG export exported. The two together
 are the useful thing: a URL that reproduces a figure, and an SVG of it carrying
@@ -4965,34 +5067,55 @@ are the useful thing: a URL that reproduces a figure, and an SVG of it carrying
 and §9.1's read side is a prerequisite for both — an exporter needs to know what
 is switched on quite as much as a serializer does.
 
-### 9.10 Steps
+### 9.10 Steps, as decided
 
 1. **The read side.** `getTileStyle`, `getFeatures`, layer visibility. Tests for
    the obvious identities (`set` then `get` returns what was set).
 2. **The inventory, as data.** One module naming every field, its type, its
-   default and its scope — so the serializer, the reset and the round-trip test
-   all read one list and cannot disagree. This is the piece that keeps §9.2 from
-   going stale.
-3. **Scopes and precedence**, with the session sink only. No URL yet: this alone
-   delivers wants #3, #4 and #5, and it is testable without touching a URL.
-4. **The URL**, with the omission rule and the `v` field. Wants #1 and #2.
-5. **`?embed=1`.**
+   default, its scope and **its attribute name** — so the attribute reader, the
+   attribute writer, the reset and the round-trip test all read one list and
+   cannot disagree. This is the piece that keeps §9.2 from going stale, and
+   with §9.8 it is also the widget's documentation.
+3. **Reset to the page's baseline** (§9.6), which needs only steps 1 and 2 and
+   delivers want #5 on its own.
+4. **The reticulum slot** (§9.3): push on leaving, the `restore` preset to pull,
+   the slot's own name in the title bar. Want #3, and small — one entry in
+   `PRESET_ORDER`.
+5. **Read attributes on the container** (§9.8), extending `readCanvasSpec` from
+   three to the whole inventory. This is the widget, and it is also how a saved
+   setup is applied.
+6. **Write attributes**, plus the copy-to-clipboard button (§9.4). Want #1, and
+   want #2 in the form Jake asked for rather than a URL.
+7. **Session memory** (§9.4's middle sink). Want #4.
+8. **method.html from its own embed** — the completeness test of §9.8, and the
+   last step because it can only pass once everything above is total.
 
 Steps 1 and 2 are worth doing whatever happens to the rest, exactly as §8's
 step 1 is: they are what let anything read the page's state, and the tests come
-free with them.
+free with them. Note the order has changed from the first draft — the URL has
+dropped out entirely and the attribute surface has taken its place, so the
+widget is not a last-mile add-on but the mechanism everything else uses.
 
-### 9.11 Open, for Jake
+### 9.11 Answered, and what is left
 
-1. **Does the shared reticulum include the view?** Carrying γ to roof is clearly
-   wanted; carrying pan and zoom may or may not be — the pages are at different
-   scales and roof is a 3D camera.
-2. **Should the URL update as you work, or only on a button?** Live rewriting is
-   convenient and ruins the back button.
-3. **Does a preset count as state, or as a jump to a state?** If a setup records
-   "the sun preset" rather than its five numerators, then changing the preset
-   table later changes old links. Recording the numerators is safer and loses
-   the name; recording both and preferring the numerators is probably right.
-4. **One shared slice, or a named library of setups?** *"Save setups"* could be
-   a list the user names and revisits, which is a bigger thing than remembering
-   the last one.
+Jake, 2026-10-24, settled three of the four:
+
+- ~~**Should the URL update as you work?**~~ It should not update at all. A
+  copy-to-clipboard button instead (§9.4).
+- ~~**Is a preset state, or a jump to a state?**~~ A jump. *"It only sets
+  things, among them the title bar. If things changed, that's what's saved."*
+  So setups record values, never a preset's name (§9.3).
+- ~~**One shared slice, or a named library?**~~ Both, and the slice is the
+  degenerate case: a one-entry stack pulled by the `restore` preset now (§9.3),
+  a named library later (§9.9).
+
+Still open:
+
+1. **Does the carried reticulum include the view?** Carrying γ to roof is
+   clearly wanted; pan and zoom may not be — the pages sit at different scales
+   and roof's camera is 3D. The slot could carry the view and the `restore`
+   preset ignore it, which keeps the decision out of the format.
+2. **Is an embedded widget interactive or inert?** (§9.8.) Inert is one line;
+   the library would want it to be an attribute like everything else.
+3. **Does an exported SVG carry `data-k` per tile?** (§5.99, §9.9b.) Free to
+   add, and it decides whether the file is a picture or a record.
