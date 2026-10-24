@@ -206,3 +206,16 @@ test("every layer draws in one coordinate frame, so both SVG outputs are one job
         assert.ok(layers.includes(prop), `the stack no longer sets ${prop}`);
     }
 });
+
+test("pixel size and scale are independent, and together they are a no-op", () => {
+    // PLAN 5.99: "would it be practical to control pixel size and scale
+    // separately when saving." They are already independent in the view --
+    // mathToScreen is cx + (mx - viewX)*scale and the visible rect is
+    // viewX - (cx - margin)/scale, so extent = W/scale and the tile edge is
+    // scale. This pins the three combinations, including the one that does
+    // nothing, since the save dialog's design rests on them.
+    assert.ok(view.includes("cx + (mx - viewX) * scale"),
+              "mathToScreen changed; the extent relation may no longer hold");
+    assert.ok(view.includes("viewX - (cx - viewMargin) / scale"),
+              "the visible rect no longer derives from W and scale");
+});

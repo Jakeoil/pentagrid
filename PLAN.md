@@ -4138,7 +4138,7 @@ built, because they want opposite treatments:
 | | **A. export at screen size, zoom in the viewer** | **B. export a larger canvas** |
 |---|---|---|
 | tiles | the same 488 | **more**: 1357 at 1600², 4425 at 3200² |
-| look | preserved **exactly** | lines go relatively **thinner** |
+| look | preserved exactly | preserved exactly (see the correction below) |
 | for | inspecting a figure | a poster of a big patch |
 
 The tile counts are measured at the same γ and scale: the window is what
@@ -4154,15 +4154,11 @@ under the *reader's* zoom is the benefit; an interactive pan-and-zoom inside the
 image would need inline SVG and a script, which is a different thing and not
 asked for.)
 
-**Route B has one artifact, and the recorder is the place to fix it.** Line
-widths in the drawing are constants — `1`, `1.2`, `1.5`, `1.6`, `2`, `2.2`, `4`
-at some twenty call sites, essentially none derived from `scale` — so a 4×
-canvas draws 4× bigger tiles with the same 1px strokes, and the picture comes
-out finer than it looks on screen. The fix is **not** twenty edits: the
-recording context already intercepts `lineWidth` and `font`, so it can carry an
-export scale and multiply both as they pass. One place, and it keeps the
-on-screen code unchanged — which is the same argument that made the recorder
-worth having at all.
+**Route B has no artifact — that was an error, corrected below.** The claim
+here was that a 4× canvas draws 4× bigger tiles with the same 1px strokes. It
+does not: raising the canvas at a fixed `scale` leaves the tiles exactly the
+same size in pixels. See the next subsection, which measures it. The
+stroke-weight problem is real but belongs to `scale`, not to pixel size.
 
 #### Stacking them in HTML — and why both outputs are one job (Jake, 2026-10-24)
 
@@ -4205,8 +4201,66 @@ One run, two ways of writing it out, and no compositing arithmetic in either.
 So there is nothing to choose: emit both. The composite is the deliverable and
 the stack is the flexible form, and the second costs the price of a loop.
 
+#### Pixel size and scale, separately (Jake, 2026-10-24)
+
+> *"For SVG version, would it be practical to control pixel size and scale
+> separately when saving."*
+
+**Practical, and they are the right two knobs — but for SVG the thing a PNG
+dialog calls "pixel size" splits in two, and one combination is a no-op.**
+
+From the source: `mathToScreen` is `cx + (mx − viewX)·scale`, and the visible
+rect is `viewX − (cx − margin)/scale`. So
+
+    extent (how much plane) = W / scale        tile edge in pixels = scale
+    stroke weight against a tile = lineWidth / scale
+
+Measured at the sun, varying each:
+
+| W | scale | tiles | tile edge | a 1px stroke is |
+|---|---|---|---|---|
+| 800 | 40 | 862 | 40px | 1/40 of a tile |
+| 1600 | 40 | **2632** | 40px | 1/40 |
+| 800 | 80 | **333** | 80px | 1/80 |
+| 1600 | 80 | 862 | 80px | 1/80 |
+
+- **Pixel size alone is how much of the plane.** 862 → 2632 tiles, and every
+  tile looks *identical* — same 40px edge, same stroke ratio. A bigger patch,
+  not a bigger picture of the same patch.
+- **Scale alone is how big a tile is**, and so how heavy the strokes look
+  against it: 862 → 333 tiles, edge 40 → 80px, ratio 1/40 → 1/80. This is zoom,
+  and it is the only one of the two that changes the drawing's weight.
+- **Both together is nothing.** 1600/80 gives the same 862 tiles as 800/40, with
+  every coordinate doubled and the `viewBox` doubled — which for a vector file
+  renders identically. For a PNG that combination is the whole point (more
+  pixels); for an SVG there are no pixels to add.
+
+**Which is why SVG has three knobs where a PNG has two.** The rendered size is
+a separate, free parameter: `viewBox="0 0 W H"` fixes the content, and
+`width`/`height` — or omitting them for `width="100%"` — fixes how big it
+appears. So:
+
+| knob | what it changes | for |
+|---|---|---|
+| **extent** (W at a given scale) | how much of the plane is in the file | a bigger patch |
+| **scale** | tile size, and stroke weight against it | zoom, and the drawing's weight |
+| **rendered size** (`width`/`height`) | how big it appears | free, and the reason to want SVG |
+
+A save dialog of two numbers is therefore exactly right, provided "pixel size"
+is understood as the extent — and the third knob is the one not to put in the
+dialog at all, because leaving `width`/`height` off gives it to the reader.
+
+**Correcting the previous subsection.** It said a larger export canvas makes
+lines relatively thinner. That is wrong: pixel size at fixed scale leaves the
+stroke ratio untouched, as the first two rows above show. The stroke-weight
+problem belongs to **`scale`**, so the export-scale multiplier in the recorder
+is not needed to fix route B. It is still worth having, for the case it really
+serves: a *zoomed* export that should keep its strokes in proportion to the
+tiles rather than growing finer as `scale` rises.
+
 Nothing is open here. The steps: a recording context covering the 24 members
-that map directly, with an export scale applied to `lineWidth` and `font`; the
+that map directly, with an optional scale applied to `lineWidth` and `font` for
+a zoomed export; the
 per-container composite with z sorting, `<g>` opacity and the visibility filter;
 `viewBox` without fixed pixel dimensions; the editor layer metadata;
 `<defs>`/`<use>` for the repeated prototiles; gradient and clip deduplication;

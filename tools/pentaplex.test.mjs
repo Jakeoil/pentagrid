@@ -271,3 +271,31 @@ test("the whole patch is ten rhomb shapes, which is what <defs>/<use> exports", 
     }
     assert.ok(rs.length > 400, `only ${rs.length} tiles, so the saving is untested`);
 });
+
+test("extent is W/scale: pixel size and scale are separate knobs", () => {
+    // PLAN 5.99, measured. Doubling W at fixed scale is MORE TILES at the same
+    // tile size; doubling scale at fixed W is FEWER, BIGGER tiles; doubling
+    // both is the same patch with every coordinate doubled, which for a vector
+    // file renders identically. The save dialog's two numbers rest on this.
+    const dirs = makeDirections(true);
+    const pg = { n: 5, directions: dirs, gamma: [0.2, 0.2, 0.2, 0.2, 0.2] };
+    // The visible rect a canvas of W pixels at `scale` sees, as the view computes it.
+    const seen = (W, scale) => {
+        const half = (W / 2) / scale;
+        return collectRhombs(pg, { xMin: -half, xMax: half, yMin: -half, yMax: half })
+            .length;
+    };
+    const base = seen(800, 40);
+    assert.ok(base > 200, `only ${base} tiles at the base size`);
+
+    // W doubled, scale held: a bigger patch.
+    assert.ok(seen(1600, 40) > base * 2,
+              `${seen(1600, 40)} against ${base}: W is not setting the extent`);
+    // scale doubled, W held: a smaller patch.
+    assert.ok(seen(800, 80) < base / 2,
+              `${seen(800, 80)} against ${base}: scale is not setting the extent`);
+    // Both doubled: the SAME patch, which is the no-op for a vector file.
+    assert.equal(seen(1600, 80), base,
+                 "W and scale together should leave the content alone");
+    assert.equal(seen(3200, 160), base, "and at any factor");
+});
