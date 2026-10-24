@@ -112,7 +112,7 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
 6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
-7. **An SVG export, one file per canvas.** Jake, 2026-10-24: *"The svg should
+7. **An SVG export, one file per canvas.** Nothing open; §5.99 has the steps. Jake, 2026-10-24: *"The svg should
    be an export mode only. Only an SVG per canvas for now."* §5.99 has the
    measurements and the decision. A canvas is a LAYER here, so that is 12 files
    from method and no compositing at all — each layer already draws to exactly
@@ -120,8 +120,8 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    `drawKRegions`) becomes a file that can simply be skipped. What remains is
    deduplicating the height ramp's gradient per face and the inlay's clip per
    pentagon, both now per layer.
-8. **Parameterize the canvases.** Jake, 2026-10-24, five wants; §9 has the plan
-   and his decisions. The state is not a value yet — `PentagridHandle` has
+8. **Parameterize the canvases.** Nothing open; §9.10 is the build order. Jake,
+   2026-10-24, five wants and every question answered the same day. The state is not a value yet — `PentagridHandle` has
    every setter and no getter but `getView` — so §9.1 is the first commit and
    §9.2's inventory (53 booleans, 8 enums, 10 numbers, γ already exact) is the
    second. The serialized form is **HTML attributes on the container**, not a
@@ -4016,8 +4016,15 @@ What remains is the gradient and clip deduplication of the two paragraphs
 above, both now per-layer and so smaller, and `measureText`, which only the
 label layers use.
 
-Still open: **data attributes on tiles** (§9.9's point — free to add, and it
-changes what the file *is*).
+**And no data attributes on tiles.** Jake, 2026-10-24: *"SVG: No data, just a
+record."* The file depicts the patch and does not describe it, so the exporter
+emits what was drawn and never what it was drawn from. De-dualization (§3
+item 3) gets no free ride from it, and the exporter stays a renderer.
+
+Nothing is open here. The steps are: a recording context covering the 24 that
+map directly, then the gradient and clip deduplication, then `measureText` by
+approximation or by dropping the backing boxes, then a decision per page about
+whether the `background` layer is skipped or embedded as a PNG.
 
 ## 6. Not built
 
@@ -4907,7 +4914,7 @@ blob with one lifetime, it is three:
 
 | scope | what | lifetime |
 |---|---|---|
-| **shared** | the reticulum: n, `den`, γ's numerators, locked, symmetry, guard, generation, family flags and lines | follows the user between pages |
+| **shared** | the reticulum alone: n, `den`, γ's numerators, locked, symmetry, guard, generation, family flags and lines. **Not the view** — Jake, 2026-10-24 | one slot, pushed on leaving and pulled by the `restore` preset |
 | **page** | `Features`, `TileStyle`, `GrowthState`, layer visibility, view | per page id |
 | **transient** | hover, the loupe, pointer position, the readout | never saved |
 
@@ -5014,6 +5021,13 @@ capture, reset, restore, compare. That is the test that catches a field added to
 section exists to prevent, and the one a single end-to-end round trip would
 miss, since a forgotten boolean usually sits at its default.
 
+**Superseded in part by §9.8a.** Once the widget is a function of its
+attributes, the stronger statement is available and does not depend on a capture
+step being complete: set the attributes, draw, record; build a fresh instance
+from the same attributes, draw, record; the two path strings must match. Keep
+the per-field walk — it is what names the culprit — but the headline test is
+that one.
+
 ### 9.8 Embedding: the canvas as a widget, configured by attributes
 
 **Decided (Jake, 2026-10-24), and it redirects the format.**
@@ -5050,6 +5064,40 @@ Open at this level: whether an embedded widget is interactive (pan, zoom,
 hover) or inert. Inert is one line and is probably right for a figure in a blog
 post; the library would want the choice to be an attribute like everything else.
 
+### 9.8a The widget is a function of its attributes
+
+> *"embedded widget can be interactive in so far that it can be redrawn with
+> changed attributes."* (Jake, 2026-10-24)
+
+Not inert and not a second app: **attributes in, drawing out, and a change of
+attributes redraws.** The widget carries no panel of its own; the host page
+drives it by writing attributes, which is the same surface §9.8 serializes. One
+API, used two ways.
+
+That is a real constraint, and a good one. It says the drawing must be a
+**pure function of the attributes and the defaults** — because if some state
+can be reached by clicking in the app but not named by an attribute, then a
+host cannot reach it and the widget is incomplete. So:
+
+- **It makes the attribute surface necessarily total.** Which is the same thing
+  *"method.html built from its own embed"* tests, from the other direction: the
+  embed test says the page can be written as attributes, and this says the
+  attributes can produce any page. Together they close the loop.
+- **It replaces §9.7's acceptance test with a stronger one.** Capture → reset →
+  restore → identical drawing is a round trip through whatever the serializer
+  happens to cover. *Drawing is a function of attributes* is checkable directly:
+  set attributes, draw, record the path string; set them again from scratch on a
+  fresh instance, draw, and the strings must match. No capture step to be
+  incomplete.
+- **It says what "interactive" does not mean here.** No built-in pan, zoom or
+  hover in a widget — those are the app's panel and the app's pointer handlers.
+  A host that wants them writes the view attributes itself.
+
+Implementation note, not a question: something has to notice an attribute
+changed. A `MutationObserver` on the container is the declarative route and
+needs no API at all; an exported `refresh()` is the explicit one. The observer
+is more in keeping with "it is its attributes", and costs one listener.
+
 ### 9.9 Saved setups, in the app
 
 *"Currently only works within app"* — so the first form is a library the user
@@ -5061,11 +5109,14 @@ first and the storage after.
 
 ### 9.9b How this meets §5.99
 
-A saved setup is also the name of what an SVG export exported. The two together
-are the useful thing: a URL that reproduces a figure, and an SVG of it carrying
-`data-k` per tile (§5.99's last point). Either is more valuable with the other,
-and §9.1's read side is a prerequisite for both — an exporter needs to know what
-is switched on quite as much as a serializer does.
+A saved setup is the name of what an SVG export exported, and after Jake's
+2026-10-24 answers that is the whole of the relationship: *"No data, just a
+record."* The SVG carries no per-element data, so the pairing is an attribute
+string that reproduces the figure beside a file that depicts it — the record of
+what, next to the record of how it looked. Not one file doing both.
+
+§9.1's read side is still a prerequisite for both: an exporter needs to know
+what is switched on quite as much as a serializer does.
 
 ### 9.10 Steps, as decided
 
@@ -5096,7 +5147,7 @@ free with them. Note the order has changed from the first draft — the URL has
 dropped out entirely and the attribute surface has taken its place, so the
 widget is not a last-mile add-on but the mechanism everything else uses.
 
-### 9.11 Answered, and what is left
+### 9.11 Answered — all of it
 
 Jake, 2026-10-24, settled three of the four:
 
@@ -5109,13 +5160,21 @@ Jake, 2026-10-24, settled three of the four:
   degenerate case: a one-entry stack pulled by the `restore` preset now (§9.3),
   a named library later (§9.9).
 
-Still open:
+And the last three, the same day:
 
-1. **Does the carried reticulum include the view?** Carrying γ to roof is
-   clearly wanted; pan and zoom may not be — the pages sit at different scales
-   and roof's camera is 3D. The slot could carry the view and the `restore`
-   preset ignore it, which keeps the decision out of the format.
-2. **Is an embedded widget interactive or inert?** (§9.8.) Inert is one line;
-   the library would want it to be an attribute like everything else.
-3. **Does an exported SVG carry `data-k` per tile?** (§5.99, §9.9b.) Free to
-   add, and it decides whether the file is a picture or a record.
+- ~~**Does the carried reticulum include the view?**~~ *"No it doesn't include
+  the view."* So the slot is γ and the reticulum alone — no pan, no zoom, no
+  camera. The view stays page state (§9.2), saveable and embeddable like
+  anything else; it simply does not travel. Which is the right cut: the pages
+  sit at different scales and roof's camera is 3D, so a carried view would
+  arrive wrong on every destination.
+- ~~**Is an embedded widget interactive or inert?**~~ *"embedded widget can be
+  interactive in so far that it can be redrawn with changed attributes."*
+  Neither, and the answer is better than either — see §9.8a.
+- ~~**Does an exported SVG carry `data-k` per tile?**~~ *"No data, just a
+  record."* No per-element data attributes; the file is a faithful record of
+  the drawing and nothing more. So de-dualization (§3 item 3) gets no free ride
+  from the exporter, and the exporter stays simple — it emits what was drawn,
+  not what it was drawn from.
+
+**Nothing is open.** §9.10 is the build order.
