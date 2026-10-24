@@ -23,6 +23,7 @@ import { penroseCondition } from "../geometry/gamma.js";
 import { wallView, skewbCode } from "../geometry/walls.js";
 import { readAttributes, watchAttributes } from "../state/attributes.js";
 import { DEFAULTS } from "../state/defaults.js";
+import { FIELDS, format } from "../state/inventory.js";
 // Re-exported from where it has always been imported.
 export { DEFAULTS } from "../state/defaults.js";
 import type { Paths } from "../geometry/walls.js";
@@ -269,6 +270,8 @@ export interface GrowthHandle {
     markBaseline: () => void;
     /** Back to the baseline, growth state and pentagrid together. */
     reset: () => void;
+    /** This page as markup — §9.8. The pentagrid's share plus the growth slice. */
+    embed: (opts?: { tag?: string; id?: string }) => string;
     /** The pentagrid underneath, for pan/zoom, γ and the layer stack. */
     pentagrid: PentagridHandle;
 }
@@ -1955,6 +1958,29 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         markBaseline: () => {
             baseline = { ...state };
             pentagrid.markBaseline();
+        },
+        /**
+         * The whole page as markup: the pentagrid's share plus this view's own.
+         *
+         * The pentagrid writes everything but the growth slice — it skips
+         * `owner === "growth"` deliberately, because that state is here — so
+         * this adds those fields and splices them into the same element.
+         */
+        embed: (opts) => {
+            const base = pentagrid.embed(opts);
+            const mine: string[] = [];
+            for (const f of FIELDS) {
+                if (f.owner !== "growth") continue;
+                const here = (state as unknown as Record<string, unknown>)[f.key];
+                const home = (baseline as unknown as Record<string, unknown>)[f.key];
+                if (here === home) continue;
+                const v = format(f, here);
+                mine.push(v === "" ? f.attr : `${f.attr}="${v}"`);
+            }
+            if (!mine.length) return base;
+            // Before the closing `>` of the opening tag, which is the first one.
+            const cut = base.indexOf(">");
+            return `${base.slice(0, cut)} ${mine.join(" ")}${base.slice(cut)}`;
         },
         reset: () => {
             // The pentagrid first: its own reset redraws, and the growth state

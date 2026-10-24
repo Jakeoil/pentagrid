@@ -5510,6 +5510,52 @@ changed. A `MutationObserver` on the container is the declarative route and
 needs no API at all; an exported `refresh()` is the explicit one. The observer
 is more in keeping with "it is its attributes", and costs one listener.
 
+### 9.8b Writing a setup out — BUILT 2026-10-24
+
+`src/state/embed.ts`, step 6 of §9.10. `embed()` on both handles returns the
+markup for a container that reproduces what you are looking at, and a **copy
+setup** button in the panel's `settings` puts it on the clipboard. The address
+bar is never written, per Jake: no history entries and no back-button damage.
+
+    <div id="stage" data-penrose-edges data-color="bands" data-band="0.25"
+         data-penta-face data-penta-shape="innie"
+         data-gamma="2000,2000,2000,2000,2000" data-gamma-den="10000"
+         data-gamma-locked="0" data-gamma-symmetry data-scale="72"
+         data-view-x="1.25" data-view-y="-0.5" data-hide="klabels"></div>
+
+**It carries more than the flat fields, and it has to.** §9.3's scopes are
+about what *travels between pages*; an embed is a complete description of a
+figure, so γ and the view belong in it — a patch at the wrong γ is a different
+patch. So `SLICE_ATTRS` adds `data-gamma` (**integer numerators**),
+`data-gamma-den`, `-locked`, `-gen`, `-symmetry`, `-guard`, `-off`, `-lines`,
+`-isolated`, plus `data-scale`, `data-view-x`, `data-view-y`, and `data-hide`
+for the layers switched off. γ as numerators over a denominator is what makes an
+embed round-trip it **exactly**, so `provenRegular` and the singularity catalog
+decide the same way on the far side.
+
+**γ is all-or-nothing; the view is part by part.** One component of γ differing
+writes the whole block, because half a grid is not a grid — and on the way back
+in, numerators with no denominator are *refused* rather than guessed at (§9.5).
+The view's three parts are independent and are written only where they moved.
+
+**An untouched page embeds as `<div id="stage"></div>`** — §9.5's omission rule,
+and the reason is forward compatibility over brevity: a field added later is
+absent from an older embed and takes its new default, so embeds do not rot.
+
+The growth view splices its own slice into the pentagrid's element rather than
+emitting a second one, since a roof page is one canvas.
+
+**The acceptance test is §9.8a's, and it is the one that matters**: perturb both
+objects, γ, the view and a layer's visibility; take the embed; build a *fresh*
+instance from that string alone; and the recorded drawing must be identical. No
+capture step to be incomplete. `tools/embed.test.mjs` also checks γ's exactness,
+the growth splice, the refusal of a half-written γ, and that the string wraps
+and is stable so two copies of one setup are one string.
+
+**The button reports in place** — "copied", "blocked", or "in the console" with
+the string logged. The clipboard is asynchronous and can be refused outright,
+and a button that says nothing leaves you unsure whether it worked.
+
 ### 9.9 Saved setups, in the app
 
 *"Currently only works within app"* — so the first form is a library the user
@@ -5547,8 +5593,10 @@ quite as much as a serializer does.
 5. ~~**Read attributes on the container**~~ **Built 2026-10-24** —
    `src/state/attributes.ts`, read in both factories, with §9.8a's observer.
    `tools/attributes.test.mjs`. See §9.8.
-6. **Write attributes**, plus the copy-to-clipboard button (§9.4). Want #1, and
-   want #2 in the form Jake asked for rather than a URL.
+6. ~~**Write attributes**, plus the copy-to-clipboard button~~ **Built
+   2026-10-24** — `src/state/embed.ts`, `embed()` on both handles, a **copy
+   setup** button in the panel's `settings`, `tools/embed.test.mjs`. Wants #1
+   and #2 delivered. See §9.8b.
 7. **Session memory** (§9.4's middle sink). Want #4.
 8. **method.html from its own embed** — the completeness test of §9.8, and the
    last step because it can only pass once everything above is total.

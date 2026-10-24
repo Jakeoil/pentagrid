@@ -18,6 +18,8 @@ import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma
 import type { GammaSet } from "../geometry/gamma.js";
 import { captureGamma, restoreGamma } from "../state/baseline.js";
 import { readAttributes, watchAttributes } from "../state/attributes.js";
+import { readSlices, writeSlices, embedString } from "../state/embed.js";
+import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
 export { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
@@ -593,6 +595,11 @@ export interface PentagridHandle {
      * still resets somewhere sensible.
      */
     markBaseline: () => void;
+    /**
+     * This setup as a line of markup, for pasting into a page — §9.8.
+     * Carries only what differs from the baseline.
+     */
+    embed: (opts?: { tag?: string; id?: string }) => string;
     /**
      * Back to the baseline: the tile style, the features, the grid alpha, the
      * view, the layer visibility and γ. Jake's fifth want.
@@ -4746,6 +4753,48 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         sum.textContent = "settings";
         det.appendChild(sum);
 
+        /**
+         * Copy this setup as markup — PLAN §9.8, Jake's wants #1 and #2.
+         *
+         * *"Don't update the URL. Just a copy-to-clipboard button would be
+         * fine."* So the address bar is never written: no history entries, no
+         * back-button damage, and no question of when to rewrite. This hands
+         * over the string instead.
+         *
+         * In `settings` because that is where the page's own machinery lives
+         * rather than the drawing's. It reports in place — the clipboard is
+         * asynchronous and can be refused outright, and a button that says
+         * nothing leaves you unsure whether it worked.
+         */
+        const copyRow = row(det, "");
+        const copyBtn = document.createElement("button");
+        copyBtn.type = "button";
+        copyBtn.className = "ret-bump";
+        copyBtn.textContent = "copy setup";
+        copyBtn.title = "This canvas as a line of markup: everything that differs "
+            + "from the page's own defaults, as data- attributes. Paste it into a "
+            + "page to rebuild exactly this.";
+        const copySaid = document.createElement("span");
+        copySaid.className = "copy-said";
+        copyBtn.addEventListener("click", () => {
+            const text = embedNow();
+            const say = (what: string) => {
+                copySaid.textContent = what;
+                setTimeout(() => { copySaid.textContent = ""; }, 2400);
+            };
+            const clip = (navigator as Navigator | undefined)?.clipboard;
+            if (clip?.writeText) {
+                clip.writeText(text).then(() => say("copied"), () => say("blocked"));
+            } else {
+                // No clipboard: say so and leave it in the console, which is
+                // the one place a user can still get at it.
+                console.log(text);
+                say("in the console");
+            }
+        });
+        copyRow.appendChild(copyBtn);
+        copyRow.appendChild(copySaid);
+
         const sRow = row(det, "");
         // "force regular" used to be here. Off on every page since the presets
         // made singularities destinations rather than hazards, and the sun
@@ -5469,10 +5518,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         draw();
     });
 
-    buildLayerPanel();
-    restackPenrose();
-    draw();
-
     /**
      * This page's home, as a value. Whole objects rather than a walk over the
      * inventory: a copy cannot miss a field, where a walk could.
@@ -5493,7 +5538,82 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         visibility: stack.visibility(),
         gamma: captureGamma(gammaSet),
     });
+    /**
+     * The slices the markup names — γ, the view, the hidden layers.
+     *
+     * Later than the flat fields because they need things that do not exist
+     * until now: the γ set, the view variables, the layer stack. Still before
+     * the baseline, so an embed's γ is part of this page's home and `reset()`
+     * returns to it.
+     */
+    {
+        const sl = readSlices(config.container);
+        if (sl.gamma) {
+            restoreGamma(gammaSet, {
+                ...captureGamma(gammaSet),
+                exact: sl.gamma.exact, den: sl.gamma.den,
+                locked: sl.gamma.locked, generation: sl.gamma.generation,
+                symmetry: sl.gamma.symmetry, guard: sl.gamma.guard,
+            });
+        }
+        if (sl.off) {
+            for (let i = 0; i < model.n; i++) {
+                gammaSet.setFamilyEnabled(i, !sl.off.includes(i));
+            }
+        }
+        if (sl.lines) {
+            for (let i = 0; i < model.n; i++) {
+                gammaSet.setFamilyLine(i, sl.lines[i] ?? null);
+            }
+        }
+        if (sl.isolated !== undefined) gammaSet.setIsolated(sl.isolated);
+        if (sl.view) {
+            if (sl.view.scale !== undefined) scale = sl.view.scale;
+            if (sl.view.x !== undefined) viewX = sl.view.x;
+            if (sl.view.y !== undefined) viewY = sl.view.y;
+        }
+        if (sl.hide) {
+            const v: Record<string, boolean> = {};
+            for (const l of stack.all()) v[l.id] = !sl.hide.includes(l.id);
+            stack.setVisibility(v);
+        }
+        if (sl.gamma || sl.view || sl.hide || sl.off || sl.lines) draw();
+    }
+
     let baseline: Baseline = capture();
+
+    /**
+     * This setup as markup. A named local rather than only a method, because
+     * the panel's copy button needs it and the handle object does not exist
+     * until the factory returns.
+     */
+    const embedNow = (opts?: { tag?: string; id?: string }): string => {
+        const now = capture();
+        const flat: Record<string, string> = {};
+        for (const f of FIELDS) {
+            if (f.owner === "growth") continue;       // the growth view's own
+            const here = (now[f.owner] as unknown as Record<string, unknown>)[f.key];
+            const home = (baseline[f.owner] as unknown as Record<string, unknown>)[f.key];
+            if (here === home) continue;
+            flat[f.attr] = format(f, here);
+        }
+        const slices = writeSlices(
+            { gamma: now.gamma, view: now.view, visibility: now.visibility },
+            { gamma: baseline.gamma, view: baseline.view,
+              visibility: baseline.visibility });
+        return embedString({ ...flat, ...slices }, {
+            id: config.container.id || "stage",
+            width: canvas.explicit ? canvas.w : undefined,
+            height: canvas.explicit ? canvas.h : undefined,
+            ...opts,
+        });
+    };
+
+    buildLayerPanel();
+    restackPenrose();
+    draw();
+
+
 
     /**
      * A change of attributes redraws — §9.8a, which is what makes the widget a
@@ -5516,6 +5636,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     return {
         redraw: draw,
         markBaseline: () => { baseline = capture(); },
+        /**
+         * This setup as markup — PLAN §9.8, and Jake's want #1.
+         *
+         * Everything that differs from this page's home, and nothing that does
+         * not: §9.5's omission rule, which is what lets a newer page meet an
+         * older embed and simply default the fields it never knew about.
+         */
+        embed: (opts) => embedNow(opts),
+
         reset: () => {
             // γ first: it is the one that fires listeners and redraws of its
             // own, so everything after it lands on the restored grid.

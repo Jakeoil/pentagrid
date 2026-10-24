@@ -487,6 +487,9 @@ button.ret-restore {
 }
 button.ret-restore:hover { background: #36363c; border-color: #8a8a8a; }
 button.ret-restore[hidden] { display: none; }
+/* What the copy-setup button says after you press it: the clipboard is async
+   and can be refused, so the button reports rather than leaving you guessing. */
+.copy-said { font-size: 11px; color: #777; margin-left: 6px; }
 .settings {
     margin-top: 6px;
     font-size: 12px;
