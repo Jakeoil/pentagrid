@@ -4061,9 +4061,70 @@ record."* The file depicts the patch and does not describe it, so the exporter
 emits what was drawn and never what it was drawn from. De-dualization (§3
 item 3) gets no free ride from it, and the exporter stays a renderer.
 
+#### Is there a happy medium — files plus a coordinating file? (Jake, 2026-10-24)
+
+> *"Is there a happy medium? multiple files and a central file that coordinates
+> them. That's PDF like right?"*
+
+**Not that medium, and the PDF analogy argues the other way.** Two separate
+reasons, and the second is the one that bites:
+
+- **External `<use href="layer.svg#id">` is in the spec and is not implemented.**
+  Cross-file `use` has never worked in Blink or Gecko. It is the obvious
+  mechanism and it is not available.
+- **`<image href="layer.svg">` works in a document and not in an image.** When
+  an SVG is used *as an image* — `<img src>`, a CSS background, most print and
+  PDF pipelines — it runs in the SVG spec's **secure static mode**, where
+  external resource loading is disabled. The layers would render as nothing.
+  And *"a single image that can be put into a pdf or web page"* is precisely
+  that case, so this arrangement fails exactly where it is wanted.
+
+  (These two are from knowledge of the platform, not measured in session —
+  everything else in §5.99 is measured. They are worth five minutes of checking
+  against a real browser before anyone relies on them, because the whole
+  argument below turns on them.)
+
+**And PDF is not multiple files.** It is one container with internal structure:
+objects, **optional content groups** — which *are* layers, and which a viewer
+can toggle — and **XObjects**, content defined once and placed many times. So
+"PDF-like" is one file whose layers live inside it. Which is what §5.99 already
+says, and the medium Jake is reaching for is available *within* the single file,
+in two forms:
+
+**1. Make the layers real layers to an editor.** Inkscape and Illustrator both
+read a `<g>` carrying layer metadata — `inkscape:groupmode="layer"`,
+`inkscape:label="penrose-tiles"` — and show it in a layers panel: hide, lock,
+reorder. That is PDF's optional content groups, in SVG, for two attributes per
+`<g>`. It is the whole of what multiple files would have bought, without the
+links.
+
+**2. `<defs>` plus `<use>` — the XObject analogue, and it is a real win.**
+Measured over the sun at reach 8: the 498-tile patch is **10 distinct shapes**,
+one per family pair, because every rhomb of a pair (j, k) is v₀ + {0, vⱼ, vⱼ +
+vₖ, vₖ} and so a translate of every other. (Pair 2,3 appeared to have two until
+checked at 1e-9: 63 tiles, one shape. The extra was a rounding artifact.) So ten
+`<path>` in `<defs>` and one `<use x y>` per tile:
+
+| the tile layer, 498 tiles | size |
+|---|---|
+| as `<path>` elements | ≈ **34 KB** |
+| as `<use>` + 10 defs | ≈ **19 KB** |
+
+About 45% off, and the same trick applies to the pentagons, the kites and the
+deflation, which are all per-prototile figures. Note what it does **not** do:
+498 `<use>` is still 498 elements, so it saves bytes and not nodes — it helps
+the file, not a renderer. For an export that is the right side of the trade.
+
+**And if separate files are still wanted, emit them as well, not instead.**
+Every layer already has its own recording context — the recording is per-layer
+whether or not the output is — so per-layer files are a byproduct of the same
+run, cost nothing extra, and nothing depends on a link that can break. The
+composite stays the deliverable.
+
 Nothing is open here. The steps: a recording context covering the 24 members
 that map directly; the per-container composite with z sorting, `<g>` opacity and
-the visibility filter; gradient and clip deduplication; `measureText` by
+the visibility filter; the editor layer metadata; `<defs>`/`<use>` for the
+repeated prototiles; gradient and clip deduplication; `measureText` by
 approximation or by dropping the backing boxes; and the `background` layer as an
 embedded PNG or omitted.
 

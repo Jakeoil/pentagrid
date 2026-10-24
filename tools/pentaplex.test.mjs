@@ -244,3 +244,30 @@ test("axis B: the arrow is the extreme corner, and only Penrose arrows every til
     assert.ok(h.arrowed < h.tiles / 4, `${h.arrowed} of ${h.tiles} arrowed on a heptagrid`);
     assert.equal(h.arcs, h.tiles, "arcs should reach every tile at n = 7");
 });
+
+test("the whole patch is ten rhomb shapes, which is what <defs>/<use> exports", () => {
+    // PLAN 5.99's happy medium. A rhomb of pair (j,k) is v0 + {0, vj, vj+vk, vk},
+    // so every tile of a pair is a TRANSLATE of every other -- ten shapes for
+    // any patch, one per family pair, and the SVG export can define ten paths
+    // and place a <use> per tile. The XObject analogue, and PDF's answer to the
+    // same question.
+    const { rs } = patch([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const shapes = new Map();
+    for (const r of rs) {
+        const key = `${r.j},${r.k}`;
+        const rel = r.vertices.map(([x, y]) =>
+            [x - r.vertices[0][0], y - r.vertices[0][1]]);
+        if (!shapes.has(key)) shapes.set(key, []);
+        const seen = shapes.get(key);
+        const dup = seen.some((s) => s.every((p, i) =>
+            Math.hypot(p[0] - rel[i][0], p[1] - rel[i][1]) < 1e-9));
+        if (!dup) seen.push(rel);
+    }
+    assert.equal(shapes.size, 10, `${shapes.size} family pairs, not C(5,2) = 10`);
+    for (const [pair, set] of shapes) {
+        assert.equal(set.length, 1,
+                     `pair ${pair} has ${set.length} shapes: the tiles of a pair `
+                     + "are no longer translates of each other");
+    }
+    assert.ok(rs.length > 400, `only ${rs.length} tiles, so the saving is untested`);
+});
