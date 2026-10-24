@@ -80,7 +80,7 @@ test("gamma is exactly serializable, which is what lets the reticulum travel", (
               "the denominator rule moved; PLAN 9.2 quotes den = 2000n");
 });
 
-test("the widget's first three attributes are shipped, and the raster is its own layer", () => {
+test("the widget's first three attributes are shipped, and the raster is one layer", () => {
     // PLAN 9.8, decided 2026-10-24: a setup serializes as HTML ATTRIBUTES on
     // the container, and the pattern already exists -- readCanvasSpec reads
     // three of them today, so the widget's first three attributes are done and
@@ -89,11 +89,12 @@ test("the widget's first three attributes are shipped, and the raster is its own
     assert.ok(view.includes('intAttr(el, "data-height")'), "data-height is gone");
     assert.ok(view.includes('intAttr(el, "data-margin")'), "data-margin is gone");
 
-    // PLAN 5.99, decided the same day: one SVG per CANVAS, and a canvas is a
-    // layer here. That quarantines the one thing which cannot be vector --
-    // drawKRegions is the ENTIRE draw of the `background` layer, so it becomes
-    // one file that can be skipped. If anything else moves into that layer the
-    // quarantine is gone and 5.99 needs revisiting.
+    // PLAN 5.99: the export composites every layer into one file per
+    // container, so the one thing which cannot be vector is not a file to skip
+    // but a <g> inside the picture -- an embedded PNG when kRegions is on.
+    // drawKRegions is the ENTIRE draw of the `background` layer, which keeps it
+    // to one layer and one <g>. If anything else moves in there, the raster
+    // stops being contained and 5.99 needs revisiting.
     const at = view.indexOf('id: "background"');
     assert.ok(at >= 0, "the background layer is gone");
     // Its draw, which is one line and has to stay one thing.
@@ -102,4 +103,43 @@ test("the widget's first three attributes are shipped, and the raster is its own
     assert.ok(line.includes("drawKRegions"), `the background layer draws ${line}`);
     assert.equal((line.match(/draw[A-Z][a-zA-Z]*\(/g) ?? []).length, 1,
                  `the background layer draws more than the raster: ${line}`);
+});
+
+test("the composite SVG export's four gotchas are still true of the stack", () => {
+    // PLAN 5.99, decided 2026-10-24: "It's a record of a canvas with all its
+    // layers... in split, one for G and one for P." One file per CONTAINER,
+    // every layer composited. Four things a composite needs that a per-layer
+    // export would not, each a property of LayerStack rather than of the
+    // exporter -- so they are pinned here, where they can go stale.
+    const layers = readFileSync("src/view/layers.ts", "utf8");
+
+    // 1. Draw order is insertion order; the picture is stacked by z-index.
+    //    SVG has no z-index, so the exporter must sort by z.
+    assert.ok(/drawAll\(\)\s*\{[\s\S]*for \(const l of this\.order\)/.test(layers),
+              "drawAll no longer iterates insertion order");
+    assert.ok(layers.includes('c.style.zIndex = String(z)'),
+              "the canvases no longer stack by z-index");
+
+    // 2. A layer's opacity is on the element, not in the drawing.
+    assert.ok(layers.includes("t.canvas.style.opacity = opacity"),
+              "layer opacity is no longer a CSS opacity on the canvas");
+    assert.ok(view.includes("opacity: () => gridAlpha"),
+              "the grid layer no longer carries an element opacity");
+
+    // 3. Hidden layers are display:none, not cleared -- so an empty recording
+    //    cannot be trusted and the exporter must read visibility.
+    assert.ok(layers.includes('t.canvas.style.display = "none"'),
+              "hidden layers are no longer display:none");
+    assert.ok(/l\.visible \? l\.visible\(\) : true\) && l\.userVisible/.test(layers),
+              "the visibility predicate moved");
+
+    // 4. The raw overlays are not drawn layers and must not be exported.
+    assert.ok(/addRaw\(/.test(layers), "addRaw is gone");
+    assert.ok(layers.includes("this.raw.push(canvas)"),
+              "raw canvases are no longer kept apart from the drawn layers");
+
+    // And the geometry that makes one viewBox per file possible: every canvas
+    // in a stack is the same size.
+    assert.ok(/l\.canvas\.width = w; l\.canvas\.height = h;/.test(layers),
+              "resize no longer sizes every layer alike");
 });

@@ -112,7 +112,15 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
 6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
-7. **An SVG export, one file per canvas.** Nothing open; §5.99 has the steps. Jake, 2026-10-24: *"The svg should
+7. **An SVG export, one file per container.** Nothing open; §5.99 has the
+   steps. Jake: *"a record of a canvas with all its layers. A single image that
+   can be put into a pdf or web page… in split, one for G and one for P."* So
+   method exports one file of 12 layers and split two, G with 6 and P with 6
+   plus the mirrored `axes`. The composite needs four things a per-layer export
+   would not: **sort by z** (draw order is insertion order, the picture is
+   stacked by z-index, and on G those differ), carry each layer's `opacity()`
+   onto its `<g>`, filter on `visible() && userVisible` since hidden layers are
+   `display:none` rather than cleared, and leave out the raw overlays. Jake, 2026-10-24: *"The svg should
    be an export mode only. Only an SVG per canvas for now."* §5.99 has the
    measurements and the decision. A canvas is a LAYER here, so that is 12 files
    from method and no compositing at all — each layer already draws to exactly
@@ -3990,41 +3998,74 @@ argument.
 #### Decided (Jake, 2026-10-24)
 
 > *"The svg should be an export mode only. Only an SVG per canvas for now."*
+> …*"It's a record of a canvas with all its layers. A single image that can be
+> put into a pdf or web page. A single SVG file. For example in split, one for
+> G and one for P."*
 
 **Export only**, so the node counts stop being a constraint — 32480 nodes is a
 fine file and a bad document to hover, and nothing has to hover it.
 
-**One SVG per canvas**, which in this architecture means **one per layer**:
-`LayerStack.add` builds a canvas per layer, stacked by z in one container, so
-method carries **12 drawn layers** (Pentagrid 5: background, grid, dots,
-ammann-grid, klabels · Axes 1 · Penrose 6: penrose-tiles, big-rhombs,
-penrose-edges, penrose-pseudo, penrose-decor, penrose-vertices) and split the
-same set across two containers. That is the cheapest possible shape and it
-dissolves three of the four problems above:
+**One SVG per CONTAINER, all its layers composited.** The second quote corrects
+a misreading of the first: `LayerStack.add` builds a canvas per *layer*, so
+"per canvas" could have meant one file per layer, and it does not. The unit is
+the stacked area you look at — one picture, droppable into a PDF or a page.
+Measured:
 
-- **No compositing.** Each layer already draws to exactly one context, so a
-  recording context per layer is the whole implementation. No z-order merge, no
-  group nesting across layers, no decision about what a `<g>` means.
-- **The raster is quarantined.** `drawKRegions` is the entire draw of the
-  `background` layer and nothing else is in it, so the one layer that cannot be
-  vector is one file that can simply be skipped — or emitted as an embedded PNG
-  — without touching any other.
-- **The recipient turns layers off by not opening a file**, which was the only
-  thing the per-layer `<g>` was for.
+| page | containers | files | layers in each |
+|---|---|---|---|
+| method | 1 | **1** | 12 |
+| split | 2 (`container`, `containerP`) | **2** | G 6, P 6 + the mirrored `axes` = 7 |
 
-What remains is the gradient and clip deduplication of the two paragraphs
-above, both now per-layer and so smaller, and `measureText`, which only the
-label layers use.
+split's homes are `{ container, groups: { Penrose: containerP }, mirrored:
+["Axes"] }`, so the Penrose group goes right, everything else left, and `axes`
+draws into both — which is exactly Jake's "one for G and one for P".
+
+**Every canvas in a stack is the same size** (`resize` sets them all), so one
+`viewBox` per file and the layers align with no transform of any kind. That is
+the whole of the compositing geometry.
+
+**Four details a composite needs that per-layer files would not.**
+
+1. **Document order is z order, and it is not draw order.** `drawAll` iterates
+   insertion order; the picture is stacked by the canvases' `z-index`. On G
+   those differ — inserted `background@5 grid@10 axes@70 dots@29 ammann-grid@11
+   klabels@28`, stacked `5 10 11 28 29 70`. SVG has no z-index, so the exporter
+   must **sort by `l.z`** before emitting. Canvas got away with it because the
+   browser did the sorting; an SVG that keeps draw order is silently wrong.
+2. **A layer's opacity is on the element, not in the drawing.** `opacity: () =>
+   gridAlpha` is applied as a CSS `opacity` on the canvas, so it becomes the
+   `<g>`'s `opacity` attribute. Nothing in the recorded calls carries it.
+3. **Invisible layers are `display: none`, not cleared** — deliberately, so an
+   expensive layer is not rebuilt to hide it. So the exporter filters on
+   `visible() && userVisible` rather than trusting an empty recording.
+4. **The raw overlays are not layers and must not be exported.** `addRaw`
+   canvases are the hover marker, the highlight and the input-capture surface —
+   4 of them on G, 2 on P. They are §9.3's transient scope and have no place in
+   a record.
+
+So each layer is a `<g id="penrose-tiles" opacity="…">`, in z order, inside one
+`<svg viewBox="0 0 w h">`. The per-layer `<g>` also gives back the affordance a
+per-file export would have had: the recipient can turn a layer off in the
+editor.
+
+**The raster is no longer quarantined.** `drawKRegions` is the whole draw of the
+`background` layer, which was convenient when every layer was its own file — the
+one thing that cannot be vector was one file you skipped. Composited, it is a
+`<g>` inside the single file, so when `kRegions` is on it has to become an
+embedded `<image>` with a data-URI PNG. Skipping it instead now removes content
+from the picture rather than declining to write a file. It is still one layer
+and still the only one, which is as contained as it can be.
 
 **And no data attributes on tiles.** Jake, 2026-10-24: *"SVG: No data, just a
 record."* The file depicts the patch and does not describe it, so the exporter
 emits what was drawn and never what it was drawn from. De-dualization (§3
 item 3) gets no free ride from it, and the exporter stays a renderer.
 
-Nothing is open here. The steps are: a recording context covering the 24 that
-map directly, then the gradient and clip deduplication, then `measureText` by
-approximation or by dropping the backing boxes, then a decision per page about
-whether the `background` layer is skipped or embedded as a PNG.
+Nothing is open here. The steps: a recording context covering the 24 members
+that map directly; the per-container composite with z sorting, `<g>` opacity and
+the visibility filter; gradient and clip deduplication; `measureText` by
+approximation or by dropping the backing boxes; and the `background` layer as an
+embedded PNG or omitted.
 
 ## 6. Not built
 
@@ -5115,8 +5156,10 @@ record."* The SVG carries no per-element data, so the pairing is an attribute
 string that reproduces the figure beside a file that depicts it — the record of
 what, next to the record of how it looked. Not one file doing both.
 
-§9.1's read side is still a prerequisite for both: an exporter needs to know
-what is switched on quite as much as a serializer does.
+§9.1's read side is still a prerequisite for both, and more so for a composite
+than it was for per-layer files: an exporter that puts every layer in one
+picture has to know which layers are on, at what opacity, in what z order —
+quite as much as a serializer does.
 
 ### 9.10 Steps, as decided
 
