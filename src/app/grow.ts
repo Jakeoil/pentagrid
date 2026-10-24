@@ -12,7 +12,12 @@ import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("grow-view");
 if (host) {
-    const view = createGrowthView({ container: host, lift: false, ribbons: "stroke" });
+    const view = createGrowthView({
+        // Remembered across visits — PLAN §9.4, Jake's want #4. The
+        // exploration pages opt in; the narrative ones do not, since a step
+        // imposes its own feature set and a session would fight it. `reset
+        // page` in the panel's settings is the way home.
+        session: "grow", container: host, lift: false, ribbons: "stroke" });
     bindSliders(view, [
         { id: "grow-t", key: "grow", format: (v) => v.toFixed(2) },
         { id: "grow-w", key: "band", format: (v) => `${Math.round(v * 100)}%` },

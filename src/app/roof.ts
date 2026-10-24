@@ -15,6 +15,11 @@ if (host) {
     // The solids layer reports what it drew; the note under the viewport says it.
     const note = document.getElementById("roof-solid-note");
     const view = createGrowthView({
+        // Remembered across visits — PLAN §9.4, Jake's want #4. The
+        // exploration pages opt in; the narrative ones do not, since a step
+        // imposes its own feature set and a session would fight it. `reset
+        // page` in the panel's settings is the way home.
+        session: "roof",
         container: host, lift: true, ribbons: "quads",
         onReadout: (text) => { if (note) note.textContent = text; },
     });

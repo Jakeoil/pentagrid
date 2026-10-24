@@ -21,12 +21,12 @@
  * there holds seven numerators and a pentagrid page must refuse it rather than
  * read five of them — §9.3's one hazard.
  *
- * Storage is `localStorage` when there is one and a module variable otherwise,
- * so this works in a page, in `pagecheck` and in a test without a special case
- * at the call site. Every access is guarded: a private window, cleared site
- * data or a browser set to block storage all throw on the accessor itself.
+ * Storage is `state/store.ts`, which is guarded and falls back to memory — so
+ * this works in a page, in `pagecheck` and in a test with no special case at
+ * the call site.
  */
 import type { GammaSnapshot } from "./baseline.js";
+import { storeRead, storeSet, storeDelete } from "./store.js";
 
 export interface Slot {
     /** What the title bar should say once it is pulled. */
@@ -37,44 +37,24 @@ export interface Slot {
 }
 
 const KEY = "pentagrid.reticulum.slot";
-/** The fallback store, and the one the tests use. */
-let memory: Slot | null = null;
-
-function store(): Storage | null {
-    try {
-        // The accessor itself throws where site data is blocked, so this is not
-        // the same as checking for undefined.
-        const s = globalThis.localStorage;
-        return s && typeof s.getItem === "function" ? s : null;
-    } catch {
-        return null;
-    }
-}
 
 /** Put the reticulum in the slot, replacing whatever was there. */
 export function pushSlot(slot: Slot): void {
-    memory = slot;
-    const s = store();
-    if (!s) return;
-    try { s.setItem(KEY, JSON.stringify(slot)); } catch { /* full, or blocked */ }
+    storeSet(KEY, JSON.stringify(slot));
 }
 
-/** What is in the slot, whatever its n. Null when empty or unreadable. */
+/**
+ * What is in the slot, whatever its n. Null when empty or unreadable.
+ *
+ * Shape-checked, because this came from outside the program: another version
+ * wrote it, or a user edited it.
+ */
 export function peekSlot(): Slot | null {
-    const s = store();
-    if (s) {
-        try {
-            const raw = s.getItem(KEY);
-            if (raw) {
-                const got = JSON.parse(raw) as Slot;
-                // Shape-checked, because this came from outside the program:
-                // another version wrote it, or a user edited it.
-                if (got && typeof got.label === "string" && typeof got.n === "number"
-                    && got.gamma && Array.isArray(got.gamma.exact)) return got;
-            }
-        } catch { /* unparseable: treat as empty */ }
-    }
-    return memory;
+    return storeRead<Slot>(KEY, (v) => {
+        const s = v as Slot;
+        return !!s && typeof s.label === "string" && typeof s.n === "number"
+            && !!s.gamma && Array.isArray(s.gamma.exact);
+    });
 }
 
 /**
@@ -88,8 +68,5 @@ export function slotFor(n: number): Slot | null {
 
 /** For tests, and for a page that wants to forget. */
 export function clearSlot(): void {
-    memory = null;
-    const s = store();
-    if (!s) return;
-    try { s.removeItem(KEY); } catch { /* nothing to do */ }
+    storeDelete(KEY);
 }

@@ -5313,6 +5313,55 @@ entries, no back-button damage, and no question of when to rewrite. The page
 reads a setup from the URL if one is there and otherwise ignores it entirely;
 producing one is a button that puts the string on the clipboard.
 
+### 9.4a Session memory — BUILT 2026-10-24
+
+`src/state/session.ts` with `src/state/store.ts` underneath, step 7 of §9.10.
+
+**Where it sits**, with the URL gone from §9.4's order:
+
+    attributes (the markup, or a saved setup)  >  session  >  page defaults
+
+Read **after** `markBaseline`, which is the point: the baseline is the page's
+own setup, so `reset()` throws the session away and returns to the markup
+rather than to your last visit. The session is the transient layer and reset is
+how you leave it. Tested both ways.
+
+**Opt-in, per page.** `method`, `split`, `roof`, `grow` and `grow7` ask for it;
+the narrative pages do not, and must not — a step imposes its own feature set
+and a session restoring the features from three steps ago would fight the step
+you are on. A test asserts both halves of that.
+
+**Keyed per page**, with the container's id in the key so two canvases on one
+page do not share. Saved on a **debounce** (400 ms), because a pan fires
+continuously and what is worth remembering is where you ended up, not the
+thirty places you passed through — one write for thirty calls, tested.
+
+**Versioned, and a later version is refused rather than misread.** `v: 1`, and
+`loadSession` returns null for anything else, so an old page meeting a new
+session takes its defaults instead of half-reading a shape it does not know.
+Same instinct as §9.5's omission rule, one level down.
+
+**`src/state/store.ts` is the one place that knows about `localStorage`**, since
+the slot (§9.3) and the session both wanted the same guards and written twice
+they would have been guarded differently. Three facts it exists for: the
+accessor itself throws where site data is blocked (so the test is a `try`, not
+a `typeof`); a write can fail on quota long after a read worked; and it can come
+back empty for reasons that are not bugs. Everything falls back to a module map,
+which is also what makes this work in node and in `pagecheck` with no special
+case at the call site.
+
+**The growth slice rides in the same record.** `GrowthState` lives in the growth
+view's own closure, so the pentagrid cannot see it, and two records for one page
+would be two things to keep in step. `config.sessionSlice` is how the outer view
+contributes its share — filtered through the inventory, so only real fields are
+stored.
+
+**And the reset button landed here, not in step 3.** A page that remembers where
+you left it and offers no way home is a trap: the only escape would be clearing
+site data. So **reset page** sits beside **copy setup** in the panel's
+`settings`, which also makes want #5 reachable at last — it had been API with no
+control since step 3.
+
 ### 9.5 Defaults, omission, and why an old embed must keep working
 
 **A serialized setup carries only what differs from that page's defaults.** Two
@@ -5597,7 +5646,10 @@ quite as much as a serializer does.
    2026-10-24** — `src/state/embed.ts`, `embed()` on both handles, a **copy
    setup** button in the panel's `settings`, `tools/embed.test.mjs`. Wants #1
    and #2 delivered. See §9.8b.
-7. **Session memory** (§9.4's middle sink). Want #4.
+7. ~~**Session memory**~~ **Built 2026-10-24** — `src/state/session.ts`,
+   `src/state/store.ts`, opt-in per page, plus the **reset page** button.
+   `tools/session.test.mjs`. Want #4 delivered, and #5 finally reachable.
+   See §9.4a.
 8. **method.html from its own embed** — the completeness test of §9.8, and the
    last step because it can only pass once everything above is total.
 

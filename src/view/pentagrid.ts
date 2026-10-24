@@ -19,6 +19,8 @@ import type { GammaSet } from "../geometry/gamma.js";
 import { captureGamma, restoreGamma } from "../state/baseline.js";
 import { readAttributes, watchAttributes } from "../state/attributes.js";
 import { readSlices, writeSlices, embedString } from "../state/embed.js";
+import { sessionKey, saveSession, loadSession, debounce, SAVE_AFTER_MS }
+    from "../state/session.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
@@ -476,6 +478,27 @@ export interface PentagridConfig {
      *  without this file knowing anything about them. */
     layers?: (ctx: PentagridParts) => void;
     /** Starting feature set. Useful for a page with no steps to impose one. */
+    /**
+     * Remember this page's state across visits — PLAN §9.4, Jake's want #4.
+     *
+     * Opt-in, because not every page wants it: the narrative pages impose a
+     * feature set per step, and a session restoring the features from three
+     * steps ago would fight the step you are on. `true` uses a key made from
+     * the path and the container's id; a string is a key of your own.
+     */
+    session?: boolean | string;
+    /**
+     * A slice of state the view does not own, to go in the same session record.
+     *
+     * The growth view's `GrowthState` lives in its own closure, so the
+     * pentagrid cannot see it — and two records for one page would be two
+     * things to keep in step. This is how the outer view contributes its share
+     * instead: one record per page, as §9.3's page scope says.
+     */
+    sessionSlice?: {
+        read: () => Record<string, unknown>;
+        write: (v: Record<string, unknown>) => void;
+    };
     features?: Partial<Features>;
     /** How the tiles are dressed. See TileStyle. */
     tileStyle?: Partial<TileStyle>;
@@ -3951,6 +3974,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     // ── Main draw ─────────────────────────────────────────────────────
 
+    /**
+     * Called after every draw, once the picture is current.
+     *
+     * One subscriber so far: the session save (§9.4). A draw is the right
+     * signal because every path that changes anything ends in one — the panel,
+     * the γ set's listeners, a pan, an attribute mutation — so nothing has to
+     * remember to announce itself, which is the mistake a dozen call sites
+     * would eventually make.
+     */
+    const afterDraw: (() => void)[] = [];
+
     function draw() {
         // The scan FIRST. The tiles layer reads it — which rhombs are stacked
         // in a 2k-gon, and the 2k-gons themselves — so it has to be current
@@ -3966,6 +4000,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         updatePenroseStatus();
         updateMeter();
         if (loupe.view) { loupe.redraw(); drawFootprint(); }
+        for (const cb of afterDraw) cb();
     }
 
     // ── Panel ─────────────────────────────────────────────────────────
@@ -4793,6 +4828,24 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             }
         });
         copyRow.appendChild(copyBtn);
+        /**
+         * Back to this page's own setup — PLAN §9.6, Jake's want #5.
+         *
+         * Beside the copy button, and added at the same time as the session
+         * (§9.4) on purpose: a page that remembers where you left it and offers
+         * no way home is a trap, since the only escape would be clearing site
+         * data. The reset throws the session away too — it returns to the
+         * markup, and the next draw saves that.
+         */
+        const resetBtn = document.createElement("button");
+        resetBtn.type = "button";
+        resetBtn.className = "ret-bump";
+        resetBtn.textContent = "reset page";
+        resetBtn.title = "Back to this page's own defaults: the dressings, the "
+            + "layers, the view and γ. Not the view's defaults — the page's, "
+            + "including anything its markup asked for.";
+        resetBtn.addEventListener("click", () => { resetNow(); });
+        copyRow.appendChild(resetBtn);
         copyRow.appendChild(copySaid);
 
         const sRow = row(det, "");
@@ -5583,6 +5636,65 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let baseline: Baseline = capture();
 
     /**
+     * Session memory — read AFTER the baseline, so `reset()` discards it and
+     * returns to the markup rather than to the last visit. §9.4's order with
+     * the URL gone: attributes > session > page defaults.
+     */
+    const sessionId = config.session
+        ? (typeof config.session === "string"
+            ? config.session : sessionKey(config.container))
+        : null;
+    if (sessionId) {
+        const was = loadSession(sessionId);
+        if (was) {
+            if (was.features) features = { ...features, ...was.features } as Features;
+            if (was.tileStyle) Object.assign(tileStyle, was.tileStyle);
+            if (was.gamma) {
+                const g = was.gamma as GammaSnapshot;
+                if (Array.isArray(g.exact) && g.exact.length === model.n) {
+                    restoreGamma(gammaSet, g);
+                }
+            }
+            if (was.view) {
+                scale = was.view.scale; viewX = was.view.x; viewY = was.view.y;
+            }
+            if (was.hide) {
+                const v: Record<string, boolean> = {};
+                for (const l of stack.all()) v[l.id] = !was.hide.includes(l.id);
+                stack.setVisibility(v);
+            }
+            if (was.growth) config.sessionSlice?.write(was.growth);
+            syncPanel();
+            draw();
+        }
+    }
+
+    /** What to remember. The page scope of §9.3, and only the page scope. */
+    const saveNow = () => {
+        if (!sessionId) return;
+        const now = capture();
+        const hidden = Object.entries(now.visibility)
+            .filter(([, on]) => !on).map(([id]) => id);
+        saveSession(sessionId, {
+            v: 1,
+            features: { ...now.features } as Record<string, boolean>,
+            tileStyle: { ...now.tileStyle } as unknown as Record<string, boolean>,
+            gamma: now.gamma,
+            view: now.view,
+            ...(hidden.length ? { hide: hidden } : {}),
+            ...(config.sessionSlice
+                ? { growth: config.sessionSlice.read() as Record<string, boolean> }
+                : {}),
+        });
+    };
+    /**
+     * Saved on a debounce, not on every change: a pan fires continuously and
+     * what is worth remembering is where you ended up.
+     */
+    const saveSoon = debounce(saveNow, SAVE_AFTER_MS);
+    if (sessionId) afterDraw.push(saveSoon);
+
+    /**
      * This setup as markup. A named local rather than only a method, because
      * the panel's copy button needs it and the handle object does not exist
      * until the factory returns.
@@ -5607,6 +5719,28 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             height: canvas.explicit ? canvas.h : undefined,
             ...opts,
         });
+    };
+
+
+    /**
+     * Back to this page's home. A named local, like `embedNow`, because the
+     * panel's reset button needs it and the handle does not exist yet.
+     */
+    const resetNow = () => {
+        // γ first: it is the one that fires listeners and redraws of its
+        // own, so everything after it lands on the restored grid.
+        restoreGamma(gammaSet, baseline.gamma);
+        // A complete snapshot, so assigning it IS replacing it — the
+        // merge cannot leave a field that was switched on since.
+        Object.assign(tileStyle, baseline.tileStyle);
+        features = { ...baseline.features };
+        gridAlpha = baseline.gridAlpha;
+        scale = baseline.view.scale;
+        viewX = baseline.view.x;
+        viewY = baseline.view.y;
+        stack.setVisibility(baseline.visibility);
+        syncPanel();
+        draw();
     };
 
     buildLayerPanel();
@@ -5645,22 +5779,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
          */
         embed: (opts) => embedNow(opts),
 
-        reset: () => {
-            // γ first: it is the one that fires listeners and redraws of its
-            // own, so everything after it lands on the restored grid.
-            restoreGamma(gammaSet, baseline.gamma);
-            // A complete snapshot, so assigning it IS replacing it — the
-            // merge cannot leave a field that was switched on since.
-            Object.assign(tileStyle, baseline.tileStyle);
-            features = { ...baseline.features };
-            gridAlpha = baseline.gridAlpha;
-            scale = baseline.view.scale;
-            viewX = baseline.view.x;
-            viewY = baseline.view.y;
-            stack.setVisibility(baseline.visibility);
-            syncPanel();
-            draw();
-        },
+        reset: () => resetNow(),
+
         setFeatures,
         setGridAlpha: (a) => { gridAlpha = a; draw(); },
         setTileStyle: (st) => { Object.assign(tileStyle, st); draw(); },

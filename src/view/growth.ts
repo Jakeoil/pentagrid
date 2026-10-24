@@ -74,6 +74,12 @@ export interface GrowthConfig {
     /** Stand the surface up into golden rhombi. Needs the camera to be visible. */
     lift?: boolean;
     /**
+     * Remember this page across visits — PLAN §9.4, want #4. Passed straight
+     * to the pentagrid underneath, which owns the saving; the growth slice
+     * rides along in the same record.
+     */
+    session?: boolean | string;
+    /**
      * Kept for callers that named it; there is only one mode now. The bands are
      * quads inside each tile and quads across the gaps, which is exact flat and
      * folded alike and sorts correctly in 3D.
@@ -897,6 +903,25 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         gamma: config.gamma,
         n: config.n,
         features: { gridLines: false, axes: false },
+        session: config.session,
+        // This view's own slice, so a roof page is one session record and not
+        // two. Filtered through the inventory so only real fields are stored.
+        sessionSlice: {
+            read: () => {
+                const out: Record<string, unknown> = {};
+                for (const f of FIELDS) {
+                    if (f.owner !== "growth") continue;
+                    out[f.key] = (state as unknown as Record<string, unknown>)[f.key];
+                }
+                return out;
+            },
+            write: (v) => {
+                for (const f of FIELDS) {
+                    if (f.owner !== "growth" || !(f.key in v)) continue;
+                    (state as unknown as Record<string, unknown>)[f.key] = v[f.key];
+                }
+            },
+        },
         // What fills the canvas under a camera is not what fills it flat. Tilting
         // squashes world-y onto the screen by sin(elevation), so the same rect
         // covers less and less of the picture as the roof lies back; spinning

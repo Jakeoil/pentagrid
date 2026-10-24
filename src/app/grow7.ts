@@ -11,7 +11,12 @@ import { FAMILY_COLORS } from "../view/growth.js";
 
 const host = document.getElementById("grow7-view");
 if (host) {
-    const view = createGrowthView({ container: host, n: 7, lift: false, ribbons: "stroke" });
+    const view = createGrowthView({
+        // Remembered across visits — PLAN §9.4, Jake's want #4. The
+        // exploration pages opt in; the narrative ones do not, since a step
+        // imposes its own feature set and a session would fight it. `reset
+        // page` in the panel's settings is the way home.
+        session: "grow7", container: host, n: 7, lift: false, ribbons: "stroke" });
 
     // Σγ = 1 is the uniform offset 1/7, the one setting with global 7-fold
     // symmetry (Lutfalla Thm 1.2). Starting anywhere else buries the reason the

@@ -16,6 +16,11 @@ const tileHost = byId("split-tiles");
 
 if (gridHost && tileHost) {
     const grid = createPentagrid({
+        // Remembered across visits — PLAN §9.4, Jake's want #4. The
+        // exploration pages opt in; the narrative ones do not, since a step
+        // imposes its own feature set and a session would fight it. `reset
+        // page` in the panel's settings is the way home.
+        session: "split",
         container: gridHost,
         containerP: tileHost,
         panel: byId("split-grid-panel"),

@@ -13,6 +13,11 @@ import { mountFloatingReticulum } from "./view/controls.js";
 const byId = (id: string) => document.getElementById(id) ?? undefined;
 
 const handle = createPentagrid({
+    // Remembered across visits — PLAN §9.4, Jake's want #4. The
+    // exploration pages opt in; the narrative ones do not, since a step
+    // imposes its own feature set and a session would fight it. `reset
+    // page` in the panel's settings is the way home.
+    session: "method",
     container: document.getElementById("canvas-container")!,
     controls: byId("controls"),
     panel: byId("layer-panel"),
