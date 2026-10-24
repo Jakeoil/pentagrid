@@ -5154,22 +5154,68 @@ Counted from the defaults literals, which are the authoritative lists:
 
 | owner | where | booleans | enums | numbers | exact? |
 |---|---|---|---|---|---|
-| `Features` | `NO_FEATURES`, view closure | **19** | 0 | 0 | yes |
-| `TileStyle` | `tileStyle`, view closure | **21** | 5 | 3 | enums/bools yes, `ramp`/`opacity`/`band` float |
-| `GrowthState` | `DEFAULTS`, growth closure | **13** | 3 | 7 | `grow`/`fold`/`band`/`azimuth`/`elevation` float |
+| `Features` | `NO_FEATURES` | **19** | 0 | 0 | yes |
+| `TileStyle` | `TILE_DEFAULTS` | **21** | 5 | 3 | enums/bools yes, `ramp`/`opacity`/`band` float |
+| `GrowthState` | `DEFAULTS` | **13** | 3 | **8** | `grow`/`fold`/`band`/`azimuth`/`elevation` float |
 | `GammaSet` | `geometry/gamma.ts` | guard, symmetry | — | γ as **integers over `den`**, locked, generation, family flags, family lines, isolated | **yes, exactly** |
 | view | `getView`/`setView` | — | — | scale, viewX, viewY | float |
 | layer visibility | `LayerStack` | one per layer | — | — | yes |
 
-**53 booleans in all** — nine base64url characters — plus eight enums at two or
-three bits each and ten numbers. A complete setup is on the order of 60 to 120
-characters. Length is not the constraint; precedence and defaults are.
+**72 fields: 53 booleans** — nine base64url characters — plus eight enums at two
+or three bits each and eleven numbers. A complete setup is on the order of 60 to
+120 characters. Length is not the constraint; precedence and defaults are.
+
+(Growth's numbers read as 7 here until step 2 derived them: the regex used to
+count the first draft was `/([a-zA-Z0-9]+):\s*-?[0-9.]+/`, which does not match
+`elevation: Math.PI / 2`. Which is the argument for §9.10 step 2 in one line —
+a list read off the live objects cannot miscount them.)
 
 **γ is the one piece that is already exact.** `gammaSet.exact()` returns integer
 numerators over `den = 2000n`, and the deflation gauge fixing (§5.3) keeps those
 numerators small. So the reticulum can be carried byte-exact between pages with
 no float round-trip — which matters, because `provenRegular` and the whole
 singularity catalog are decided on the rationals, not measured on the doubles.
+
+### 9.2a The inventory module — BUILT 2026-10-24
+
+`src/state/inventory.ts`, step 2 of §9.10. **Derived where it can be, declared
+only where it cannot** — which is what makes it unable to go stale:
+
+- **The fields, their kinds and their defaults are read off the defaults
+  literals themselves.** `NO_FEATURES` and the tile-style literal were private
+  to `createPentagrid`; they are now module-scope exports (`NO_FEATURES`,
+  `TILE_DEFAULTS`) beside growth's `DEFAULTS`, and `FIELDS` is derived from the
+  three. A switch added to any of them appears in the inventory with no edit,
+  so it cannot be forgotten by the reader, the writer, the reset or the test.
+  **72 fields**, and `typeof` the default gives the kind.
+- **Enum value sets are declared**, because a TypeScript union does not exist
+  at runtime — and `tools/inventory.test.mjs` parses the unions back out of the
+  source (inline, or through a named type, which is how growth's `paths` reads
+  `Paths` from `geometry/walls.ts`) and compares. So they cannot drift.
+- **Attribute names are derived**: camelCase to `data-kebab-case`, one rule, no
+  table of sixty names to mistype. `keyOf` inverts it.
+- `parse` and `format` per kind, with HTML's notion of a boolean — present is
+  true, and only `false`/`0`/`off`/`no` are false — and **null for anything it
+  does not understand**, so a reader ignores a bad attribute rather than
+  guessing, which is §9.5's rule.
+- `alternative(field, value)`, some other legal value, for §9.7's per-field
+  walk. It owes only "different, and legal": the walk restores from the value
+  it saved.
+- `SLICES` names the three things that are not flat fields — `gamma` (shared),
+  `view` and `visibility` (page) — so a serializer can see the whole and
+  nothing is silently left out.
+
+**And the test found a collision worth recording.** `isogloss`, `band` and
+`offPenrose` exist on **both** `TileStyle` and `GrowthState`, and a roof page
+carries both objects — `createGrowthView` builds a pentagrid underneath itself —
+so `data-band` there would be ambiguous. Method and split are the pages whose
+attribute names Jake wrote out, so those keep the plain form and the growth side
+takes a `growth-` prefix, in a declared table.
+
+Declared rather than computed on collision, deliberately: a rule that prefixed
+"when there is a clash" would **rename an existing attribute** the day a
+clashing field was added, and an old embed would quietly lose it. A table only
+grows, and the test fails on any collision it does not cover.
 
 ### 9.3 Three scopes, which is what want #3 really asks for
 
@@ -5389,11 +5435,8 @@ quite as much as a serializer does.
 1. ~~**The read side.**~~ **Built 2026-10-24** — `getTileStyle`, `getFeatures`,
    `getGridAlpha`, `LayerStack.visibility`/`setVisibility`, and
    `tools/readside.test.mjs`. See §9.1.
-2. **The inventory, as data.** One module naming every field, its type, its
-   default, its scope and **its attribute name** — so the attribute reader, the
-   attribute writer, the reset and the round-trip test all read one list and
-   cannot disagree. This is the piece that keeps §9.2 from going stale, and
-   with §9.8 it is also the widget's documentation.
+2. ~~**The inventory, as data.**~~ **Built 2026-10-24** — `src/state/inventory.ts`
+   and `tools/inventory.test.mjs`. See §9.2a.
 3. **Reset to the page's baseline** (§9.6), which needs only steps 1 and 2 and
    delivers want #5 on its own.
 4. **The reticulum slot** (§9.3): push on leaving, the `restore` preset to pull,

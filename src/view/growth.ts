@@ -322,7 +322,13 @@ const POOL: Record<number, { lit: string; body: string; rim: string }> = {
     5: { lit: "#ffd9b8", body: "#e07a28", rim: "#8a4310" },
 };
 
-const DEFAULTS: GrowthState = {
+/**
+ * The growth view before a page says otherwise.
+ *
+ * Exported so `state/inventory.ts` derives its field list from it, as it does
+ * from `NO_FEATURES` and `TILE_DEFAULTS` (PLAN §9.10 step 2).
+ */
+export const DEFAULTS: GrowthState = {
     grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
     showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
     offPenrose: false,

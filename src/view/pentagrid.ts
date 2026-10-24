@@ -625,6 +625,45 @@ export const LAYER_FEATURE: Record<string, keyof Features> = {
     "penrose-vertices": "penroseVertices",
 };
 
+/**
+ * Every feature off — the floor a page builds on.
+ *
+ * At module scope and exported so `state/inventory.ts` can DERIVE the field
+ * list from it rather than keep a second copy (PLAN §9.10 step 2). A
+ * hand-written inventory goes stale the first time a switch is added; one
+ * read off the defaults cannot.
+ */
+export const NO_FEATURES: Features = {
+    gridLines: true, axes: false,
+    kRegions: false, kLabels: false, ammannGrid: false, intersectionDots: false,
+    penroseTiles: false, penroseEdges: false, penroseVertices: false,
+    penroseDecor: false,
+    arrows: false,
+    pseudoEdges: false,
+    center: false,
+    hoverRegion: false, hoverSegment: false, hoverCrossing: false,
+    hoverVertex: false, hoverEdge: false, hoverFace: false,
+};
+
+/**
+ * How the tiles are dressed before a page says otherwise.
+ *
+ * Lifted out of the factory with `NO_FEATURES` and for the same reason: the
+ * inventory derives from it.
+ */
+export const TILE_DEFAULTS: TileStyle = {
+    color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
+    curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
+    pentaOverlay: true,
+    pentaBoundary: "circle",
+    nextgenFace: false, nextgenEdge: false,
+    kitesFace: false, kitesEdge: false, ammann: false, nextPenta: false,
+    p1Shape: "pentaplex", p1Face: false, p1Grid: false,
+    bigRhombsFace: false, bigRhombsGrid: false,
+    faceEdges: false, afterimage: false,
+    boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
+};
+
 export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // The γ cluster owns the directions, the offsets, the sum constraint and the
     // regularity guard. See geometry/gamma.ts — this file is a view over it.
@@ -1025,36 +1064,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // set through `setFeatures`, which is the whole of what a preset table used to
     // do from in here, with the page rather than the view deciding.
 
-    const NO_FEATURES: Features = {
-        gridLines: true, axes: false,
-        kRegions: false, kLabels: false, ammannGrid: false, intersectionDots: false,
-        penroseTiles: false, penroseEdges: false, penroseVertices: false,
-        penroseDecor: false,
-        arrows: false,
-        pseudoEdges: false,
-        center: false,
-        hoverRegion: false, hoverSegment: false, hoverCrossing: false,
-        hoverVertex: false, hoverEdge: false, hoverFace: false,
-    };
-
     let features: Features = { ...NO_FEATURES, ...config.features };
 
     /** How strongly the grid draws. A page fades it as the tiling takes over. */
     let gridAlpha = 0.6;
 
-    const tileStyle: TileStyle = {
-        color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
-        curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
-        pentaOverlay: true,
-        pentaBoundary: "circle",
-        nextgenFace: false, nextgenEdge: false,
-        kitesFace: false, kitesEdge: false, ammann: false, nextPenta: false,
-        p1Shape: "pentaplex", p1Face: false, p1Grid: false,
-        bigRhombsFace: false, bigRhombsGrid: false,
-        faceEdges: false, afterimage: false,
-        boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
-        ...config.tileStyle,
-    };
+    const tileStyle: TileStyle = { ...TILE_DEFAULTS, ...config.tileStyle };
 
     /** Panel rows by label, so a page can choose which are worth exposing. */
     const panelRows = new Map<string, HTMLElement>();

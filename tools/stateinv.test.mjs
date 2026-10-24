@@ -14,40 +14,34 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-
-/** The fields of a defaults literal, by what a serializer has to do with them. */
-function classify(src, start) {
-    const i = src.indexOf(start);
-    assert.ok(i >= 0, `${start} is gone from the source`);
-    const j = src.indexOf("\n    };", i) >= 0
-        ? src.indexOf("\n    };", i) : src.indexOf("\n};", i);
-    const text = src.slice(i, j);
-    const pick = (re) => [...text.matchAll(re)].map((m) => m[1]);
-    return {
-        bool: pick(/([a-zA-Z0-9]+):\s*(?:true|false)\b/g),
-        enum: pick(/([a-zA-Z0-9]+):\s*"/g),
-        num: pick(/([a-zA-Z0-9]+):\s*-?[0-9.]+/g),
-    };
-}
+import { FIELDS } from "../dist/state/inventory.js";
 
 const view = readFileSync("src/view/pentagrid.ts", "utf8");
-const growth = readFileSync("src/view/growth.ts", "utf8");
 
 test("the state is the size PLAN 9.2 says it is", () => {
-    const f = classify(view, "const NO_FEATURES: Features = {");
-    const t = classify(view, "const tileStyle: TileStyle = {");
-    const g = classify(growth, "const DEFAULTS: GrowthState = {");
-    const say = (c) => `${c.bool.length} bool, ${c.enum.length} enum, ${c.num.length} number`;
+    // Read off the INVENTORY now, not parsed out of the source. The source
+    // parse is what produced the wrong figure in 9.2's first draft: the regex
+    // for a numeric default was /([a-zA-Z0-9]+):\s*-?[0-9.]+/, which does not
+    // match `elevation: Math.PI / 2`, so growth came out as 7 numbers when it
+    // has 8. The inventory derives from the live objects and cannot miscount.
+    const by = {};
+    for (const f of FIELDS) {
+        by[f.owner] = by[f.owner] ?? { bool: 0, enum: 0, number: 0 };
+        by[f.owner][f.kind]++;
+    }
+    const say = (c) => `${c.bool} bool, ${c.enum} enum, ${c.number} number`;
+    assert.equal(say(by.features), "19 bool, 0 enum, 0 number");
+    assert.equal(say(by.tileStyle), "21 bool, 5 enum, 3 number");
+    assert.equal(say(by.growth), "13 bool, 3 enum, 8 number");
 
-    assert.equal(say(f), "19 bool, 0 enum, 0 number", `Features is now ${say(f)}`);
-    assert.equal(say(t), "21 bool, 5 enum, 3 number", `TileStyle is now ${say(t)}`);
-    assert.equal(say(g), "13 bool, 3 enum, 7 number", `GrowthState is now ${say(g)}`);
-
-    // 53 booleans, nine base64url characters -- the figure 9.2 quotes.
-    const bits = f.bool.length + t.bool.length + g.bool.length;
+    // 53 booleans, nine base64url characters -- the figure 9.2 quotes -- and
+    // 72 fields in all.
+    const bits = FIELDS.filter((f) => f.kind === "bool").length;
     assert.equal(bits, 53, `${bits} booleans, not 53`);
     assert.equal(Math.ceil(bits / 6), 9);
-    assert.equal(f.enum.length + t.enum.length + g.enum.length, 8, "eight enums");
+    assert.equal(FIELDS.filter((f) => f.kind === "enum").length, 8, "eight enums");
+    assert.equal(FIELDS.filter((f) => f.kind === "number").length, 11, "eleven numbers");
+    assert.equal(FIELDS.length, 72, `${FIELDS.length} fields, not 72`);
 });
 
 test("the read side PLAN 9.1 asks for is on the handle, paired with every setter", () => {
