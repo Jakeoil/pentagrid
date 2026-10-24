@@ -5438,7 +5438,41 @@ Three consequences, and the third is the valuable one:
   is Jake's own stated goal. It also forces the §9.1 read side to be total: a
   page that writes its own embed has to be able to read every field it sets.
 
-Open at this level: whether an embedded widget is interactive (pan, zoom,
+**Built 2026-10-24**, as step 5 of §9.10: `src/state/attributes.ts`, read in
+both factories, and `tools/attributes.test.mjs`.
+
+- `readAttributes(el)` sorts a container's `data-*` into the three owners
+  through `BY_ATTR`, so the names, kinds and parsing cannot disagree with the
+  reset or the tests. **Only attributes the inventory names are touched** — a
+  host's `id`, `class`, `data-analytics-id`, and `readCanvasSpec`'s own
+  `data-width`/`-height`/`-margin` are left alone, because a widget lives on
+  someone else's div.
+- **The markup is the last word**: the view's defaults, then the page's config
+  in code, then the attributes. A host writing `data-color="bands"` means it.
+- **And it is read before the baseline is taken**, so for a widget the markup
+  *is* the page's setup and `reset()` returns to it (§9.6).
+- `watchAttributes` is §9.8a's observer, filtered to the inventory's names, and
+  returns null rather than throwing where there is no `MutationObserver`.
+- Tested: every one of the 72 fields is reachable by its own attribute; an
+  unparseable value is ignored and listed, never guessed; a container with no
+  attributes behaves exactly as before; and the growth slice takes
+  `data-growth-band` while `data-band` goes to the `TileStyle` underneath.
+
+**Two things the building cost.** First, a cycle:
+`pentagrid → attributes → inventory → pentagrid`, which through a `const` is
+not a warning but a `ReferenceError: Cannot access 'NO_FEATURES' before
+initialization` in six test files at once. The defaults literals now live in
+`src/state/defaults.ts`, which imports its two interfaces as `import type` and
+so has no runtime edges at all; `view/pentagrid.ts` and `view/growth.ts`
+re-export them, so every existing importer is unaffected.
+
+Second, a duck-typing bug worth remembering: `attributesOf` first tested
+`el.attributes` for a numeric `length` — which a **function** also has, its
+arity — so against a Proxy-based stub it matched the *method* and read every
+element as having no attributes. It asks `getAttributeNames()` first now, which
+is exactly the question anyway.
+
+Still open at this level: whether an embedded widget is interactive (pan, zoom,
 hover) or inert. Inert is one line and is probably right for a figure in a blog
 post; the library would want the choice to be an attribute like everything else.
 
@@ -5510,9 +5544,9 @@ quite as much as a serializer does.
    `tools/baseline.test.mjs`. Want #5 delivered. See §9.6.
 4. ~~**The reticulum slot**~~ **Built 2026-10-24** — `src/state/slot.ts`, the
    `restore` button, `tools/slot.test.mjs`. Want #3 delivered. See §9.3.
-5. **Read attributes on the container** (§9.8), extending `readCanvasSpec` from
-   three to the whole inventory. This is the widget, and it is also how a saved
-   setup is applied.
+5. ~~**Read attributes on the container**~~ **Built 2026-10-24** —
+   `src/state/attributes.ts`, read in both factories, with §9.8a's observer.
+   `tools/attributes.test.mjs`. See §9.8.
 6. **Write attributes**, plus the copy-to-clipboard button (§9.4). Want #1, and
    want #2 in the form Jake asked for rather than a URL.
 7. **Session memory** (§9.4's middle sink). Want #4.

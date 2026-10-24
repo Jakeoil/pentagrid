@@ -21,6 +21,10 @@ import type { Seat } from "../geometry/cascade.js";
 import type { CascadeSite } from "../geometry/cascade.js";
 import { penroseCondition } from "../geometry/gamma.js";
 import { wallView, skewbCode } from "../geometry/walls.js";
+import { readAttributes, watchAttributes } from "../state/attributes.js";
+import { DEFAULTS } from "../state/defaults.js";
+// Re-exported from where it has always been imported.
+export { DEFAULTS } from "../state/defaults.js";
 import type { Paths } from "../geometry/walls.js";
 import { p1Pentagons, P1_FILL, P1_STAR } from "../geometry/clusters.js";
 import { rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, rhombArcs } from "../geometry/decor.js";
@@ -330,21 +334,6 @@ const POOL: Record<number, { lit: string; body: string; rim: string }> = {
     5: { lit: "#ffd9b8", body: "#e07a28", rim: "#8a4310" },
 };
 
-/**
- * The growth view before a page says otherwise.
- *
- * Exported so `state/inventory.ts` derives its field list from it, as it does
- * from `NO_FEATURES` and `TILE_DEFAULTS` (PLAN §9.10 step 2).
- */
-export const DEFAULTS: GrowthState = {
-    grow: 0, fold: 0, band: 0.5, azimuth: 0, elevation: Math.PI / 2,
-    showResolutions: false, p1: false, penta: false, nextgen: false, kites: false,
-    offPenrose: false,
-    solids: false, axis: 0, direction: 1, paths: "both", pick: 0, pairGhost: false,
-    arcs: false, resolve: false, indexStyle: "none",
-    height: false, isogloss: false,
-    edgeStyle: "normal", kowalewski: false,
-};
 
 /** What a rhombohedron's angle code means, at n = 5. PLAN §5.0. */
 const CELL_SHAPE: Record<string, string> = { "122": "oblate", "113": "acute" };
@@ -376,6 +365,19 @@ export function projectToScreen(
 export function createGrowthView(config: GrowthConfig): GrowthHandle {
     const state: GrowthState = { ...DEFAULTS };
     if (config.lift) { state.fold = 1; state.grow = 1; state.elevation = 0.95; state.azimuth = 0.35; }
+    /**
+     * And then the container's attributes, which are the last word — PLAN §9.8.
+     *
+     * After `lift`, because `lift` is what the page asked for in code and the
+     * markup outranks it; before the baseline, because for a widget the markup
+     * IS the page's setup and `reset()` should return to it.
+     *
+     * `growth` is its own slice in the inventory, and three of its fields —
+     * `isogloss`, `band`, `offPenrose` — carry a `growth-` prefix because a
+     * roof page has a `TileStyle` as well and `data-band` would otherwise be
+     * ambiguous.
+     */
+    Object.assign(state, readAttributes(config.container).growth);
     const shaded = config.shaded ?? !!config.lift;
 
     let handle: PentagridHandle | null = null;
@@ -1940,6 +1942,12 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     // This page's home. A roof page is a growth state over a pentagrid, so a
     // baseline is both and the two are marked and restored together.
     let baseline: GrowthState = { ...state };
+    // A change of attributes redraws, §9.8a. The pentagrid under this one
+    // watches its own share of the same element; this takes the growth slice.
+    watchAttributes(config.container, () => {
+        Object.assign(state, DEFAULTS, readAttributes(config.container).growth);
+        handle!.redraw();
+    });
     return {
         set: (patch) => { Object.assign(state, patch); handle!.redraw(); },
         get: () => ({ ...state }),

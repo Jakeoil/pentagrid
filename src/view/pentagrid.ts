@@ -17,6 +17,10 @@ import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js
 import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { captureGamma, restoreGamma } from "../state/baseline.js";
+import { readAttributes, watchAttributes } from "../state/attributes.js";
+import { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
+// Re-exported where they have always been imported from.
+export { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
 import type { GammaSnapshot } from "../state/baseline.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
 import { rhombAmmann, ammannBars } from "../geometry/ammann.js";
@@ -646,44 +650,6 @@ export const LAYER_FEATURE: Record<string, keyof Features> = {
     "penrose-vertices": "penroseVertices",
 };
 
-/**
- * Every feature off — the floor a page builds on.
- *
- * At module scope and exported so `state/inventory.ts` can DERIVE the field
- * list from it rather than keep a second copy (PLAN §9.10 step 2). A
- * hand-written inventory goes stale the first time a switch is added; one
- * read off the defaults cannot.
- */
-export const NO_FEATURES: Features = {
-    gridLines: true, axes: false,
-    kRegions: false, kLabels: false, ammannGrid: false, intersectionDots: false,
-    penroseTiles: false, penroseEdges: false, penroseVertices: false,
-    penroseDecor: false,
-    arrows: false,
-    pseudoEdges: false,
-    center: false,
-    hoverRegion: false, hoverSegment: false, hoverCrossing: false,
-    hoverVertex: false, hoverEdge: false, hoverFace: false,
-};
-
-/**
- * How the tiles are dressed before a page says otherwise.
- *
- * Lifted out of the factory with `NO_FEATURES` and for the same reason: the
- * inventory derives from it.
- */
-export const TILE_DEFAULTS: TileStyle = {
-    color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
-    curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
-    pentaOverlay: true,
-    pentaBoundary: "circle",
-    nextgenFace: false, nextgenEdge: false,
-    kitesFace: false, kitesEdge: false, ammann: false, nextPenta: false,
-    p1Shape: "pentaplex", p1Face: false, p1Grid: false,
-    bigRhombsFace: false, bigRhombsGrid: false,
-    faceEdges: false, afterimage: false,
-    boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
-};
 
 export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // The γ cluster owns the directions, the offsets, the sum constraint and the
@@ -1085,12 +1051,28 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // set through `setFeatures`, which is the whole of what a preset table used to
     // do from in here, with the page rather than the view deciding.
 
-    let features: Features = { ...NO_FEATURES, ...config.features };
+    /**
+     * The container's own attributes, over the page's config — PLAN §9.8.
+     *
+     * Order: the view's defaults, then what the page asked for in code, then
+     * what the markup says. The markup wins because a host author writing
+     * `data-color="bands"` on the div means it, and because that is how a saved
+     * setup is applied. And it is read BEFORE the baseline is taken, so the
+     * attributes are part of this page's home and `reset()` returns to them —
+     * for a widget the markup IS the page's setup.
+     */
+    const attrs = readAttributes(config.container);
+
+    let features: Features = {
+        ...NO_FEATURES, ...config.features, ...attrs.features,
+    };
 
     /** How strongly the grid draws. A page fades it as the tiling takes over. */
     let gridAlpha = 0.6;
 
-    const tileStyle: TileStyle = { ...TILE_DEFAULTS, ...config.tileStyle };
+    const tileStyle: TileStyle = {
+        ...TILE_DEFAULTS, ...config.tileStyle, ...attrs.tileStyle,
+    };
 
     /** Panel rows by label, so a page can choose which are worth exposing. */
     const panelRows = new Map<string, HTMLElement>();
@@ -5512,6 +5494,24 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         gamma: captureGamma(gammaSet),
     });
     let baseline: Baseline = capture();
+
+    /**
+     * A change of attributes redraws — §9.8a, which is what makes the widget a
+     * function of its attributes rather than a second app.
+     *
+     * The page's own config is NOT reapplied: the markup is the later word, so
+     * a host that writes an attribute gets that attribute, and one that removes
+     * it gets the view's default back rather than whatever the page had asked
+     * for in code. Anything the attributes do not name is left exactly as it
+     * is, so a host rewriting one attribute does not disturb the panel.
+     */
+    watchAttributes(config.container, () => {
+        const next = readAttributes(config.container);
+        features = { ...NO_FEATURES, ...next.features };
+        Object.assign(tileStyle, TILE_DEFAULTS, next.tileStyle);
+        syncPanel();
+        draw();
+    });
 
     return {
         redraw: draw,

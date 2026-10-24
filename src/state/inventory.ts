@@ -23,8 +23,8 @@
  * setter. Both are named in `SLICES` so a serializer can see them, and neither
  * pretends to be a `Field`.
  */
-import { NO_FEATURES, TILE_DEFAULTS } from "../view/pentagrid.js";
-import { DEFAULTS as GROWTH_DEFAULTS } from "../view/growth.js";
+import { NO_FEATURES, TILE_DEFAULTS } from "./defaults.js";
+import { DEFAULTS as GROWTH_DEFAULTS } from "./defaults.js";
 
 /** Which object a field lives on. */
 export type Owner = "features" | "tileStyle" | "growth";
