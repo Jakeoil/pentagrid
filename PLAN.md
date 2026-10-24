@@ -4115,11 +4115,10 @@ deflation, which are all per-prototile figures. Note what it does **not** do:
 498 `<use>` is still 498 elements, so it saves bytes and not nodes — it helps
 the file, not a renderer. For an export that is the right side of the trade.
 
-**And if separate files are still wanted, emit them as well, not instead.**
-Every layer already has its own recording context — the recording is per-layer
-whether or not the output is — so per-layer files are a byproduct of the same
-run, cost nothing extra, and nothing depends on a link that can break. The
-composite stays the deliverable.
+**And if separate files are still wanted, emit them as well, not instead** —
+which is where this lands, once Jake points out they can be stacked in HTML.
+See the subsection below: the per-layer files and the composite come from one
+recording, so both are emitted and neither is a compromise.
 
 #### The use case, and the two ways to be "large" (Jake, 2026-10-24)
 
@@ -4164,6 +4163,47 @@ recording context already intercepts `lineWidth` and `font`, so it can carry an
 export scale and multiply both as they pass. One place, and it keeps the
 on-screen code unchanged — which is the same argument that made the recorder
 worth having at all.
+
+#### Stacking them in HTML — and why both outputs are one job (Jake, 2026-10-24)
+
+> *"Of course, the svg images could probably be stacked manually on a web
+> page."*
+
+They could, and it is better than it sounds: **that is what the canvas stack
+already is.** `makeCanvas` sets `position:absolute; top:0; left:0; z-index`,
+and `drawAll` sets `opacity` per layer — so an `<img src="edges.svg">` stack
+with the same four properties is the same picture by the same mechanism. The
+mapping is one to one, which also means the exporter could emit the HTML
+snippet beside the files.
+
+It dodges the §5.99 referencing problem completely, because **the coordination
+is HTML, not SVG**: each file stays self-contained, so secure static mode never
+comes up. And it does two things the composite cannot:
+
+- **Layers toggle live**, by hiding an `<img>` in CSS — no editor, no
+  re-export. For a web page that beats `<g>` layers.
+- **The raster stops being a problem.** `background` ships as a plain PNG in
+  the stack while everything else ships as SVG, and the stack does not care.
+  In the composite it has to be an embedded data-URI `<image>`.
+
+What it cannot do is be *one image*: not droppable into a PDF, not one file to
+send, not usable where you do not control the markup — which was the original
+requirement. So it is the web answer and the composite is the document answer.
+
+**And they are the same job, which is the point.** Every layer already has its
+own recording context — the recording is per-layer whether or not the output is
+— and `drawAll` computes `cx = w/2`, `cy = h/2` **once** and hands the same
+`w, h, cx, cy` to every layer. So every layer draws in **one common coordinate
+frame**, and therefore:
+
+- the per-layer bodies concatenate under a single `viewBox` **with no
+  transform** — the composite is literally the pieces wrapped in `<g>`s;
+- and the same pieces, written as separate files, stack in HTML at
+  `top:0; left:0` and align exactly.
+
+One run, two ways of writing it out, and no compositing arithmetic in either.
+So there is nothing to choose: emit both. The composite is the deliverable and
+the stack is the flexible form, and the second costs the price of a loop.
 
 Nothing is open here. The steps: a recording context covering the 24 members
 that map directly, with an export scale applied to `lineWidth` and `font`; the

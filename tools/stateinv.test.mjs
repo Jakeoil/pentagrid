@@ -176,3 +176,33 @@ test("line widths are constants, so an export scale belongs in the recorder", ()
                  + `(${derived.join(", ")}): route B's artifact is not uniform, `
                  + "so a blanket export scale would double-count them");
 });
+
+test("every layer draws in one coordinate frame, so both SVG outputs are one job", () => {
+    // PLAN 5.99: "the svg images could probably be stacked manually on a web
+    // page." They can, and it is the same recording as the composite -- but
+    // only because every layer shares w, h, cx and cy. drawAll computes the
+    // center ONCE and hands the same four to every layer, which is what makes
+    // the per-layer bodies concatenable under one viewBox with no transform,
+    // and equivalently stackable at top:0 left:0.
+    //
+    // If a layer ever got its own center or its own size, the composite would
+    // need per-layer transforms and the HTML stack would misalign. So the
+    // single frame is pinned here.
+    const layers = readFileSync("src/view/layers.ts", "utf8");
+    const at = layers.indexOf("drawAll()");
+    const body = layers.slice(at, layers.indexOf("\n    }", at));
+    assert.ok(/const cx = this\.w \/ 2;\s*\n\s*const cy = this\.h \/ 2;/.test(body),
+              "drawAll no longer computes one center for the whole stack");
+    // Computed before the loop, not inside it.
+    assert.ok(body.indexOf("const cx") < body.indexOf("for (const l of this.order)"),
+              "the center is computed per layer now");
+    // And handed to every layer unchanged.
+    assert.ok(body.includes("l.draw({ ctx: t.ctx, w: this.w, h: this.h, cx, cy })"),
+              "a layer no longer receives the stack's own w, h, cx, cy");
+
+    // The four CSS properties an <img> stack would copy from the canvas stack.
+    for (const prop of ['style.position = "absolute"', 'style.top = "0"',
+                        'style.left = "0"', "style.zIndex = String(z)"]) {
+        assert.ok(layers.includes(prop), `the stack no longer sets ${prop}`);
+    }
+});
