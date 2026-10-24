@@ -50,22 +50,31 @@ test("the state is the size PLAN 9.2 says it is", () => {
     assert.equal(f.enum.length + t.enum.length + g.enum.length, 8, "eight enums");
 });
 
-test("the read side PLAN 9.1 asks for is still missing, or has arrived whole", () => {
-    // Section 9.1's first commit. While it is absent this test records WHY
-    // nothing else in section 9 can be built; when it lands, it has to land
-    // for both objects at once, since a serializer needs the pair.
+test("the read side PLAN 9.1 asks for is on the handle, paired with every setter", () => {
+    // Section 9.1, landed 2026-10-24 as step 1 of 9.10. The handle used to
+    // carry every setter and no getter but getView; the asymmetry was what
+    // blocked everything else in section 9. This asserts the pairing, so a
+    // setter added later without its getter fails here rather than surfacing
+    // as a field a saved setup silently drops.
     const at = view.indexOf("export interface PentagridHandle");
     assert.ok(at >= 0, "PentagridHandle is gone");
     const handle = view.slice(at, view.indexOf("\n}", at));
-    const hasStyle = handle.includes("getTileStyle");
-    const hasFeat = handle.includes("getFeatures");
-    assert.equal(hasStyle, hasFeat,
-                 "getTileStyle and getFeatures have to arrive together: a "
-                 + "serializer needs both, and PLAN 9.1 asks for both");
-    // The setters, which have always been there -- the asymmetry is the point.
-    assert.ok(handle.includes("setTileStyle"), "setTileStyle is gone");
-    assert.ok(handle.includes("setFeatures"), "setFeatures is gone");
-    assert.ok(handle.includes("getView"), "getView is gone");
+    for (const pair of [["setTileStyle", "getTileStyle"],
+                        ["setFeatures", "getFeatures"],
+                        ["setGridAlpha", "getGridAlpha"],
+                        ["setView", "getView"]]) {
+        const [set, get] = pair;
+        assert.ok(handle.includes(set), `${set} is gone`);
+        assert.ok(handle.includes(get),
+                  `${set} has no ${get}: section 9 needs the pair, since a `
+                  + "saved setup can only carry what it can read");
+    }
+    // Layer visibility is the stack's, being per-layer rather than per-view.
+    const layers = readFileSync("src/view/layers.ts", "utf8");
+    assert.ok(/visibility\(\): Record<string, boolean>/.test(layers),
+              "LayerStack.visibility is gone");
+    assert.ok(/setVisibility\(v: Record<string, boolean>\)/.test(layers),
+              "LayerStack.setVisibility is gone");
 });
 
 test("gamma is exactly serializable, which is what lets the reticulum travel", () => {

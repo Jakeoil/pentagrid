@@ -175,6 +175,38 @@ export class LayerStack {
         return this.byId.get(id);
     }
 
+    /**
+     * Each layer's `userVisible`, by id — the only per-layer state that is not
+     * derived.
+     *
+     * PLAN §9.1, the read side. A layer's actual visibility is
+     * `visible() && userVisible`, and `visible()` is a function of the features
+     * and the tile style, so it is already carried by those: serializing it
+     * would be storing a conclusion beside its premises. `userVisible` is the
+     * independent half — the panel's own switch — and this is it.
+     *
+     * (For the layers in `LAYER_FEATURE` the panel binds to the feature
+     * instead, deliberately: a switch that wrote only `userVisible` on a layer
+     * whose `visible()` reads a feature would be a switch that lies. So those
+     * entries sit at their default and the feature carries the state.)
+     */
+    visibility(): Record<string, boolean> {
+        const out: Record<string, boolean> = {};
+        for (const l of this.order) out[l.id] = l.userVisible;
+        return out;
+    }
+
+    /**
+     * Restore what `visibility` read. Unknown ids are ignored and absent ones
+     * are left alone, so an older saved setup applies cleanly to a stack that
+     * has since gained a layer — §9.5's omission rule, at this level.
+     */
+    setVisibility(v: Record<string, boolean>) {
+        for (const l of this.order) {
+            if (typeof v[l.id] === "boolean") l.userVisible = v[l.id];
+        }
+    }
+
     all(): readonly Layer[] {
         return this.order;
     }

@@ -5113,17 +5113,40 @@ Five wants, and they are one feature: **the state has to become a value.** Right
 now it is not one — it is four owners with four shapes, mutated in place, and
 with no way to read most of it back.
 
-### 9.1 Step 0: the read side, which does not exist
+### 9.1 Step 0: the read side — BUILT 2026-10-24
 
-`PentagridHandle` is `redraw · setFeatures · setGridAlpha · setTileStyle ·
+`PentagridHandle` was `redraw · setFeatures · setGridAlpha · setTileStyle ·
 exposeRows · panelRow · onFeatureOn · getView · setView · setGamma · gamma ·
-stack`. Every setter is there and **no getter but `getView`** — the panel
-mutates `tileStyle.pentaFace = v; draw()` directly on a closure object nothing
-outside can see. So nothing below can be built until there is a read side:
-`getTileStyle()`, `getFeatures()`, and the layer stack's visibility. That is the
-first commit, it is small, and it is worth having regardless — a test earlier
-this session wanted `getTileStyle()` and had to infer the value from the
-drawing instead.
+stack`: every setter, and **no getter but `getView`**. The panel mutated
+`tileStyle.pentaFace = v; draw()` directly on a closure object nothing outside
+could see, so nothing below could be built. A test earlier the same session
+wanted `getTileStyle()` and had to infer the value from the drawing instead.
+
+Built, as step 1 of §9.10:
+
+- `getTileStyle()`, `getFeatures()`, `getGridAlpha()` on the handle — each
+  returning a **copy**, since the panel mutates those objects in place and a
+  live reference would both change under a caller and let one change the view
+  without a redraw, which is the class of bug §9 exists to remove. Shallow is
+  enough: every field of both is a primitive, which §9.2's test counts and so
+  would notice if one stopped being.
+- `LayerStack.visibility()` and `setVisibility()` — `userVisible` by layer id,
+  which is the only per-layer state that is not derived. A layer's actual
+  visibility is `visible() && userVisible` and `visible()` is a function of the
+  features, so serializing it would store a conclusion beside its premises.
+  `setVisibility` ignores unknown ids and leaves absent ones alone, which is
+  §9.5's omission rule at this level.
+- `tools/readside.test.mjs`: set-then-get for a boolean, an enum and a number;
+  that the getters hand back copies and two calls are two objects; that reading
+  everything and writing it straight back leaves the recorded drawing identical;
+  and that visibility restores and ignores what it does not know.
+
+**And one thing the tests found.** `setFeatures` without `{ merge: true }`
+"replaces", and replacing means `{ ...NO_FEATURES, ...next }` — back to the
+view's defaults and then apply, **not** everything-off. So `gridLines`, which is
+`true` in `NO_FEATURES`, comes back on. Which is exactly why §9.6 says a reset
+must go to the **page's** baseline: `setFeatures({})` already resets, but to the
+wrong place.
 
 ### 9.2 The state, inventoried
 
@@ -5363,8 +5386,9 @@ quite as much as a serializer does.
 
 ### 9.10 Steps, as decided
 
-1. **The read side.** `getTileStyle`, `getFeatures`, layer visibility. Tests for
-   the obvious identities (`set` then `get` returns what was set).
+1. ~~**The read side.**~~ **Built 2026-10-24** — `getTileStyle`, `getFeatures`,
+   `getGridAlpha`, `LayerStack.visibility`/`setVisibility`, and
+   `tools/readside.test.mjs`. See §9.1.
 2. **The inventory, as data.** One module naming every field, its type, its
    default, its scope and **its attribute name** — so the attribute reader, the
    attribute writer, the reset and the round-trip test all read one list and

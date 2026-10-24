@@ -562,6 +562,22 @@ export interface PentagridHandle {
     /** Change how the tiles are dressed. Merges; omitted fields stay. */
     setTileStyle: (style: Partial<TileStyle>) => void;
     /**
+     * The read side (PLAN §9.1). Every setter above had no getter, so the
+     * panel's own state was unreadable from outside: `tileStyle.pentaFace = v`
+     * on a closure object nothing else could see. Nothing in §9 — a saved
+     * setup, an attribute writer, a reset, an SVG exporter deciding which
+     * layers are on — can be built without these.
+     *
+     * Each returns a COPY. The objects inside are mutated in place by the
+     * panel, so handing out the live one would give a caller a reference that
+     * changes underneath it and a way to change the view without a redraw,
+     * which is the very class of bug §9 exists to remove.
+     */
+    getTileStyle: () => TileStyle;
+    getFeatures: () => Features;
+    /** The grid's own alpha, which had a setter and no getter like the rest. */
+    getGridAlpha: () => number;
+    /**
      * Which panel rows to show, by their label, or null for all of them. A page
      * decides what is worth exposing on it.
      */
@@ -5444,6 +5460,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         setFeatures,
         setGridAlpha: (a) => { gridAlpha = a; draw(); },
         setTileStyle: (st) => { Object.assign(tileStyle, st); draw(); },
+        // Copies, not the live objects: see the interface. Shallow is enough —
+        // every field of both is a primitive, which tools/stateinv.test.mjs
+        // counts and so would notice if one stopped being.
+        getTileStyle: () => ({ ...tileStyle }),
+        getFeatures: () => ({ ...features }),
+        getGridAlpha: () => gridAlpha,
         exposeRows,
         panelRow: (label) => panelRows.get(label),
         onFeatureOn: (cb) => { featureOnListeners.push(cb); },
