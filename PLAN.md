@@ -128,8 +128,14 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    `drawKRegions`) becomes a file that can simply be skipped. What remains is
    deduplicating the height ramp's gradient per face and the inlay's clip per
    pentagon, both now per layer.
-8. **Parameterize the canvases.** Nothing open; §9.10 is the build order. Jake,
-   2026-10-24, five wants and every question answered the same day. The state is not a value yet — `PentagridHandle` has
+8. ~~**Parameterize the canvases.**~~ **BUILT 2026-10-24**, all eight steps of
+   §9.10 and all five of Jake's wants: the read side (§9.1), the inventory as
+   data (§9.2a), reset to a page's baseline (§9.6), the reticulum slot with its
+   `restore` preset (§9.3), attributes read on the container (§9.8), written out
+   with a **copy setup** button (§9.8b), session memory with **reset page**
+   (§9.4a), and the completeness test over every state method.html can reach
+   (§9.8c). What is left is §9.9's named library of setups, which is a feature
+   rather than a step. The state is not a value yet — `PentagridHandle` has
    every setter and no getter but `getView` — so §9.1 is the first commit and
    §9.2's inventory (53 booleans, 8 enums, 10 numbers, γ already exact) is the
    second. The serialized form is **HTML attributes on the container**, not a
@@ -5605,6 +5611,50 @@ and is stable so two copies of one setup are one string.
 the string logged. The clipboard is asynchronous and can be refused outright,
 and a button that says nothing leaves you unsure whether it worked.
 
+### 9.8c The completeness test — BUILT 2026-10-24
+
+`tools/complete.test.mjs`, step 8 of §9.10, and the last.
+
+**The goal's point was never the embedding.** Jake: *"As a goal, it could even
+be embedded in method.html itself."* What that would prove is the thing worth
+having — if a page can be written as attributes on a div then the attribute
+surface covers everything the page does, *by construction*, and there is
+nowhere else for state to hide.
+
+**But method.html has no static state to swap.** It passes no `features` and no
+`tileStyle` at all: its state is its **seven narrative steps**, each with an
+`enter` that is, in `app/narrative.ts`'s own words, *"the ONLY thing that
+decides what the page shows"*. So the literal form of the goal is not available
+— and the available form is stronger. The test runs over **all seven states the
+page can reach**: enter the step, embed, build a *fresh* view from that markup
+alone, and compare **every layer's** drawing, not just the tiles — the features
+decide which layers draw at all, so a difference there shows up as a layer that
+drew nothing or everything.
+
+All seven pass. And they pass for the right reason, which is worth recording
+because an empty embed would pass trivially:
+
+| step | its embed |
+|---|---|
+| 1 The Pentagrid | `<div id="stage"></div>` — step 1 *is* the page's home |
+| 2 Intersections | `data-intersection-dots data-hover-crossing` |
+| 3 Pentagrid Regions | `data-k-regions data-k-labels data-hover-region` |
+| 4 Dual Vertices | `data-penrose-vertices data-hover-region data-hover-vertex` |
+| 5 Building Rhombs | `data-penrose-edges data-hover-crossing` |
+| 6 Penrose Tiling | `data-penrose-tiles data-penrose-edges` |
+| 7 When lines meet | the above plus `data-gamma="0,0,0,0,0"`, `data-gamma-den`, `data-gamma-locked="4"`, `data-gamma-symmetry` |
+
+Step 7 is the interesting one: it is the singular step, Γ = 0, and its **γ
+travels exactly** — numerators and lock — which is what §9.2 meant by γ being
+the one piece already exact. A second test guards against the first passing
+vacuously (seven steps must give more than three distinct embeds, and at least
+one must be substantial), and a third does the literal form of the goal on a
+page that *does* have a static setup: configure one in code, write it as
+attributes, build from the attributes with no code config, identical style and
+features.
+
+**So §9 is complete.** All five of Jake's wants, and the eight steps of §9.10.
+
 ### 9.9 Saved setups, in the app
 
 *"Currently only works within app"* — so the first form is a library the user
@@ -5650,8 +5700,8 @@ quite as much as a serializer does.
    `src/state/store.ts`, opt-in per page, plus the **reset page** button.
    `tools/session.test.mjs`. Want #4 delivered, and #5 finally reachable.
    See §9.4a.
-8. **method.html from its own embed** — the completeness test of §9.8, and the
-   last step because it can only pass once everything above is total.
+8. ~~**method.html from its own embed**~~ **Built 2026-10-24** —
+   `tools/complete.test.mjs`. See §9.8c. **All eight steps done.**
 
 Steps 1 and 2 are worth doing whatever happens to the rest, exactly as §8's
 step 1 is: they are what let anything read the page's state, and the tests come
