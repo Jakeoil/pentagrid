@@ -5302,7 +5302,7 @@ HTML already means — an absent attribute is a default and a boolean is present
 or not — so the rule needs no version field and no machinery. Pack it later if
 length ever matters; the omission rule is what cannot be retrofitted.
 
-### 9.6 Reset is to the PAGE's defaults, not the view's
+### 9.6 Reset is to the PAGE's defaults, not the view's — BUILT 2026-10-24
 
 The view's literals are `NO_FEATURES` and the `tileStyle` literal, but no page
 runs on those: each layers its own `config.features` and `config.tileStyle` over
@@ -5312,6 +5312,45 @@ sun. So **each page must record its own baseline at construction** — the state
 right after the page's own setup, before any URL or session is applied — and
 reset to that. Resetting to the view's literals would land every page somewhere
 it has never been.
+
+**Built**, as step 3 of §9.10: `markBaseline()` and `reset()` on both handles,
+plus `src/state/baseline.ts` for γ.
+
+**Two calls, not one — "at construction" was wrong.** Pages keep configuring
+*after* the factory returns: `roof.ts` binds its controls and fires every one's
+`apply()` to push the markup's initial values in, so a page's real home is after
+that wiring. `markBaseline()` is a page saying *this is home*; one is taken at
+the end of construction anyway, so a page that never calls it still resets
+somewhere sensible.
+
+**A snapshot of whole objects, not a walk over the inventory.** §9.10 step 2
+said the reset would read the one list; it does not, and should not — copying
+whole objects cannot miss a field, where a walk could. The inventory is the
+**auditor** instead: `tools/baseline.test.mjs` checks a snapshot's keys against
+the fields the inventory names, so the two descriptions of the state cannot
+drift apart.
+
+**γ needs its own care**, in `state/baseline.ts`. `GammaSet.reset()` is not a
+snapshot restore — it spreads evenly to hit the current sum — so `captureGamma`
+and `restoreGamma` do it properly, and the order matters: symmetry first,
+because it rebuilds the direction vectors; the guard off while writing, because
+it nudges γ; the lock released before the values and restored after, or the
+locked index is re-derived from the others and the vector is not the one saved.
+The numerators go back as `numerator / den`, which `setValues` rounds by `den` —
+exact arithmetic, which is what §9.2 means by γ being the one piece already
+exact.
+
+The growth view marks and resets **both** its own state and the pentagrid
+underneath, since a roof page is both and resetting half would leave the two
+disagreeing.
+
+`tools/baseline.test.mjs`: that reset goes to the page's config and not the
+view's; that `markBaseline` moves home; **every field in the inventory
+perturbed and restored one at a time** — §9.7's walk, which an end-to-end reset
+would miss for a field sitting at its default; that the view, the layer
+visibility and γ all come home; that the recorded drawing is identical byte for
+byte after a reset; that γ restores exactly including its flags; and that the
+growth view resets the pentagrid under it.
 
 ### 9.7 What makes it safe: the round trip
 
@@ -5437,8 +5476,9 @@ quite as much as a serializer does.
    `tools/readside.test.mjs`. See §9.1.
 2. ~~**The inventory, as data.**~~ **Built 2026-10-24** — `src/state/inventory.ts`
    and `tools/inventory.test.mjs`. See §9.2a.
-3. **Reset to the page's baseline** (§9.6), which needs only steps 1 and 2 and
-   delivers want #5 on its own.
+3. ~~**Reset to the page's baseline**~~ **Built 2026-10-24** — `markBaseline`
+   and `reset` on both handles, `src/state/baseline.ts`,
+   `tools/baseline.test.mjs`. Want #5 delivered. See §9.6.
 4. **The reticulum slot** (§9.3): push on leaving, the `restore` preset to pull,
    the slot's own name in the title bar. Want #3, and small — one entry in
    `PRESET_ORDER`.

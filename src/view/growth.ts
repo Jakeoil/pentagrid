@@ -257,6 +257,14 @@ export interface GrowthHandle {
     set: (patch: Partial<GrowthState>) => void;
     get: () => GrowthState;
     redraw: () => void;
+    /**
+     * This page's home — PLAN §9.6. Marks the growth state AND the pentagrid's
+     * underneath, since a roof page is both and resetting half of it would
+     * leave the two disagreeing.
+     */
+    markBaseline: () => void;
+    /** Back to the baseline, growth state and pentagrid together. */
+    reset: () => void;
     /** The pentagrid underneath, for pan/zoom, γ and the layer stack. */
     pentagrid: PentagridHandle;
 }
@@ -1929,10 +1937,24 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     });
     handle = pentagrid;
 
+    // This page's home. A roof page is a growth state over a pentagrid, so a
+    // baseline is both and the two are marked and restored together.
+    let baseline: GrowthState = { ...state };
     return {
         set: (patch) => { Object.assign(state, patch); handle!.redraw(); },
         get: () => ({ ...state }),
         redraw: () => handle!.redraw(),
+        markBaseline: () => {
+            baseline = { ...state };
+            pentagrid.markBaseline();
+        },
+        reset: () => {
+            // The pentagrid first: its own reset redraws, and the growth state
+            // should be the thing that lands last.
+            pentagrid.reset();
+            Object.assign(state, baseline);
+            handle!.redraw();
+        },
         pentagrid,
     };
 }

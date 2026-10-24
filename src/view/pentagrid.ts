@@ -16,6 +16,8 @@ import type { Resolution } from "../geometry/resolve.js";
 import { regionPoly as geoRegionPoly, clipToConvex } from "../geometry/region.js";
 import { createGammaSet, penroseCondition, describeSum } from "../geometry/gamma.js";
 import type { GammaSet } from "../geometry/gamma.js";
+import { captureGamma, restoreGamma } from "../state/baseline.js";
+import type { GammaSnapshot } from "../state/baseline.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
 import { rhombAmmann, ammannBars } from "../geometry/ammann.js";
 import { lighten } from "../ui/reticulum.js";
@@ -577,6 +579,25 @@ export interface PentagridHandle {
     getFeatures: () => Features;
     /** The grid's own alpha, which had a setter and no getter like the rest. */
     getGridAlpha: () => number;
+    /**
+     * Declare the current state to be this page's home — PLAN §9.6.
+     *
+     * A page calls it once its own setup is done, which is NOT the end of
+     * construction: pages keep configuring afterwards, and `roof.ts` fires
+     * every control's `apply()` to push the markup's initial values in. One is
+     * taken at the end of construction anyway, so a page that never calls this
+     * still resets somewhere sensible.
+     */
+    markBaseline: () => void;
+    /**
+     * Back to the baseline: the tile style, the features, the grid alpha, the
+     * view, the layer visibility and γ. Jake's fifth want.
+     *
+     * Note what it is NOT: the view's own `NO_FEATURES` and `TILE_DEFAULTS`.
+     * No page runs on those — each layers its own config over them — so
+     * resetting there would land every page somewhere it has never been.
+     */
+    reset: () => void;
     /**
      * Which panel rows to show, by their label, or null for all of them. A page
      * decides what is worth exposing on it.
@@ -5470,8 +5491,47 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     restackPenrose();
     draw();
 
+    /**
+     * This page's home, as a value. Whole objects rather than a walk over the
+     * inventory: a copy cannot miss a field, where a walk could.
+     */
+    interface Baseline {
+        tileStyle: TileStyle;
+        features: Features;
+        gridAlpha: number;
+        view: View;
+        visibility: Record<string, boolean>;
+        gamma: GammaSnapshot;
+    }
+    const capture = (): Baseline => ({
+        tileStyle: { ...tileStyle },
+        features: { ...features },
+        gridAlpha,
+        view: { scale, x: viewX, y: viewY },
+        visibility: stack.visibility(),
+        gamma: captureGamma(gammaSet),
+    });
+    let baseline: Baseline = capture();
+
     return {
         redraw: draw,
+        markBaseline: () => { baseline = capture(); },
+        reset: () => {
+            // γ first: it is the one that fires listeners and redraws of its
+            // own, so everything after it lands on the restored grid.
+            restoreGamma(gammaSet, baseline.gamma);
+            // A complete snapshot, so assigning it IS replacing it — the
+            // merge cannot leave a field that was switched on since.
+            Object.assign(tileStyle, baseline.tileStyle);
+            features = { ...baseline.features };
+            gridAlpha = baseline.gridAlpha;
+            scale = baseline.view.scale;
+            viewX = baseline.view.x;
+            viewY = baseline.view.y;
+            stack.setVisibility(baseline.visibility);
+            syncPanel();
+            draw();
+        },
         setFeatures,
         setGridAlpha: (a) => { gridAlpha = a; draw(); },
         setTileStyle: (st) => { Object.assign(tileStyle, st); draw(); },
