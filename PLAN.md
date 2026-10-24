@@ -5251,10 +5251,39 @@ and read on request**:
 - the **title bar shows what is in the slot**, not the word `restore` — the slot
   carries its own name, and `restore` is the verb, not the thing.
 
-It also costs almost nothing: `restore` is one more entry in `PRESET_ORDER`, and
-the preset handler already does exactly the right sequence — release the total,
-write the vector, hold γ₀ — plus `setGeneration(0)` as of 2026-10-23, which here
-must instead take the generation out of the slot.
+**Built 2026-10-24**, as step 4 of §9.10: `src/state/slot.ts`, the `restore`
+button in the reticulum's preset popup, and `tools/slot.test.mjs`.
+
+Four things the building settled:
+
+- **`restore` is not a preset.** It shares the popup and it is a *verb*: it
+  names no point in the catalog, it sets the one you carried. So it does not
+  carry the `preset` class — which matters, because two existing tests
+  enumerate `.preset` and assert every one of them sets the phases its label
+  promises and locks γ₀. `restore` does neither, correctly: it restores the
+  lock that was saved. Keeping it out of that class is the honest reading, not
+  a workaround.
+- **And it must not reset the generation**, which every catalog preset now does
+  (2026-10-23, so a preset lands at λ = φ⁰ where the catalog is written).
+  `restoreGamma` takes the generation out of the slot, so a reticulum carried
+  from a deflated page arrives deflated — which is the point of carrying it.
+- **Written on the way out, not when γ changes.** Writing on change would be
+  more robust against a missed unload, and would be wrong: arriving somewhere
+  and nudging γ before clicking `restore` would overwrite the very thing you
+  came to restore. `pagehide` rather than `beforeunload`, which is not fired
+  reliably on mobile, with `visibilitychange` as the belt — and on `window`
+  rather than `globalThis`, since node has no `globalThis.addEventListener` and
+  the first version therefore registered nothing outside a browser while
+  looking as though it had.
+- **Hidden, not disabled, when the slot is empty or holds the wrong n.** A
+  control for a thing that is not there is noise, and `slotFor` refuses a
+  heptagrid's seven numerators to a pentagrid page — §9.3's one hazard, tested.
+
+Storage is `localStorage` where there is one and a module variable otherwise, so
+it works in a page, in `pagecheck` and in a test with no special case at the
+call site; every access is guarded, since the accessor itself throws where site
+data is blocked. The stored value is shape-checked on the way back in, because
+it came from outside the program.
 
 **And a preset is a jump to a state, not a state.** Jake, answering §9.11's
 third question: *"As for the preset, it only sets things, among them the title
@@ -5479,9 +5508,8 @@ quite as much as a serializer does.
 3. ~~**Reset to the page's baseline**~~ **Built 2026-10-24** — `markBaseline`
    and `reset` on both handles, `src/state/baseline.ts`,
    `tools/baseline.test.mjs`. Want #5 delivered. See §9.6.
-4. **The reticulum slot** (§9.3): push on leaving, the `restore` preset to pull,
-   the slot's own name in the title bar. Want #3, and small — one entry in
-   `PRESET_ORDER`.
+4. ~~**The reticulum slot**~~ **Built 2026-10-24** — `src/state/slot.ts`, the
+   `restore` button, `tools/slot.test.mjs`. Want #3 delivered. See §9.3.
 5. **Read attributes on the container** (§9.8), extending `readCanvasSpec` from
    three to the whole inventory. This is the widget, and it is also how a saved
    setup is applied.

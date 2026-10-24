@@ -469,6 +469,24 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     margin-left: 4px;
 }
 .panel-group::after { content: ":"; }
+/* `restore` in the preset popup: looks like a preset, is not one — it pulls the
+   reticulum slot (PLAN §9.3) rather than naming a point in the catalog. Its own
+   class so nothing enumerating `.preset` picks it up, and italic so the eye
+   reads it as the verb it is. */
+button.ret-restore {
+    font: inherit;
+    font-size: 11px;
+    font-style: italic;
+    padding: 2px 7px;
+    margin-right: 4px;
+    color: #ddd;
+    background: #2a2a2e;
+    border: 1px dashed #666;
+    border-radius: 3px;
+    cursor: pointer;
+}
+button.ret-restore:hover { background: #36363c; border-color: #8a8a8a; }
+button.ret-restore[hidden] { display: none; }
 .settings {
     margin-top: 6px;
     font-size: 12px;

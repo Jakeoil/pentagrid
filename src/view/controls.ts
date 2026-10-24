@@ -8,6 +8,8 @@ import type { GammaBank } from "../ui/dials.js";
 import { createReticulum } from "../ui/reticulum.js";
 import { createSumStrip } from "../ui/sumstrip.js";
 import { SINGULAR_PRESETS } from "../geometry/hunt.js";
+import { slotFor, pushSlot } from "../state/slot.js";
+import { captureGamma, restoreGamma } from "../state/baseline.js";
 import { createFloatingPanel } from "../ui/floating.js";
 import type { FloatingPanel } from "../ui/floating.js";
 
@@ -18,7 +20,17 @@ import type { FloatingPanel } from "../ui/floating.js";
  * other, and a page chooses. `GammaBank` names the dial one specifically, so
  * this is the name to use where either will do.
  */
-export type GammaControl = GammaBank;
+/**
+ * A mounted γ control. `push` writes the reticulum slot (§9.3) and is called
+ * on the way out of a page; it is on the handle so a page, or a test, can ask
+ * for it outright.
+ */
+export type GammaControl = GammaBank & {
+    /** Write the reticulum slot (§9.3). Called on the way out of a page. */
+    push?: () => void;
+    /** Pull the slot. False when there is nothing in it for this grid. */
+    restore?: () => boolean;
+};
 
 /** The state fields a range input can drive. */
 type NumericKey = {
@@ -347,6 +359,17 @@ export function mountReticulum(
     // the caller, which puts it on the title bar.
     const PRESET_ORDER = ["sun", "star", "deca", "decagon", "couple",
                           "octagon", "1 thick", "2 thick", "1 thin", "2 thin"];
+
+    /**
+     * What the title bar says, which is what the slot carries out.
+     *
+     * Jake: *"As for the preset, it only sets things, among them the title bar.
+     * If things changed, that's what's saved."* So the label is a preset's name
+     * and nothing updates it when γ is then edited — the VALUES saved are the
+     * edited ones, and the name stays what the title bar is showing. A page
+     * that has not touched a preset carries the default.
+     */
+    let label = "Reticulum · γ";
     const presetBtn = document.createElement("button");
     presetBtn.className = "ret-bump";
     presetBtn.textContent = "presets";
@@ -354,6 +377,60 @@ export function mountReticulum(
     const popup = document.createElement("div");
     popup.className = "ret-presets";
     popup.hidden = true;
+
+    /**
+     * `restore` — the reticulum slot, pulled. PLAN §9.3, step 4 of §9.10.
+     *
+     * A verb among nouns, and first, because it is what you came to the new
+     * page to click. Jake: *"Add preset named 'restore' to pull it off the
+     * stack on the new page. (In this case the title bar will show what's in
+     * the stack, not restore)"* — so the BUTTON says restore and applying it
+     * puts the slot's own label on the title bar.
+     *
+     * Shown only when there is something in the slot that fits this grid:
+     * `slotFor` refuses a heptagrid's seven numerators to a pentagrid page.
+     * Hidden rather than disabled, since a control for a thing that is not
+     * there is noise.
+     *
+     * And it does NOT reset the generation, which every other preset does
+     * (2026-10-23, so a preset lands at λ = φ⁰ where the catalog is written).
+     * `restoreGamma` takes the generation out of the slot: a reticulum carried
+     * from a deflated page arrives deflated, which is the whole point of
+     * carrying it.
+     */
+    const restoreBtn = document.createElement("button");
+    restoreBtn.type = "button";
+    // Not `preset`: it shares the popup but it is a VERB, not an entry in the
+    // catalog — it sets no particular γ, it sets the one you carried. The
+    // distinct class keeps it out of anything enumerating the catalog, which
+    // two tests do, and which is the honest reading rather than a workaround.
+    restoreBtn.className = "ret-restore";
+    restoreBtn.textContent = "restore";
+    const syncRestore = () => {
+        const slot = slotFor(set.n);
+        restoreBtn.hidden = !slot;
+        restoreBtn.title = slot
+            ? `The reticulum carried from the last page: ${slot.label}. `
+              + "Its own name goes on the title bar, not this one."
+            : "";
+    };
+    const restore = () => {
+        const slot = slotFor(set.n);
+        if (!slot) return false;
+        symmetric = false;
+        symInput.checked = false;
+        mirror = false;
+        mirrorInput.checked = false;
+        restoreGamma(set, slot.gamma);
+        label = slot.label;
+        opts.onPreset?.(slot.label);
+        render();
+        return true;
+    };
+    restoreBtn.addEventListener("click", restore);
+    popup.appendChild(restoreBtn);
+    syncRestore();
+
     for (const name of PRESET_ORDER) {
         const p = SINGULAR_PRESETS.find((q) => q.name === name);
         if (!p) continue;
@@ -382,6 +459,7 @@ export function mountReticulum(
             set.setGeneration(0);
             set.setValues(p.gamma.map((q) => q / p.den));
             set.setLocked(0);
+            label = p.name;                 // what the slot will carry out
             // The popup stays up, like settings: dismissed by its own button,
             // so a run through the catalog is one click per entry. Jake.
             opts.onPreset?.(p.name);
@@ -486,7 +564,30 @@ export function mountReticulum(
     };
     set.onChange(render);
     render();
-    return { element: wrap, sync: () => render() };
+    /**
+     * Put the reticulum in the slot — PLAN §9.3, step 4 of §9.10.
+     *
+     * On the way OUT, and only then: writing whenever γ moved would overwrite
+     * the very thing you arrived to restore. `pagehide` rather than
+     * `beforeunload`, which is not fired reliably on mobile, with
+     * `visibilitychange` as the belt for a tab closed without unloading.
+     *
+     * The label is whatever the title bar is showing, and the n goes with it so
+     * the far side can refuse a heptagrid's seven numerators to a pentagrid.
+     */
+    const push = () => pushSlot({ label, n: set.n, gamma: captureGamma(set) });
+    // `window`, not `globalThis`: it is the documented target for `pagehide`,
+    // and node has no `globalThis.addEventListener` at all — so writing it the
+    // other way registered nothing outside a browser and said nothing about it.
+    if (typeof window !== "undefined"
+        && typeof window.addEventListener === "function") {
+        window.addEventListener("pagehide", push);
+        window.addEventListener("visibilitychange", () => {
+            if (document?.visibilityState === "hidden") push();
+        });
+    }
+
+    return { element: wrap, sync: () => render(), push, restore };
 }
 
 export interface FloatingReticulumOptions {
