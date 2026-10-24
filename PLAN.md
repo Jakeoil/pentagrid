@@ -112,6 +112,14 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
 6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
+7. **An SVG renderer beside the canvas.** Jake, 2026-10-24, *"toying with the
+   idea… not a replacement."* §5.99 has the measurements: the layers use 28
+   members of the context and nothing else, so a recording context would need
+   no change to any layer's `draw`. The shape of it is an export rather than a
+   second interactive renderer — 725 nodes for a bare tiling but 32480 with
+   everything on — and four members need decisions: the height ramp's one
+   gradient per face, the inlay's clip per pentagon, `measureText` (no layout
+   in a recorder) and `drawKRegions`, which is a genuine per-pixel raster.
 
 ## 4. Standing rules
 
@@ -3862,6 +3870,124 @@ by default — it is a tool for near-singular configurations and gets in the way
 of looking at the picture.
 
 ---
+
+## 5.99 An SVG renderer, alongside the canvas (Jake, 2026-10-24 — UNDER DISCUSSION, nothing built)
+
+Jake: *"I am toying with the idea of rendering the canvases in method and split
+in svg alternativily. Not a replacement."*
+
+Taken as written: a second output for the same layer stack, not a second
+drawing path. That framing is what makes it cheap, and the measurements below
+say how cheap and where it stops being so.
+
+#### The route that costs least: a recording context
+
+Every layer draws through one object — `(tc: CanvasRenderingContext2D, cx,
+cy)` — and never touches the DOM. So the whole thing is a shim: an object with
+the same members that records instead of rasterizing, and emits SVG at the
+end. Nothing in `view/pentagrid.ts` or any layer's `draw` changes, which is the
+entire argument for doing it this way rather than writing SVG emitters per
+layer. (It is `canvas2svg`'s trick; there is no need to take the dependency,
+and the surface is small enough to own.)
+
+**And the surface IS small.** Counted over `src/`, the layers use **28**
+distinct members of the context and nothing else:
+
+| | members |
+|---|---|
+| paths | `beginPath` 78, `lineTo` 71, `moveTo` 63, `closePath` 29, `arc` 23, `quadraticCurveTo` 1 |
+| paint | `fillStyle` 71, `stroke` 53, `fill` 53, `strokeStyle` 50, `lineWidth` 50, `globalAlpha` 41, `lineJoin` 7, `lineCap` 3, `setLineDash` 11 |
+| text | `fillText` 14, `textAlign` 12, `textBaseline` 10, `font` 10, `measureText` 4 |
+| state | `save` 11, `restore` 11, `clip` 3 |
+| rects | `fillRect` 8, `clearRect` 7 |
+| gradients | `createLinearGradient` 6, `createRadialGradient` 1 |
+| raster | `createImageData` 1, `putImageData` 1 |
+
+Most of it maps one to one: a path becomes a `<path d="…">`, `globalAlpha`
+becomes `opacity`, `setLineDash` becomes `stroke-dasharray`, `save`/`restore`
+become `<g>` nesting, `clip` becomes a `<clipPath>` plus `clip-path` on the
+group. `arc` needs the `A` arc command (or two of them past a half turn), and
+`quadraticCurveTo` is `Q` outright.
+
+#### The four that do not map cleanly
+
+**Gradients, and this is the scale problem.** Each `createLinearGradient` call
+is one `<linearGradient>` in `<defs>`, and the height ramp builds **one per
+painted face** — measured on a regular patch at reach 8: **658** over bare
+tiles, **1974** over families2, since the ramp takes each band quad
+separately. Thousands of `<defs>` entries is a large file for something whose
+three stops are computable from the tile's index. Mitigations, in order of
+appeal: deduplicate by stop triple (the index range is four or five levels, so
+the distinct gradients number in the dozens, not the thousands); or emit the
+ramp as a flat mean color when exporting; or carry it as a CSS variable per
+level. Worth deciding before writing anything.
+
+**`clip`, which the pentaplex inlay now depends on.** §5.6-a's inlay uses the
+canvas clip precisely because it passes curves through unflattened and adds no
+line along the cut. SVG's `clipPath` has the same property, so this survives
+the translation — but it is one `<clipPath>` per clipped pentagon, and the
+inlay clips every one. Same deduplication question: the clip is the TILE, and a
+tile is clipped once however many pentagons it carries, so hoisting the clip to
+a per-tile `<g>` is both correct and much smaller.
+
+**`measureText`, which a serializer cannot answer.** Used four times, all for
+the same thing: the width of a label, to size the box behind it (`ui/loupe.ts`
+twice, the K-region labels and the hover readout once each). There is no layout
+in a recorder, so the choices are to approximate from the font size and
+character count, to drop the backing boxes in SVG output, or to emit
+`<text textLength=…>` and let the renderer squeeze. The first is what everyone
+does and is wrong by a few percent; the second is honest and probably right for
+an export.
+
+**`putImageData`, which is not vector at all.** One layer is a true raster:
+`drawKRegions` colors **every pixel** by which K-region of the grid it falls
+in — a per-pixel computation with no polygons to emit. In SVG it has to become
+an embedded `<image>` with a data-URI PNG, or be left out of the export. Either
+is defensible; nothing else in the stack is like it.
+
+#### Node counts, which decide what this is for
+
+Paths plus texts plus rects, over a regular patch at reach 8, 1000×1000:
+
+| what is on | ≈ SVG nodes | gradients |
+|---|---|---|
+| tiles only | **725** | 0 |
+| tiles + height ramp | 725 | 658 |
+| families2 bands | 2041 | 1974 |
+| + pentaplex face and edge | 3585 | — |
+| + next-gen and kites | 7942 | — |
+| everything on | **32480** | — |
+
+725 nodes is nothing; 32480 is a slow document to pan and a sluggish one to
+hover. So the honest shape of this is **an export, not a second interactive
+renderer** — a button that re-runs the stack through the recorder and hands
+back a file — and "not a replacement" is already Jake's own framing of exactly
+that. An interactive SVG mode would be a third thing and would want its own
+argument.
+
+#### What it buys that the canvas cannot
+
+- **A vector file.** Opens in Illustrator or Inkscape, prints at any size, and
+  zooms without resampling. The project has no export of any kind today — no
+  `toDataURL`, no `toBlob`, no print path — so this is the first one.
+- **Text that stays text.** The index numbers, the K labels and the readout
+  survive as glyphs rather than pixels.
+- **Per-element identity, which is the interesting one.** Nothing stops a tile's
+  `<path>` from carrying its own `data-k="2,1,0,1,1"`, `data-j`, `data-k2`,
+  `data-index`. Then the SVG is not only a picture of the patch but a readable
+  record of it — which would make de-dualization (§3 item 3) a matter of
+  reading a file, and would give the wieringa net pages something to cut from.
+
+#### Open, for Jake
+
+1. **Export or mode?** A download button is a few hundred lines; a live SVG
+   stack is a rendering strategy and needs the node counts above to come down.
+2. **Which layers?** All of them, or the Penrose side only — the grid lines and
+   the reticulum are cheap, `kRegions` is a raster, and the loupe is furniture.
+3. **Data attributes on tiles?** Free to add, and it changes what the file *is*.
+4. **One file or one per layer?** A `<g id="penrose-tiles">` per layer keeps the
+   stack legible and lets the recipient turn things off in the editor, which is
+   the same affordance the panel gives.
 
 ## 6. Not built
 
