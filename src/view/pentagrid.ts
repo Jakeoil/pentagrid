@@ -213,6 +213,29 @@ export interface TileStyle {
      */
     pentaBoundary: "circle" | "bisector" | "bend18" | "bend36";
     /**
+     * Whether the pentaplex is laid OVER the patch or set INTO each tile.
+     *
+     * PLAN §5.6-a's axis A. `overlay` — the default, and what the decoration
+     * has always been — draws each pentagon once over the whole patch,
+     * unclipped, deduplicated by its center: measured, a thick tile emits one
+     * yellow and two orange and a thin two orange, and 463 of the 533 oranges
+     * in a patch are proposed by two tiles at once, agreeing to 4e-15. Only
+     * the yellows lie inside the tile that drew them; 61.7% of the pentagon
+     * area does.
+     *
+     * `inlay` draws the same pentagons tile by tile with the TILE as a clip,
+     * so nothing crosses an edge and each rhomb carries a self-contained
+     * figure. The clip is the canvas's, not a polygon intersection, so the
+     * innie/outie curves and the bends come through it unchanged and no line
+     * is drawn along the cut — a stroke inside a clip is trimmed, never added
+     * to. Both halves of a shared pentagon are still drawn, each clipped to its
+     * own tile; what changes is that neither reaches past it.
+     *
+     * Jake, 2026-10-23: *"Implement inlay logic for pentaplex... just forge
+     * ahead with deficiencies in the inlay, we'll deal with them later."*
+     */
+    pentaOverlay: boolean;
+    /**
      * The deflation — thick gold and thin gray at 1/φ — in two halves, the
      * same split `penta` has.
      *
@@ -1006,6 +1029,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const tileStyle: TileStyle = {
         color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
         curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
+        pentaOverlay: true,
         pentaBoundary: "circle",
         nextgenFace: false, nextgenEdge: false,
         kitesFace: false, kitesEdge: false, ammann: false, nextPenta: false,
@@ -3150,7 +3174,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     // it as one of two half-strength alternatives, the whole
                     // reading wins: with one draw to give it, give it the
                     // stronger.
-                    const key = centerKey(x / pts.length, y / pts.length);
+                    //
+                    // As an INLAY there is nothing to deduplicate: each tile
+                    // draws its own share clipped to itself, and the two
+                    // shares of a shared pentagon are different pictures. So
+                    // the tile goes in the key and both survive.
+                    const at = centerKey(x / pts.length, y / pts.length);
+                    const key = tileStyle.pentaOverlay
+                        ? at
+                        : `${at}|${rhomb.x0.toFixed(6)},${rhomb.y0.toFixed(6)}`
+                            + `,${rhomb.j}${rhomb.k}`;
                     const had = pieces.get(key);
                     if (!had || had.alpha < alpha)
                         pieces.set(key, { pts, kind, alpha, rhomb, sv });
@@ -3168,8 +3201,26 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     ) {
         tc.save();
         tc.lineJoin = "round";
+        const inlay = !tileStyle.pentaOverlay;
         for (const piece of pieces.values()) {
             tc.globalAlpha = tileStyle.opacity * piece.alpha;
+            // As an inlay, the tile is a CLIP. The canvas's own clip, so the
+            // innie/outie curves and the bends pass through it untouched, and
+            // the cut adds no line of its own — a stroke inside a clip is
+            // trimmed, never extended along the boundary. (Clipping by polygon
+            // intersection instead would need the curves flattened and would
+            // put an edge where the knife went; `view/growth.ts` does it that
+            // way because a folded tile has no shared screen space to clip in,
+            // and pays for it with `strokeOwnEdges`.)
+            if (inlay) {
+                tc.save();
+                tc.beginPath();
+                piece.sv.forEach(([x, y], i) => {
+                    if (i === 0) tc.moveTo(x, y); else tc.lineTo(x, y);
+                });
+                tc.closePath();
+                tc.clip();
+            }
             tracePentagon(tc, piece.pts, piece.kind, cx, cy);
             if (part === "face" && tileStyle.pentaFace) {
                 tc.fillStyle = ramped(tc, piece.rhomb, piece.sv, p1Fill(piece.kind));
@@ -3180,6 +3231,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 tc.lineWidth = tileStyle.boldEdges ? PENTA_EDGE_BOLD : PENTA_EDGE_W;
                 tc.stroke();
             }
+            if (inlay) tc.restore();
         }
         tc.restore();
     }
@@ -4334,7 +4386,46 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             // what its boundary is, and how much of it to draw — and the
             // penrose face line is every other dressing, in pairs.
             if (model.n === 5) {
-                const pRow = row(panelFor("pentaplex"), "pentaplex");
+                // One decoration end to end, folded away: seven controls is
+                // the second-widest thing in the panel and most of it is set
+                // once. Jake, 2026-10-23: "now a collapsable section. When
+                // pentaplex section is collapsed, it just says pentaplex."
+                //
+                // The summary IS the row's label — it sits in the label column
+                // at the left margin, like `face shade` above it, and the two
+                // control lines start where every other row's controls do. The
+                // first version kept an empty label span beside it, which
+                // pushed the name a column to the right of every other name in
+                // the panel. Jake: "move pentaplex to the left, the left
+                // margin, under opacity."
+                const pOuter = row(panelFor("pentaplex"), "pentaplex", "");
+                for (const kid of Array.from(pOuter.children)) {
+                    if ((kid as HTMLElement).className === "panel-label") {
+                        pOuter.removeChild(kid);
+                    }
+                }
+                const pFold = document.createElement("details");
+                pFold.className = "row-fold penta-fold";
+                const pHead = document.createElement("summary");
+                pHead.textContent = "pentaplex";
+                pFold.appendChild(pHead);
+                pOuter.appendChild(pFold);
+                // Two lines beside the name, not one long one. Jake, 2026-10-23:
+                // "Make it a little looser. space it out over two lines. And
+                // nail the pentaplex text to the left side." He had already
+                // marked where to break it — the double space in his own
+                // listing, after `overlay` — so the figure and its boundary go
+                // on the first line and what else to draw on the second.
+                const pLines = document.createElement("div");
+                pLines.className = "penta-lines";
+                const pLine1 = document.createElement("div");
+                pLine1.className = "penta-line";
+                const pLine2 = document.createElement("div");
+                pLine2.className = "penta-line";
+                pLines.appendChild(pLine1);
+                pLines.appendChild(pLine2);
+                pFold.appendChild(pLines);
+                const pRow = pLine1;
                 const fRow = row(panelFor("penrose face"), "penrose face");
                 const dress = (
                     parent: HTMLElement,
@@ -4382,7 +4473,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tileStyle.pentaShape = shape.value as TileStyle["pentaShape"];
                     draw();
                 });
-                pRow.appendChild(shape);
+                // appended below, after edge and face: Jake's order is
+                // "[ ] edge, [ ] face, [penta], [circle], [X] overlay,
+                // [ ] deflation, [standard/afterimage]".
                 // And what the boundary IS, which is the same three-way choice
                 // along one family: circles at weight cos 36°, bisectors at 1,
                 // bend at the limit where the curve is its control polygon.
@@ -4410,7 +4503,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tileStyle.pentaBoundary = bound.value as TileStyle["pentaBoundary"];
                     draw();
                 });
-                pRow.appendChild(bound);
                 // Outline before face, the way they are read: the edge is the
                 // figure and the face is how much of it is filled in.
                 dress(pRow, "pentaEdge", "edge", "The P1 pentagons at the big-rhomb scale as "
@@ -4418,16 +4510,49 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     + "the deflation still seen through them.");
                 dress(pRow, "pentaFace", "face", "The same pentagons filled: blue ground, "
                     + "orange Pe1, yellow Pe3. With edge as well, filled and outlined.");
-                dress(pRow, "nextPenta", "next", "penta one generation down: the P1 pentagons "
-                    + "of the deflated tiling, at 1/φ. The next generation's own rhomb edges "
-                    + "are not drawn.");
-                const after = checkbox(pRow, "afterimage", tileStyle.afterimage, (v) => {
-                    tileStyle.afterimage = v;
+                pRow.appendChild(shape);
+                pRow.appendChild(bound);
+                // Where the figure LIES: over the patch, or set into each tile.
+                // PLAN §5.6-a axis A. On by default, because overlay is what
+                // the decoration has always been.
+                const over = checkbox(pRow, "overlay", tileStyle.pentaOverlay, (v) => {
+                    tileStyle.pentaOverlay = v;
                     draw();
                 });
-                after.title = "The P1 palette as its own afterimage: the complement, pale — "
-                    + "what the colors look like when you have stared at the pentagons and "
-                    + "the faces go off. Computed from the palette, not listed beside it.";
+                over.title = "On: the pentagons are laid OVER the patch, each drawn once and "
+                    + "unclipped, so a pentagon straddling a tile edge is one figure — which "
+                    + "is what the pentaplex has always been, and what innie and outie need "
+                    + "to interlock. Off: an INLAY, the same pentagons clipped to the tile "
+                    + "that proposes them, so nothing crosses an edge and every rhomb carries "
+                    + "a self-contained figure. Measured: only the thick's yellow lies inside "
+                    + "its own tile to begin with, and 61.7% of the pentagon area does.";
+                dress(pLine2, "nextPenta", "deflation", "penta one generation down: the P1 "
+                    + "pentagons of the deflated tiling, at 1/φ, clipped to the tile they "
+                    + "fall in — an inlay in its own right, and the next generation's own "
+                    + "rhomb edges are not drawn.");
+                // standard / afterimage: one palette or its complement. A
+                // two-way dropdown rather than a checkbox, as Jake asked —
+                // the state underneath is still the one boolean.
+                const after = document.createElement("select");
+                after.className = "line-pick";
+                after.style.width = "86px";
+                after.title = "standard: the P1 palette — blue ground, orange Pe1, yellow "
+                    + "Pe3. afterimage: its complement, pale — what the colors look like "
+                    + "when you have stared at the pentagons and the faces go off. Computed "
+                    + "from the palette, not listed beside it.";
+                for (const [value, text] of [["standard", "standard"],
+                                             ["afterimage", "afterimage"]] as const) {
+                    const o = document.createElement("option");
+                    o.value = value;
+                    o.textContent = text;
+                    after.appendChild(o);
+                }
+                after.value = tileStyle.afterimage ? "afterimage" : "standard";
+                after.addEventListener("change", () => {
+                    tileStyle.afterimage = after.value === "afterimage";
+                    draw();
+                });
+                pLine2.appendChild(after);
 
                 // And the rest, each a pair: the outline and the fill.
                 group(fRow, "next-rhomb");

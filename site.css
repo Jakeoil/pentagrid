@@ -391,6 +391,34 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
 .row-fold summary { cursor: pointer; color: #777; outline: none; width: max-content; }
 .row-fold[open] summary { color: #444; }
 .row-fold[open] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+/* The pentaplex fold: the name pinned left, its controls in two looser lines
+   beside it. Jake: "Make it a little looser. space it out over two lines. And
+   nail the pentaplex text to the left side." After .row-fold[open] so the
+   display rule wins at equal specificity. */
+.penta-fold[open] {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 10px;
+}
+/* The summary is this row's LABEL: the label column's width and color, so the
+   name sits at the left margin under `face shade` and the control lines start
+   where every other row's controls do. */
+.penta-fold summary {
+    flex: 0 0 auto;
+    font-size: 12px;
+    color: #888;
+    min-width: 62px;
+    width: auto;
+}
+.penta-fold[open] summary { color: #666; }
+.penta-fold .penta-lines { display: flex; flex-direction: column; gap: 8px; }
+.penta-fold .penta-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
 /* The state of the patch, beside the heading of the section that draws it. */
 .panel-section-state {
     font-weight: normal;

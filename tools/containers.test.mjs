@@ -3975,3 +3975,140 @@ test("both is exactly the union of high and low", () => {
                      `axis ${axis}: both has ${bo.size} faces, the union ${union.size}`);
     }
 });
+
+test("the pentaplex is a collapsible section, in Jake's order", () => {
+    // Jake, 2026-10-23: "Implement inlay logic for pentaplex, now a collapsable
+    // section. When pentaplex section is collapsed, it just says pentaplex.
+    // When uncollapsed box these below:
+    //   [ ] edge, [ ] face, [penta], [circle], [X] overlay, [ ] deflation,
+    //   [standard/afterimage]"
+    const panel = sizedHost(800, 300);
+    createPentagrid({ container: sizedHost(800, 800), panel });
+
+    const find = (el, want) => {
+        for (const c of el.children ?? []) {
+            if (c.dataset?.row === want) return c;
+            const hit = find(c, want);
+            if (hit) return hit;
+        }
+        return null;
+    };
+    const prow = find(panel, "pentaplex");
+    assert.ok(prow, "no pentaplex row in the panel");
+
+    // The fold: collapsed it is just the one word, so the row's own label is
+    // empty and the summary carries the name.
+    const has = (c, name) => String(c.className ?? "").split(/\s+/).includes(name);
+    const fold = (prow.children ?? []).find((c) => has(c, "penta-fold"));
+    assert.ok(fold, "the pentaplex row is not a fold");
+    // The summary IS the label: no separate label span, so the name sits at
+    // the left margin with every other row name rather than a column in.
+    // Jake: "move pentaplex to the left, the left margin, under opacity."
+    const label = (prow.children ?? []).find((c) => has(c, "panel-label"));
+    assert.equal(label, undefined,
+                 "the row still carries a label span, which indents the name");
+    assert.equal((prow.children ?? [])[0], fold,
+                 "something sits left of the fold");
+    const summary = (fold.children ?? [])[0];
+    assert.equal(summary?.textContent, "pentaplex",
+                 "the fold does not say pentaplex when collapsed");
+
+    // Two lines beside the name, not one long one — Jake marked the break
+    // himself, after `overlay`.
+    const lines = (fold.children ?? []).find((c) => has(c, "penta-lines"));
+    assert.ok(lines, "the controls are not laid out in lines");
+    const read = (el) => {
+        const out = [];
+        for (const c of el.children ?? []) {
+            if (has(c, "layer-toggle")) {
+                out.push((c.children ?? []).map((k) => k.textContent)
+                    .filter(Boolean).join("").trim());
+            } else if (has(c, "line-pick")) {
+                out.push(`pick${(c.children ?? []).length}`);
+            } else {
+                out.push(...read(c));
+            }
+        }
+        return out;
+    };
+    const rows = (lines.children ?? []).filter((c) => has(c, "penta-line"));
+    assert.equal(rows.length, 2, `${rows.length} lines of controls, not two`);
+    assert.deepEqual(read(rows[0]), ["edge", "face", "pick3", "pick4", "overlay"],
+                     `the first line reads ${read(rows[0]).join(", ")}`);
+    assert.deepEqual(read(rows[1]), ["deflation", "pick2"],
+                     `the second line reads ${read(rows[1]).join(", ")}`);
+    // And in order over the whole fold, which is the spec as Jake wrote it.
+    assert.deepEqual(read(lines),
+                     ["edge", "face", "pick3", "pick4", "overlay", "deflation", "pick2"],
+                     `the pentaplex controls read ${read(lines).join(", ")}`);
+});
+
+test("the pentaplex inlay clips every pentagon to its tile", () => {
+    // PLAN section 5.6-a axis A. `overlay` draws each pentagon once over the
+    // patch, deduplicated by center; `inlay` draws both halves of a shared
+    // pentagon, each clipped to its own tile, so nothing crosses an edge.
+    //
+    // The clip is the canvas's, which is why the innie/outie curves come
+    // through it unchanged and no line is drawn along the cut.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+    });
+    h.gamma.setGuard(true);                      // a regular patch
+    const layer = h.stack.get("penrose-tiles");
+    let fills = 0, clips = 0, strokes = 0;
+    layer.ctx.fill = () => { fills++; };
+    layer.ctx.clip = () => { clips++; };
+    layer.ctx.stroke = () => { strokes++; };
+    const run = (style) => {
+        h.setTileStyle({ color: "type", shading: false, band: 0, nextPenta: false,
+                         pentaFace: true, pentaEdge: true, pentaShape: "penta",
+                         pentaBoundary: "circle", ...style });
+        fills = 0; clips = 0; strokes = 0;
+        h.redraw();
+        return { fills, clips, strokes };
+    };
+    // Overlay is the default and must stay so: it is what the decoration has
+    // always been, and what innie and outie need in order to interlock.
+    // Overlay default: read it off the drawing, since the style is write-only
+    // from out here. Fresh, with nothing set, the pass must deduplicate — so
+    // it draws FEWER faces than the same patch set to inlay.
+    const fresh = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true },
+        tileStyle: { color: "type", shading: false, band: 0, pentaFace: true },
+    });
+    fresh.gamma.setGuard(true);
+    const fl = fresh.stack.get("penrose-tiles");
+    let fresh1 = 0;
+    fl.ctx.fill = () => { fresh1++; };
+    fresh.redraw();
+    const asBuilt = fresh1;
+    fresh.setTileStyle({ pentaOverlay: false });
+    fresh1 = 0;
+    fresh.redraw();
+    assert.ok(fresh1 > asBuilt,
+              `as built ${asBuilt} fills, as an inlay ${fresh1}: overlay is not the default`);
+
+    const over = run({ pentaOverlay: true });
+    const inl = run({ pentaOverlay: false });
+    assert.ok(over.fills > 100, `only ${over.fills} fills at overlay`);
+    // One clip per pentagon drawn, on top of whatever the rest of the pass
+    // clips — so the inlay adds clips, and adds them in quantity.
+    assert.ok(inl.clips > over.clips + 1000,
+              `${inl.clips} clips against ${over.clips}: the tiles are not clipping`);
+    // And both halves of a shared pentagon are drawn now, where overlay
+    // deduplicated them to one: more fills, and more outlines.
+    assert.ok(inl.fills > over.fills,
+              `${inl.fills} fills against ${over.fills}: the halves are still deduplicated`);
+    assert.ok(inl.strokes > over.strokes,
+              `${inl.strokes} outlines against ${over.strokes}`);
+
+    // It holds for a bowed boundary too, which is the case that wanted it:
+    // an outie reaches past the tile edge and the inlay is what cuts it.
+    const oOver = run({ pentaOverlay: true, pentaShape: "outie" });
+    const oInl = run({ pentaOverlay: false, pentaShape: "outie" });
+    assert.ok(oInl.clips > oOver.clips + 1000,
+              `outie: ${oInl.clips} clips against ${oOver.clips}`);
+    assert.ok(oInl.fills > oOver.fills, "outie: the inlay drew no more faces");
+});
