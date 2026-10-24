@@ -4121,12 +4121,57 @@ whether or not the output is — so per-layer files are a byproduct of the same
 run, cost nothing extra, and nothing depends on a link that can break. The
 composite stays the deliverable.
 
+#### The use case, and the two ways to be "large" (Jake, 2026-10-24)
+
+> *"My use case is faces, edges and vertices. If these are separate svg's, no
+> good. I want something the user can zoom in on if it's large. That's why I
+> _want_ svgs."*
+
+Faces, edges and vertices are **three layers** — `penrose-tiles@z30`,
+`penrose-edges@z32`, `penrose-vertices@z35` — so they must land in one file,
+which settles the composite beyond argument. On method all twelve layers share
+one container; on split all six Penrose layers share the P container. Either
+way the three arrive together, which is what the per-container unit buys.
+
+**And "large" is two different things.** Worth separating before anything is
+built, because they want opposite treatments:
+
+| | **A. export at screen size, zoom in the viewer** | **B. export a larger canvas** |
+|---|---|---|
+| tiles | the same 488 | **more**: 1357 at 1600², 4425 at 3200² |
+| look | preserved **exactly** | lines go relatively **thinner** |
+| for | inspecting a figure | a poster of a big patch |
+
+The tile counts are measured at the same γ and scale: the window is what
+`collectRhombs` collects to, so a bigger canvas is a bigger patch, about 9× the
+tiles at 4× the width.
+
+**Route A is free and is probably the answer.** Emit `viewBox="0 0 w h"` and
+either no `width`/`height` or `width="100%"`, and the file scales to whatever
+space it is given while staying crisp. That is the whole of the SVG advantage
+over a PNG for Jake's purpose, and it costs nothing: page zoom on an `<img>`
+already resamples a PNG and does not resample this. (Note that the crispness
+under the *reader's* zoom is the benefit; an interactive pan-and-zoom inside the
+image would need inline SVG and a script, which is a different thing and not
+asked for.)
+
+**Route B has one artifact, and the recorder is the place to fix it.** Line
+widths in the drawing are constants — `1`, `1.2`, `1.5`, `1.6`, `2`, `2.2`, `4`
+at some twenty call sites, essentially none derived from `scale` — so a 4×
+canvas draws 4× bigger tiles with the same 1px strokes, and the picture comes
+out finer than it looks on screen. The fix is **not** twenty edits: the
+recording context already intercepts `lineWidth` and `font`, so it can carry an
+export scale and multiply both as they pass. One place, and it keeps the
+on-screen code unchanged — which is the same argument that made the recorder
+worth having at all.
+
 Nothing is open here. The steps: a recording context covering the 24 members
-that map directly; the per-container composite with z sorting, `<g>` opacity and
-the visibility filter; the editor layer metadata; `<defs>`/`<use>` for the
-repeated prototiles; gradient and clip deduplication; `measureText` by
-approximation or by dropping the backing boxes; and the `background` layer as an
-embedded PNG or omitted.
+that map directly, with an export scale applied to `lineWidth` and `font`; the
+per-container composite with z sorting, `<g>` opacity and the visibility filter;
+`viewBox` without fixed pixel dimensions; the editor layer metadata;
+`<defs>`/`<use>` for the repeated prototiles; gradient and clip deduplication;
+`measureText` by approximation or by dropping the backing boxes; and the
+`background` layer as an embedded PNG or omitted.
 
 ## 6. Not built
 

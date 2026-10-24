@@ -143,3 +143,36 @@ test("the composite SVG export's four gotchas are still true of the stack", () =
     assert.ok(/l\.canvas\.width = w; l\.canvas\.height = h;/.test(layers),
               "resize no longer sizes every layer alike");
 });
+
+test("faces, edges and vertices are three layers in one container", () => {
+    // PLAN 5.99: "My use case is faces, edges and vertices. If these are
+    // separate svg's, no good." They are three separate layers, so the export
+    // unit has to be the container -- and on split all three are Penrose group
+    // layers, which means all three land in the P file.
+    for (const id of ["penrose-tiles", "penrose-edges", "penrose-vertices"]) {
+        const at = view.indexOf(`id: "${id}"`);
+        assert.ok(at >= 0, `the ${id} layer is gone`);
+        const spec = view.slice(at, at + 220);
+        assert.ok(spec.includes('group: "Penrose"'),
+                  `${id} left the Penrose group, so split would no longer put `
+                  + "faces, edges and vertices in one file");
+    }
+    // And split's homes are what sends the Penrose group to its own container.
+    assert.ok(view.includes('groups: { Penrose: config.containerP }'),
+              "split's Penrose home moved");
+});
+
+test("line widths are constants, so an export scale belongs in the recorder", () => {
+    // PLAN 5.99 route B: a larger export canvas draws bigger tiles with the
+    // same pixel strokes, so the picture comes out finer than it looks. The
+    // fix is an export scale in the recording context, which already
+    // intercepts lineWidth -- not twenty edits at the call sites. This test is
+    // the premise: the call sites are literals.
+    const widths = [...view.matchAll(/lineWidth = ([^;]+)/g)].map((m) => m[1].trim());
+    assert.ok(widths.length > 15, `only ${widths.length} lineWidth assignments`);
+    const derived = widths.filter((w) => /\bscale\b/.test(w));
+    assert.equal(derived.length, 0,
+                 `${derived.length} line widths already scale with the view `
+                 + `(${derived.join(", ")}): route B's artifact is not uniform, `
+                 + "so a blanket export scale would double-count them");
+});
