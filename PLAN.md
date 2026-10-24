@@ -4821,3 +4821,178 @@ with **explode** and **cut** and nothing else in the frame.
 
 Step 1 is worth doing whatever happens to the rest: it is the mathematics, it
 is testable, and §5.0 has already done two thirds of it in the plane.
+
+## 9. Parameterizing the canvases — the plan (Jake, 2026-10-24)
+
+Jake: *"I also want a plan to parameterize these canvases. I want to be able to
+save setups for embedding, for creating urls of existing pages eventually. I
+also want to remember the reticulum for so it can carry over to other pages
+(for example, create a setting on method, switch to roof, and use it there).
+Also remember the current state of the page. And as always, a reset to defaults
+for a page."*
+
+Five wants, and they are one feature: **the state has to become a value.** Right
+now it is not one — it is four owners with four shapes, mutated in place, and
+with no way to read most of it back.
+
+### 9.1 Step 0: the read side, which does not exist
+
+`PentagridHandle` is `redraw · setFeatures · setGridAlpha · setTileStyle ·
+exposeRows · panelRow · onFeatureOn · getView · setView · setGamma · gamma ·
+stack`. Every setter is there and **no getter but `getView`** — the panel
+mutates `tileStyle.pentaFace = v; draw()` directly on a closure object nothing
+outside can see. So nothing below can be built until there is a read side:
+`getTileStyle()`, `getFeatures()`, and the layer stack's visibility. That is the
+first commit, it is small, and it is worth having regardless — a test earlier
+this session wanted `getTileStyle()` and had to infer the value from the
+drawing instead.
+
+### 9.2 The state, inventoried
+
+Counted from the defaults literals, which are the authoritative lists:
+
+| owner | where | booleans | enums | numbers | exact? |
+|---|---|---|---|---|---|
+| `Features` | `NO_FEATURES`, view closure | **19** | 0 | 0 | yes |
+| `TileStyle` | `tileStyle`, view closure | **21** | 5 | 3 | enums/bools yes, `ramp`/`opacity`/`band` float |
+| `GrowthState` | `DEFAULTS`, growth closure | **13** | 3 | 7 | `grow`/`fold`/`band`/`azimuth`/`elevation` float |
+| `GammaSet` | `geometry/gamma.ts` | guard, symmetry | — | γ as **integers over `den`**, locked, generation, family flags, family lines, isolated | **yes, exactly** |
+| view | `getView`/`setView` | — | — | scale, viewX, viewY | float |
+| layer visibility | `LayerStack` | one per layer | — | — | yes |
+
+**53 booleans in all** — nine base64url characters — plus eight enums at two or
+three bits each and ten numbers. A complete setup is on the order of 60 to 120
+characters. Length is not the constraint; precedence and defaults are.
+
+**γ is the one piece that is already exact.** `gammaSet.exact()` returns integer
+numerators over `den = 2000n`, and the deflation gauge fixing (§5.3) keeps those
+numerators small. So the reticulum can be carried byte-exact between pages with
+no float round-trip — which matters, because `provenRegular` and the whole
+singularity catalog are decided on the rationals, not measured on the doubles.
+
+### 9.3 Three scopes, which is what want #3 really asks for
+
+Jake wants the reticulum to travel and the rest to stay put. That is not one
+blob with one lifetime, it is three:
+
+| scope | what | lifetime |
+|---|---|---|
+| **shared** | the reticulum: n, `den`, γ's numerators, locked, symmetry, guard, generation, family flags and lines | follows the user between pages |
+| **page** | `Features`, `TileStyle`, `GrowthState`, layer visibility, view | per page id |
+| **transient** | hover, the loupe, pointer position, the readout | never saved |
+
+*"Create a setting on method, switch to roof, and use it there"* is then exactly:
+write the shared scope on change, read it on load. And the one hazard is **n** —
+`grow7.html` is a heptagrid, so the shared slice carries its own n and a page
+with a different n must refuse it rather than reinterpret five numerators as
+seven. Same for `generation`, which is the pentagrid's only (λ = φᵐ because φ
+is ℤ[ζ₅]'s unit).
+
+### 9.4 Four sinks, one precedence
+
+    URL  >  session  >  page defaults
+
+- **URL** (`?s=…`) — a link or an embed. Wins outright, and is what want #1 and
+  want #2 are.
+- **session** (`localStorage`, keyed by page id for the page scope and once for
+  the shared scope) — want #4, remembering where you were.
+- **page defaults** — want #5.
+
+A URL present means "show me exactly this", so it must also suppress the
+session for that load, or a shared link would come up wearing the recipient's
+last visit. Writing on change is fine for the session; the URL should change
+only when asked (a "link" button), because a URL that rewrites itself on every
+slider drag destroys the back button.
+
+### 9.5 Defaults, omission, and why old links must keep working
+
+**A serialized setup carries only what differs from that page's defaults.** Two
+reasons, and the second is the important one:
+
+1. Short links.
+2. **Forward compatibility.** A field added later is absent from an old link and
+   takes its new default, so embedded URLs do not rot. The alternative — a fixed
+   bit layout — invalidates every existing link the first time a switch is
+   added, and this session alone added `pentaOverlay`, `axis`, `direction` and
+   `paths`.
+
+So the encoding is a versioned map of differences, not a packed struct: `v` for
+the format, unknown keys ignored, missing keys defaulted. Pack it later if the
+length ever matters; the omission rule is what cannot be retrofitted.
+
+### 9.6 Reset is to the PAGE's defaults, not the view's
+
+The view's literals are `NO_FEATURES` and the `tileStyle` literal, but no page
+runs on those: each layers its own `config.features` and `config.tileStyle` over
+them, and `createGrowthView({ lift: true })` further sets `grow`, `fold`,
+`elevation` and `azimuth`. `roof.html` opens folded; `method.html` opens on the
+sun. So **each page must record its own baseline at construction** — the state
+right after the page's own setup, before any URL or session is applied — and
+reset to that. Resetting to the view's literals would land every page somewhere
+it has never been.
+
+### 9.7 What makes it safe: the round trip
+
+One acceptance test, applied per page:
+
+> **capture → reset → restore → the drawing is identical.**
+
+Recorded as a path string (`moveTo`/`lineTo`/`arc`/`fill`/`stroke` into an
+array, joined), which is the technique the suite already uses throughout — it is
+how `both` was shown to be the union of `high` and `low`, and how the isogloss
+containment was measured. If the two strings differ, something in the inventory
+is not being captured, and the diff says which layer.
+
+And a second test that walks §9.2's inventory field by field: perturb one field,
+capture, reset, restore, compare. That is the test that catches a field added to
+`TileStyle` and forgotten in the serializer — the failure mode this whole
+section exists to prevent, and the one a single end-to-end round trip would
+miss, since a forgotten boolean usually sits at its default.
+
+### 9.8 Embedding
+
+The pages are static with no bundler, so an embed is the page plus a query
+string in an `<iframe>`. What it needs beyond §9.4: an `?embed=1` that hides the
+panel and the narrative and leaves the canvas, since the point of an embedded
+figure is the figure. Worth deciding whether an embed is interactive (pan, zoom,
+hover) or inert; inert is one line and is probably right for a blog.
+
+### 9.9 How this meets §5.99
+
+A saved setup is also the name of what an SVG export exported. The two together
+are the useful thing: a URL that reproduces a figure, and an SVG of it carrying
+`data-k` per tile (§5.99's last point). Either is more valuable with the other,
+and §9.1's read side is a prerequisite for both — an exporter needs to know what
+is switched on quite as much as a serializer does.
+
+### 9.10 Steps
+
+1. **The read side.** `getTileStyle`, `getFeatures`, layer visibility. Tests for
+   the obvious identities (`set` then `get` returns what was set).
+2. **The inventory, as data.** One module naming every field, its type, its
+   default and its scope — so the serializer, the reset and the round-trip test
+   all read one list and cannot disagree. This is the piece that keeps §9.2 from
+   going stale.
+3. **Scopes and precedence**, with the session sink only. No URL yet: this alone
+   delivers wants #3, #4 and #5, and it is testable without touching a URL.
+4. **The URL**, with the omission rule and the `v` field. Wants #1 and #2.
+5. **`?embed=1`.**
+
+Steps 1 and 2 are worth doing whatever happens to the rest, exactly as §8's
+step 1 is: they are what let anything read the page's state, and the tests come
+free with them.
+
+### 9.11 Open, for Jake
+
+1. **Does the shared reticulum include the view?** Carrying γ to roof is clearly
+   wanted; carrying pan and zoom may or may not be — the pages are at different
+   scales and roof is a 3D camera.
+2. **Should the URL update as you work, or only on a button?** Live rewriting is
+   convenient and ruins the back button.
+3. **Does a preset count as state, or as a jump to a state?** If a setup records
+   "the sun preset" rather than its five numerators, then changing the preset
+   table later changes old links. Recording the numerators is safer and loses
+   the name; recording both and preferring the numerators is probably right.
+4. **One shared slice, or a named library of setups?** *"Save setups"* could be
+   a list the user names and revisits, which is a bigger thing than remembering
+   the last one.
