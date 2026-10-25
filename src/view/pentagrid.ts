@@ -21,6 +21,7 @@ import { readAttributes, watchAttributes } from "../state/attributes.js";
 import { readSlices, writeSlices, embedString } from "../state/embed.js";
 import { sessionKey, saveSession, loadSession, debounce, SAVE_AFTER_MS }
     from "../state/session.js";
+import { pageQuery, hasQuerySetup, readQuery, queryFor } from "../state/query.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
@@ -488,6 +489,13 @@ export interface PentagridConfig {
      */
     session?: boolean | string;
     /**
+     * A query string to read a setup from, instead of the page's own.
+     *
+     * Defaults to `location.search`. Given explicitly so a test, or a page
+     * mounting two canvases from one URL, can say which.
+     */
+    query?: string;
+    /**
      * A slice of state the view does not own, to go in the same session record.
      *
      * The growth view's `GrowthState` lives in its own closure, so the
@@ -623,6 +631,8 @@ export interface PentagridHandle {
      * Carries only what differs from the baseline.
      */
     embed: (opts?: { tag?: string; id?: string }) => string;
+    /** This setup as a URL, settings as query parameters — §9.4, want #2. */
+    link: () => string;
     /**
      * Back to the baseline: the tile style, the features, the grid alpha, the
      * view, the layer visibility and γ. Jake's fifth want.
@@ -4811,8 +4821,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             + "page to rebuild exactly this.";
         const copySaid = document.createElement("span");
         copySaid.className = "copy-said";
-        copyBtn.addEventListener("click", () => {
-            const text = embedNow();
+        /**
+         * Put something on the clipboard and say so.
+         *
+         * Shared by `copy setup` and `copy link`. It reports in place because
+         * the clipboard is asynchronous and can be refused outright, and a
+         * button that says nothing leaves you unsure whether it worked.
+         */
+        const copyText = (text: string) => {
             const say = (what: string) => {
                 copySaid.textContent = what;
                 setTimeout(() => { copySaid.textContent = ""; }, 2400);
@@ -4826,7 +4842,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 console.log(text);
                 say("in the console");
             }
-        });
+        };
+        copyBtn.addEventListener("click", () => { copyText(embedNow()); });
         copyRow.appendChild(copyBtn);
         /**
          * Back to this page's own setup — PLAN §9.6, Jake's want #5.
@@ -4846,6 +4863,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             + "including anything its markup asked for.";
         resetBtn.addEventListener("click", () => { resetNow(); });
         copyRow.appendChild(resetBtn);
+        /**
+         * The same setup as a link — §9.4, Jake's want #2.
+         *
+         * Beside `copy setup` because they are one idea in two spellings: the
+         * markup rebuilds the canvas inside a page you are writing, the link
+         * reopens this page as it is now. Neither writes the address bar.
+         */
+        const linkBtn = document.createElement("button");
+        linkBtn.type = "button";
+        linkBtn.className = "ret-bump";
+        linkBtn.textContent = "copy link";
+        linkBtn.title = "This page as a URL, with the settings as query "
+            + "parameters. Opening it shows exactly this, and a link outranks "
+            + "whatever the recipient was last looking at.";
+        linkBtn.addEventListener("click", () => { copyText(linkNow()); });
+        copyRow.appendChild(linkBtn);
         copyRow.appendChild(copySaid);
 
         const sRow = row(det, "");
@@ -5644,7 +5677,18 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         ? (typeof config.session === "string"
             ? config.session : sessionKey(config.container))
         : null;
-    if (sessionId) {
+    /**
+     * A query string outranks the session — §9.4, and it must.
+     *
+     * A link says *show me exactly this*. If the session were applied over it,
+     * a link you shared would arrive wearing the recipient's last visit, which
+     * is the one thing a link must not do. So a query carrying any setting of
+     * ours suppresses the session for this load; the next draw then saves what
+     * the link asked for, which is right — you are here now.
+     */
+    const query = config.query ?? pageQuery();
+    const linked = hasQuerySetup(query);
+    if (sessionId && !linked) {
         const was = loadSession(sessionId);
         if (was) {
             if (was.features) features = { ...features, ...was.features } as Features;
@@ -5667,6 +5711,36 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             syncPanel();
             draw();
         }
+    }
+
+    // And the link itself, over everything.
+    if (linked) {
+        const q = readQuery(query);
+        features = { ...features, ...q.features } as Features;
+        Object.assign(tileStyle, q.tileStyle);
+        if (config.sessionSlice && Object.keys(q.growth).length) {
+            config.sessionSlice.write(q.growth);
+        }
+        const sl = readSlices({
+            getAttribute: (n: string) =>
+                new URLSearchParams(query).get(n)
+                ?? new URLSearchParams(query).get(n.replace(/^data-/, "")),
+        } as unknown as Element);
+        if (sl.gamma && sl.gamma.exact.length === model.n) {
+            restoreGamma(gammaSet, { ...captureGamma(gammaSet), ...sl.gamma });
+        }
+        if (sl.view) {
+            if (sl.view.scale !== undefined) scale = sl.view.scale;
+            if (sl.view.x !== undefined) viewX = sl.view.x;
+            if (sl.view.y !== undefined) viewY = sl.view.y;
+        }
+        if (sl.hide) {
+            const v: Record<string, boolean> = {};
+            for (const l of stack.all()) v[l.id] = !sl.hide.includes(l.id);
+            stack.setVisibility(v);
+        }
+        syncPanel();
+        draw();
     }
 
     /** What to remember. The page scope of §9.3, and only the page scope. */
@@ -5699,11 +5773,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * the panel's copy button needs it and the handle object does not exist
      * until the factory returns.
      */
-    const embedNow = (opts?: { tag?: string; id?: string }): string => {
+    /** Everything that differs from home, as attributes. Shared by both. */
+    const embedAttrs = (): Record<string, string> => {
         const now = capture();
         const flat: Record<string, string> = {};
         for (const f of FIELDS) {
-            if (f.owner === "growth") continue;       // the growth view's own
+            if (f.owner === "growth") continue;           // the growth view's own
             const here = (now[f.owner] as unknown as Record<string, unknown>)[f.key];
             const home = (baseline[f.owner] as unknown as Record<string, unknown>)[f.key];
             if (here === home) continue;
@@ -5713,7 +5788,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             { gamma: now.gamma, view: now.view, visibility: now.visibility },
             { gamma: baseline.gamma, view: baseline.view,
               visibility: baseline.visibility });
-        return embedString({ ...flat, ...slices }, {
+        return { ...flat, ...slices };
+    };
+
+    const embedNow = (opts?: { tag?: string; id?: string }): string => {
+        return embedString(embedAttrs(), {
             id: config.container.id || "stage",
             width: canvas.explicit ? canvas.w : undefined,
             height: canvas.explicit ? canvas.h : undefined,
@@ -5721,6 +5800,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         });
     };
 
+
+    /**
+     * This setup as a LINK — §9.4, and Jake's want #2, *"creating urls of
+     * existing pages"*.
+     *
+     * The same attributes the embed carries, in the short spelling a person
+     * reads in an address bar. Nothing writes `location`: the address bar is
+     * never touched, which is what *"don't update the URL"* asked for — a link
+     * on the clipboard is a different thing from a rewritten history.
+     */
+    const linkNow = (): string => {
+        const here = globalThis.location
+            ? globalThis.location.origin + globalThis.location.pathname
+            : "";
+        return here + queryFor(embedAttrs());
+    };
 
     /**
      * Back to this page's home. A named local, like `embedNow`, because the
@@ -5778,6 +5873,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
          * older embed and simply default the fields it never knew about.
          */
         embed: (opts) => embedNow(opts),
+        link: () => linkNow(),
 
         reset: () => resetNow(),
 

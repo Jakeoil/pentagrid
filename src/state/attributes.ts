@@ -65,13 +65,28 @@ function attributesOf(el: Element): string[] {
  * alone, because a widget lives on someone else's div.
  */
 export function readAttributes(el: Element): AttributePatch {
+    return collect(attributesOf(el), (n) => el.getAttribute(n));
+}
+
+/**
+ * The same sorting, over any source of named values.
+ *
+ * Shared with the query-string reader (`state/query.ts`), because a page's
+ * settings are one vocabulary however they arrive: a container's attributes
+ * and a URL's parameters name the same fields, parse by the same rules and
+ * refuse the same values. Written twice they would diverge the first time a
+ * field changed kind.
+ */
+export function collect(
+    names: readonly string[], get: (name: string) => string | null,
+): AttributePatch {
     const out: AttributePatch = {
         features: {}, tileStyle: {}, growth: {}, ignored: [],
     };
-    for (const name of attributesOf(el)) {
+    for (const name of names) {
         const field = BY_ATTR.get(name);
         if (!field) continue;                      // not ours: not our business
-        const value = parse(field, el.getAttribute(name));
+        const value = parse(field, get(name));
         if (value === null) { out.ignored.push(name); continue; }
         out[field.owner as Owner][field.key] = value;
     }

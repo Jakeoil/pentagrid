@@ -5319,6 +5319,31 @@ entries, no back-button damage, and no question of when to rewrite. The page
 reads a setup from the URL if one is there and otherwise ignores it entirely;
 producing one is a button that puts the string on the clipboard.
 
+**Built 2026-10-25** — `src/state/query.ts`, a **copy link** button, and
+`tools/query.test.mjs`. It had been missed: step 5 built the attribute reader
+and the URL was left out because *"don't update the URL"* had been read as *"no
+URLs at all"*. It is not — the address bar is never **written**, which is a
+different thing from never being **read**, and want #2 was *"creating urls of
+existing pages"*. Jake, 2026-10-25, noticing the gap from the other end: *"This
+would include the query parameters for pages."*
+
+- **One vocabulary, two spellings.** The parameters are the same fields as the
+  attributes, by the same names and the same parsing — `attributes.collect`
+  does the sorting for both, so they cannot diverge the first time a field
+  changes kind. A URL may spell them with or without the `data-` prefix, since
+  `?data-color=bands` is canonical and `?color=bands` is what anyone types.
+- **A query suppresses the session for that load**, entirely rather than
+  merging. Otherwise a link you shared arrives wearing the recipient's last
+  visit, which is the one thing a link must not do. Tested.
+- **It outranks the container's attributes too**, but only where it speaks: a
+  field the link is silent about still comes from the markup.
+- **`reset page` discards it**, as it discards the session, and returns to the
+  markup.
+- **`copy link`** sits beside `copy setup`: one idea in two spellings, the
+  markup for a page you are writing and the link for the page you are on. A
+  test asserts nothing in the view or the reader touches `history` or assigns
+  to `location`.
+
 ### 9.4a Session memory — BUILT 2026-10-24
 
 `src/state/session.ts` with `src/state/store.ts` underneath, step 7 of §9.10.
@@ -5654,6 +5679,28 @@ attributes, build from the attributes with no code config, identical style and
 features.
 
 **So §9 is complete.** All five of Jake's wants, and the eight steps of §9.10.
+
+### 9.8d Where the API is written down — BUILT 2026-10-25
+
+Jake: *"Where is the API for all the settings of the 'containers'
+(copy-setup)"* — and there was not one. The data was in `state/inventory.ts`
+and the names were derivable from it, but nothing rendered them, so the only
+way to learn what `copy setup` can emit was to read the source. §9.10 step 2
+even claimed the inventory *"is also the widget's documentation"*, which was
+true of the data and not of any reader.
+
+`tools/attrdoc.mjs` generates it, the way `tools/layerchart.mjs` generates the
+layer chart: printed by default, `--write` rewrites the marked block in
+**MODULES.md**. Generated rather than written, because a hand-kept list of
+seventy-odd attributes is a list that goes wrong — and it reads the same
+`FIELDS` the reader, the writer and the reset read, so the document cannot
+disagree with the behavior. `tools/attrdoc.test.mjs` fails when it is stale,
+and separately when a field is undocumented or an enum value is missing.
+
+It carries all 72 fields with their values and defaults, the shaped slices
+(γ, the view, `data-hide`), the three canvas-sizing attributes, and — the part
+people get wrong — **the precedence**, query over session over attributes over
+config over defaults.
 
 ### 9.9 Saved setups, in the app
 
