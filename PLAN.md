@@ -135,7 +135,9 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    with a **copy setup** button (§9.8b), session memory with **reset page**
    (§9.4a), and the completeness test over every state method.html can reach
    (§9.8c). What is left is §9.9's named library of setups, which is a feature
-   rather than a step. The state is not a value yet — `PentagridHandle` has
+   rather than a step. **And one defect**, found 2026-10-25: `gridAlpha` is
+   outside the inventory, so `copy setup` and `copy link` do not carry it, and
+   §9.8c's test could not see the omission — §10.4. The state is not a value yet — `PentagridHandle` has
    every setter and no getter but `getView` — so §9.1 is the first commit and
    §9.2's inventory (53 booleans, 8 enums, 10 numbers, γ already exact) is the
    second. The serialized form is **HTML attributes on the container**, not a
@@ -143,6 +145,19 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    HTML already means, and *"method.html built from its own embed"* is the
    completeness test. The reticulum travels as a one-slot stack pulled by a
    `restore` preset.
+
+9. **Page defaults as data.** Jake, 2026-10-25, a wish: *"Perhaps a json file
+   with each page's (even 'method' step's)… defaults."* §10 has the plan. The
+   flat-to-tree worry dissolves — a step's state is already a flat record, so
+   the tree is only an index over flat leaves — but two per-page defaults sit
+   outside the inventory: `gridAlpha` (no field, no attribute) and
+   `exposeRows` (not readable at all, and a *list* where every field is a
+   scalar, which is the difficulty in its true location). And §10.7: what Jake
+   is really after is **palettes** — *"thick/thin colors, penta colors"* — which
+   is the easy case, since a palette's selection is one enum field and
+   everything §9 built then carries it for free. 26 primitives, not 33
+   constants: `MIX` is derived from five family colors and Kowalewski's is an
+   index into five fills.
 
 ## 4. Standing rules
 
@@ -5680,6 +5695,16 @@ features.
 
 **So §9 is complete.** All five of Jake's wants, and the eight steps of §9.10.
 
+**One correction, 2026-10-25.** This test proves less than it claimed. It
+compares *draw calls*, and `gridAlpha` is a CSS `opacity` on a layer's canvas
+rather than a draw call — §5.99's gotcha 2 arriving from the other side — so
+the seven steps matched layer for layer **while differing in their grid alpha**,
+which every one of them sets. And `gridAlpha` is in no defaults literal, so it
+is not in `FIELDS`, has no attribute and takes no query parameter: measured,
+`setGridAlpha(0.15)` then `embed()` gives `<div id="stage"></div>`. So the
+attribute surface is **not** total. §10.4 has it as a defect to close, and the
+test should compare each layer's `opacity()` and `userVisible` beside its path.
+
 ### 9.8d Where the API is written down — BUILT 2026-10-25
 
 Jake: *"Where is the API for all the settings of the 'containers'
@@ -5787,3 +5812,180 @@ And the last three, the same day:
   not what it was drawn from.
 
 **Nothing is open.** §9.10 is the build order.
+
+## 10. Page defaults as data, and palettes (Jake, 2026-10-25 — A WISH, nothing built)
+
+Jake: *"Perhaps a json file with each page's (even 'method' step's) standardize
+the config or even organize it. just a wish for a plan. Might be difficult
+going from flat to tree like."* And, clarifying: *"defaults. I was talking about
+defaults."*
+
+So: one file holding what each page — and each of method's seven steps — starts
+as, instead of those defaults being scattered through the code.
+
+### 10.1 Where a page's defaults live today
+
+Three places, which is the complaint:
+
+1. **The view's own literals**, `src/state/defaults.ts`: `NO_FEATURES`,
+   `TILE_DEFAULTS`, growth's `DEFAULTS`. The floor every page builds on.
+2. **Each page's `config`**, in code: `createPentagrid({ features: …,
+   tileStyle: … })`, and `createGrowthView({ lift: true })`.
+3. **Each method step's `enter`**, which `app/narrative.ts` calls *"the ONLY
+   thing that decides what the page shows"*. Counted over the seven steps, it
+   calls exactly three things, seven times each:
+
+   | called | times |
+   |---|---|
+   | `pg.setFeatures(…)` | 7 |
+   | `pg.setGridAlpha(…)` | 7 |
+   | `pg.exposeRows(…)` | 7 |
+
+### 10.2 The flat-to-tree worry dissolves — the leaves are already flat
+
+Jake's stated difficulty is the one that turns out not to bite. **A step's state
+is already a flat record**, and that is not a hope: §9.8c's test takes each of
+the seven steps, writes it as flat attributes, rebuilds a fresh view from those
+alone, and compares every layer's drawing. All seven pass. So the tree is only
+an *index over flat leaves*:
+
+    {
+      "method": {
+        "config": { "...": "the page's own baseline" },
+        "steps": [ { "features": {...}, "gridAlpha": 0.25, "rows": [...] }, ... ]
+      },
+      "split":  { "config": { ... } },
+      "roof":   { "config": { ... } }
+    }
+
+Nothing has to become a tree. `state/inventory.ts` already describes the leaf,
+`readAttributes` already reads one and `embed()` already writes one — so a file
+of them needs no new serializer, only a loader that walks the index and hands
+each leaf to the code that exists.
+
+### 10.3 The difficulty is somewhere else: two defaults are outside the inventory
+
+Measured, and this is the part worth knowing before anyone starts.
+
+**`gridAlpha` is not a field.** It has a setter and now a getter, the baseline
+captures it so `reset` restores it — and it is in none of the three defaults
+literals, so it is **not in `FIELDS`**, has **no attribute**, and takes **no
+query parameter**. Measured: `setGridAlpha(0.15)` then `embed()` gives
+`<div id="stage"></div>`. Every step sets it, and no step can say so in a
+setup.
+
+It belongs to no existing owner either — it is neither a feature, nor a tile
+style, nor growth — so making it a field is a small design decision rather than
+a one-line addition: a fourth owner (`view`?) or a home in one of the three.
+
+**`exposeRows` is not readable at all.** It writes `el.hidden` on each row and
+keeps no list, so there is nothing to capture: the baseline does not hold it,
+`reset()` does not restore it, and no attribute carries it. And it is a **list
+of row labels** where every field in the inventory is a scalar — which is
+Jake's flat-versus-tree difficulty in its true location. Not the file's shape:
+one field's shape.
+
+Three ways out, in order of appeal:
+
+- **A set of booleans.** One field per row label — `data-row-pentaplex` and so
+  on. Fits the inventory exactly, and the labels are already a fixed list
+  (`SECTIONS` names them). Verbose, and the right kind of verbose.
+- **One string field**, comma separated, as `data-hide` already does for
+  layers. Precedent, compact, and it means a second list syntax to parse.
+- **Leave it in code.** Which rows a narrative step exposes is arguably not a
+  default but a part of the prose — it is about what the reader should be
+  looking at, not about what the canvas is.
+
+### 10.4 And a consequence: §9.8c's completeness test proves less than it claimed
+
+The seven steps matched layer for layer **while differing in their grid alpha**,
+because the test compares *draw calls* and `gridAlpha` is a CSS `opacity` on the
+layer's canvas — §5.99's gotcha 2, arriving from the other side. So "every state
+method.html can reach survives the round trip" is true of everything the
+recorder can see and not of everything there is.
+
+That is a defect in a shipped feature, found by Jake asking about defaults:
+`copy setup` and `copy link` do not carry the grid's alpha. Worth closing before
+§10 is built, since a defaults file that cannot express `gridAlpha` would
+reproduce the gap rather than fix it. The test should compare the layers'
+`opacity()` and `userVisible` beside their draw calls.
+
+### 10.5 What the plan would be
+
+1. **Close §10.4's hole**: give `gridAlpha` a home in the inventory, so it has
+   an attribute and a parameter, and widen §9.8c's test to compare each layer's
+   opacity and visibility as well as its path.
+2. **Decide `exposeRows`** — §10.3's three ways.
+3. **The schema**, as a type in `src/state/` with the loader beside it, so the
+   file is checked rather than trusted: unknown page ignored, unknown field
+   ignored (§9.5), and a bad value refused rather than guessed.
+4. **The file**, with the defaults lifted out of the three places in §10.1 —
+   and a test that each page's baseline is *identical* to what it was before
+   the lift, which is what makes the move safe.
+5. **Steps last**, since they are the awkward ones: `METHOD_PAGES` keeps its
+   `title` and `html` and names a config id instead of carrying an `enter`.
+
+### 10.7 Palettes — and this is the easy case, not the hard one
+
+Jake, clarifying the wish: *"I mean we might use some palletes for thick/thin
+colors, penta colors etc in the future."*
+
+**A palette's selection is a scalar, so everything §9 built carries it for
+free.** One new enum field — `palette`, whose values are the palette names —
+and `copy setup`, `copy link`, the session, the reset and the completeness test
+all handle it with no new machinery, because they handle every field. The
+palette *table* is the tree; the *state* is a name. Which is the flat-versus-
+tree question answered the right way round, and it is why palettes are easier
+than §10.3's `exposeRows`: a list of exposed rows is irreducibly a list, a
+choice of palette is a word.
+
+**The colors are scattered but the primitive set is small.** 33 named constants
+across the source, 46 lines of hex in `view/pentagrid.ts` alone — and most of
+them are **derived**, which is the measurement that matters:
+
+- `MIX` is `FAMILY_COLORS.map(a => FAMILY_COLORS.map(b => …))`: 25 entries from
+  5 primitives.
+- Kowalewski's color is an **index**, `(3(a + b)) mod 5`, into five fills — so
+  the mathematics is fixed and only the five colors are a choice.
+- `tint`, `ramped` and the height gradient all derive from a base color.
+
+So a palette is on the order of **26 primitives**, not 33 constants and
+certainly not every hex in the tree: two tile fills, two next-gen fills, the P1
+three plus its blue ground, kite and dart, five family colors, five Kowalewski
+fills, a few edge inks, the arc pair.
+
+**The hard part is naming the roles, not holding them.** Today's names grew one
+at a time and do not line up: `THICK_FILL` beside `NEXTGEN_THICK`, `P1_FILL.Pe1`
+beside `KITE` and `DART`, `WARM_FILLS` and `COOL_FILLS` beside
+`KOWALEWSKI_FILLS`. A palette file forces one vocabulary, and that is most of
+the work and all of the value — the file is the easy half. It also forces a
+decision the code currently dodges: which colors are a *style* (swappable) and
+which are *identity* (the family colors are the reticulum's own, and changing
+them changes what a reader is being taught).
+
+**And it wants the same discipline as the rest.** A palette named in a setup
+that the page does not have must take the default rather than guess (§9.5), so
+the enum's values have to come from the table — which means the table is loaded
+before the inventory is built, or the field's values are read from it at
+startup. That is the one piece of plumbing palettes need that nothing else in
+§9 did, since every other enum's values are fixed at compile time.
+
+### 10.6 Open, for Jake
+
+1. **Does the prose move too?** It is **73%** of `app/method-steps.ts` — 9005
+   bytes of HTML against 12375 in the file — so moving the config out leaves
+   that file as almost pure prose, which may be the real win. Moving the prose
+   *in* would make the JSON mostly HTML strings, which is the worst of both.
+2. **Authored or generated?** A file the pages read is authored. A file
+   generated from the current code is a one-time migration aid — and could be
+   written by extending `embed()` over each step, which already produces exactly
+   these records.
+3. **One file or one per page?** One is easier to see whole; per page keeps a
+   diff local to what changed.
+4. **Are the family colors a palette or an identity?** They are the
+   reticulum's own, and the five hues are how a reader tells the families
+   apart across every page — so making them swappable may be a kindness or a
+   way to break the argument, depending on who is swapping.
+5. **Do palettes come before the defaults file?** They are the easier half
+   (§10.7) and they are the part Jake actually wants; the config file is the
+   part with `exposeRows` in it. Palettes first is the better order.
