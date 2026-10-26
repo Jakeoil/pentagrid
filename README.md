@@ -1,4 +1,4 @@
-    # Pentagrid
+# Pentagrid
 
 Interactive explorations of de Bruijn's pentagrid method for constructing Penrose
 tilings.
