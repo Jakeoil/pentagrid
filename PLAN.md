@@ -5954,6 +5954,44 @@ certainly not every hex in the tree: two tile fills, two next-gen fills, the P1
 three plus its blue ground, kite and dart, five family colors, five Kowalewski
 fills, a few edge inks, the arc pair.
 
+#### The one role vocabulary that already exists — P1 / HBS
+
+Jake, 2026-10-26: *"there's the penta(P1)/rhomb-groups(HBS) color scheme. Three
+or Six colors. P135 and S135 generally need 3 colors. Almost always P5 and S135
+share BLUE (the others are YELLOW and ORANGE)."*
+
+**The code already says this, and already has two palettes of it** — which is
+the argument for palettes-as-data made by the source itself rather than by
+anyone's opinion. `geometry/clusters.ts`:
+
+| role | `P1_FILL` — the P1 tiling | `CLUSTER_FILL` — the rhomb groups |
+|---|---|---|
+| Pe1 | `#e46c0a` **orange** | `#eec09b` orange-tan |
+| Pe3 | `#ffff00` **yellow** | `#e6e68e` olive |
+| Pe5 | `#0000ff` **blue** | `#9292e3` blue-purple |
+| the rest | `P1_STAR = #0000ff` — **blue, the same as Pe5** | — |
+
+So Jake's *"P5 and S135 share BLUE"* is literally `P1_STAR === P1_FILL.Pe5`,
+and the comment beside it already says why: *"whatever the pentagon does not
+cover — star, boat, diamond — is `P1_STAR`."* Four cells, three colors. And
+`CLUSTER_FILL` is the same three roles at the rhomb-group scale in a muted key
+— **two instantiations of one vocabulary, hard-coded as separate constants**,
+which is exactly what a palette table is for.
+
+**And the six-color case is not representable today.** `ClusterKind` is
+`"Pe5" | "Pe3" | "Pe1"` and `P1_STAR` is a single color for every non-pentagon
+cell, so the drawing cannot tell a star from a boat from a diamond. Jake's
+*"Three or Six"* is therefore a real extension and not just a palette: the
+three-color case is a **collapse** of the six, S135 folded onto Pe5's blue, and
+supporting six means distinguishing the three gap shapes first — which
+`geometry/clusters.ts` knows about in prose (*"The stars, boats and diamonds
+are what is left between"*) and not in the type.
+
+So the palette's role list wants both, with the collapse as a palette property
+rather than a separate scheme: six roles, and a palette may map three of them
+to one color. That keeps one vocabulary and lets *"almost always"* be the
+default rather than the rule — which is how Jake stated it.
+
 **The hard part is naming the roles, not holding them.** Today's names grew one
 at a time and do not line up: `THICK_FILL` beside `NEXTGEN_THICK`, `P1_FILL.Pe1`
 beside `KITE` and `DART`, `WARM_FILLS` and `COOL_FILLS` beside
@@ -5989,3 +6027,10 @@ startup. That is the one piece of plumbing palettes need that nothing else in
 5. **Do palettes come before the defaults file?** They are the easier half
    (§10.7) and they are the part Jake actually wants; the config file is the
    part with `exposeRows` in it. Palettes first is the better order.
+6. **Three colors or six, for P1/HBS?** Three is what the code does and what
+   Jake says is almost always wanted. Six needs the star, boat and diamond
+   told apart first — `ClusterKind` has only `Pe5 | Pe3 | Pe1` and `P1_STAR`
+   is one color for all three — so six is a change to the geometry's types
+   before it is a change to a palette. Worth knowing which is wanted before
+   the role list is fixed, since adding roles later renames nothing but adding
+   them to an old palette file leaves it silently three-colored.

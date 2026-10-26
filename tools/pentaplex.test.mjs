@@ -8,6 +8,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { census } from "./pentaplex.mjs";
 import { rhombPentagons, PENTA_R } from "../dist/geometry/decor.js";
+import { P1_FILL, P1_STAR, CLUSTER_FILL } from "../dist/geometry/clusters.js";
 import { collectRhombs, makeDirections } from "../dist/geometry/pentagrid.js";
 import { vertexIndex } from "../dist/geometry/roof.js";
 
@@ -298,4 +299,31 @@ test("extent is W/scale: pixel size and scale are separate knobs", () => {
     assert.equal(seen(1600, 80), base,
                  "W and scale together should leave the content alone");
     assert.equal(seen(3200, 160), base, "and at any factor");
+});
+
+test("P1 and the rhomb groups are two palettes of one role set — PLAN 10.7", () => {
+    // Jake, 2026-10-26: "there's the penta(P1)/rhomb-groups(HBS) color scheme.
+    // Three or Six colors. P135 and S135 generally need 3 colors. Almost always
+    // P5 and S135 share BLUE (the others are YELLOW and ORANGE)."
+    //
+    // The code already says it, and already holds two instantiations of the
+    // same three roles -- which is the argument for palettes-as-data made by
+    // the source rather than by anyone's opinion. Pinned here so a palette file
+    // later cannot quietly lose the identity Jake names.
+    const roles = ["Pe1", "Pe3", "Pe5"];
+    assert.deepEqual(Object.keys(P1_FILL).sort(), [...roles].sort());
+    assert.deepEqual(Object.keys(CLUSTER_FILL).sort(), [...roles].sort(),
+                     "the two palettes no longer share their role set");
+
+    // Three colors for four cells: the star, boat and diamond take Pe5's blue.
+    assert.equal(P1_STAR, P1_FILL.Pe5,
+                 "P5 and S135 no longer share BLUE, which is Jake's almost-always");
+    assert.equal(new Set([P1_FILL.Pe1, P1_FILL.Pe3, P1_FILL.Pe5, P1_STAR]).size, 3,
+                 "the P1 scheme is no longer three colors");
+
+    // And they really are distinct palettes, not one aliased twice.
+    for (const r of roles) {
+        assert.notEqual(P1_FILL[r], CLUSTER_FILL[r],
+                        `${r} is the same in both palettes, so there is only one`);
+    }
 });
