@@ -112,8 +112,9 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
 6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
-7. **An SVG export, one file per container.** Nothing open; §5.99 has the
-   steps. Jake: *"a record of a canvas with all its layers. A single image that
+7. **An SVG export, one file per container.** **Step 1 built 2026-10-26** —
+   `src/svg/record.ts`, the recording context, 19 tests, records every layer of
+   a real view. Step 2 next: the per-container composite. §5.99 has the steps. Jake: *"a record of a canvas with all its layers. A single image that
    can be put into a pdf or web page… in split, one for G and one for P."* So
    method exports one file of 12 layers and split two, G with 6 and P with 6
    plus the mirrored `axes`. The composite needs four things a per-layer export
@@ -4080,6 +4081,59 @@ and still the only one, which is as contained as it can be.
 record."* The file depicts the patch and does not describe it, so the exporter
 emits what was drawn and never what it was drawn from. De-dualization (§3
 item 3) gets no free ride from it, and the exporter stays a renderer.
+
+#### Step 1 built: the recording context (2026-10-26)
+
+`src/svg/record.ts`, `tools/svgrecord.test.mjs`. 19 tests, and the one that
+matters records **every layer of a real view** — 3576 elements over the loaded
+stack, all well formed, nothing carrying `NaN` or `[object`. That is the other
+half of what `tools/ctxapi.test.mjs` asserts statically: if a layer reached for
+a member the recorder lacks, it would throw there.
+
+What the four awkward members became:
+
+- **`clearRect` is nothing at all.** Every layer clears its whole canvas before
+  drawing and an empty region is what an SVG starts as. A *partial* clear would
+  be a hole in what is underneath, and nothing here does that.
+- **`arc`** needed care twice: a full turn cannot be one `A` — the endpoints
+  coincide and the command does nothing — so a sweep of 2π is split in half,
+  which is how the dots and the pool balls are drawn; and an arc with no current
+  point begins with an implicit move, as canvas does.
+- **`measureText`** is 0.55 em per character, since there is no layout in a
+  recorder. All four callers want the width of a box behind a label, so being
+  wrong by a few percent moves a background rectangle and nothing else.
+- **`putImageData`** emits nothing and sets a flag. `createImageData` returns a
+  real buffer, because the layer writes into it and hands it back — a stub that
+  refused would throw.
+
+**And the gradient plan was wrong in a way worth recording.** §5.99 said to
+deduplicate "by stop triple", and the first version keyed on the stops *and*
+the geometry together, which deduplicated almost nothing: measured over a shaded
+patch, **488 distinct geometries and 4 distinct stop sets**, because every
+tile's ramp runs along its own diagonal. A gradient has **two** identities and
+fusing them is the mistake.
+
+Split, SVG expresses it exactly — a gradient may inherit its stops from another
+through `href` — so the paint is one def and the placements carry four numbers
+and a reference each:
+
+| | tiles + shading | the loaded stack |
+|---|---|---|
+| stop defs | **4** | 26 |
+| placement defs | 488 | 2635 |
+| defs bytes | — | **470 400** |
+| fused, as first written | — | ~677 700 |
+
+**−31% on the defs**, and the placement defs carry no `<stop>` children at all.
+The 2635 is irreducible: with bands each tile paints several quads whose ramps
+differ, and SVG cannot combine two defs at the point of use. If a file must be
+smaller than that, §5.99's other lever is the one to pull — emit the ramp as a
+flat mean color on export.
+
+Both spellings of the reference are written, `href` and `xlink:href`: the first
+is SVG 2's, the second is what SVG 1.1 requires and every editor reads. **The
+root must declare the xlink namespace**, which is the composite's business —
+step 2.
 
 #### Is there a happy medium — files plus a coordinating file? (Jake, 2026-10-24)
 

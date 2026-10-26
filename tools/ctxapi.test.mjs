@@ -14,10 +14,19 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
+/**
+ * The source, minus `src/svg/`.
+ *
+ * The recorder IMPLEMENTS this surface; everything else CALLS it. Counting the
+ * implementation as a call site would say `putImageData` lives in two places
+ * and that the raster had spread, when the opposite is true — the recorder
+ * exists so that the one raster stays the only one.
+ */
 const walk = (dir) => {
     const out = [];
     for (const name of readdirSync(dir)) {
         const p = join(dir, name);
+        if (p.endsWith("src/svg")) continue;
         if (statSync(p).isDirectory()) out.push(...walk(p));
         else if (p.endsWith(".ts")) out.push(p);
     }
@@ -77,7 +86,8 @@ test("the four awkward members are exactly where 5.99 says they are", () => {
     assert.deepEqual(where("measureText"),
                      ["src/ui/loupe.ts", "src/view/pentagrid.ts"]);
     // The gradients are the height ramp and the pool balls.
-    assert.deepEqual(where("createRadialGradient"), ["src/view/growth.ts"]);
+    assert.deepEqual(where("createRadialGradient"), ["src/view/growth.ts"],
+                     "the only caller of a radial gradient is the pool balls");
     assert.ok(where("createLinearGradient").includes("src/view/pentagrid.ts"));
 });
 
