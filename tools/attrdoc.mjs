@@ -89,6 +89,10 @@ export function doc() {
         table("tileStyle", "Tile style — how the tiles are dressed",
               "The Penrose side's dressings: colors, the decorations, the shading."),
         "",
+        table("grid", "Grid — how the gridlines themselves draw",
+              "The reticulum's own lines, not the tiling's. Two knobs that"
+              + " belonged to no owner until PLAN §10.4 gave them one."),
+        "",
         table("growth", "Growth — the roof and grow pages",
               "`roof.html`, `grow.html` and `grow7.html` only. Three names carry a"
               + " `growth-` prefix because a roof page has a tile style as well, and"

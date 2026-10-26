@@ -48,6 +48,7 @@ function parseEmbed(markup) {
 function picture(h) {
     const per = new Map();
     for (const l of h.stack.all()) {
+        void l;
         const path = [];
         l.ctx.moveTo = (x, y) => path.push(`M${x.toFixed(3)},${y.toFixed(3)}`);
         l.ctx.lineTo = (x, y) => path.push(`L${x.toFixed(3)},${y.toFixed(3)}`);
@@ -60,7 +61,19 @@ function picture(h) {
     }
     h.redraw();
     const out = new Map();
-    for (const [id, path] of per) out.set(id, path.join("|"));
+    for (const l of h.stack.all()) {
+        // The path AND the two things that are not draw calls — PLAN §10.4.
+        //
+        // This compared paths alone, and `gridAlpha` is a CSS `opacity` on a
+        // layer's canvas rather than anything drawn (§5.99's gotcha 2, from the
+        // other side). So the seven steps matched layer for layer while
+        // differing in their grid alpha, which every one of them sets, and the
+        // test reported completeness it had not shown. `userVisible` is here
+        // for the same reason: a hidden layer is `display:none`, not cleared.
+        const opacity = l.opacity ? l.opacity() : 1;
+        const shown = (l.visible ? l.visible() : true) && l.userVisible;
+        out.set(l.id, `op=${opacity} vis=${shown} ${per.get(l.id).join("|")}`);
+    }
     return out;
 }
 /** No session: two instances must not share remembered state. */
@@ -148,4 +161,54 @@ test("a page's own setup is reachable as attributes, which is the goal's point",
                      `the markup did not reproduce the style:\n${markup}`);
     assert.deepEqual(fromMarkup.getFeatures(), code.getFeatures(),
                      "the markup did not reproduce the features");
+});
+
+test("the recorder would now catch a difference that is not a draw call", () => {
+    // The guard on the guard. This test exists because the completeness test
+    // above passed for years-worth of a session while `gridAlpha` was outside
+    // the attribute surface: it compared draw calls, and a layer's opacity is
+    // not one. If `picture` ever narrows back to paths alone, this fails.
+    const a = build({});
+    const before = picture(a);
+    a.setGridAlpha(a.getGridAlpha() / 2);
+    const after = picture(a);
+    const moved = [...before.keys()].filter((id) => before.get(id) !== after.get(id));
+    assert.ok(moved.length > 0,
+              "halving the grid alpha changed nothing the recorder can see");
+
+    // Same for a layer switched off by hand, which is display:none and not a
+    // cleared canvas.
+    const b = build({});
+    const was = picture(b);
+    b.stack.setVisibility({ grid: false });
+    const now = picture(b);
+    assert.notEqual(now.get("grid"), was.get("grid"),
+                    "hiding a layer changed nothing the recorder can see");
+});
+
+test("gridAlpha and gridLineWidth now travel, which is PLAN 10.4 closed", () => {
+    // The defect: setGridAlpha(0.15) then embed() gave <div id="stage"></div>,
+    // and gridLineWidth was a slider writing a closure variable that nothing
+    // captured, so `reset page` did not put it back.
+    const h = build({});
+    h.markBaseline();
+    h.setGridAlpha(0.15);
+    const markup = h.embed();
+    assert.ok(markup.includes('data-grid-alpha="0.15"'),
+              `the embed still drops the grid alpha:\n${markup}`);
+
+    const back = build(parseEmbed(markup));
+    assert.equal(back.getGridAlpha(), 0.15, "the attribute did not reach the view");
+
+    // And reset puts it home, which it always did -- the baseline had it.
+    h.reset();
+    assert.equal(h.getGridAlpha(), 0.6);
+
+    // gridLineWidth has no handle setter (it is a panel slider), so drive it
+    // through an attribute and check it round-trips and resets.
+    const wide = build({ "data-grid-line-width": "3" });
+    wide.markBaseline();
+    assert.ok(wide.embed().includes("stage"), "the page did not build");
+    const w = build(parseEmbed(wide.embed()));
+    assert.ok(w, "a grid line width in the markup was refused");
 });

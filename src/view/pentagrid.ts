@@ -23,9 +23,9 @@ import { sessionKey, saveSession, loadSession, debounce, SAVE_AFTER_MS }
     from "../state/session.js";
 import { pageQuery, hasQuerySetup, readQuery, queryFor } from "../state/query.js";
 import { FIELDS, format } from "../state/inventory.js";
-import { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
+import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
-export { NO_FEATURES, TILE_DEFAULTS } from "../state/defaults.js";
+export { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
 import type { GammaSnapshot } from "../state/baseline.js";
 import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
 import { rhombAmmann, ammannBars } from "../geometry/ammann.js";
@@ -584,6 +584,27 @@ export interface PentagridParts {
 
 export interface View { scale: number; x: number; y: number; }
 
+/**
+ * The grid's own look — PLAN §10.4.
+ *
+ * Two knobs that belonged to nothing. `gridAlpha` had a setter, a getter and a
+ * place in the baseline but was in no defaults literal, so it was not a field:
+ * no attribute, no query parameter, and `setGridAlpha(0.15)` embedded as
+ * `<div id="stage"></div>`. `gridLineWidth` was worse — a panel slider wrote a
+ * closure variable that nothing captured, so `reset page` did not put it back.
+ *
+ * They are neither features (which say what exists) nor tile style (which is
+ * the Penrose dressing), so a third owner is the honest place for them rather
+ * than a corner of one of those. Found by Jake asking where a page's defaults
+ * live, which is the kind of question that finds this kind of gap.
+ */
+export interface GridStyle {
+    /** How strongly the grid draws. Pages fade it as the tiling takes over. */
+    gridAlpha: number;
+    /** The gridlines' width in pixels. */
+    gridLineWidth: number;
+}
+
 export interface PentagridHandle {
     redraw: () => void;
 
@@ -705,7 +726,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const directions = gammaSet.model.directions;
     const gamma = gammaSet.model.gamma;
     // "Sometimes you just have to see them."
-    let gridLineWidth = 1;
+
 
     // ── Canvas size ───────────────────────────────────────────────────
     //
@@ -1108,11 +1129,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     };
 
     /** How strongly the grid draws. A page fades it as the tiling takes over. */
-    let gridAlpha = 0.6;
+
 
     const tileStyle: TileStyle = {
         ...TILE_DEFAULTS, ...config.tileStyle, ...attrs.tileStyle,
     };
+    /**
+     * The grid's own look — PLAN §10.4.
+     *
+     * One object rather than two loose `let`s, so there is a single thing for
+     * the baseline to copy and the inventory to describe. That is the whole of
+     * the fix: `gridLineWidth` was a closure variable a slider wrote and
+     * nothing captured, so `reset page` left it where the slider had put it.
+     */
+    const grid: GridStyle = { ...GRID_DEFAULTS, ...attrs.grid } as GridStyle;
 
     /** Panel rows by label, so a page can choose which are worth exposing. */
     const panelRows = new Map<string, HTMLElement>();
@@ -1354,7 +1384,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     stack.add({
         id: "grid", label: "Grid", z: 10, group: "Pentagrid",
         visible: () => features.gridLines,
-        opacity: () => gridAlpha,
+        opacity: () => grid.gridAlpha,
         draw: (c) => withView(gridView(), () => {
             for (let j = 0; j < model.n; j++) {
                 if (!familyShown(j)) continue;       // the ribbons row, honored
@@ -2118,7 +2148,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const nHi = only !== null ? only : Math.ceil(maxDot + gamma[j]) + 1;
 
         tc.strokeStyle = COLORS[j];
-        tc.lineWidth = gridLineWidth;
+        tc.lineWidth = grid.gridLineWidth;
 
         for (let n = nLo; n <= nHi; n++) {
             const c = n - gamma[j];
@@ -3704,7 +3734,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const bars = ammannBars(model, currentRhombs().filter((r) => !isStacked(r)), lo, levels);
         const extent = Math.hypot(w, h);
         tc.save();
-        tc.lineWidth = gridLineWidth;
+        tc.lineWidth = grid.gridLineWidth;
         for (const bar of bars) {
             const [vx, vy] = directions[bar.family];
             const px = -vy, py = vx;                 // along the line
@@ -4394,8 +4424,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             + "not — two gaps in the ratio φ, in Conway's musical sequence, and φ bars "
             + "to a gridline. Under the tiles, as a grid object should be.";
         slider(extras, "gridline width", "How thick the grid lines are drawn.",
-            { min: 0.5, max: 4, step: 0.5 }, gridLineWidth, (v) => v.toFixed(1),
-            (v) => { gridLineWidth = v; draw(); });
+            { min: 0.5, max: 4, step: 0.5 }, grid.gridLineWidth, (v) => v.toFixed(1),
+            (v) => { grid.gridLineWidth = v; draw(); });
 
         // ── Penrose: the system, then the dressings over it ───────────
         {
@@ -5611,7 +5641,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     interface Baseline {
         tileStyle: TileStyle;
         features: Features;
-        gridAlpha: number;
+        grid: GridStyle;
         view: View;
         visibility: Record<string, boolean>;
         gamma: GammaSnapshot;
@@ -5619,7 +5649,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const capture = (): Baseline => ({
         tileStyle: { ...tileStyle },
         features: { ...features },
-        gridAlpha,
+        grid: { ...grid },
         view: { scale, x: viewX, y: viewY },
         visibility: stack.visibility(),
         gamma: captureGamma(gammaSet),
@@ -5693,6 +5723,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         if (was) {
             if (was.features) features = { ...features, ...was.features } as Features;
             if (was.tileStyle) Object.assign(tileStyle, was.tileStyle);
+            if (was.grid) Object.assign(grid, was.grid);
             if (was.gamma) {
                 const g = was.gamma as GammaSnapshot;
                 if (Array.isArray(g.exact) && g.exact.length === model.n) {
@@ -5718,6 +5749,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const q = readQuery(query);
         features = { ...features, ...q.features } as Features;
         Object.assign(tileStyle, q.tileStyle);
+        Object.assign(grid, q.grid);
         if (config.sessionSlice && Object.keys(q.growth).length) {
             config.sessionSlice.write(q.growth);
         }
@@ -5753,6 +5785,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             v: 1,
             features: { ...now.features } as Record<string, boolean>,
             tileStyle: { ...now.tileStyle } as unknown as Record<string, boolean>,
+            grid: { ...now.grid } as unknown as Record<string, boolean>,
             gamma: now.gamma,
             view: now.view,
             ...(hidden.length ? { hide: hidden } : {}),
@@ -5829,7 +5862,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // merge cannot leave a field that was switched on since.
         Object.assign(tileStyle, baseline.tileStyle);
         features = { ...baseline.features };
-        gridAlpha = baseline.gridAlpha;
+        Object.assign(grid, baseline.grid);
         scale = baseline.view.scale;
         viewX = baseline.view.x;
         viewY = baseline.view.y;
@@ -5858,6 +5891,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const next = readAttributes(config.container);
         features = { ...NO_FEATURES, ...next.features };
         Object.assign(tileStyle, TILE_DEFAULTS, next.tileStyle);
+        Object.assign(grid, GRID_DEFAULTS, next.grid);
         syncPanel();
         draw();
     });
@@ -5878,14 +5912,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         reset: () => resetNow(),
 
         setFeatures,
-        setGridAlpha: (a) => { gridAlpha = a; draw(); },
+        setGridAlpha: (a) => { grid.gridAlpha = a; draw(); },
         setTileStyle: (st) => { Object.assign(tileStyle, st); draw(); },
         // Copies, not the live objects: see the interface. Shallow is enough —
         // every field of both is a primitive, which tools/stateinv.test.mjs
         // counts and so would notice if one stopped being.
         getTileStyle: () => ({ ...tileStyle }),
         getFeatures: () => ({ ...features }),
-        getGridAlpha: () => gridAlpha,
+        getGridAlpha: () => grid.gridAlpha,
         exposeRows,
         panelRow: (label) => panelRows.get(label),
         onFeatureOn: (cb) => { featureOnListeners.push(cb); },

@@ -23,11 +23,11 @@
  * setter. Both are named in `SLICES` so a serializer can see them, and neither
  * pretends to be a `Field`.
  */
-import { NO_FEATURES, TILE_DEFAULTS } from "./defaults.js";
+import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "./defaults.js";
 import { DEFAULTS as GROWTH_DEFAULTS } from "./defaults.js";
 
 /** Which object a field lives on. */
-export type Owner = "features" | "tileStyle" | "growth";
+export type Owner = "features" | "tileStyle" | "grid" | "growth";
 /** What a field holds, which is what a reader has to parse it into. */
 export type Kind = "bool" | "enum" | "number";
 /** How far a field travels — §9.3. */
@@ -132,6 +132,7 @@ function fieldsOf(owner: Owner, defaults: Record<string, unknown>): Field[] {
 export const FIELDS: readonly Field[] = [
     ...fieldsOf("features", NO_FEATURES as unknown as Record<string, unknown>),
     ...fieldsOf("tileStyle", TILE_DEFAULTS as unknown as Record<string, unknown>),
+    ...fieldsOf("grid", GRID_DEFAULTS as unknown as Record<string, unknown>),
     ...fieldsOf("growth", GROWTH_DEFAULTS as unknown as Record<string, unknown>),
 ];
 

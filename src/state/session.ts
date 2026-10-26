@@ -35,6 +35,7 @@ export interface SessionState {
     v: 1;
     features?: Record<string, boolean | number | string>;
     tileStyle?: Record<string, boolean | number | string>;
+    grid?: Record<string, boolean | number | string>;
     growth?: Record<string, boolean | number | string>;
     gamma?: unknown;
     view?: { scale: number; x: number; y: number };

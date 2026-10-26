@@ -135,9 +135,8 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    with a **copy setup** button (§9.8b), session memory with **reset page**
    (§9.4a), and the completeness test over every state method.html can reach
    (§9.8c). What is left is §9.9's named library of setups, which is a feature
-   rather than a step. **And one defect**, found 2026-10-25: `gridAlpha` is
-   outside the inventory, so `copy setup` and `copy link` do not carry it, and
-   §9.8c's test could not see the omission — §10.4. The state is not a value yet — `PentagridHandle` has
+   rather than a step. (The `gridAlpha` defect found 2026-10-25 is fixed —
+   §10.4.) The state is not a value yet — `PentagridHandle` has
    every setter and no getter but `getView` — so §9.1 is the first commit and
    §9.2's inventory (53 booleans, 8 enums, 10 numbers, γ already exact) is the
    second. The serialized form is **HTML attributes on the container**, not a
@@ -5177,13 +5176,14 @@ Counted from the defaults literals, which are the authoritative lists:
 |---|---|---|---|---|---|
 | `Features` | `NO_FEATURES` | **19** | 0 | 0 | yes |
 | `TileStyle` | `TILE_DEFAULTS` | **21** | 5 | 3 | enums/bools yes, `ramp`/`opacity`/`band` float |
+| `GridStyle` | `GRID_DEFAULTS` | 0 | 0 | **2** | `gridAlpha`, `gridLineWidth` — added §10.4 |
 | `GrowthState` | `DEFAULTS` | **13** | 3 | **8** | `grow`/`fold`/`band`/`azimuth`/`elevation` float |
 | `GammaSet` | `geometry/gamma.ts` | guard, symmetry | — | γ as **integers over `den`**, locked, generation, family flags, family lines, isolated | **yes, exactly** |
 | view | `getView`/`setView` | — | — | scale, viewX, viewY | float |
 | layer visibility | `LayerStack` | one per layer | — | — | yes |
 
-**72 fields: 53 booleans** — nine base64url characters — plus eight enums at two
-or three bits each and eleven numbers. A complete setup is on the order of 60 to
+**74 fields: 53 booleans** — nine base64url characters — plus eight enums at two
+or three bits each and thirteen numbers. A complete setup is on the order of 60 to
 120 characters. Length is not the constraint; precedence and defaults are.
 
 (Growth's numbers read as 7 here until step 2 derived them: the regex used to
@@ -5695,15 +5695,19 @@ features.
 
 **So §9 is complete.** All five of Jake's wants, and the eight steps of §9.10.
 
-**One correction, 2026-10-25.** This test proves less than it claimed. It
-compares *draw calls*, and `gridAlpha` is a CSS `opacity` on a layer's canvas
-rather than a draw call — §5.99's gotcha 2 arriving from the other side — so
-the seven steps matched layer for layer **while differing in their grid alpha**,
-which every one of them sets. And `gridAlpha` is in no defaults literal, so it
-is not in `FIELDS`, has no attribute and takes no query parameter: measured,
-`setGridAlpha(0.15)` then `embed()` gives `<div id="stage"></div>`. So the
-attribute surface is **not** total. §10.4 has it as a defect to close, and the
-test should compare each layer's `opacity()` and `userVisible` beside its path.
+**One correction, 2026-10-25 — and it is fixed, 2026-10-26.** This test proved
+less than it claimed. It compared *draw calls*, and `gridAlpha` is a CSS
+`opacity` on a layer's canvas rather than a draw call — §5.99's gotcha 2
+arriving from the other side — so the seven steps matched layer for layer
+**while differing in their grid alpha**, which every one of them sets. And
+`gridAlpha` was in no defaults literal, so it was not in `FIELDS`, had no
+attribute and took no query parameter: `setGridAlpha(0.15)` then `embed()` gave
+`<div id="stage"></div>`.
+
+`picture()` now records each layer's `opacity()` and `userVisible` beside its
+path, and §10.4's fix put both grid knobs in the inventory. Verified the way a
+guard should be: with the grid fields removed from the built inventory, this
+test **fails**. It was blind to the class; it is not now.
 
 ### 9.8d Where the API is written down — BUILT 2026-10-25
 
@@ -5867,16 +5871,26 @@ each leaf to the code that exists.
 
 Measured, and this is the part worth knowing before anyone starts.
 
-**`gridAlpha` is not a field.** It has a setter and now a getter, the baseline
-captures it so `reset` restores it — and it is in none of the three defaults
-literals, so it is **not in `FIELDS`**, has **no attribute**, and takes **no
-query parameter**. Measured: `setGridAlpha(0.15)` then `embed()` gives
-`<div id="stage"></div>`. Every step sets it, and no step can say so in a
-setup.
+**`gridAlpha` was not a field — FIXED 2026-10-26.** It had a setter and a
+getter, and the baseline captured it so `reset` restored it; but it was in none
+of the defaults literals, so it was **not in `FIELDS`**, had **no attribute**
+and took **no query parameter**. Measured before the fix: `setGridAlpha(0.15)`
+then `embed()` gave `<div id="stage"></div>`. Every method step sets it and no
+step could say so in a setup.
 
-It belongs to no existing owner either — it is neither a feature, nor a tile
-style, nor growth — so making it a field is a small design decision rather than
-a one-line addition: a fourth owner (`view`?) or a home in one of the three.
+**And looking for its owner found a worse one of the same shape.**
+`gridLineWidth` is a panel slider writing a closure variable that **nothing
+captured** — so `reset page` did not put it back, which is a plainer bug than
+the first. A sweep for the pattern (`(v) => { x = v; draw(); }` over a local
+that is in no defaults literal) found exactly these two.
+
+So they are now a third owner, `GridStyle` in `state/defaults.ts` as
+`GRID_DEFAULTS`: `data-grid-alpha` and `data-grid-line-width`. They are
+neither features (which say what exists) nor tile style (which is the Penrose
+dressing), so a corner of one of those would have been the wrong home. And
+making them one object rather than two loose `let`s is most of the fix —
+there is a single thing for the baseline to copy and for the inventory to
+describe, and nothing has to remember to add a knob to four lists.
 
 **`exposeRows` is not readable at all.** It writes `el.hidden` on each row and
 keeps no list, so there is nothing to capture: the baseline does not hold it,
@@ -5896,7 +5910,7 @@ Three ways out, in order of appeal:
   default but a part of the prose — it is about what the reader should be
   looking at, not about what the canvas is.
 
-### 10.4 And a consequence: §9.8c's completeness test proves less than it claimed
+### 10.4 And a consequence: §9.8c's completeness test proved less than it claimed — FIXED
 
 The seven steps matched layer for layer **while differing in their grid alpha**,
 because the test compares *draw calls* and `gridAlpha` is a CSS `opacity` on the
@@ -5904,17 +5918,20 @@ layer's canvas — §5.99's gotcha 2, arriving from the other side. So "every st
 method.html can reach survives the round trip" is true of everything the
 recorder can see and not of everything there is.
 
-That is a defect in a shipped feature, found by Jake asking about defaults:
-`copy setup` and `copy link` do not carry the grid's alpha. Worth closing before
-§10 is built, since a defaults file that cannot express `gridAlpha` would
-reproduce the gap rather than fix it. The test should compare the layers'
-`opacity()` and `userVisible` beside their draw calls.
+That was a defect in a shipped feature, found by Jake asking about defaults.
+**Closed 2026-10-26**, both halves: `picture()` records each layer's
+`opacity()` and `userVisible` beside its path, and the two grid knobs are
+fields. The fix is verified against its own absence — strip the grid fields
+from the built inventory and the completeness test fails, which it did not
+before. 74 fields now, and `copy setup`, `copy link`, the session and `reset
+page` all carry the grid's look.
 
 ### 10.5 What the plan would be
 
-1. **Close §10.4's hole**: give `gridAlpha` a home in the inventory, so it has
-   an attribute and a parameter, and widen §9.8c's test to compare each layer's
-   opacity and visibility as well as its path.
+1. ~~**Close §10.4's hole**~~ **Done 2026-10-26** — `GridStyle` /
+   `GRID_DEFAULTS`, `data-grid-alpha` and `data-grid-line-width`, and §9.8c's
+   test widened to compare each layer's opacity and visibility as well as its
+   path.
 2. **Decide `exposeRows`** — §10.3's three ways.
 3. **The schema**, as a type in `src/state/` with the loader beside it, so the
    file is checked rather than trusted: unknown page ignored, unknown field

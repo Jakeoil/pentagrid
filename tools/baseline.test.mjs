@@ -79,21 +79,31 @@ test("every field in the inventory goes home, one at a time", () => {
         features: { penroseTiles: true },
     });
     h.markBaseline();
-    const home = { tileStyle: h.getTileStyle(), features: h.getFeatures() };
+    // Read and write each owner through the handle it belongs to.
+    const read = {
+        tileStyle: (k) => h.getTileStyle()[k],
+        features: (k) => h.getFeatures()[k],
+        grid: (k) => (k === "gridAlpha" ? h.getGridAlpha() : undefined),
+    };
+    const write = {
+        tileStyle: (k, v) => h.setTileStyle({ [k]: v }),
+        features: (k, v) => h.setFeatures({ [k]: v }, { merge: true }),
+        grid: (k, v) => { if (k === "gridAlpha") h.setGridAlpha(v); },
+    };
     for (const f of FIELDS) {
         if (f.owner === "growth") continue;              // not this view's
-        const before = home[f.owner][f.key];
+        // gridLineWidth has no setter on the handle -- it is a panel slider --
+        // so it cannot be driven from here. It is covered by the embed tests.
+        if (read[f.owner](f.key) === undefined) continue;
+        const before = read[f.owner](f.key);
         const alt = alternative(f, before);
-        if (f.owner === "tileStyle") h.setTileStyle({ [f.key]: alt });
-        else h.setFeatures({ [f.key]: alt }, { merge: true });
-        const moved = f.owner === "tileStyle"
-            ? h.getTileStyle()[f.key] : h.getFeatures()[f.key];
-        assert.equal(moved, alt, `${f.owner}.${f.key} would not take ${alt}`);
+        write[f.owner](f.key, alt);
+        assert.equal(read[f.owner](f.key), alt,
+                     `${f.owner}.${f.key} would not take ${alt}`);
         h.reset();
-        const back = f.owner === "tileStyle"
-            ? h.getTileStyle()[f.key] : h.getFeatures()[f.key];
-        assert.equal(back, before,
-                     `${f.owner}.${f.key} came back as ${back}, not ${before}`);
+        assert.equal(read[f.owner](f.key), before,
+                     `${f.owner}.${f.key} came back as ${read[f.owner](f.key)}, `
+                     + `not ${before}`);
     }
 });
 

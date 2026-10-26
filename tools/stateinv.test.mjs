@@ -32,6 +32,7 @@ test("the state is the size PLAN 9.2 says it is", () => {
     const say = (c) => `${c.bool} bool, ${c.enum} enum, ${c.number} number`;
     assert.equal(say(by.features), "19 bool, 0 enum, 0 number");
     assert.equal(say(by.tileStyle), "21 bool, 5 enum, 3 number");
+    assert.equal(say(by.grid), "0 bool, 0 enum, 2 number");
     assert.equal(say(by.growth), "13 bool, 3 enum, 8 number");
 
     // 53 booleans, nine base64url characters -- the figure 9.2 quotes -- and
@@ -40,8 +41,8 @@ test("the state is the size PLAN 9.2 says it is", () => {
     assert.equal(bits, 53, `${bits} booleans, not 53`);
     assert.equal(Math.ceil(bits / 6), 9);
     assert.equal(FIELDS.filter((f) => f.kind === "enum").length, 8, "eight enums");
-    assert.equal(FIELDS.filter((f) => f.kind === "number").length, 11, "eleven numbers");
-    assert.equal(FIELDS.length, 72, `${FIELDS.length} fields, not 72`);
+    assert.equal(FIELDS.filter((f) => f.kind === "number").length, 13, "thirteen numbers");
+    assert.equal(FIELDS.length, 74, `${FIELDS.length} fields, not 74`);
 });
 
 test("the read side PLAN 9.1 asks for is on the handle, paired with every setter", () => {
@@ -126,7 +127,7 @@ test("the composite SVG export's four gotchas are still true of the stack", () =
     // 2. A layer's opacity is on the element, not in the drawing.
     assert.ok(layers.includes("t.canvas.style.opacity = opacity"),
               "layer opacity is no longer a CSS opacity on the canvas");
-    assert.ok(view.includes("opacity: () => gridAlpha"),
+    assert.ok(view.includes("opacity: () => grid.gridAlpha"),
               "the grid layer no longer carries an element opacity");
 
     // 3. Hidden layers are display:none, not cleared -- so an empty recording

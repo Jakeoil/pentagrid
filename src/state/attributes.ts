@@ -29,6 +29,7 @@ import type { Owner } from "./inventory.js";
 export interface AttributePatch {
     features: Record<string, boolean | number | string>;
     tileStyle: Record<string, boolean | number | string>;
+    grid: Record<string, boolean | number | string>;
     growth: Record<string, boolean | number | string>;
     /** Attributes that looked like ours and were not usable, for a readout. */
     ignored: string[];
@@ -81,7 +82,7 @@ export function collect(
     names: readonly string[], get: (name: string) => string | null,
 ): AttributePatch {
     const out: AttributePatch = {
-        features: {}, tileStyle: {}, growth: {}, ignored: [],
+        features: {}, tileStyle: {}, grid: {}, growth: {}, ignored: [],
     };
     for (const name of names) {
         const field = BY_ATTR.get(name);

@@ -13,7 +13,7 @@
  * edges for a cycle to form along. `view/pentagrid.ts` re-exports them, so
  * every existing importer is unaffected.
  */
-import type { Features, TileStyle } from "../view/pentagrid.js";
+import type { Features, TileStyle, GridStyle } from "../view/pentagrid.js";
 import type { GrowthState } from "../view/growth.js";
 
 /**
@@ -69,4 +69,17 @@ export const DEFAULTS: GrowthState = {
     arcs: false, resolve: false, indexStyle: "none",
     height: false, isogloss: false,
     edgeStyle: "normal", kowalewski: false,
+};
+
+/**
+ * The grid's own look, before a page says otherwise — PLAN §10.4.
+ *
+ * Here with the others so `state/inventory.ts` derives these two as fields
+ * like every other, which is the whole of the fix: a field gets an attribute,
+ * a query parameter, a place in the embed and a place in the baseline, and
+ * nothing has to remember to add it to four lists.
+ */
+export const GRID_DEFAULTS: GridStyle = {
+    gridAlpha: 0.6,
+    gridLineWidth: 1,
 };

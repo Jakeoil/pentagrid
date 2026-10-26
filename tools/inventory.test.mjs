@@ -15,7 +15,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { FIELDS, BY_ATTR, SLICES, attrName, keyOf, parse, format, alternative }
     from "../dist/state/inventory.js";
-import { NO_FEATURES, TILE_DEFAULTS } from "../dist/view/pentagrid.js";
+import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../dist/view/pentagrid.js";
 import { DEFAULTS as GROWTH_DEFAULTS } from "../dist/view/growth.js";
 
 const walk = (dir) => {
@@ -62,7 +62,7 @@ test("every field's fallback is the live default, and nothing is missing", () =>
     // The derivation's whole point: the inventory cannot disagree with the
     // defaults because it is read off them.
     const owners = { features: NO_FEATURES, tileStyle: TILE_DEFAULTS,
-                     growth: GROWTH_DEFAULTS };
+                     grid: GRID_DEFAULTS, growth: GROWTH_DEFAULTS };
     for (const [owner, obj] of Object.entries(owners)) {
         const mine = FIELDS.filter((f) => f.owner === owner);
         assert.deepEqual(mine.map((f) => f.key).sort(), Object.keys(obj).sort(),
@@ -74,6 +74,7 @@ test("every field's fallback is the live default, and nothing is missing", () =>
     }
     assert.equal(FIELDS.length,
                  Object.keys(NO_FEATURES).length + Object.keys(TILE_DEFAULTS).length
+                 + Object.keys(GRID_DEFAULTS).length
                  + Object.keys(GROWTH_DEFAULTS).length);
 });
 
