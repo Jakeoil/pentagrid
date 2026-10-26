@@ -112,12 +112,14 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
 6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
-7. **An SVG export, one file per container.** **Steps 1 and 2 built
-   2026-10-26** — `src/svg/record.ts` (the recording context) and
-   `src/svg/export.ts` (the composite), 35 tests. method exports one file,
-   split two, the output parses, and the page is untouched afterwards. What is
-   left is a way to ASK for it — a button and a download — plus
-   `<defs>`/`<use>` for the repeated prototiles and the `measureText` decision.
+7. **An SVG export, one file per container.** **Built 2026-10-26, and usable**
+   — `src/svg/record.ts` (the recording context), `src/svg/export.ts` (the
+   composite) and `src/svg/download.ts` with an **export svg** button; 41
+   tests. method exports one file, split two, the output parses, the raster
+   goes out as an embedded PNG from the live canvas, and the page is untouched
+   afterwards. What is left is optional: `<defs>`/`<use>` for the repeated
+   prototiles (§5.99 measures the saving at about 45% of the tile layer's
+   bytes), and `measureText` by something better than 0.55 em.
    §5.99 has the steps. Jake: *"a record of a canvas with all its layers. A single image that
    can be put into a pdf or web page… in split, one for G and one for P."* So
    method exports one file of 12 layers and split two, G with 6 and P with 6
@@ -4185,6 +4187,40 @@ KB** over the loaded stack. The suite carries a dependency-free tag-stack
 version of the same check, with its own guard test — a serializer's one
 unforgivable failure is emitting something a parser will not read, and that is
 exactly what a string-assembly test cannot see.
+
+#### Step 3 built: a way to ask for it (2026-10-26)
+
+`src/svg/download.ts`, `handle.svg()`, an **export svg** button in the panel's
+`settings` beside the other three, and `tools/svgdownload.test.mjs`.
+
+Steps 1 and 2 built the document and nothing could ask for one — the same shape
+of gap `reset()` had before §9.4 gave it a button. A feature nobody can invoke
+is not a feature.
+
+- **`handle.svg(opts)`** returns the `SvgFile[]`, so a page or a test can do
+  something other than download.
+- **The button saves one file per container**, so split downloads two, and it
+  reports in the same place the copy buttons do — `saved`, `saved 2 files`, or
+  `in the console` when a browser refuses, because a save that silently does
+  not happen is the worst of the outcomes.
+- **Two download routes.** `URL.createObjectURL` plus a synthetic click on an
+  `<a download>`, falling back to a `data:` URL where blobs are unavailable.
+  The object URL is revoked on a turn of the event loop rather than in the same
+  tick — Safari has been known to cancel the download otherwise. Nothing throws
+  where there is no document at all.
+- **Filenames** are made safe and only disambiguate when they need to:
+  `method.svg` for one canvas, `split-split-grid.svg` and `split-split-tiles.svg`
+  for two.
+
+**And this is where the raster closes.** `exportSvg` has no PNG encoder and
+§5.99 said the choice was an embedded PNG or an omission. A *page* has the live
+canvas — and after a recorded draw that canvas still holds the last real one,
+because the recorders never touch it — so `drawKRegions` goes out as an
+`<image>` from `toDataURL()`, in both `href` spellings. That is the one place in
+the program that can do it, which is why `exportSvg` takes a callback rather
+than guessing. A `toDataURL` that throws (a tainted canvas) or returns something
+that is not a data URL is refused rather than embedded, and the layer is dropped
+with its comment as before — all three tested.
 
 #### Is there a happy medium — files plus a coordinating file? (Jake, 2026-10-24)
 

@@ -22,6 +22,9 @@ import { readSlices, writeSlices, embedString } from "../state/embed.js";
 import { sessionKey, saveSession, loadSession, debounce, SAVE_AFTER_MS }
     from "../state/session.js";
 import { pageQuery, hasQuerySetup, readQuery, queryFor } from "../state/query.js";
+import { exportSvg } from "../svg/export.js";
+import type { SvgExportOptions, SvgFile } from "../svg/export.js";
+import { downloadText, svgFilename } from "../svg/download.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
@@ -654,6 +657,12 @@ export interface PentagridHandle {
     embed: (opts?: { tag?: string; id?: string }) => string;
     /** This setup as a URL, settings as query parameters — §9.4, want #2. */
     link: () => string;
+    /**
+     * This view as SVG — §5.99. One `SvgFile` per container, so method gives
+     * one and split two. Vector, every layer a group, and the raster embedded
+     * from the live canvas.
+     */
+    svg: (opts?: SvgExportOptions) => SvgFile[];
     /**
      * Back to the baseline: the tile style, the features, the grid alpha, the
      * view, the layer visibility and γ. Jake's fifth want.
@@ -4858,11 +4867,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
          * the clipboard is asynchronous and can be refused outright, and a
          * button that says nothing leaves you unsure whether it worked.
          */
+        const say = (what: string) => {
+            copySaid.textContent = what;
+            setTimeout(() => { copySaid.textContent = ""; }, 2400);
+        };
         const copyText = (text: string) => {
-            const say = (what: string) => {
-                copySaid.textContent = what;
-                setTimeout(() => { copySaid.textContent = ""; }, 2400);
-            };
             const clip = (navigator as Navigator | undefined)?.clipboard;
             if (clip?.writeText) {
                 clip.writeText(text).then(() => say("copied"), () => say("blocked"));
@@ -4909,6 +4918,39 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             + "whatever the recipient was last looking at.";
         linkBtn.addEventListener("click", () => { copyText(linkNow()); });
         copyRow.appendChild(linkBtn);
+        /**
+         * The SVG, saved — §5.99 step 3.
+         *
+         * One file per container, so split downloads two. It reports in the
+         * same place the copy buttons do, and says `blocked` when the browser
+         * refuses a download, because a save that silently does not happen is
+         * the worst outcome of the three.
+         */
+        const svgBtn = document.createElement("button");
+        svgBtn.type = "button";
+        svgBtn.className = "ret-bump";
+        svgBtn.textContent = "export svg";
+        svgBtn.title = "This canvas as vector, one file per viewport, with every "
+            + "layer as a group an editor can switch off. It scales to any size "
+            + "without resampling, which is the point of it over a PNG.";
+        svgBtn.addEventListener("click", () => {
+            const files = svgNow();
+            const page = (globalThis.location?.pathname ?? "pentagrid")
+                .replace(/^.*\//, "").replace(/\.html?$/, "") || "pentagrid";
+            let saved = 0, blocked = 0;
+            for (const f of files) {
+                const how = downloadText(svgFilename(page, f.id), f.svg);
+                if (how === "unavailable") blocked++; else saved++;
+            }
+            if (blocked && !saved) {
+                // Nowhere to put it: the console is the one place left.
+                for (const f of files) console.log(f.svg);
+                say("in the console");
+            } else {
+                say(saved > 1 ? `saved ${saved} files` : "saved");
+            }
+        });
+        copyRow.appendChild(svgBtn);
         copyRow.appendChild(copySaid);
 
         const sRow = row(det, "");
@@ -5851,6 +5893,32 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     };
 
     /**
+     * This view as SVG — PLAN §5.99, one file per container.
+     *
+     * The raster is closed here and nowhere else: `exportSvg` has no PNG
+     * encoder, but a *page* has the live canvas, and after a recorded draw that
+     * canvas still holds the last real one. So `drawKRegions` goes out as an
+     * embedded `<image>` from `toDataURL()` — the one place in the program that
+     * can do it, which is why the exporter takes a callback rather than
+     * guessing.
+     */
+    const svgNow = (opts: SvgExportOptions = {}): SvgFile[] => exportSvg(
+        { stack, redraw: draw },
+        {
+            raster: (layer) => {
+                const c = layer.canvas as { toDataURL?: () => string };
+                if (typeof c.toDataURL !== "function") return null;
+                let url: string;
+                try { url = c.toDataURL(); } catch { return null; }
+                if (typeof url !== "string" || !url.startsWith("data:")) return null;
+                return `<image x="0" y="0" width="${canvas.w}" height="${canvas.h}"`
+                    + ` href="${url}" xlink:href="${url}"/>`;
+            },
+            ...opts,
+        },
+    );
+
+    /**
      * Back to this page's home. A named local, like `embedNow`, because the
      * panel's reset button needs it and the handle does not exist yet.
      */
@@ -5908,6 +5976,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
          */
         embed: (opts) => embedNow(opts),
         link: () => linkNow(),
+        svg: (opts) => svgNow(opts),
 
         reset: () => resetNow(),
 
