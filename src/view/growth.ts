@@ -13,6 +13,7 @@
 import { createPentagrid } from "./pentagrid.js";
 import type { PentagridHandle } from "./pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
+import { drawIndexMark } from "./pool.js";
 import { resolveConcurrency, angleCode } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
 import { zonohedronOf, zonogonAnchor, popcount } from "../geometry/zonohedron.js";
@@ -326,22 +327,6 @@ const ramped = (c: RGB, t: number): RGB => {
             Math.round(c[2] + (to - c[2]) * a)];
 };
 
-/**
- * The pool balls, by index. Jake: 1 yellow, 2 blue, 3 red, 4 purple, 0 white.
- *
- * Three stops each — a lit face, the body, a darkened rim — which is what
- * turns a flat disc into a sphere. 1 to 4 are the levels a Penrose patch
- * stands on; 0 is the cue ball and appears only off Penrose, where the index
- * takes a fifth value.
- */
-const POOL: Record<number, { lit: string; body: string; rim: string }> = {
-    0: { lit: "#ffffff", body: "#f2f0e8", rim: "#b9b6ab" },
-    1: { lit: "#fff6c2", body: "#f2c230", rim: "#9c7a0d" },
-    2: { lit: "#bcd8ff", body: "#2f6fd0", rim: "#163a76" },
-    3: { lit: "#ffc4b4", body: "#d4342a", rim: "#7d1510" },
-    4: { lit: "#e2c9f2", body: "#7a3fa8", rim: "#41215c" },
-    5: { lit: "#ffd9b8", body: "#e07a28", rim: "#8a4310" },
-};
 
 
 /** What a rhombohedron's angle code means, at n = 5. PLAN §5.0. */
@@ -1450,38 +1435,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
                     }
                     marks.sort((p, q) => q.d - p.d);          // far first
                     const pool = state.indexStyle === "pool";
-                    for (const mk of marks) {
-                        const hue = pool ? (POOL[mk.m] ?? POOL[0]) : null;
-                        ctx.beginPath();
-                        ctx.arc(mk.x, mk.y, R, 0, 2 * Math.PI);
-                        if (hue) {
-                            // A sphere's outline is always a circle, so a ball
-                            // is a radial gradient in one: the highlight up and
-                            // left of center, the body falling to a dark rim.
-                            const g = ctx.createRadialGradient(
-                                mk.x - R * 0.35, mk.y - R * 0.4, R * 0.08,
-                                mk.x, mk.y, R * 1.05);
-                            g.addColorStop(0, hue.lit);
-                            g.addColorStop(0.55, hue.body);
-                            g.addColorStop(1, hue.rim);
-                            ctx.fillStyle = g;
-                        } else {
-                            ctx.fillStyle = "#fff";
-                        }
-                        ctx.fill();
-                        ctx.strokeStyle = hue ? "rgba(0,0,0,0.35)" : "#111";
-                        ctx.stroke();
-                        if (pool) {
-                            // The number rides a white disc, as it does on a
-                            // real ball, so it reads over any body color.
-                            ctx.beginPath();
-                            ctx.arc(mk.x, mk.y, R * 0.56, 0, 2 * Math.PI);
-                            ctx.fillStyle = "#fbfbf7";
-                            ctx.fill();
-                        }
-                        ctx.fillStyle = "#111";
-                        ctx.fillText(String(mk.m), mk.x, mk.y + 0.5);
-                    }
+                    for (const mk of marks) drawIndexMark(ctx, mk.x, mk.y, R, mk.m, pool);
                 },
             });
             stack.add({

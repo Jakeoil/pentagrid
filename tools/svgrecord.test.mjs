@@ -334,7 +334,7 @@ test("it records every layer of a real view, well formed and finite", () => {
     // tools/ctxapi.test.mjs asserts statically.
     const recs = record(
         { color: "bands", band: 0.5, shading: true, ramp: 1, pentaFace: true,
-          pentaEdge: true, vertexMark: "index" },
+          pentaEdge: true, vertexMark: "numbers" },
         { penroseEdges: true, penroseVertices: true, gridLines: true,
           intersectionDots: true, kLabels: true });
     let elements = 0;

@@ -6192,3 +6192,227 @@ startup. That is the one piece of plumbing palettes need that nothing else in
    before it is a change to a palette. Worth knowing which is wanted before
    the role list is fixed, since adding roles later renames nothing but adding
    them to an old palette file leaves it silently three-colored.
+
+---
+
+## 11. Vertex environments (Jake, 2026-10-26)
+
+Jake's ask: port the index dropdown (`dot`, `numbers`, pool ball) from roof and
+grow to method and split, keep the pool-ball colors as the de Bruijn index, and
+add a **VE** mode that writes a vertex-environment letter into the center of
+the ball, color unchanged.
+
+The letters come from the Nature paper's figure 5a — `D Q K L M J R S T U V W
+X Y Z ST` — and overlap de Bruijn's own codes, which Jake maps as `D Q K J`,
+`S` = de Bruijn's `S5`, `V` = `S3`, `T` = `S4` (figure 7, journal page 48,
+which is page 10 of the PDF).
+
+**`ST` is written `*`.** Jake's call, and the right one: it is the only
+two-character code in the set and a pool ball has room for one glyph.
+
+### 11.1 What a Penrose patch actually contains — MEASURED
+
+Classifying a vertex by the cyclic word of its corner angles, in units of 36°
+(a thin rhomb contributes 1 and 4, a thick 2 and 3; a complete vertex sums to
+10), a Penrose patch contains **exactly seven** words, and their frequencies
+are consecutive powers of φ:
+
+| word | share | | word | share |
+|---|---|---|---|---|
+| `334` | 0.3844 = φ⁻² | | `22222` | 0.0558 = φ⁻⁶ |
+| `12133` | 0.2304 = φ⁻³ | | `1121122` | 0.0558 = φ⁻⁶ |
+| `244` | 0.1488 = φ⁻⁴ | | `112222` | 0.0352 = φ⁻⁷ |
+| `2224` | 0.0898 = φ⁻⁵ | | **sum** | **1.0000** |
+
+They sum to 1, so the set is closed — nothing is missing, and the same seven
+come out of Σγ = 0, Σγ = 1 and the symmetric 0.2×5.
+
+**The strays are the walls.** Earlier runs also turned up `11332`, `12313`,
+`121222`, `1112212` and friends. Their counts grow *linearly* with the patch
+radius, not quadratically, and their coordinates give them away: every `11332`
+sat at y = −16.33, every `121222` at x = −31.64. They are vertices on the
+singular walls — the same walls §5.-1b enumerates for the reading control —
+not vertex environments. Density → 0 like 1/R.
+
+### 11.2 Seven words, eight de Bruijn types — Jake's resolution
+
+De Bruijn, page 48: "The vertices in an AR-pattern can be of 8 different types
+according to the figure formed by the **colored arrows**." His classification
+is of the decoration, not of the rhomb star. Jake:
+
+> The deBruijn distinguishes the arrow orientation of the tiles. Hence S and S5
+> were two separate VEs. [...] the diagram of 16 rhombs is not and in many
+> cases can not use the green rhomb arrows. (thus S == S5).
+
+So the two counts are two different questions, and both are right: eight
+arrowed types, seven un-arrowed stars, with `S` and `S5` sharing a star. The
+figure-5a vocabulary is the un-arrowed one, which is the one a pool ball can
+carry.
+
+An experiment confirms the arrows are not recoverable from the raw index:
+refining each star by the cyclic word of neighbor indices over-splits badly —
+`12133` falls into ten classes — because the index pattern around a vertex is
+not rotation-invariant on its own. Jake: in generalized Penrose "the arrow
+orientation is ambiguous, but some clues may be glinted from the indexes."
+
+### 11.3 Why the 16 are the right vocabulary for this app
+
+The Nature paper counts 16 VEs for the **generalized** Penrose quasicrystal,
+not for Penrose: "The Penrose LIC (LIC1) with γ = 0 is distinguished for having
+a fewest types of VEs." Its worked example — at the endpoint p of VE Q, LIC1
+allows {Q, K, J, S, T, V}, six letters all inside de Bruijn's eight, while LIC2
+allows ten, pulling in M, R, U, W, Y, Z. Since this app sweeps γ, it needs the
+whole 16.
+
+Measured across eight LICs (Penrose, 1/2, 0.73, 0.31, 0.25), about **18** words
+carry area density up to rotation and reflection. Among them `1111111111` — ten
+thin rhombs around a point — appears only off Penrose, which fits the paper's
+remark that `ST` has the highest proportion of thin rhombi. That is one letter
+identified; the rest want the figure transcribed, not guessed.
+
+Note the two sources use different equivalences: de Bruijn counts "apart from
+rotation", the paper folds M's mirror pair into one letter. Use the paper's,
+since the letters are the paper's.
+
+### 11.4 The sixteen, transcribed — BUILT 2026-10-26
+
+The table was read off figure 5a rather than copied from prose: each of the
+sixteen pictures segmented into tiles, the corner every tile shares located,
+and the angle measured there. All sixteen came out summing to exactly 10 with
+every angle within 0.1 of an integer, which is the check that the reading is a
+reading and not a guess.
+
+| | | | | | | | |
+|---|---|---|---|---|---|---|---|
+| D `334` | Q `244` | K `2224` | L `1333` | M `1243` | J `12133` | R `11242` | S `22222` |
+| T `112222` | U `121213` | V `1121122` | W `1121212` | X `11112112` | Y `11111212` | Z `111111112` | **\*** `1111111111` |
+
+Three things fall straight out, and all three are confirmations:
+
+1. **The Penrose seven are D, Q, K, J, S, T, V.** Exactly the set §11.1
+   measured, at exactly those powers of φ — D φ⁻², J φ⁻³, Q φ⁻⁴, K φ⁻⁵, S and
+   V φ⁻⁶, T φ⁻⁷. And exactly Jake's de Bruijn mapping, S5 folded into S.
+2. **It is the paper's own six plus D.** The text gives LIC1 at point p as
+   {Q, K, J, S, T, V} and then says "The analysis also applies to D". Seven.
+3. **M is `1243`, and its mirror form transcribes to the same word** — which
+   is what the paper says of M and nothing else, and it is why the canonical
+   word folds reflection as well as rotation.
+
+**Three real words the figure does not name.** This construction also produces
+`1234`, `1324` and `11224` off Penrose, with honest area density (at LI 1/2:
+1324 ×122, 11224 ×75, 1234 ×39 in a patch of 3471). They are complete stars —
+they sum to 10 — and they are not wall vertices, whose density falls like 1/R.
+Either the sixteen are the vocabulary of the LICs the paper studied rather than
+of the whole γ family, or something in the construction makes stars it does
+not. They are drawn `?` rather than assigned a letter.
+
+### 11.4a Order of work — done
+
+1. Port the dropdown and the pool balls to method and split. §11.7.
+2. The letters, from a transcribed table, with an unmatched star drawn as `?`
+   rather than guessed. §11.8.
+3. A **VE census readout** — which words are present at the current γ and at
+   what frequency — still worth building: it reproduces figure 5b/c directly.
+
+### 11.5 Where Jake is going after this
+
+> after the vertexes are classified, we will try other things to classify, like
+> rhomb groups that center on local extremes, or ambiguous extremes.
+
+And the constraint that makes it hard, in his words: in the non-zero LI classes
+**inflation does not work, but the Wieringa golden-ratio rules do** — which is
+why the rhomb groups (HBS, always centered on an extreme vertex) are the
+instrument he wants to point at the ambiguity. The hyperuniformity of a class
+is the pattern to look for.
+
+### 11.6 Edge style as a dropdown — BUILT 2026-10-26
+
+Jake: "make the edge style a dropdown, none, arrow, colored arrows, and dots."
+
+`TileStyle.coloredArrows` (a boolean modifier on the `arrows` feature) became
+`TileStyle.arrowStyle: "plain" | "colored" | "dots"`, and the two checkboxes
+became one select whose `none` is the feature off. The feature flag stays what
+the layer reads, so a page or an attribute can still turn arrows on without
+naming a drawing — the same shape as `vertexMark` beside `penroseVertices`.
+
+`dots` is de Bruijn's figure 3, whose caption gives the meaning —
+"AR-pattern with dots indicating the vertices towards which the green arrows
+point" — but not the placement. Jake, on the first attempt, which put them on
+the edges: "It's ambiguous whether the dots is an edge treatment or a face
+treatment, but the location of the dots in figure 3 is on a face, not an edge.
+check it."
+
+Checked, by measuring the figure itself (page 5 of the PDF at 400 dpi,
+components labeled, faces flood-filled):
+
+* **46 dots in 46 faces, exactly one each.** Not one per green arrow, and not
+  one per edge — one per *tile*.
+* 18 thin faces and 28 thick, 28/18 = 1.56, which is φ, so the detection is
+  reading the tiling and not noise.
+* Every dot sits at a 72° corner on a thick rhomb and a 144° corner on a thin
+  one. Both of those are v0/v2 — the two corners the index runs between — so
+  the dotted corner is exactly the extreme corner `extremeCorner` already
+  finds, and a tile's two green arrows both point into it. The caption and the
+  figure agree after all; only my placement was wrong.
+* The dot is at a constant **perpendicular** distance from both edges at that
+  corner: median 0.10 of an edge on the thick, 0.12 on the thin, call it 0.11.
+  A constant distance *along the bisector* would not do — it would crowd the
+  72° corner's edges while leaving the 144° one adrift. On the bisector the
+  offset is `0.11 / sin(half the corner angle)`: 0.18 of an edge into a thick
+  rhomb, 0.11 into a thin one, which is what the figure measures (0.174 and
+  0.126).
+
+The ambiguity falls out of machinery that already exists. `dressingReadings`
+hands an ambiguous tile — the (2,3,4,3) middle off a Penrose patch — back twice,
+once per candidate extreme, at half alpha. So it is dotted at **both** ends of
+its short diagonal, which is Jake's "the non ARs could essentially have two
+dots to indicate the ambiguity" without a line of new policy.
+
+Jake's framing stands: this is a face treatment living in the edge-style
+dropdown. It is there because it is an alternative to the arrows, not because
+it is drawn like them.
+
+### 11.7 The index dropdown, ported — BUILT 2026-10-26
+
+Step 1 of §11.4. `TileStyle.vertexMark` went from `"dot" | "index"` to
+`"dot" | "numbers" | "pool"` — roof and grow's three, in their order — and the
+checkbox became a select. The pool colors are the index: 1 yellow, 2 blue,
+3 red, 4 purple, with the cue ball and the orange showing up only off Penrose
+where the index takes a fifth value.
+
+The mark itself moved to `src/view/pool.ts` as `drawIndexMark`, which both
+views now call. They could not share before because `createGrowthView` builds a
+pentagrid underneath itself, so `growth.ts` → `pentagrid.ts` is already an
+import and the reverse would close a cycle. A third module with no dependencies
+of its own is the fix, and it is what makes "ported" mean the same picture
+rather than a second copy of it.
+
+
+### 11.8 The VE vertex style — BUILT 2026-10-26
+
+Jake: "Pool ball color reflecting index and letter indicating VE type."
+
+A fourth value on the vertex-style dropdown, `ve`. The ball keeps the index's
+color — that is the whole point of putting them on one mark, two readings of
+the same vertex at once — and what rides it is the environment's letter instead
+of the number. `ST` is `*`, per Jake.
+
+Two things the mark says by saying nothing:
+
+* **A blank ball** is a star that runs off the edge of the patch. Its arms do
+  not add to a whole turn, so it has no environment, and claiming one would
+  invent rare letters all around the rim.
+* **`?`** is a complete star the sixteen do not name — `1234`, `1324`, `11224`
+  off Penrose, and the wall vertices of §11.1 on it.
+
+`src/geometry/vertexenv.ts` holds the table and the classification:
+`cornerUnits` (with the winding fold that turns an exterior angle back into an
+interior one), `veWord` (canonical under rotation and reflection), and
+`vertexStars`, which keys vertices exactly the way the renderer keys them so
+the environment found in one pass can be looked up in the other.
+
+`tools/vertexenv.test.mjs` asserts the table is a whole turn sixteen times
+over, that a Penrose patch shows the seven at powers of φ summing to 1, that
+the unnamed words on a Penrose patch lose their share as the patch grows while
+the seven hold theirs, and that off Penrose the letters widen to L, M, R, U, W,
+Y, Z and `*` with those three words left unnamed.

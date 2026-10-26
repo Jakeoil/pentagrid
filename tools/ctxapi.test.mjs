@@ -86,7 +86,7 @@ test("the four awkward members are exactly where 5.99 says they are", () => {
     assert.deepEqual(where("measureText"),
                      ["src/ui/loupe.ts", "src/view/pentagrid.ts"]);
     // The gradients are the height ramp and the pool balls.
-    assert.deepEqual(where("createRadialGradient"), ["src/view/growth.ts"],
+    assert.deepEqual(where("createRadialGradient"), ["src/view/pool.ts"],
                      "the only caller of a radial gradient is the pool balls");
     assert.ok(where("createLinearGradient").includes("src/view/pentagrid.ts"));
 });

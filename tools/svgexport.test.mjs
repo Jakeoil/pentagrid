@@ -272,7 +272,7 @@ test("the whole document is well formed, over the loaded stack", () => {
     });
     h.gamma.setGuard(true);
     h.setTileStyle({ color: "bands", band: 0.5, shading: true, ramp: 1,
-                     pentaFace: true, pentaEdge: true, vertexMark: "index" });
+                     pentaFace: true, pentaEdge: true, vertexMark: "numbers" });
     const [f] = exportSvg(h);
     assert.equal(illFormed(f.svg), null, "the document does not parse");
     assert.ok(f.svg.length > 200000, `only ${f.svg.length} bytes drawn`);

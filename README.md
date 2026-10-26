@@ -241,11 +241,17 @@ complement, pale — computed from von Kries cone adaptation rather than
 listed, so it follows the palette; see `view/afterimage.ts`), `faceEdges` (outline each face from
 the tile layer, so edges can be seen with the edge layer off), `isogloss`,
 `shading` with its `ramp` (the
-Wieringa height ramp, over any color), `boldEdges`, `coloredArrows` (de Bruijn's
-solid arrows along the edges, dot to dot, green doubles and red singles, in place
-of the chevrons), `vertexMark` (`dot`, the red dot, or `index`, the vertex's
-de Bruijn index in a white circle — hover one to see the K-region that made
-it), `offPenrose` (dress the tiles at
+Wieringa height ramp, over any color), `boldEdges`, `arrowStyle` (how the
+`arrows` feature draws the AR-pattern: `plain`, Penrose's chevrons at the edge
+midpoints; `colored`, de Bruijn's solid arrows along the edges, dot to dot,
+green doubles and red singles; or `dots`, his figure 3 — one dot per tile,
+inside the face at the corner its green arrows point into, and nothing else),
+`vertexMark` (`dot`, the red dot; `numbers`, the vertex's de Bruijn index in a
+white circle; `pool`, that index as the pool ball whose color it is; or `ve`,
+the same ball carrying its vertex environment's letter instead of the number —
+the sixteen of the generalized Penrose literature, `ST` written `*`, with a
+blank ball for a star running off the patch and `?` for a complete star the
+sixteen do not name — hover one to see the K-region that made it), `offPenrose` (dress the tiles at
 the extreme index levels off a Penrose patch; the middle ones stay bare), and
 `opacity`.
 

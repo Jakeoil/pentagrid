@@ -11,7 +11,7 @@ import { createGrowthView } from "../dist/view/growth.js";
 import { createRegionPanel } from "../dist/view/region-panel.js";
 import { polygonArea, pointInPolygon, convexBoundary } from "../dist/geometry/acceptance.js";
 import { rhombDeflation } from "../dist/geometry/decor.js";
-import { collectRhombs } from "../dist/geometry/pentagrid.js";
+import { collectRhombs, makeDirections } from "../dist/geometry/pentagrid.js";
 
 function host(w = 800, h = 600) {
     const el = makeStub({
@@ -1546,7 +1546,7 @@ test("the index switch marks every dual vertex with a white circle", () => {
     const dots = fills.length;
     assert.ok(dots > 100 && fills.every((c) => c === "#c0392b"), "red dots by default");
 
-    h.setTileStyle({ vertexMark: "index" });
+    h.setTileStyle({ vertexMark: "numbers" });
     texts.length = 0; fills.length = 0;
     h.redraw();
     assert.equal(texts.length, dots, "one index per vertex, in place of each dot");
@@ -1646,7 +1646,7 @@ test("at Gamma = 0 the index range is the tiling's 1..4, not the decagon's ghost
                                 features: { penroseTiles: true, penroseVertices: true, arrows: true } });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0, 0, 0, 0, 0]);
-    h.setTileStyle({ vertexMark: "index" });
+    h.setTileStyle({ vertexMark: "numbers" });
     const layer = h.stack.get("penrose-vertices");
     const texts = [];
     layer.ctx.fillText = (t) => { texts.push(t); };
@@ -2218,11 +2218,81 @@ test("split: a hover answers only on the canvas its target is drawn on", () => {
               "a grid hover answered on the Penrose canvas");
 });
 
+test("the dots are one per tile, inside the face at the corner the greens point into", () => {
+    // De Bruijn figure 3, measured: 46 dots in 46 faces, one each, every one
+    // tucked into the corner where that tile's two green arrows meet -- the
+    // extreme corner. A face mark, not an edge mark.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true, penroseVertices: false, arrows: true },
+        tileStyle: { arrowStyle: "dots" },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
+
+    const layer = h.stack.get("penrose-decor");
+    const dots = [], strokes = [];
+    layer.ctx.arc = (x, y, r) => dots.push([x, y, r]);
+    layer.ctx.fill = () => {};
+    layer.ctx.stroke = function () { strokes.push(String(this.strokeStyle)); };
+    h.redraw();
+    assert.equal(strokes.length, 0, "dots and nothing else -- no chevrons, no shafts");
+
+    // One per tile. Counted against the colored style, which draws all four
+    // markings of every tile, so tiles = fills / 4.
+    const ha = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true, penroseVertices: false, arrows: true },
+        tileStyle: { arrowStyle: "colored" },
+    });
+    ha.gamma.setLocked(-1);
+    ha.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);
+    const fills = [];
+    const la = ha.stack.get("penrose-decor");
+    la.ctx.fill = function () { fills.push(String(this.fillStyle)); };
+    la.ctx.arc = () => {};
+    ha.redraw();
+    assert.ok(fills.length > 200, `only ${fills.length} arrows`);
+    assert.equal(dots.length, fills.length / 4, "one dot per tile, not one per marking");
+
+    // Every dot distinct: a face mark cannot be shared, where the old edge
+    // placement had the two tiles across a double landing on the same point.
+    const where = new Set(dots.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`));
+    assert.equal(where.size, dots.length, "no two dots coincide");
+
+    // And inside its tile, clear of both edges. The dot's perpendicular
+    // distance to the two edges at its corner is INSET on every tile, which is
+    // what the figure shows and what a constant run along the bisector would
+    // break: measure the nearest EDGE, over every edge of every tile.
+    const v = h.getView();
+    const pg = { n: 5, directions: makeDirections(true), gamma: [0.2, 0.2, 0.2, 0.2, 0.2] };
+    const span = 400 / v.scale + 2;
+    const rhombs = collectRhombs(pg, { xMin: -span, xMax: span, yMin: -span, yMax: span });
+    const segs = [];
+    for (const r of rhombs) for (let i = 0; i < 4; i++) segs.push([r.vertices[i], r.vertices[(i + 1) % 4]]);
+    const toMath = (sx, sy) => [(sx - 400) / v.scale, (400 - sy) / v.scale];
+    let worst = Infinity, biggest = 0;
+    for (const [sx, sy] of dots) {
+        const [mx, my] = toMath(sx, sy);
+        let best = Infinity;
+        for (const [a2, b2] of segs) {
+            const ex = b2[0] - a2[0], ey = b2[1] - a2[1];
+            const t = Math.max(0, Math.min(1, ((mx - a2[0]) * ex + (my - a2[1]) * ey) / (ex * ex + ey * ey)));
+            best = Math.min(best, Math.hypot(mx - a2[0] - ex * t, my - a2[1] - ey * t));
+        }
+        worst = Math.min(worst, best);
+        biggest = Math.max(biggest, best);
+    }
+    // 0.11 of an edge from the nearest edge, every dot, both tile shapes.
+    assert.ok(Math.abs(worst - 0.11) < 0.005, `nearest dot-to-edge ${worst.toFixed(3)}, not 0.11`);
+    assert.ok(Math.abs(biggest - 0.11) < 0.005, `farthest dot-to-edge ${biggest.toFixed(3)}, not 0.11`);
+});
+
 test("the colored arrows are one filled outline each, and clear the vertex mark", () => {
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true, penroseVertices: true, arrows: true },
-        tileStyle: { coloredArrows: true },
+        tileStyle: { arrowStyle: "colored" },
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
@@ -2272,7 +2342,7 @@ test("the colored arrows are one filled outline each, and clear the vertex mark"
     };
     h.setTileStyle({ vertexMark: "dot" });
     const withDot = arrowLength();
-    h.setTileStyle({ vertexMark: "index" });
+    h.setTileStyle({ vertexMark: "numbers" });
     const withIndex = arrowLength();
     // An edge is `scale` pixels long, and each end loses the mark's radius plus
     // ARROW_GAP of air: the dot is 3, the index circle max(6, min(9, 0.12*scale)).

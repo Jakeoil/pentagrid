@@ -31,16 +31,17 @@ test("the state is the size PLAN 9.2 says it is", () => {
     }
     const say = (c) => `${c.bool} bool, ${c.enum} enum, ${c.number} number`;
     assert.equal(say(by.features), "19 bool, 0 enum, 0 number");
-    assert.equal(say(by.tileStyle), "21 bool, 5 enum, 3 number");
+    assert.equal(say(by.tileStyle), "20 bool, 6 enum, 3 number");
     assert.equal(say(by.grid), "0 bool, 0 enum, 2 number");
     assert.equal(say(by.growth), "13 bool, 3 enum, 8 number");
 
-    // 53 booleans, nine base64url characters -- the figure 9.2 quotes -- and
-    // 72 fields in all.
+    // 52 booleans, nine base64url characters -- the figure 9.2 quotes -- and
+    // 74 fields in all. `coloredArrows` became the `arrowStyle` enum when the
+    // edge style turned into a dropdown, so one bool moved to the enum column.
     const bits = FIELDS.filter((f) => f.kind === "bool").length;
-    assert.equal(bits, 53, `${bits} booleans, not 53`);
+    assert.equal(bits, 52, `${bits} booleans, not 52`);
     assert.equal(Math.ceil(bits / 6), 9);
-    assert.equal(FIELDS.filter((f) => f.kind === "enum").length, 8, "eight enums");
+    assert.equal(FIELDS.filter((f) => f.kind === "enum").length, 9, "nine enums");
     assert.equal(FIELDS.filter((f) => f.kind === "number").length, 13, "thirteen numbers");
     assert.equal(FIELDS.length, 74, `${FIELDS.length} fields, not 74`);
 });

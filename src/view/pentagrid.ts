@@ -30,7 +30,9 @@ import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js"
 // Re-exported where they have always been imported from.
 export { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
 import type { GammaSnapshot } from "../state/baseline.js";
-import { rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
+import { extremeCorner, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
+import { drawIndexMark } from "./pool.js";
+import { vertexStars } from "../geometry/vertexenv.js";
 import { rhombAmmann, ammannBars } from "../geometry/ammann.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
@@ -330,20 +332,44 @@ export interface TileStyle {
     /** Contour lines across each tile. */
     isogloss: boolean;
     /**
-     * The AR-pattern drawn de Bruijn's way: a solid arrow along each edge from
-     * just short of one vertex to just short of the other, shaft and filled
-     * head as in jake/arrow.svg, one head each — green for the doubles and red
-     * for the singles, the color being the whole distinction. Off, the arrows are the plain
-     * chevron markings at the edge midpoints.
+     * How the AR-pattern's edge markings are drawn, once the `arrows` feature
+     * has turned the layer on.
+     *
+     * `plain` — Penrose's chevrons at the edge midpoints, one for a single and
+     * two for a double.
+     *
+     * `colored` — de Bruijn's way: a solid arrow along each edge from just
+     * short of one vertex to just short of the other, shaft and filled head as
+     * in jake/arrow.svg, one head each — green for the doubles and red for the
+     * singles, the color being the whole distinction.
+     *
+     * `dots` — his figure 3, "AR-pattern with dots indicating the vertices
+     * towards which the green arrows point": no arrows at all, just a dot on
+     * each double edge beside the vertex it points into. A rhomb's two doubles
+     * both point into its extreme corner, so the dots come in pairs bracketing
+     * it, and an ambiguous tile gets both pairs at half strength — which is
+     * Jake's reading of the ambiguity, two dots rather than a choice.
      */
-    coloredArrows: boolean;
+    arrowStyle: "plain" | "colored" | "dots";
     /**
-     * What marks a Penrose vertex: the red dot, or its index in a circle — ❶
-     * white on black, ① black on white — once per vertex, in place of the dot.
+     * What marks a Penrose vertex, once per vertex, in place of the dot:
+     * `dot`, the red dot; `numbers`, the de Bruijn index in a white disc; or
+     * `pool`, the same number on a ball whose COLOR is that index — 1 yellow,
+     * 2 blue, 3 red, 4 purple, with the cue ball and the orange showing up
+     * only off Penrose where the index takes a fifth value. The first three
+     * are roof and grow's, drawn by the same function, so the mark means one
+     * thing across the site.
+     *
+     * `ve` keeps the ball and its index color and puts the VERTEX
+     * ENVIRONMENT's letter in the middle instead of the number — the sixteen
+     * of figure 5a, with `ST` written `*`. A ball with no letter is a star
+     * that runs off the edge of the patch; a `?` is a complete star the
+     * figure does not list, which happens only off Penrose.
+     *
      * The index on the tile face (the `vertexIndex` feature) is the other way
      * to see it, four times per vertex.
      */
-    vertexMark: "dot" | "index";
+    vertexMark: "dot" | "numbers" | "pool" | "ve";
     /**
      * Decorate off a Penrose patch too. The index-placed dressings — arrows,
      * curves, pentagons, next-gen, kites — need a corner at the patch's extreme
@@ -2042,6 +2068,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** The circled index's radius: big enough to read, never bigger than a tile corner. */
     const markRadius = () => Math.max(6, Math.min(9, scale * 0.12));
 
+    /** A unit vector, or (0,0) if there is none. */
+    const unit = (x: number, y: number): [number, number] => {
+        const n = Math.hypot(x, y);
+        return n ? [x / n, y / n] : [0, 0];
+    };
+
     /**
      * The origin, ringed: sunstar's mark, since that is the point γ is about.
      * Sized to sit just outside the circled index, when the vertex mark is one,
@@ -2252,6 +2284,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const mark = tileStyle.vertexMark;
         const { lo } = indexRange();
         const R = markRadius();
+        // The environment needs the whole star, so it is a pass over the patch
+        // before the pass over the corners — and only when it is being asked for.
+        const stars = mark === "ve" ? vertexStars(rhombs) : null;
         if (mark !== "dot") {
             tc.font = `bold ${Math.round(R * 1.4)}px sans-serif`;
             tc.textAlign = "center";
@@ -2261,6 +2296,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         for (const rhomb of rhombs) {
             for (let vi = 0; vi < rhomb.vertices.length; vi++) {
                 const [vx, vy] = rhomb.vertices[vi];
+                // 1e4 is also what `vertexStars` keys by, which is what lets
+                // the environment found there be looked up here.
                 const key = `${Math.round(vx * 1e4)},${Math.round(vy * 1e4)}`;
                 if (seen.has(key)) continue;
                 seen.add(key);
@@ -2274,19 +2311,25 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     tc.fill();
                     continue;
                 }
-                // The index once, on the vertex, in place of the dot: a white
-                // disc with the number in it. White throughout — the digit says
-                // which level it is, so a second encoding in the fill only
-                // competed with it, and the black discs went with Jake.
+                // The index once, on the vertex, in place of the dot —
+                // shared with roof and grow so the two pages cannot drift.
                 const m = vertexIndex(rhomb.kTuples[vi]) - lo + 1;
-                tc.beginPath();
-                tc.arc(sx, sy, R, 0, 2 * Math.PI);
-                tc.fillStyle = "#fff";
-                tc.fill();
-                tc.strokeStyle = "#111";
-                tc.stroke();
-                tc.fillStyle = "#111";
-                tc.fillText(String(m), sx, sy + 0.5);
+                if (!stars) {
+                    drawIndexMark(tc, sx, sy, R, m, mark === "pool");
+                    continue;
+                }
+                // The ball keeps the index's color; what rides it is the
+                // environment. An incomplete star says nothing, so it says
+                // nothing — a blank ball, which is what the patch's edge is.
+                const star = stars.get(key);
+                const code = star?.complete ? (star.code ?? "?") : "";
+                tc.save();
+                // `*` sits high in a text font, so it is dropped and enlarged
+                // to read as the centered glyph the other fifteen are.
+                if (code === "*") tc.font = `bold ${Math.round(R * 2)}px sans-serif`;
+                drawIndexMark(tc, sx, sy, R, m, true, code,
+                              code === "*" ? R * 0.42 : 0.5);
+                tc.restore();
             }
         }
     }
@@ -2345,7 +2388,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const { lo } = indexRange();
         const levels = dressingLevels();
         if (levels === null) return;
-        if (tileStyle.coloredArrows) { drawColoredArrows(tc, rhombs, cx, cy, lo, levels); return; }
+        if (tileStyle.arrowStyle === "colored") { drawColoredArrows(tc, rhombs, cx, cy, lo, levels); return; }
+        if (tileStyle.arrowStyle === "dots") { drawArrowDots(tc, rhombs, cx, cy, lo, levels); return; }
         const L = 0.11;          // chevron arm, tiling units
         const GAP = 0.09;        // between the two of a double
         tc.strokeStyle = "#222";
@@ -2375,6 +2419,60 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     chevron(a.x + a.dx * L / 2, a.y + a.dy * L / 2);
                 }
             }
+            }
+        }
+        tc.globalAlpha = 1;
+    }
+
+    /**
+     * De Bruijn's figure 3: "AR-pattern with dots indicating the vertices
+     * towards which the green arrows point".
+     *
+     * The dot is a FACE mark, not an edge one, and there is exactly one per
+     * tile. Measured off the figure itself — 46 dots in 46 faces, one each,
+     * 18 thin and 28 thick (28/18 = 1.56, φ) — and in every case the dot sits
+     * at the corner where the tile's two green arrows meet, which is the
+     * extreme corner `extremeCorner` already finds: the 72° corner of a thick
+     * rhomb and the 144° corner of a thin one, both of them v0 or v2, since
+     * those are the two corners the index runs between.
+     *
+     * Where in the corner: at a constant PERPENDICULAR distance from both
+     * edges, measured at 0.10 to 0.12 of an edge on both tile types, which
+     * puts it on the bisector at `INSET / sin(half the corner angle)` — 0.18
+     * of an edge into a thick rhomb's sharp corner and 0.11 into a thin
+     * rhomb's blunt one. A constant distance ALONG the bisector would not do:
+     * it would crowd the 72° corner's edges while leaving the 144° one adrift.
+     *
+     * An ambiguous tile — the (2,3,4,3) middle off a Penrose patch — arrives
+     * here twice, once per candidate extreme, at half alpha, so it is dotted
+     * at both ends of its short diagonal. Jake: the non-ARs "could essentially
+     * have two dots to indicate the ambiguity".
+     */
+    function drawArrowDots(
+        tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number, lo: number, levels: number,
+    ) {
+        const INSET = 0.11;      // from each edge at the corner, in edge units
+        const rad = Math.max(1.6, Math.min(3.2, scale * 0.045));
+        tc.fillStyle = "#222";
+        for (const rh of rhombs) {
+            for (const { extAt, alpha } of dressings(rh, lo, levels)) {
+                const E = extremeCorner(rh, lo, levels, extAt);
+                if (E === null) continue;
+                const c = rh.vertices[E];
+                const p = rh.vertices[(E + 1) % 4], q = rh.vertices[(E + 3) % 4];
+                const u = unit(p[0] - c[0], p[1] - c[1]);
+                const v = unit(q[0] - c[0], q[1] - c[1]);
+                const b = unit(u[0] + v[0], u[1] + v[1]);
+                // sin of the half-angle is |u x b|, so this is the point whose
+                // perpendicular distance to BOTH edges is INSET.
+                const sinHalf = Math.abs(u[0] * b[1] - u[1] * b[0]);
+                if (sinHalf < 1e-6) continue;
+                const d = INSET / sinHalf;
+                tc.globalAlpha = alpha;
+                const [sx, sy] = mathToScreen(c[0] + b[0] * d, c[1] + b[1] * d, cx, cy);
+                tc.beginPath();
+                tc.arc(sx, sy, rad, 0, 2 * Math.PI);
+                tc.fill();
             }
         }
         tc.globalAlpha = 1;
@@ -4251,8 +4349,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** Runs when the tiles go from off to on. Set when the panel is built. */
     let tilesOn: (() => void) | null = null;
 
+    /**
+     * Controls that are not a plain feature checkbox but still have to follow
+     * the state when something else writes it — a preset, a reset, an
+     * attribute. Each pushes a closure that reads the state and writes itself.
+     */
+    const panelSyncs: (() => void)[] = [];
+
     function syncPanel() {
         for (const { key, cb } of featureBoxes) cb.checked = features[key];
+        for (const sync of panelSyncs) sync();
         viewStats?.();
     }
 
@@ -4779,14 +4885,43 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             bold.title = "Draw the tile edges as real lines, dark and two wide, rather than a gray hairline.";
             featureToggle(edgeRow, "penroseDecor", "arcs");
             if (model.n === 5) {
-                featureToggle(edgeRow, "arrows", "arrows");
-                const colored = checkbox(edgeRow, "colored arrows", tileStyle.coloredArrows, (v) => {
-                    tileStyle.coloredArrows = v;
-                    if (v && !features.arrows) setFeatures({ arrows: true }, { merge: true });
+                // One dropdown, not a checkbox plus a modifier: "none" is the
+                // layer off, and the other three are the three ways to draw the
+                // same AR-pattern. The feature flag is still what the layer
+                // reads, so a page or an attribute can turn arrows on without
+                // knowing which drawing it will get.
+                const arrows = document.createElement("select");
+                arrows.className = "line-pick";
+                arrows.style.width = "104px";
+                arrows.title = "The AR-pattern's edge markings. arrows: Penrose's chevrons at "
+                    + "the midpoints, one for a single and two for a double. colored arrows: "
+                    + "de Bruijn's, solid along the edge from dot to dot — green doubles, red "
+                    + "singles. dots: his figure 3, a dot beside each vertex a green arrow "
+                    + "points into and nothing else — an ambiguous tile gets both pairs.";
+                for (const [value, text] of [["none", "none"], ["plain", "arrows"],
+                                             ["colored", "colored arrows"],
+                                             ["dots", "dots"]] as const) {
+                    const o = document.createElement("option");
+                    o.value = value;
+                    o.textContent = text;
+                    arrows.appendChild(o);
+                }
+                const syncArrows = () => {
+                    arrows.value = features.arrows ? tileStyle.arrowStyle : "none";
+                };
+                syncArrows();
+                arrows.addEventListener("change", () => {
+                    const v = arrows.value;
+                    if (v === "none") {
+                        setFeatures({ arrows: false }, { merge: true });
+                    } else {
+                        tileStyle.arrowStyle = v as TileStyle["arrowStyle"];
+                        setFeatures({ arrows: true }, { merge: true });
+                    }
                     draw();
                 });
-                colored.title = "De Bruijn's arrows: solid, along the edge from dot to dot — "
-                    + "green doubles, red singles.";
+                edgeRow.appendChild(arrows);
+                panelSyncs.push(syncArrows);
             }
 
             // The superposed tiles inside a 2k-gon: its own row, since a
@@ -4798,21 +4933,42 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // ── Tile vertex ───────────────────────────────────────────────
         {
             const vRow = row(panelFor("vertex style"), "vertex style");
-            // One switch, not three. The vertex is a red dot, or it is its own
-            // de Bruijn index in a white circle — and the circle is live: with
-            // the hover on, pointing at one outlines the K-region that made it.
-            const idx = checkbox(vRow, "index", tileStyle.vertexMark === "index", (v) => {
-                tileStyle.vertexMark = v ? "index" : "dot";
-                if (v) {
+            // The same three roof and grow offer, in the same order: the red
+            // dot, the index in a white circle, or the index as the pool ball
+            // whose color IS it. The circle is live either way: with the hover
+            // on, pointing at one outlines the K-region that made it.
+            const idx = document.createElement("select");
+            idx.className = "line-pick";
+            idx.style.width = "92px";
+            for (const [value, text] of [["dot", "dot"], ["numbers", "numbers"],
+                                         ["pool", "pool ball"], ["ve", "VE"]] as const) {
+                const o = document.createElement("option");
+                o.value = value;
+                o.textContent = text;
+                idx.appendChild(o);
+            }
+            const syncMark = () => { idx.value = tileStyle.vertexMark; };
+            syncMark();
+            idx.addEventListener("change", () => {
+                tileStyle.vertexMark = idx.value as TileStyle["vertexMark"];
+                if (idx.value !== "dot") {
                     setFeatures({ penroseVertices: true, hoverVertex: true },
                                 { merge: true });
                 }
                 draw();
             });
-            idx.title = "Mark each dual vertex with its de Bruijn index in a white "
-                + "circle: 1 to 4 on a Penrose patch, 1 to 5 otherwise, and the "
-                + "extremes are the rhomb-group centers. Hover one to see the "
-                + "K-region it came from.";
+            vRow.appendChild(idx);
+            panelSyncs.push(syncMark);
+            idx.title = "What marks each dual vertex. dot: the red dot. numbers: its "
+                + "de Bruijn index in a white circle. pool ball: the same number on a "
+                + "ball colored by that index — 1 yellow, 2 blue, 3 red, 4 purple, the "
+                + "cue ball and the orange only off Penrose. VE: the same ball, with "
+                + "the vertex environment's letter on it instead of the number — the "
+                + "sixteen of the generalized Penrose literature, ST written *. A blank "
+                + "ball is a star running off the edge of the patch; ? is a complete "
+                + "star the sixteen do not name. The index runs 1 to 4 on a Penrose "
+                + "patch and 1 to 5 otherwise, and the extremes are the rhomb-group "
+                + "centers. Hover one to see the K-region it came from.";
         }
 
         // The family controls fold away: five dropdowns and five line numbers

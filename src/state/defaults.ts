@@ -52,7 +52,7 @@ export const TILE_DEFAULTS: TileStyle = {
     p1Shape: "pentaplex", p1Face: false, p1Grid: false,
     bigRhombsFace: false, bigRhombsGrid: false,
     faceEdges: false, afterimage: false,
-    boldEdges: false, coloredArrows: false, vertexMark: "dot", offPenrose: false,
+    boldEdges: false, arrowStyle: "plain", vertexMark: "dot", offPenrose: false,
 };
 
 /**
