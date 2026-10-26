@@ -112,9 +112,13 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Σγ ↔ −Σγ) is to be looked at. Jake: "we'll research that later."
 6. **The timing test is flaky.** "Nothing consumes the scan" asserts on
    wall-clock and can fail on a loaded machine.
-7. **An SVG export, one file per container.** **Step 1 built 2026-10-26** —
-   `src/svg/record.ts`, the recording context, 19 tests, records every layer of
-   a real view. Step 2 next: the per-container composite. §5.99 has the steps. Jake: *"a record of a canvas with all its layers. A single image that
+7. **An SVG export, one file per container.** **Steps 1 and 2 built
+   2026-10-26** — `src/svg/record.ts` (the recording context) and
+   `src/svg/export.ts` (the composite), 35 tests. method exports one file,
+   split two, the output parses, and the page is untouched afterwards. What is
+   left is a way to ASK for it — a button and a download — plus
+   `<defs>`/`<use>` for the repeated prototiles and the `measureText` decision.
+   §5.99 has the steps. Jake: *"a record of a canvas with all its layers. A single image that
    can be put into a pdf or web page… in split, one for G and one for P."* So
    method exports one file of 12 layers and split two, G with 6 and P with 6
    plus the mirrored `axes`. The composite needs four things a per-layer export
@@ -4134,6 +4138,53 @@ Both spellings of the reference are written, `href` and `xlink:href`: the first
 is SVG 2's, the second is what SVG 1.1 requires and every editor reads. **The
 root must declare the xlink namespace**, which is the composite's business —
 step 2.
+
+#### Step 2 built: the composite (2026-10-26)
+
+`src/svg/export.ts`, `tools/svgexport.test.mjs`. `exportSvg(view, opts)` records
+a view once and hands back one `SvgFile` per container. Measured: **method one
+file, split two** — `split-grid` with grid/dots/axes and `split-tiles` with
+penrose-tiles/penrose-edges/axes, the mirrored `axes` in both, which is Jake's
+"one for G and one for P" exactly.
+
+All four gotchas hold, and each has a test that fails without it:
+
+- **z order, not draw order.** On G the two genuinely differ, so the test asserts
+  the emitted order is non-decreasing in `z` *and* that it differs from the order
+  `drawAll` walks — otherwise it would pass on a stack where they coincided and
+  prove nothing. Measured output: `grid → dots → axes`, where draw order is
+  `grid → axes → dots`.
+- **The layer's opacity is on its `<g>`.** `setGridAlpha(0.35)` →
+  `<g id="grid" opacity="0.35">`, and an opaque layer says nothing.
+- **Hidden layers are left out**, whether switched off by hand or by their
+  feature.
+- **The raw overlays are not in the file** — the test asserts every group in the
+  file is a drawn layer.
+
+And the rest of the step: **one `viewBox` and no `width`/`height`** (route A, so
+the reader's zoom is the zoom); the **xlink namespace**, which step 1 made
+necessary by writing gradient stop references in both spellings; and
+`inkscape:groupmode="layer"` with a human label on each group, so a recipient
+can switch a layer off in Inkscape or Illustrator — §5.99's happy medium,
+without the links.
+
+**The raster is an omission with a reason, or the caller's PNG.** This module
+has no PNG encoder and does not pretend to: it emits
+`<!-- layer background omitted: a raster … -->` and reports `droppedRaster`. A
+page with a live canvas can pass `raster: (layer) => '<image href="data:…"/>'`
+and get it embedded, which is where a `toDataURL` belongs.
+
+**The page is exactly as it was afterwards.** The contexts are swapped for
+recorders in a `try` and restored in the `finally`, so a redraw that throws
+does not leave a page that cannot draw — tested both ways.
+
+**The output parses.** Verified against a real XML parser (`xml.dom.minidom`):
+well formed, root `<svg viewBox="0 0 800 800">`, 6 groups, 6351 defs children,
+6021 `<path>`, 581 `<text>`, 2687 `<linearGradient>`, 488 `<clipPath>`, **1393
+KB** over the loaded stack. The suite carries a dependency-free tag-stack
+version of the same check, with its own guard test — a serializer's one
+unforgivable failure is emitting something a parser will not read, and that is
+exactly what a string-assembly test cannot see.
 
 #### Is there a happy medium — files plus a coordinating file? (Jake, 2026-10-24)
 
