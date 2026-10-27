@@ -594,6 +594,20 @@ export interface FloatingReticulumOptions {
     colors: readonly string[];
     /** Where the "show reticulum" and "γ sliders" buttons go. */
     buttons: HTMLElement;
+    /**
+     * Identity for the floating panel: its DOM id, and the key its remembered
+     * position is stored under. Defaults to `reticulum`, which is right for
+     * every page with one.
+     *
+     * A page with TWO reticula has to name them — moiré drives two pentagrids
+     * — or both panels claim the same id and the same stored position, and
+     * dragging one moves where the other will open.
+     */
+    id?: string;
+    /** The panel's title before a preset renames it. */
+    title?: string;
+    /** The text of the button that brings it back. */
+    reopenLabel?: string;
     /** The slider bank to fold, if the page has one. */
     sliders?: HTMLElement;
     /** Start with the sliders folded away. Default true: the reticulum is usually
@@ -618,13 +632,13 @@ export function mountFloatingReticulum(
     const reopen = document.createElement("button");
     reopen.type = "button";
     reopen.className = "reopen-panel";
-    reopen.textContent = "show reticulum";
+    reopen.textContent = opts.reopenLabel ?? "show reticulum";
     reopen.title = "Show the reticulum again";
     reopen.hidden = true;
 
     const panel = createFloatingPanel({
-        id: "reticulum",
-        title: "Reticulum · γ",
+        id: opts.id ?? "reticulum",
+        title: opts.title ?? "Reticulum · γ",
         onClose: () => { reopen.hidden = false; },
     });
     document.body.appendChild(panel.element);

@@ -6,6 +6,19 @@
     <title>Pentagrid — Moiré</title>
     <link rel="icon" type="image/svg+xml" href="./favicon.svg">
     <link rel="stylesheet" href="./site.css">
+    <style>
+        /* Two canvases side by side need more than the site's 980px. */
+        .wrap { max-width: 1240px; }
+        /* Split's flow: three rows filled down each column, so the canvases sit
+           level however tall the panels above them come out. */
+        .moire { grid-template-rows: auto auto auto; grid-auto-flow: column; }
+        .moire figure { display: contents; }
+        .moire figcaption { font-size: 12px; color: var(--ink-faint); margin: 8px 0; text-align: center; }
+        .moire .viewport { width: var(--duo-col); height: var(--duo-col); justify-self: center; }
+        @media (max-width: 1240px) {
+            .moire { grid-auto-flow: row; grid-template-rows: none; }
+        }
+    </style>
 </head>
 <body>
 <nav class="site">
@@ -24,40 +37,49 @@
     <h2>Two deflation levels, overlaid &mdash; and what deflation does off the
     Penrose class</h2>
 
-    <p class="hint">Nothing is built here yet. This page is a placeholder so the
-    link in the bar above goes somewhere; the plan for it is PLAN.md
-    &sect;&nbsp;12.</p>
-
     <p>A generalized Penrose tiling is labeled by its LI class,
     &Sigma;&gamma; mod 1, with Penrose at 0. Deflation sends
     &gamma;<sub>j</sub> to &minus;(&gamma;<sub>j+2</sub> +
     &gamma;<sub>j+3</sub>), and every row of that matrix sums to &minus;2, so
-    on the class it is the doubling map with a sign:</p>
+    on the class it is the doubling map with a sign: <em>s &rarr; &minus;2s</em>
+    (mod&nbsp;1). A tiling off the Penrose class does not fail to deflate
+    &mdash; it deflates into a tiling of a <em>different</em> class. What it
+    stops being is self-similar, and that is why the two levels make a
+    moir&eacute;.</p>
 
-    <p style="text-align:center"><em>s &rarr; &minus;2s (mod 1)</em></p>
+    <div class="moire-bar" id="moire-bar"></div>
 
-    <p>So a tiling off the Penrose class does not fail to deflate &mdash; it
-    deflates into a tiling of a <em>different</em> class. What it stops being
-    is self-similar. 0, 1/3 and 2/3 are the only classes that deflate to
-    themselves; 1/2 lands in Penrose in a single step, 1/4 in two, 1/8 in
-    three; 1/5 runs a four-cycle through 3/5, 4/5 and 2/5.</p>
+    <div class="duo moire" id="moire-grid">
+        <figure>
+            <div class="layer-panel" id="moire-a-panel"></div>
+            <figcaption id="moire-a-caption">A</figcaption>
+            <div class="viewport" id="moire-a"></div>
+        </figure>
+        <figure>
+            <div class="layer-panel" id="moire-b-panel"></div>
+            <figcaption id="moire-b-caption">B</figcaption>
+            <div class="viewport" id="moire-b"></div>
+        </figure>
+    </div>
 
-    <p>Which is why the two levels make a moir&eacute;. Measured on a patch and
-    its deflation, each parent vertex is either exactly on a child vertex or
-    exactly &phi;<sup>&minus;2</sup> away &mdash; never anything between. On
-    Penrose it is always 0: every vertex of the parent is a vertex of the
-    child, which is what the substitution says. Off it, the share that
-    coincides is a property of the class rather than of the offsets &mdash;
-    81% at 1/8, 69% at 1/4, and a minimum of 59.6% at 1/2, symmetric about
-    there. The moir&eacute; is that field of displacements.</p>
+    <p class="hint">Drag to pan, scroll to zoom &mdash; the two stay in
+    register, converting between their scales, so B shows the same region of
+    the plane as A however many times it has been deflated. With <em>link</em>
+    on, B is A deflated, and anything you do to A's &gamma; lands on B; turn it
+    off for two free reticula. <em>merge</em> stacks the two canvases into one
+    and multiplies them together, which is where the moir&eacute; is.</p>
 
-    <p>Which is worth a second look: <em>1/2 resembles its own deflation least,
-    and it is the class that deflates into Penrose in one step.</em> Landing in
-    Penrose and looking like your parent are different questions.</p>
+    <p>Every parent vertex is either exactly on a child vertex or exactly
+    &phi;<sup>&minus;2</sup> away, never anything between. On Penrose it is
+    always 0 &mdash; every vertex of the parent is a vertex of the child, which
+    is what the substitution says. Off it, the share that coincides is a
+    property of the class rather than of the offsets: 81% at 1/8, 69% at 1/4,
+    and a minimum of 59.6% at 1/2, symmetric about there. Which is worth a
+    second look: <em>1/2 resembles its own deflation least, and it is the class
+    that deflates into Penrose in one step.</em> Landing in Penrose and looking
+    like your parent are different questions.</p>
 
-    <p>The page will put two pentagrids side by side, each with its own
-    reticulum and a trimmed column of controls, and merge the two canvases into
-    one so the tilings overlay.</p>
+    <script type="module" src="./dist/app/moire.js"></script>
 </div>
 </body>
 </html>

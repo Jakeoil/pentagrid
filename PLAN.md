@@ -6808,17 +6808,41 @@ pointing here. No script tag.
 *Still to do:* an `<a class="card">` on index beside Split, once there is
 something to put the reader in front of.
 
-### 12.7 Order of work
+### 12.7 Order of work — 1 to 4 BUILT 2026-10-27
 
-1. `moire.html` and `src/app/moire.ts`: two instances, two inline reticula,
-   the view relay, `exposeRows`. Side by side only.
-2. The LI-class readout — s for each side, and what deflation will do to it.
-   This is the page's argument and it is cheap; it should land before the
-   merge, so the picture arrives with something to read against it.
-3. The merge switch and the blend.
-4. The link (B = deflate^k A) and the deflation stepper.
-5. Nav in nine files, index card.
+1. ✅ `moire.html` and `src/app/moire.ts`: two instances, the view relay,
+   `exposeRows`.
+2. ✅ The LI-class readout, in each side's caption.
+3. ✅ The merge switch and the blend.
+4. ✅ The link (B = deflate^k A) and the deflation stepper.
+5. Nav ✅ (§12.6). Index card still to do.
 6. The relative-offset knob, if it still looks wanted.
+
+Built as described, with three things worth recording:
+
+**The view relay has to convert.** A `View` is in tiling units and a tiling
+unit is λ world units, so two sides at different generations do not share view
+numbers — relay them raw and B drifts off by a factor of φ per deflation. The
+invariants are `scale/λ` and `λ·view`, the same pair the view code uses when λ
+changes under it, and `src/view/register.ts`'s `convertView` is just that.
+`pair.ts`'s raw relay is the special case where both λ are 1.
+
+**The reticulum needed a name.** `mountFloatingReticulum` hard-coded
+`id: "reticulum"`, which is the panel's DOM id *and* the key its remembered
+position is stored under, so two of them would have claimed one spot. It now
+takes `id`, `title` and `reopenLabel`, defaulting to what every other page
+already gets.
+
+**Two reticula, floating, not inline.** §12.5 guessed inline would be right.
+Floating won: two reticula is a lot of column, and the panels are already
+carrying five rows each. Each side's View row has its own "show A's γ" /
+"show B's γ" button.
+
+The page exports `sideA` and `sideB` so `tools/moire.test.mjs` can drive the
+link rather than only click it. Six tests, each checked by mutation — the first
+version of the unlink test passed with the checkbox ignored, because it moved A
+to 1/2, whose deflation is the Penrose that B was already showing. It moves A
+to 1/4 now, so a B that follows reads differently from one that does not.
 
 ### 12.8 For Jake
 

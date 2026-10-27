@@ -615,3 +615,36 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
     white-space: pre-wrap;
     min-height: 3em;
 }
+
+/* ── moire.html ────────────────────────────────────────────────────────
+   Two pentagrids side by side, with a switch that stacks them. */
+.moire-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+    margin: 16px 0 4px;
+    font-size: 12px;
+    color: var(--ink-faint);
+}
+.moire-opt { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.moire-steps { width: 42px; font-size: 12px; }
+.moire-note { font-family: monospace; color: #888; margin-left: auto; }
+
+/* Merged: both viewports in the one grid cell, at method's size, the upper
+   one transparent so the lower shows through and multiplied so the overlap
+   darkens. The panels keep their columns above it. */
+.moire.merged .viewport {
+    /* Both into the one cell: grid items that share an area overlap, which is
+       the whole trick. The panels and captions keep their own columns above. */
+    grid-row: 3;
+    grid-column: 1 / -1;
+    width: 100%;
+    height: min(calc(100vh - 150px), 720px);
+}
+/* The figures are the grid's children -- display:contents only moves their
+   contents into the grid -- so last-of-type is B. */
+.moire.merged figure:last-of-type .viewport {
+    background: transparent;
+    mix-blend-mode: multiply;
+}
