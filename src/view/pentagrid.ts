@@ -4978,10 +4978,30 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             // says which environment each vertex is, and this says how many
             // of each there are, and wanting one without the other has not
             // come up.
-            const censusRow = row(panelFor("VE census"), "VE census");
+            // Folded away, and shut by default. Jake: "please collapse the ve
+            // census. it's moving the canvas." The readout is two lines of
+            // wrapping text whose width changes with γ and with the patch, so
+            // every pan nudged the panel's height and the canvas under it
+            // slid. Shut, it is one word and the picture holds still.
+            //
+            // As with pentaplex, the summary IS the row's label — the label
+            // span is removed so the name sits at the left margin with every
+            // other name rather than a column in from it.
+            const censusRow = row(panelFor("VE census"), "VE census", "");
+            for (const kid of Array.from(censusRow.children)) {
+                if ((kid as HTMLElement).className === "panel-label") {
+                    censusRow.removeChild(kid);
+                }
+            }
+            const censusFold = document.createElement("details");
+            censusFold.className = "row-fold census-fold";
+            const censusHead = document.createElement("summary");
+            censusHead.textContent = "VE census";
+            censusFold.appendChild(censusHead);
             const census = document.createElement("span");
             census.className = "ve-census";
-            censusRow.appendChild(census);
+            censusFold.appendChild(census);
+            censusRow.appendChild(censusFold);
             census.title = "Every whole star in the patch on screen, by environment, "
                 + "commonest first. On a Penrose patch the seven come out at powers "
                 + "of 1/φ — D φ⁻², J φ⁻³, Q φ⁻⁴, K φ⁻⁵, S and V φ⁻⁶, T φ⁻⁷ — and sum "
@@ -4993,7 +5013,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             const showCensus = () => {
                 const on = tileStyle.vertexMark === "ve";
                 censusRow.hidden = !on;
-                if (!on) { censusOf = null; return; }
+                // Shut, there is nothing to say and nothing to count: the
+                // census is the one readout that walks the whole patch, so
+                // folding it away saves the work as well as the jitter.
+                if (!on || !censusFold.open) {
+                    censusOf = null;
+                    census.textContent = "";
+                    return;
+                }
                 const rhombs = currentRhombs();
                 if (rhombs === censusOf) return;        // the patch has not moved
                 censusOf = rhombs;
@@ -5015,6 +5042,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (c.rim) text += `${odd.length ? " · " : "\n"}${c.rim} at the rim`;
                 census.textContent = text;
             };
+            censusFold.addEventListener("toggle", () => { censusOf = null; showCensus(); });
             showCensus();
             panelSyncs.push(showCensus);
             afterDraw.push(showCensus);

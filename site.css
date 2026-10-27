@@ -601,5 +601,17 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 .ret-settings { font-size: 11.5px; color: #444; }
 .ret-gen { margin-top: 4px; }
 .ret-lambda { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #333; min-width: 58px; }
-.ve-census { font-size: 11px; font-family: monospace; color: #666; line-height: 1.5;
-              white-space: pre-wrap; }
+/* The census, folded. Shut it is one word; open it is two lines of monospace
+   that rewrap as the patch changes, so it carries a floor of two lines to keep
+   the panel -- and the canvas under it -- from moving as you pan. */
+.census-fold[open] { display: block; }
+.census-fold summary { margin-bottom: 4px; }
+.ve-census {
+    display: block;
+    font-size: 11px;
+    font-family: monospace;
+    color: #666;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    min-height: 3em;
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pentagrid — Moiré</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+    <link rel="stylesheet" href="./site.css">
+</head>
+<body>
+<nav class="site">
+    <span class="brand">Pentagrid</span>
+    <a href="./" draggable="false">Home</a>
+    <a href="method.html" draggable="false">Method</a>
+    <a href="split.html" draggable="false">Split</a>
+    <a href="roof.html" draggable="false">Roof</a>
+    <a href="moire.html" draggable="false" aria-current="page">Moir&eacute;</a>
+    <a href="grow.html" draggable="false">Grow</a>
+    <a href="multigrid.html" draggable="false">Multigrid</a>
+    <a href="grow7.html" draggable="false">Grow 7</a>
+</nav>
+<div class="wrap">
+    <h1>Moir&eacute;</h1>
+    <h2>Two deflation levels, overlaid &mdash; and what deflation does off the
+    Penrose class</h2>
+
+    <p class="hint">Nothing is built here yet. This page is a placeholder so the
+    link in the bar above goes somewhere; the plan for it is PLAN.md
+    &sect;&nbsp;12.</p>
+
+    <p>A generalized Penrose tiling is labeled by its LI class,
+    &Sigma;&gamma; mod 1, with Penrose at 0. Deflation sends
+    &gamma;<sub>j</sub> to &minus;(&gamma;<sub>j+2</sub> +
+    &gamma;<sub>j+3</sub>), and every row of that matrix sums to &minus;2, so
+    on the class it is the doubling map with a sign:</p>
+
+    <p style="text-align:center"><em>s &rarr; &minus;2s (mod 1)</em></p>
+
+    <p>So a tiling off the Penrose class does not fail to deflate &mdash; it
+    deflates into a tiling of a <em>different</em> class. What it stops being
+    is self-similar. 0, 1/3 and 2/3 are the only classes that deflate to
+    themselves; 1/2 lands in Penrose in a single step, 1/4 in two, 1/8 in
+    three; 1/5 runs a four-cycle through 3/5, 4/5 and 2/5.</p>
+
+    <p>Which is why the two levels make a moir&eacute;. Measured on a patch and
+    its deflation, each parent vertex is either exactly on a child vertex or
+    exactly &phi;<sup>&minus;2</sup> away &mdash; never anything between &mdash;
+    and the share that coincides reads off how far the deflation has carried
+    the tiling out of its own class: 97% on Penrose, 72% at 1/4, 54% at 1/2.
+    The moir&eacute; is that field of displacements.</p>
+
+    <p>The page will put two pentagrids side by side, each with its own
+    reticulum and a trimmed column of controls, and merge the two canvases into
+    one so the tilings overlay.</p>
+</div>
+</body>
+</html>

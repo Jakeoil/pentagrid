@@ -2257,6 +2257,19 @@ test("the VE census row rides with the VE mark, and reads the patch on screen", 
 
     h.setTileStyle({ vertexMark: "ve" });
     assert.equal(rowOf().hidden, false, "the census stayed hidden in VE mode");
+
+    // Folded shut it says nothing and counts nothing -- Jake: "it's moving the
+    // canvas". `open` has to be set explicitly here: the DOM stub is a Proxy,
+    // so reading a property nobody assigned hands back a stub, which is
+    // truthy, and a test that only reads it cannot tell shut from open.
+    const fold = find("row-fold census-fold");
+    assert.ok(fold, "the census is not in a fold");
+    fold.open = false;
+    h.redraw();
+    assert.equal(readout.textContent, "", "a shut census still wrote its readout");
+
+    fold.open = true;
+    h.redraw();
     const text = readout.textContent;
     // A Penrose patch, so the seven and nothing else among the letters.
     const [head] = text.split("\n");
