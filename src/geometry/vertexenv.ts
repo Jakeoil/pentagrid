@@ -106,31 +106,58 @@ export function veWord(units: readonly number[]): string {
     return best ?? "";
 }
 
+/**
+ * What kind of star stands on a vertex, by the one test that tells them
+ * apart: whether the corner angles add to a whole turn.
+ *
+ * `whole` — ten units, one environment, and the only kind with a letter.
+ *
+ * `rim` — fewer than ten. The star runs off the edge of the collected patch,
+ * so part of it was never built. Nothing to say.
+ *
+ * `superposed` — MORE than ten, which only a singular pentagrid produces.
+ * Several readings' stars stand on the same point, sharing some tiles and not
+ * others, so the union overruns a turn without being a multiple of one.
+ *
+ * The last two were one value until 2026-10-27, and they are opposites: the
+ * rim has too little information and a singular vertex has too much. Jake:
+ * "grow/roof has a lot of work that makes singularities first class. [...]
+ * they are superpositions of finite sets of VE's." A superposed vertex has a
+ * SET of environments — pushing γ off the singular set by `walls.ts`'s fifty
+ * sum-zero nudges gives {D, J}, {J, V}, {K, Q}, {K, Q, S} and so on, evenly
+ * split — and naming the set is the work PLAN §11.11 describes. Telling it
+ * apart from the rim is the first step of that and is worth having on its own.
+ */
+export type StarKind = "whole" | "rim" | "superposed";
+
 /** One vertex of the tiling, with the star that sits on it. */
 export interface VertexStar {
     x: number;
     y: number;
     /** Corner angles in units of 36 degrees, counterclockwise. */
     units: number[];
-    /** True when they sum to 10 — a whole turn, so nothing is missing. */
+    /** Their total. 10 is a whole turn. */
+    turn: number;
+    kind: StarKind;
+    /** True when `kind` is `whole` — the one case with a word and a letter. */
     complete: boolean;
-    /** The canonical word, or "" when the star is incomplete. */
+    /** The canonical word, or "" when the star is not whole. */
     word: string;
     /**
-     * Its letter from figure 5a, or null — either because the star runs off
-     * the edge of the patch, or because it is a word the figure does not list.
-     * No γ tried has produced the second case: the sixteen are closed under
-     * this construction, and `tools/vertexenv.test.mjs` asserts it. The words
-     * that once seemed to escape them were permutations of them, from the
-     * ordering bug `cornerSector` describes.
+     * Its letter from figure 5a, or null — because the star is not whole, or
+     * because it is a word the figure does not list. No γ tried has produced
+     * the second case: the sixteen are closed under this construction, and
+     * `tools/vertexenv.test.mjs` asserts it. The words that once seemed to
+     * escape them were permutations of them, from the ordering bug
+     * `cornerSector` describes.
      */
     code: string | null;
 }
 
 /**
  * Every vertex of a patch, keyed the way the renderer keys them, with the
- * star standing on it. A vertex at the edge of the collected patch is missing
- * arms, so `complete` is false and `code` is null: an incomplete star is not
+ * star standing on it. Only a `whole` star carries a word and a letter: a rim
+ * vertex is missing arms and a superposed one has too many, and neither is
  * evidence of a rare environment.
  */
 export function vertexStars(rhombs: readonly Rhomb[]): Map<string, VertexStar> {
@@ -148,9 +175,11 @@ export function vertexStars(rhombs: readonly Rhomb[]): Map<string, VertexStar> {
     const out = new Map<string, VertexStar>();
     for (const [key, v] of at) {
         const units = [...v.arms].sort((a, b) => a.b - b.b).map((a) => a.u);
-        const complete = units.reduce((s, u) => s + u, 0) === 10;
+        const turn = units.reduce((s, u) => s + u, 0);
+        const kind: StarKind = turn === 10 ? "whole" : turn < 10 ? "rim" : "superposed";
+        const complete = kind === "whole";
         const word = complete ? veWord(units) : "";
-        out.set(key, { x: v.x, y: v.y, units, complete, word,
+        out.set(key, { x: v.x, y: v.y, units, turn, kind, complete, word,
                        code: complete ? (VE_CODE[word] ?? null) : null });
     }
     return out;
@@ -172,21 +201,31 @@ export interface VeCensus {
     whole: number;
     /** Vertices whose star runs off the edge of the patch, so it is not read. */
     rim: number;
+    /**
+     * Vertices carrying more than a whole turn: a singular pentagrid's
+     * superposed readings. Counted apart from the rim because they are its
+     * opposite — see `StarKind` — and because their number is a direct
+     * reading of how singular the γ is. Zero on any regular pentagrid.
+     */
+    superposed: number;
 }
 
 /**
  * What environments a patch contains and in what proportion — the figure 5b/c
  * reading, taken from the patch on screen.
  *
- * The rim is counted and excluded rather than silently dropped: a patch's edge
- * is a ring of incomplete stars, and folding them in would invent a large rare
- * environment out of nothing.
+ * The rim and the superposed are counted and excluded rather than silently
+ * dropped. A patch's edge is a ring of part-built stars and folding them in
+ * would invent a large rare environment out of nothing; a superposed vertex is
+ * several environments at once and belongs to none of them until the reading
+ * is chosen.
  */
 export function veCensus(rhombs: readonly Rhomb[]): VeCensus {
     const n = new Map<string, number>();
-    let whole = 0, rim = 0;
+    let whole = 0, rim = 0, superposed = 0;
     for (const v of vertexStars(rhombs).values()) {
-        if (!v.complete) { rim++; continue; }
+        if (v.kind === "rim") { rim++; continue; }
+        if (v.kind === "superposed") { superposed++; continue; }
         whole++;
         const k = v.code ?? `?${v.word}`;
         n.set(k, (n.get(k) ?? 0) + 1);
@@ -196,5 +235,5 @@ export function veCensus(rhombs: readonly Rhomb[]): VeCensus {
         // letters before the unnamed words, then commonest first
         .sort((a, b) => Number(a.code.startsWith("?")) - Number(b.code.startsWith("?"))
                      || b.n - a.n || a.code.localeCompare(b.code));
-    return { rows, whole, rim };
+    return { rows, whole, rim, superposed };
 }

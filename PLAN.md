@@ -6493,20 +6493,37 @@ thirty-unit point at the origin is **not a vertex of any resolution at all**.
 It is the center of the decagon, and every way of resolving it opens a hole
 where it stood.
 
-**The defect this exposes.** `vertexStars` tests `sum === 10` and calls
-everything else `complete: false`, which puts a superposition in the same box
-as the patch's rim. They are opposites: the rim has too little information and
-a singular vertex has too much. The VE mark draws both as a blank ball.
+**The defect this exposed — SPLIT 2026-10-27.** `vertexStars` tested
+`sum === 10` and called everything else `complete: false`, which put a
+superposition in the same box as the patch's rim. They are opposites: the rim
+has too little information and a singular vertex has too much, and the VE mark
+drew both as a blank ball.
 
-What it should do instead is name the set — a singular vertex is a `{K, Q, S}`,
-not a nothing — and `walls.ts` already holds the machinery: `nudgeStates`,
+A `VertexStar` now carries `turn` (the arm total) and
+`kind: "whole" | "rim" | "superposed"`, with `complete` kept as the alias for
+`kind === "whole"`. The VE mark draws a letter for a whole star, **`+`** for a
+superposition — several readings at once, so the answer is a set rather than
+one of them — and nothing for the rim. `veCensus` counts the two apart, and
+the readout's tail says `92 superposed` beside `288 at the rim`; on a regular
+pentagrid the clause stays silent, because the count is zero.
+
+So the number is also a reading of HOW singular a γ is, which nothing else in
+the app reports.
+
+**A caveat the split turned up.** On a singular patch a whole turn is no longer
+proof of one reading. Five vertices at γ = 0 are `whole` and yet carry words
+outside the sixteen — `11323` and `12313` — and every one of them is **exactly
+one edge** from a superposed vertex. They are the ring around the singularity,
+collecting arms from tiles that belong to different readings which happen to
+total ten. A `?` on a singular patch is that, not a new environment. Tested.
+
+**Still to do: name the set.** A singular vertex is a `{K, Q, S}`, not a
+nothing, and `walls.ts` already holds the machinery — `nudgeStates`,
 `completions`, `stateAt`, and `wallView` with its `high | low | both`, which is
 the same choice of reading seen from the roof. §5.-1b's census of the fifty
-nudges and §11's letters are the same subject approached from two sides, and
-this is where they meet.
-
-Not built. The first move is cheap and worth doing on its own: split
-`complete: false` into `rim` and `superposed`, so the two stop being one word.
+nudges and §11's letters are the same subject from two sides, and this is where
+they meet. The test now does by brute force (nudge fifty ways, collect what
+appears) what the resolver should do directly.
 
 ### 11.10 The ordering bug — FIXED 2026-10-26
 

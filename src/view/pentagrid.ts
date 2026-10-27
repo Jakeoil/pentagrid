@@ -2319,10 +2319,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     continue;
                 }
                 // The ball keeps the index's color; what rides it is the
-                // environment. An incomplete star says nothing, so it says
-                // nothing — a blank ball, which is what the patch's edge is.
+                // environment. Three things it can be, and they are not the
+                // same silence: a letter for a whole star, `+` for a singular
+                // vertex where several readings are superposed and the answer
+                // is a SET rather than one of them, and nothing at all for the
+                // rim, where the star runs off the patch and there is no
+                // answer to give.
                 const star = stars.get(key);
-                const code = star?.complete ? (star.code ?? "?") : "";
+                const code = star?.kind === "whole" ? (star.code ?? "?")
+                           : star?.kind === "superposed" ? "+"
+                           : "";
                 tc.save();
                 // `*` sits high in a text font, so it is dropped and enlarged
                 // to read as the centered glyph the other fifteen are.
@@ -4965,8 +4971,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "cue ball and the orange only off Penrose. VE: the same ball, with "
                 + "the vertex environment's letter on it instead of the number — the "
                 + "sixteen of the generalized Penrose literature, ST written *. A blank "
-                + "ball is a star running off the edge of the patch; ? is a complete "
-                + "star the sixteen do not name. The index runs 1 to 4 on a Penrose "
+                + "ball is a star running off the edge of the patch, + a singular "
+                + "vertex where several readings are superposed, and ? a whole star "
+                + "the sixteen do not name. The index runs 1 to 4 on a Penrose "
                 + "patch and 1 to 5 otherwise, and the extremes are the rhomb-group "
                 + "centers. Hover one to see the K-region it came from.";
 
@@ -5005,10 +5012,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             census.title = "Every whole star in the patch on screen, by environment, "
                 + "commonest first. On a Penrose patch the seven come out at powers "
                 + "of 1/φ — D φ⁻², J φ⁻³, Q φ⁻⁴, K φ⁻⁵, S and V φ⁻⁶, T φ⁻⁷ — and sum "
-                + "to 1. A ? is a complete star the sixteen do not name. The rim is "
-                + "the ring of vertices whose star runs off the patch: counted, and "
-                + "left out of the shares, since an incomplete star is not an "
-                + "environment.";
+                + "to 1. A ? is a whole star the sixteen do not name. Counted apart "
+                + "and left out of the shares: the rim, the ring of vertices whose "
+                + "star runs off the patch, and the superposed, the singular vertices "
+                + "carrying more than a whole turn — one has too little to read and "
+                + "the other too much, and neither is an environment.";
             let censusOf: Rhomb[] | null = null;
             const showCensus = () => {
                 const on = tileStyle.vertexMark === "ve";
@@ -5039,7 +5047,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 if (odd.length) {
                     text += "\nunnamed " + odd.map((r) => `${r.code.slice(1)} ×${r.n}`).join("  ");
                 }
-                if (c.rim) text += `${odd.length ? " · " : "\n"}${c.rim} at the rim`;
+                const tail = [];
+                if (c.rim) tail.push(`${c.rim} at the rim`);
+                // Only a singular γ makes these, so the line stays quiet until
+                // there is something to say — and then it says how singular.
+                if (c.superposed) tail.push(`${c.superposed} superposed`);
+                if (tail.length) text += `${odd.length ? " · " : "\n"}${tail.join(" · ")}`;
                 census.textContent = text;
             };
             censusFold.addEventListener("toggle", () => { censusOf = null; showCensus(); });

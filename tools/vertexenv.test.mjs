@@ -5,6 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { collectRhombs, makeDirections } from "../dist/geometry/pentagrid.js";
 import { VE_CODE, PENROSE_CODES, veCensus, veWord, vertexStars } from "../dist/geometry/vertexenv.js";
+import { sumZeroNudges } from "../dist/geometry/walls.js";
 
 const dirs = makeDirections(true);
 const patch = (gamma, reach) =>
@@ -154,4 +155,94 @@ test("dropping the rim is what keeps the census honest", () => {
     assert.ok(c.rim / (c.whole + c.rim) > 0.05, "the rim is not negligible");
     const smallest = Math.min(...c.rows.map((r) => r.n));
     assert.ok(c.rim > smallest, "the rim would not even distort the census");
+});
+
+// ── The three kinds of star ───────────────────────────────────────────
+
+test("a regular patch has whole stars and a rim, and nothing else", () => {
+    const stars = [...vertexStars(patch([0.0817, 0.3391, -0.2234, 0.1109, -0.3083], 12)).values()];
+    const kinds = new Set(stars.map((v) => v.kind));
+    assert.deepEqual([...kinds].sort(), ["rim", "whole"],
+                     "a regular pentagrid produced a superposition");
+    // kind and turn agree, both ways, on every vertex
+    for (const v of stars) {
+        assert.equal(v.turn, v.units.reduce((a, b) => a + b, 0));
+        assert.equal(v.kind, v.turn === 10 ? "whole" : v.turn < 10 ? "rim" : "superposed");
+        assert.equal(v.complete, v.kind === "whole");
+        if (v.kind !== "whole") assert.equal(v.code, null, "a part star got a letter");
+    }
+    assert.equal(veCensus(patch([0.0817, 0.3391, -0.2234, 0.1109, -0.3083], 12)).superposed, 0);
+});
+
+test("a singular patch superposes readings, and that is not the rim", () => {
+    // gamma = 0 is every family's line 0 through the origin. Its vertices
+    // carry MORE than a whole turn, which the rim never does -- the rim has
+    // too little and these have too much, and they were one value until the
+    // split. PLAN 11.11.
+    const stars = [...vertexStars(patch([0, 0, 0, 0, 0], 9)).values()];
+    const sup = stars.filter((v) => v.kind === "superposed");
+    assert.ok(sup.length > 40, `only ${sup.length} superposed vertices`);
+    for (const v of sup) {
+        assert.ok(v.turn > 10, `${v.turn} is not more than a turn`);
+        assert.equal(v.code, null);
+        assert.equal(v.word, "");
+    }
+    // The deepest one is the origin, where all five families cross.
+    const deep = sup.reduce((a, b) => (b.turn > a.turn ? b : a));
+    assert.ok(Math.hypot(deep.x, deep.y) < 1e-9, "the deepest superposition is not the origin");
+    assert.equal(deep.turn, 30, `the origin carries ${deep.turn} units`);
+    // and the census keeps the two apart
+    const c = veCensus(patch([0, 0, 0, 0, 0], 9));
+    assert.equal(c.superposed, sup.length);
+    assert.ok(c.rim > 0 && c.rim !== c.superposed, "rim and superposed are the same count");
+});
+
+test("a superposition resolves into a small set of environments", () => {
+    // Jake: singularities "are superpositions of finite sets of VE's". Push
+    // gamma off the singular set by each of walls.ts's fifty sum-zero nudges
+    // and read what stands there. PLAN 11.11.
+    const EPS = 1e-4;
+    const nudges = sumZeroNudges(5);
+    assert.equal(nudges.length, 50);
+    const near = (gamma, x, y) => {
+        let best = null, bd = Infinity;
+        for (const w of vertexStars(collectRhombs(
+            { n: 5, directions: dirs, gamma },
+            { xMin: x - 3, xMax: x + 3, yMin: y - 3, yMax: y + 3 })).values()) {
+            const d = Math.hypot(w.x - x, w.y - y);
+            if (w.kind === "whole" && d < bd) { bd = d; best = w; }
+        }
+        return bd < 0.05 ? best : null;
+    };
+    const check = (x, y, want) => {
+        const seen = new Set();
+        for (const nd of nudges) {
+            const v = near([0, 0, 0, 0, 0].map((q, i) => q + EPS * nd[i]), x, y);
+            if (v) seen.add(v.code ?? `?${v.word}`);
+        }
+        assert.deepEqual([...seen].sort(), want,
+                         `(${x}, ${y}) resolved to {${[...seen].sort()}}`);
+    };
+    check(-2.490, 2.427, ["D", "J"]);        // 11 units
+    check(0.951, -5.545, ["K", "Q"]);        // 14 units
+    check(1.539, 2.118, ["K", "Q", "S"]);    // 18 units
+    // The origin, thirty units, is a vertex of NO resolution: every way of
+    // resolving it opens the decagon where it stood.
+    check(0, 0, []);
+});
+
+test("on a singular patch a whole turn is not proof of one reading", () => {
+    // The only place a `?` now fires. These are neighbors of a superposition
+    // whose arms come from different readings and happen to total ten -- all
+    // of them exactly one edge from a superposed vertex, so they are the ring
+    // around the singularity rather than an environment nobody has named.
+    const stars = [...vertexStars(patch([0, 0, 0, 0, 0], 9)).values()];
+    const odd = stars.filter((v) => v.kind === "whole" && !v.code);
+    const sup = stars.filter((v) => v.kind === "superposed");
+    assert.ok(odd.length > 0, "the singular patch produced no mixed star to test");
+    for (const v of odd) {
+        const d = Math.min(...sup.map((w) => Math.hypot(w.x - v.x, w.y - v.y)));
+        assert.ok(Math.abs(d - 1) < 1e-6,
+                  `${v.word} at (${v.x.toFixed(3)}, ${v.y.toFixed(3)}) is ${d.toFixed(3)} from a superposition, not one edge`);
+    }
 });
