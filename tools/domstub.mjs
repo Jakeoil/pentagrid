@@ -63,6 +63,28 @@ function makeStub(extra = {}) {
             kids.push(c);
             return c;
         },
+        // The variadic form, which is a different DOM method and not a
+        // synonym. Left to the Proxy it is swallowed whole: a bar built with
+        // `bar.append(a, b, c)` comes out empty and every assertion about its
+        // contents passes by testing the stub rather than the page. Found
+        // when moire's control bar read as having no controls.
+        append: (...kids) => {
+            for (const c of kids) {
+                if (c === null || c === undefined) continue;
+                const i = base.children.indexOf(c);
+                if (i >= 0) base.children.splice(i, 1);
+                base.children.push(c);
+            }
+        },
+        prepend: (...kids) => {
+            for (let n = kids.length - 1; n >= 0; n--) {
+                const c = kids[n];
+                if (c === null || c === undefined) continue;
+                const i = base.children.indexOf(c);
+                if (i >= 0) base.children.splice(i, 1);
+                base.children.unshift(c);
+            }
+        },
         // Must really remove: code that empties a node by looping on
         // `while (children.length) removeChild(last)` spins forever otherwise,
         // which is a hang rather than a failure and takes a while to recognize.

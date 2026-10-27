@@ -630,6 +630,7 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 .moire-opt { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .moire-steps { width: 42px; font-size: 12px; }
 .moire-note { font-family: monospace; color: #888; margin-left: auto; }
+.moire-find { font-size: 11px; padding: 2px 7px; cursor: pointer; }
 
 /* Merged: both viewports in the one grid cell, at method's size, the upper
    one transparent so the lower shows through and multiplied so the overlap

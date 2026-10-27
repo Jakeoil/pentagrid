@@ -608,6 +608,14 @@ export interface FloatingReticulumOptions {
     title?: string;
     /** The text of the button that brings it back. */
     reopenLabel?: string;
+    /**
+     * Where it opens when nothing is stored. Left alone, every panel defaults
+     * to the same place — the top right — which is fine for the one page with
+     * one reticulum and hides the second one exactly behind the first on the
+     * page with two.
+     */
+    x?: number;
+    y?: number;
     /** The slider bank to fold, if the page has one. */
     sliders?: HTMLElement;
     /** Start with the sliders folded away. Default true: the reticulum is usually
@@ -639,6 +647,8 @@ export function mountFloatingReticulum(
     const panel = createFloatingPanel({
         id: opts.id ?? "reticulum",
         title: opts.title ?? "Reticulum · γ",
+        x: opts.x,
+        y: opts.y,
         onClose: () => { reopen.hidden = false; },
     });
     document.body.appendChild(panel.element);
@@ -652,6 +662,9 @@ export function mountFloatingReticulum(
         panel.show();
         reopen.hidden = true;
     });
+    // `resetPlace` opens it, so the button that offers to open it must go.
+    const reset = panel.resetPlace;
+    panel.resetPlace = () => { reset(); reopen.hidden = true; };
     opts.buttons.appendChild(reopen);
 
     if (opts.sliders) {

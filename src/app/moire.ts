@@ -57,8 +57,15 @@ if (aHost && bHost && bar && grid) {
     // §12.1b-i, which is the mistake that cost a measurement.
     const START = [0.0817, 0.3391, -0.2234, 0.1109, -0.3083];
 
-    let a: PentagridHandle;
-    let b: PentagridHandle;
+    // Declared first so each side's relay can reach the other. Unlike pair.ts,
+    // which says "they are only ever called after both exist", here they are
+    // NOT: a page with a stored session restores γ during construction, and
+    // `setGeneration` notifies the view from inside `createPentagrid`. So A's
+    // relay fires while B is still undefined. It threw, which killed the
+    // module before the bar and the reticula were built — the page came up
+    // with no controls at all, and only for someone who had visited before.
+    let a: PentagridHandle | null = null;
+    let b: PentagridHandle | null = null;
 
     const lam = (h: PentagridHandle) => h.gamma.model.lambda ?? 1;
 
@@ -67,12 +74,15 @@ if (aHost && bHost && bar && grid) {
     // share is the world: the invariants are scale/λ and λ·view, which the
     // view code already uses when λ changes under it. Convert, or B drifts off
     // by a factor of φ per deflation.
-    const relay = (to: () => PentagridHandle, from: () => PentagridHandle) => (v: View) => {
-        to().setView(convertView(v, lam(from()), lam(to())));
-    };
+    const relay = (to: () => PentagridHandle | null, from: () => PentagridHandle | null) =>
+        (v: View) => {
+            const t = to(), f = from();
+            if (!t || !f) return;            // mid-construction: nothing to be in register with
+            t.setView(convertView(v, lam(f), lam(t)));
+        };
 
     const make = (host: HTMLElement, panel: HTMLElement | undefined, session: string,
-                  other: () => PentagridHandle, self: () => PentagridHandle) =>
+                  other: () => PentagridHandle | null, self: () => PentagridHandle | null) =>
         createPentagrid({
             session,
             container: host,
@@ -85,12 +95,16 @@ if (aHost && bHost && bar && grid) {
             onViewChange: relay(other, self),
         });
 
-    a = make(aHost, byId("moire-a-panel"), "moire-a", () => b, () => a);
-    b = make(bHost, byId("moire-b-panel"), "moire-b", () => a, () => b);
-    a.exposeRows(ROWS);
-    b.exposeRows(ROWS);
-    sideA = a;
-    sideB = b;
+    const A = make(aHost, byId("moire-a-panel"), "moire-a", () => b, () => a);
+    a = A;
+    const B = make(bHost, byId("moire-b-panel"), "moire-b", () => a, () => b);
+    b = B;
+    A.exposeRows(ROWS);
+    B.exposeRows(ROWS);
+    sideA = A;
+    sideB = B;
+    // Whatever the two restored separately, they are in register from here.
+    relay(() => b, () => a)(A.getView());
 
     // ── The bar: link, how many deflations, merge ─────────────────────
     const label = (text: string) => {
@@ -131,10 +145,22 @@ if (aHost && bHost && bar && grid) {
         + "them together. This is where the moiré is.";
     mergeLabel.prepend(mergeBox);
 
+    // Jake: "I lost the reticulae. Maybe a reset button." Nothing ON a panel
+    // can rescue it — the thing you would press is the thing that is lost —
+    // so the rescue sits out here, and puts both back open, uncollapsed, and
+    // at the places they started.
+    const findRet = document.createElement("button");
+    findRet.type = "button";
+    findRet.className = "moire-find";
+    findRet.textContent = "reset γ panels";
+    findRet.title = "Put both reticula back where they started, open and in view — "
+        + "for when one has been dragged behind the other, off the edge, or into a "
+        + "corner of a window that is now a different size.";
+
     const note = document.createElement("span");
     note.className = "moire-note";
 
-    bar.append(linkLabel, stepLabel, mergeLabel, note);
+    bar.append(linkLabel, stepLabel, mergeLabel, findRet, note);
 
     // ── Linking ───────────────────────────────────────────────────────
     //
@@ -147,6 +173,7 @@ if (aHost && bHost && bar && grid) {
         if (!linkBox.checked || syncing) return;
         syncing = true;
         const k = Math.round(Number(steps.value) || 0);
+        if (!a || !b) return;
         b.gamma.setLocked(-1);
         b.gamma.setGeneration(a.gamma.getGeneration());
         b.gamma.setValues(a.gamma.values());
@@ -155,11 +182,12 @@ if (aHost && bHost && bar && grid) {
         }
         syncing = false;
         // λ moved under B, so the two no longer agree on view numbers.
-        relay(() => b, () => a)(a.getView());
+        relay(() => b, () => a)(A.getView());
         say();
     };
 
     const say = () => {
+        if (!a || !b) return;
         const sa = liClass(a), sb = liClass(b);
         const cap = (id: string, name: string, h: PentagridHandle, s: number) => {
             const el = byId(id);
@@ -176,8 +204,18 @@ if (aHost && bHost && bar && grid) {
         note.textContent = `deflate A again → class ${sayClass(next)}`;
     };
 
-    a.gamma.onChange(() => { syncB(); say(); });
-    b.gamma.onChange(say);
+    A.gamma.onChange(() => { syncB(); say(); });
+    B.gamma.onChange(() => {
+        if (syncing) return;
+        // Linked means B IS A deflated, so anything that writes to B directly
+        // — its own reticulum, a preset, the panel's `reset page` — is put
+        // back. Without this, resetting B left it at generation 0 with
+        // nothing to restore the link: syncB only ran from A's changes, the
+        // link box and the step count, so the page looked permanently broken.
+        // Jake: "when I reset, I couldn't get it back."
+        if (linkBox.checked) { syncB(); return; }
+        say();
+    });
     linkBox.addEventListener("change", () => { syncB(); say(); });
     steps.addEventListener("change", syncB);
 
@@ -189,22 +227,34 @@ if (aHost && bHost && bar && grid) {
     mergeBox.addEventListener("change", () => {
         grid.classList.toggle("merged", mergeBox.checked);
         // The stack only means anything in register.
-        if (mergeBox.checked) relay(() => b, () => a)(a.getView());
+        if (mergeBox.checked) relay(() => b, () => a)(A.getView());
     });
 
-    // ── Two reticula, named apart ─────────────────────────────────────
+    // ── Two reticula, named apart and placed apart ────────────────────
     //
     // The floating panel's id is also the key its position is remembered
     // under, so two unnamed ones would claim the same spot and the same id.
-    mountFloatingReticulum(a.gamma, {
+    // And a panel with nothing stored opens at a FIXED default — the top
+    // right — so two of them land exactly on top of each other and the one
+    // underneath is simply gone. Jake: "I lost the reticulae." They get a
+    // side each.
+    const W = globalThis.innerWidth || 1200;
+    const aRet = mountFloatingReticulum(a.gamma, {
         colors: FAMILY_COLORS, id: "moire-a", title: "A · γ",
         reopenLabel: "show A's γ",
-        buttons: a.panelRow("View") ?? document.body,
+        x: Math.max(12, Math.round(W * 0.5) - 320), y: 96,
+        buttons: A.panelRow("View") ?? document.body,
     });
-    mountFloatingReticulum(b.gamma, {
+    const bRet = mountFloatingReticulum(b.gamma, {
         colors: FAMILY_COLORS, id: "moire-b", title: "B · γ",
         reopenLabel: "show B's γ",
-        buttons: b.panelRow("View") ?? document.body,
+        x: Math.max(12, Math.round(W * 0.5) + 20), y: 96,
+        buttons: B.panelRow("View") ?? document.body,
+    });
+
+    findRet.addEventListener("click", () => {
+        aRet.panel.resetPlace();
+        bRet.panel.resetPlace();
     });
 
     syncB();

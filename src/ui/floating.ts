@@ -31,6 +31,16 @@ export interface FloatingPanel {
     hide: () => void;
     setTitle: (t: string) => void;
     isCollapsed: () => boolean;
+    /**
+     * Put it back where it started, open and uncollapsed, and forget the
+     * stored position.
+     *
+     * A panel that has been dragged somewhere unhelpful — behind another one,
+     * or to a corner of a window that is now a different size — cannot be
+     * recovered by anything on the panel itself, because the way to reach it
+     * is the thing that is lost. So the rescue has to come from outside.
+     */
+    resetPlace: () => void;
 }
 
 interface Placed {
@@ -201,5 +211,14 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
         hide: () => { element.hidden = true; },
         setTitle: (t) => { titleEl.textContent = t; },
         isCollapsed: () => state.collapsed,
+        resetPlace: () => {
+            state.x = opts.x ?? null;
+            state.y = opts.y ?? null;
+            state.collapsed = false;
+            state.w = null;
+            element.hidden = false;
+            place();
+            save(opts.id, state);
+        },
     };
 }
