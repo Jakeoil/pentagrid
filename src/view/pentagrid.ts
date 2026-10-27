@@ -32,7 +32,7 @@ export { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js"
 import type { GammaSnapshot } from "../state/baseline.js";
 import { extremeCorner, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
 import { drawIndexMark } from "./pool.js";
-import { vertexStars } from "../geometry/vertexenv.js";
+import { veCensus, vertexStars } from "../geometry/vertexenv.js";
 import { rhombAmmann, ammannBars } from "../geometry/ammann.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
@@ -4160,7 +4160,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      */
     const P_ROWS = new Set([
         "Penrose", "Penrose hover", "system", "face shade", "pentaplex", "penrose face",
-        "for groups", "edge style", "vertex style", "singularities",
+        "for groups", "edge style", "vertex style", "VE census", "singularities",
     ]);
     function panelFor(title: string): HTMLElement {
         return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
@@ -4191,7 +4191,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             title: "Penrose",
             rows: ["Penrose", "Penrose hover", "system", "face shade", "pentaplex",
                    "penrose face", "for groups", "edge style", "vertex style",
-                   "singularities"],
+                   "VE census", "singularities"],
         },
     ];
     const sectionEls: { el: HTMLElement; rows: HTMLElement[] }[] = [];
@@ -4969,6 +4969,55 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "star the sixteen do not name. The index runs 1 to 4 on a Penrose "
                 + "patch and 1 to 5 otherwise, and the extremes are the rhomb-group "
                 + "centers. Hover one to see the K-region it came from.";
+
+            // ── The census ────────────────────────────────────────────
+            //
+            // What the patch on screen is MADE of, which is figure 5b/c read
+            // off this tiling instead of plotted against gamma. It rides with
+            // the VE mark rather than taking a switch of its own: the mark
+            // says which environment each vertex is, and this says how many
+            // of each there are, and wanting one without the other has not
+            // come up.
+            const censusRow = row(panelFor("VE census"), "VE census");
+            const census = document.createElement("span");
+            census.className = "ve-census";
+            censusRow.appendChild(census);
+            census.title = "Every whole star in the patch on screen, by environment, "
+                + "commonest first. On a Penrose patch the seven come out at powers "
+                + "of 1/φ — D φ⁻², J φ⁻³, Q φ⁻⁴, K φ⁻⁵, S and V φ⁻⁶, T φ⁻⁷ — and sum "
+                + "to 1. A ? is a complete star the sixteen do not name. The rim is "
+                + "the ring of vertices whose star runs off the patch: counted, and "
+                + "left out of the shares, since an incomplete star is not an "
+                + "environment.";
+            let censusOf: Rhomb[] | null = null;
+            const showCensus = () => {
+                const on = tileStyle.vertexMark === "ve";
+                censusRow.hidden = !on;
+                if (!on) { censusOf = null; return; }
+                const rhombs = currentRhombs();
+                if (rhombs === censusOf) return;        // the patch has not moved
+                censusOf = rhombs;
+                const c = veCensus(rhombs);
+                if (!c.whole) { census.textContent = "no whole star in view"; return; }
+                // Two lines, because the two halves want different units. A
+                // letter's SHARE is the quantity — it is what figure 5b plots
+                // and what lands on a power of 1/φ. An unnamed word's COUNT is
+                // the quantity: the ones on the walls do not scale with the
+                // patch, and a share would hide exactly that.
+                const named = c.rows.filter((r) => !r.code.startsWith("?"));
+                const odd = c.rows.filter((r) => r.code.startsWith("?"));
+                const pct = (f: number) => (f < 0.0005 ? "<0.1" : (f * 100).toFixed(1));
+                let text = `${c.whole} stars · `
+                    + named.map((r) => `${r.code} ${pct(r.share)}`).join("  ");
+                if (odd.length) {
+                    text += "\nunnamed " + odd.map((r) => `${r.code.slice(1)} ×${r.n}`).join("  ");
+                }
+                if (c.rim) text += `${odd.length ? " · " : "\n"}${c.rim} at the rim`;
+                census.textContent = text;
+            };
+            showCensus();
+            panelSyncs.push(showCensus);
+            afterDraw.push(showCensus);
         }
 
         // The family controls fold away: five dropdowns and five line numbers

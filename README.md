@@ -250,8 +250,9 @@ inside the face at the corner its green arrows point into, and nothing else),
 white circle; `pool`, that index as the pool ball whose color it is; or `ve`,
 the same ball carrying its vertex environment's letter instead of the number —
 the sixteen of the generalized Penrose literature, `ST` written `*`, with a
-blank ball for a star running off the patch and `?` for a complete star the
-sixteen do not name — hover one to see the K-region that made it), `offPenrose` (dress the tiles at
+blank ball for a star running off the patch, and `?` for a complete star the
+sixteen do not name, which nothing this app draws has yet produced — hover one
+to see the K-region that made it), `offPenrose` (dress the tiles at
 the extreme index levels off a Penrose patch; the middle ones stay bare), and
 `opacity`.
 

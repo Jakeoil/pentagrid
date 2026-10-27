@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { collectRhombs, makeDirections } from "../dist/geometry/pentagrid.js";
-import { VE_CODE, PENROSE_CODES, veWord, vertexStars } from "../dist/geometry/vertexenv.js";
+import { VE_CODE, PENROSE_CODES, veCensus, veWord, vertexStars } from "../dist/geometry/vertexenv.js";
 
 const dirs = makeDirections(true);
 const patch = (gamma, reach) =>
@@ -75,42 +75,83 @@ test("a Penrose patch shows the seven, at powers of 1/phi", () => {
     assert.ok(Math.abs(sum - 1) < 1e-9, "the seven are the whole patch");
 });
 
-test("the unnamed words on a Penrose patch live on the singular walls", () => {
-    // They sum to 10, so they are complete stars -- but their count grows with
-    // the RADIUS rather than the area, because they sit along the walls, and
-    // that is what tells them apart from an environment. Measured at two radii.
-    const g = [0.2, 0.2, 0.2, 0.2, 0.2];                 // the sun: singular
-    const small = census(g, 24), big = census(g, 40);
-    const sum = (c, pick) => [...c.out].filter(([k]) => pick(k))
-                                       .reduce((s, [, n]) => s + n, 0);
-    const odd = (k) => k.startsWith("?");
-    // Their share of the patch falls as it grows -- a count along a line
-    // against a count over an area -- and it is tiny either way.
-    const shareSmall = sum(small, odd) / sum(small, () => true);
-    const shareBig = sum(big, odd) / sum(big, () => true);
-    // A count along a line over a count over an area falls like 1/R, so the
-    // share should land near 20/36 of itself; anything under 0.75 is already
-    // saying it is not an environment.
-    assert.ok(shareBig < shareSmall * 0.75,
-              `the odd words hold their share: ${shareSmall.toFixed(4)} then ${shareBig.toFixed(4)}`);
-    assert.ok(shareBig < 0.01, `${(shareBig * 100).toFixed(2)}% of the patch is unnamed`);
-    // and the named seven DO hold their density
-    for (const c of PENROSE_CODES) {
-        const a = (small.out.get(c) ?? 0) / 20 ** 2, b = (big.out.get(c) ?? 0) / 36 ** 2;
-        assert.ok(b > a * 0.75 && b < a * 1.25,
-                  `${c} does not hold its density: ${a.toFixed(4)} then ${b.toFixed(4)}`);
+test("every whole star in the patch is one of the sixteen", () => {
+    // The invariant the ordering bug broke, and the one that would have caught
+    // it: the sixteen are CLOSED under this construction. A word outside them
+    // is a permutation of one inside -- which is what a scrambled cyclic order
+    // produces, and what Jake saw as question marks that should have been M
+    // and R.
+    const GAMMAS = [
+        [0.0817, 0.3391, -0.2234, 0.1109, -0.3083],   // Penrose, sum 0
+        [0.11, 0.23, 0.31, 0.17, 0.18],               // Penrose, sum 1
+        [0.2, 0.2, 0.2, 0.2, 0.2],                    // the sun: singular
+        [0.1, 0.1, 0.1, 0.1, 0.1],                    // LI 1/2, symmetric
+        [0.0817, 0.3391, -0.2234, 0.1109, 0.1917],    // LI 1/2, generic
+        [0.08, 0.17, 0.04, 0.21, 0.23],               // LI 0.73
+        [0.02, 0.09, 0.06, 0.04, 0.04],               // LI 0.25
+    ];
+    const seen = new Set();
+    for (const g of GAMMAS) {
+        for (const v of vertexStars(patch(g, 26)).values()) {
+            if (!v.complete) continue;
+            assert.ok(v.code, `gamma ${g}: the star ${v.word} has no letter`);
+            seen.add(v.code);
+        }
     }
+    // and between them they use the whole alphabet
+    assert.equal(seen.size, 16, `only ${seen.size} of the sixteen ever appeared`);
 });
 
-test("off Penrose the letters widen, and three real words go unnamed", () => {
+test("off Penrose the letters widen past the Penrose seven", () => {
     const { out } = census([0.0817, 0.3391, -0.2234, 0.1109, 0.1917]);   // LI 1/2
-    const named = new Set([...out.keys()].filter((c) => !c.startsWith("?")));
+    const named = [...out.keys()];
+    for (const c of named) assert.ok(!c.startsWith("?"), `${c} went unnamed`);
     for (const c of ["L", "M", "R", "U", "W", "Y", "Z", "*"]) {
-        assert.ok(named.has(c), `${c} should appear off Penrose`);
+        assert.ok(named.includes(c), `${c} should appear off Penrose`);
     }
-    // The figure lists sixteen; this construction also makes 1234, 1324 and
-    // 11224, which are complete stars it does not name. They are drawn "?".
-    const unnamed = [...out].filter(([c, n]) => c.startsWith("?") && n > 20)
-                            .map(([c]) => c.slice(1)).sort();
-    assert.deepEqual(unnamed, ["11224", "1234", "1324"]);
+    // M and R are substantial here, not stragglers: they are what the
+    // scrambled words used to be counted as.
+    const total = [...out.values()].reduce((a2, b2) => a2 + b2, 0);
+    assert.ok(out.get("M") / total > 0.08, "M should be a tenth of this patch");
+    assert.ok(out.get("R") / total > 0.02, "R should be a few percent");
+});
+
+test("the census counts whole stars and keeps the rim out of the shares", () => {
+    const rhombs = patch([0.0817, 0.3391, -0.2234, 0.1109, -0.3083], 20);
+    const c = veCensus(rhombs);
+
+    // Every vertex is accounted for, once: the whole stars plus the rim.
+    const vertices = new Set();
+    for (const r of rhombs) for (const v of r.vertices) {
+        vertices.add(`${Math.round(v[0] * 1e4)},${Math.round(v[1] * 1e4)}`);
+    }
+    assert.equal(c.whole + c.rim, vertices.size, "a vertex went missing");
+    assert.ok(c.rim > 0, "a finite patch has a rim");
+
+    // The shares are of the whole stars, and they add to one.
+    const total = c.rows.reduce((s, r) => s + r.n, 0);
+    assert.equal(total, c.whole);
+    const sum = c.rows.reduce((s, r) => s + r.share, 0);
+    assert.ok(Math.abs(sum - 1) < 1e-9, `shares sum to ${sum}`);
+    for (const r of c.rows) assert.equal(r.share, r.n / c.whole);
+
+    // Commonest first, and on a Penrose patch there is nothing unnamed to
+    // sort after them.
+    const letters = c.rows.filter((r) => !r.code.startsWith("?"));
+    assert.equal(letters.length, c.rows.length, "a Penrose patch left a star unnamed");
+    for (let i = 1; i < letters.length; i++) {
+        assert.ok(letters[i - 1].n >= letters[i].n, "not commonest first");
+    }
+    // And it is the Penrose seven, in their phi order.
+    assert.deepEqual(letters.map((r) => r.code), ["D", "J", "Q", "K", "V", "S", "T"]);
+});
+
+test("dropping the rim is what keeps the census honest", () => {
+    // Folding the incomplete stars in would invent an environment: at this
+    // size the rim is a tenth of the patch, which would outrank four of the
+    // seven. It is reported as a count instead, beside the shares.
+    const c = veCensus(patch([0.0817, 0.3391, -0.2234, 0.1109, -0.3083], 20));
+    assert.ok(c.rim / (c.whole + c.rim) > 0.05, "the rim is not negligible");
+    const smallest = Math.min(...c.rows.map((r) => r.n));
+    assert.ok(c.rim > smallest, "the rim would not even distort the census");
 });

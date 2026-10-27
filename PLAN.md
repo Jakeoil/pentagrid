@@ -6227,12 +6227,18 @@ are consecutive powers of φ:
 They sum to 1, so the set is closed — nothing is missing, and the same seven
 come out of Σγ = 0, Σγ = 1 and the symmetric 0.2×5.
 
-**The strays are the walls.** Earlier runs also turned up `11332`, `12313`,
-`121222`, `1112212` and friends. Their counts grow *linearly* with the patch
-radius, not quadratically, and their coordinates give them away: every `11332`
-sat at y = −16.33, every `121222` at x = −31.64. They are vertices on the
-singular walls — the same walls §5.-1b enumerates for the reading control —
-not vertex environments. Density → 0 like 1/R.
+**The strays were a bug — WITHDRAWN 2026-10-26.** Earlier runs also turned up
+`11332`, `12313`, `121222`, `1112212`, and I reported them as vertices on the
+singular walls, on the evidence that their counts grew linearly with the patch
+radius and that they sat on lines (every `11332` at y = −16.33, every `121222`
+at x = −31.64). The positions were real; the reading was not. They were
+permutations of `12133` and `112222` produced by the ordering bug §11.10
+describes. With it fixed there are no strays at all: every complete star in a
+Penrose patch is one of the seven, and the walls have nothing to do with it.
+
+The seven and their φ frequencies survive unchanged — the words immune to the
+bug (`334`, `244`, `2224`, `22222`) were the ones with only one arrangement,
+and the four that were sensitive lost a fraction of a percent to it.
 
 ### 11.2 Seven words, eight de Bruijn types — Jake's resolution
 
@@ -6298,13 +6304,15 @@ Three things fall straight out, and all three are confirmations:
    is what the paper says of M and nothing else, and it is why the canonical
    word folds reflection as well as rotation.
 
-**Three real words the figure does not name.** This construction also produces
-`1234`, `1324` and `11224` off Penrose, with honest area density (at LI 1/2:
-1324 ×122, 11224 ×75, 1234 ×39 in a patch of 3471). They are complete stars —
-they sum to 10 — and they are not wall vertices, whose density falls like 1/R.
-Either the sixteen are the vocabulary of the LICs the paper studied rather than
-of the whole γ family, or something in the construction makes stars it does
-not. They are drawn `?` rather than assigned a letter.
+**And the sixteen are complete — the three "extra" words were the same bug,
+WITHDRAWN 2026-10-26.** I reported `1234`, `1324` and `11224` as real words the
+figure does not name, on the strength of their area density. Jake, looking at a
+patch: "some of the question marks are M's some should be R's." He was right,
+and the tell was there to be read — every unnamed word was a PERMUTATION of a
+named one: `1234` and `1324` of M's `1243`, `11224` of R's `11242`, `11233` and
+`12313` of J's `12133`, `121222` of T's `112222`. See §11.10. With the order
+fixed, seven γ across Penrose, singular Penrose, LI 1/2, 0.73 and 0.25 produce
+no unnamed star at all, and `tools/vertexenv.test.mjs` asserts that closure.
 
 ### 11.4a Order of work — done
 
@@ -6312,7 +6320,7 @@ not. They are drawn `?` rather than assigned a letter.
 2. The letters, from a transcribed table, with an unmatched star drawn as `?`
    rather than guessed. §11.8.
 3. A **VE census readout** — which words are present at the current γ and at
-   what frequency — still worth building: it reproduces figure 5b/c directly.
+   what frequency, reproducing figure 5b/c. §11.9.
 
 ### 11.5 Where Jake is going after this
 
@@ -6416,3 +6424,67 @@ over, that a Penrose patch shows the seven at powers of φ summing to 1, that
 the unnamed words on a Penrose patch lose their share as the patch grows while
 the seven hold theirs, and that off Penrose the letters widen to L, M, R, U, W,
 Y, Z and `*` with those three words left unnamed.
+
+
+### 11.9 The VE census readout — BUILT 2026-10-26
+
+A row under the vertex style, shown while the VE mark is selected, saying what
+the patch on screen is made of. `veCensus` in `src/geometry/vertexenv.ts` does
+the counting; the row formats it.
+
+Two lines, because the two halves want different units:
+
+```
+194 stars · D 40.2  J 20.6  Q 13.9  K 9.8  S 5.2  V 5.2  T 3.6
+unnamed 12313 ×3 · 78 at the rim
+```
+
+* A **letter's share** is the quantity that means something: it is what figure
+  5b plots, and on a Penrose patch it lands on a power of 1/φ.
+* An **unnamed word's count** is the quantity that means something: the ones on
+  the walls do not scale with the patch, and a share would hide exactly that.
+  A wide Penrose patch shows `12313 ×3` whether it is twice the size or four
+  times; `D` holds 38.4% at any size.
+* The **rim** is counted and kept out of the shares. It is not small — about a
+  tenth of the patch at a normal zoom, which would outrank four of the seven if
+  it were folded in — so it is reported rather than dropped silently.
+
+It rides with the mark rather than taking a switch of its own: the mark says
+which environment each vertex is, the census says how many of each there are,
+and wanting one without the other has not come up.
+
+A share under 0.05% prints `<0.1` rather than `0.0`, so a letter that is
+present once does not read as absent. The readout recomputes only when the
+patch actually changes — it is keyed on the rhomb cache's identity, so panning
+within a cached patch costs nothing.
+
+
+### 11.10 The ordering bug — FIXED 2026-10-26
+
+`vertexStars` sorted each vertex's wedges by the bearing to the rhomb's `next`
+corner. `cornerUnits` already knew that would not do: its fold, `u > 5 → 10 −
+u`, fires exactly when a rhomb's vertex list is wound the other way, and on
+those tiles `next` is where the wedge BEGINS rather than where it ends. Sorting
+a mixture of beginnings and endings puts them in the right cyclic order only
+while the wedges are much the same size; put a wide one beside a narrow one and
+two of them swap.
+
+So the word came out a **permutation** of the true one. That is the signature,
+and it is what should have been noticed without a picture: a classification
+whose stray values are all anagrams of its valid ones is not discovering
+anything.
+
+Which words were affected follows from it. `334`, `244`, `2224` and `22222`
+have only one arrangement each, so no permutation of them is a different word
+and they were never wrong — which is why a Penrose patch still summed to 1 and
+still landed on the powers of φ, and why the bug survived a frequency check
+that looked conclusive. Everything with a mixture of wide and narrow wedges —
+`12133`, `112222`, `1121122`, and off Penrose `1243` and `11242` — lost a
+slice of its count to a scrambled twin.
+
+`cornerSector` now returns the wedge's width and its starting bearing together,
+taking the start from the same branch that decides the width. The regression
+test is the closure: over seven γ, every complete star has a letter.
+
+What it cost: at LI 1/2, M went from 7.2% to 11.8% and R from 1.4% to 3.5%.
+On a Penrose patch J went from 22.5% to 23.2%, which is φ⁻³ to three figures.

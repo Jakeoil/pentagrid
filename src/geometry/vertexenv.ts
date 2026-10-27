@@ -57,14 +57,27 @@ export const VE_CODE: Readonly<Record<string, string>> = {
 export const PENROSE_CODES: readonly string[] = ["D", "Q", "K", "J", "S", "T", "V"];
 
 /**
- * The interior angle at corner `i` of a rhomb, in units of 36 degrees.
+ * The wedge a rhomb occupies at its corner `i`: how wide it is, in units of 36
+ * degrees, and the bearing it STARTS at, going counterclockwise.
  *
+ * Both halves matter, and the start is the half that is easy to get wrong.
  * Rhomb vertices come out counterclockwise for some tiles and clockwise for
- * others, so half the corners arrive as the exterior angle; both rhombs only
- * ever have interior angles of 1, 2, 3 or 4 units, so folding anything above 5
- * is both the fix and a check.
+ * others, so the turn from the `prev` edge to the `next` edge is the interior
+ * angle on some tiles and the exterior angle on others — both rhombs only ever
+ * have interior angles of 1, 2, 3 or 4 units, so folding anything above 5 is
+ * both the fix and a check. But when it folds, the wedge runs from `next`
+ * round to `prev` rather than the other way, so `next` is its START and not
+ * its end.
+ *
+ * Reading the bearing to `next` for every corner regardless — which this did
+ * at first — sorts some corners by where their wedge begins and others by
+ * where it ends. The cyclic order then scrambles whenever a wide wedge sits
+ * beside a narrow one, and the word comes out a PERMUTATION of the true one:
+ * `1234` or `1324` where M's `1243` belongs, `11224` where R's `11242` does.
+ * Jake, looking at a patch: "some of the question marks are M's some should be
+ * R's."
  */
-export function cornerUnits(r: Rhomb, i: number): number {
+export function cornerSector(r: Rhomb, i: number): { units: number; start: number } {
     const p = r.vertices[i];
     const a = r.vertices[(i + 3) % 4], b = r.vertices[(i + 1) % 4];
     const t1 = Math.atan2(a[1] - p[1], a[0] - p[0]);
@@ -73,7 +86,12 @@ export function cornerUnits(r: Rhomb, i: number): number {
     while (d < 0) d += 2 * Math.PI;
     while (d > 2 * Math.PI) d -= 2 * Math.PI;
     const u = Math.round(d / (Math.PI / 5));
-    return u > 5 ? 10 - u : u;
+    return u > 5 ? { units: 10 - u, start: t2 } : { units: u, start: t1 };
+}
+
+/** The interior angle at corner `i` of a rhomb, in units of 36 degrees. */
+export function cornerUnits(r: Rhomb, i: number): number {
+    return cornerSector(r, i).units;
 }
 
 /** The canonical word for one star: least rotation of it or of its reverse. */
@@ -101,8 +119,10 @@ export interface VertexStar {
     /**
      * Its letter from figure 5a, or null — either because the star runs off
      * the edge of the patch, or because it is a word the figure does not list.
-     * The three this app can produce and the figure does not are `1234`,
-     * `1324` and `11224`, all of them off Penrose.
+     * No γ tried has produced the second case: the sixteen are closed under
+     * this construction, and `tools/vertexenv.test.mjs` asserts it. The words
+     * that once seemed to escape them were permutations of them, from the
+     * ordering bug `cornerSector` describes.
      */
     code: string | null;
 }
@@ -119,13 +139,10 @@ export function vertexStars(rhombs: readonly Rhomb[]): Map<string, VertexStar> {
         for (let i = 0; i < 4; i++) {
             const p = r.vertices[i];
             const key = `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)}`;
-            const next = r.vertices[(i + 1) % 4];
             let slot = at.get(key);
             if (!slot) at.set(key, slot = { x: p[0], y: p[1], arms: [] });
-            slot.arms.push({
-                u: cornerUnits(r, i),
-                b: Math.atan2(next[1] - p[1], next[0] - p[0]),
-            });
+            const { units, start } = cornerSector(r, i);
+            slot.arms.push({ u: units, b: start });
         }
     }
     const out = new Map<string, VertexStar>();
@@ -137,4 +154,47 @@ export function vertexStars(rhombs: readonly Rhomb[]): Map<string, VertexStar> {
                        code: complete ? (VE_CODE[word] ?? null) : null });
     }
     return out;
+}
+
+/** One line of a census: an environment, how many there are, and its share. */
+export interface VeCount {
+    /** The letter, or `?` followed by the word when the sixteen do not name it. */
+    code: string;
+    n: number;
+    /** Of the whole stars, not of every vertex — the rim is not an environment. */
+    share: number;
+}
+
+export interface VeCensus {
+    /** Most common first, with the unnamed words after the letters. */
+    rows: VeCount[];
+    /** Stars that close — the denominator of every share. */
+    whole: number;
+    /** Vertices whose star runs off the edge of the patch, so it is not read. */
+    rim: number;
+}
+
+/**
+ * What environments a patch contains and in what proportion — the figure 5b/c
+ * reading, taken from the patch on screen.
+ *
+ * The rim is counted and excluded rather than silently dropped: a patch's edge
+ * is a ring of incomplete stars, and folding them in would invent a large rare
+ * environment out of nothing.
+ */
+export function veCensus(rhombs: readonly Rhomb[]): VeCensus {
+    const n = new Map<string, number>();
+    let whole = 0, rim = 0;
+    for (const v of vertexStars(rhombs).values()) {
+        if (!v.complete) { rim++; continue; }
+        whole++;
+        const k = v.code ?? `?${v.word}`;
+        n.set(k, (n.get(k) ?? 0) + 1);
+    }
+    const rows = [...n]
+        .map(([code, c]) => ({ code, n: c, share: whole ? c / whole : 0 }))
+        // letters before the unnamed words, then commonest first
+        .sort((a, b) => Number(a.code.startsWith("?")) - Number(b.code.startsWith("?"))
+                     || b.n - a.n || a.code.localeCompare(b.code));
+    return { rows, whole, rim };
 }

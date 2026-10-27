@@ -2027,7 +2027,7 @@ test("the panel reads in three sections, and split puts the third on the right",
                   "Pentagrid", "Hover", "style"];
     const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
                  "pentaplex", "penrose face", "for groups", "edge style", "vertex style",
-                 "singularities"];
+                 "VE census", "singularities"];
 
     const panel = sizedHost(800, 200);
     createPentagrid({ container: sizedHost(800, 800), panel });
@@ -2216,6 +2216,62 @@ test("split: a hover answers only on the canvas its target is drawn on", () => {
     const onPen = hoverOn(surfaces[1], 300, 300);
     assert.ok(!(onPen.g && !onPen.p),
               "a grid hover answered on the Penrose canvas");
+});
+
+test("the VE census row rides with the VE mark, and reads the patch on screen", () => {
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({
+        container: sizedHost(800, 800), panel,
+        features: { penroseTiles: true, penroseVertices: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.0817, 0.3391, -0.2234, 0.1109, -0.3083]);   // Penrose
+
+    const find = (cls) => {
+        let hit = null;
+        const walk = (el) => {
+            for (const c of el.children ?? []) {
+                if (c.className === cls) hit = c;
+                walk(c);
+            }
+        };
+        walk(panel);
+        return hit;
+    };
+    const readout = find("ve-census");
+    assert.ok(readout, "no census readout in the panel");
+    const rowOf = (el) => {
+        let hit = null;
+        const walk = (p2) => {
+            for (const c of p2.children ?? []) {
+                if (c.dataset?.row === "VE census") hit = c;
+                walk(c);
+            }
+        };
+        walk(panel);
+        return hit;
+    };
+
+    // Off by default: the row hides until the mark asks for it.
+    assert.equal(rowOf().hidden, true, "the census shows with nothing selected");
+
+    h.setTileStyle({ vertexMark: "ve" });
+    assert.equal(rowOf().hidden, false, "the census stayed hidden in VE mode");
+    const text = readout.textContent;
+    // A Penrose patch, so the seven and nothing else among the letters.
+    const [head] = text.split("\n");
+    assert.match(head, /^\d+ stars · /);
+    const letters = [...head.matchAll(/([A-Z*]) \d/g)].map((m) => m[1]);
+    assert.deepEqual([...letters].sort(), ["D", "J", "K", "Q", "S", "T", "V"]);
+    // D leads, at about phi^-2.
+    assert.equal(letters[0], "D");
+    const share = Number(head.match(/D ([\d.]+)/)[1]);
+    assert.ok(share > 36 && share < 43, `D at ${share}%`);
+    // The rim is reported, not folded in.
+    assert.match(text, /\d+ at the rim/);
+
+    h.setTileStyle({ vertexMark: "pool" });
+    assert.equal(rowOf().hidden, true, "the census outstayed the VE mark");
 });
 
 test("the dots are one per tile, inside the face at the corner the greens point into", () => {
