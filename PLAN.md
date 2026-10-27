@@ -6459,6 +6459,55 @@ patch actually changes — it is keyed on the rhomb cache's identity, so panning
 within a cached patch costs nothing.
 
 
+### 11.11 Singular vertices are superposed VEs, not missing ones (Jake, 2026-10-27)
+
+> grow/roof has a lot of work that makes singularities first class. They have
+> their own complex, but predictable order. (but ambiguous VE's) But they are
+> superpositions of finite sets of VE's.
+
+Measured, and it is exactly that. On a singular γ the arm-sum at a vertex is
+not always ten:
+
+* **under 10** — the star runs off the edge of the patch. Nothing to say.
+* **exactly 10** — one whole turn, one environment.
+* **over 10** — a superposition. Several readings' stars standing on the same
+  point, sharing some tiles and not others, so the union overruns a turn
+  without being a multiple of one.
+
+At γ = (0,0,0,0,0), the fully singular pentagrid, a patch of radius 7 carries
+sixty-two vertices of the third kind, with arm-sums of 11, 12, 14, 18 and 30.
+Pushing γ off the singular set by each of `walls.ts`'s fifty sum-zero nudges
+and reading the environment that appears there gives:
+
+| superposed arms | units | resolves to |
+|---|---|---|
+| `13133` | 11 | {D, J} — 21 nudges each, 8 leave no vertex |
+| `1121133` | 12 | {J, V} — 21 each, 8 leave none |
+| `42224` | 14 | {K, Q} — 21 each, 8 leave none |
+| `2422242` | 18 | {K, Q, S} — 12, 11, 11, and 16 leave none |
+| `2442242424` | 30 | **{}** — all fifty leave no vertex there |
+
+So the sets are small, and the split across readings is even — Jake's "complex,
+but predictable order". And the deepest singularity is the striking case: the
+thirty-unit point at the origin is **not a vertex of any resolution at all**.
+It is the center of the decagon, and every way of resolving it opens a hole
+where it stood.
+
+**The defect this exposes.** `vertexStars` tests `sum === 10` and calls
+everything else `complete: false`, which puts a superposition in the same box
+as the patch's rim. They are opposites: the rim has too little information and
+a singular vertex has too much. The VE mark draws both as a blank ball.
+
+What it should do instead is name the set — a singular vertex is a `{K, Q, S}`,
+not a nothing — and `walls.ts` already holds the machinery: `nudgeStates`,
+`completions`, `stateAt`, and `wallView` with its `high | low | both`, which is
+the same choice of reading seen from the roof. §5.-1b's census of the fifty
+nudges and §11's letters are the same subject approached from two sides, and
+this is where they meet.
+
+Not built. The first move is cheap and worth doing on its own: split
+`complete: false` into `rim` and `superposed`, so the two stop being one word.
+
 ### 11.10 The ordering bug — FIXED 2026-10-26
 
 `vertexStars` sorted each vertex's wedges by the bearing to the rhomb's `next`
@@ -6530,6 +6579,33 @@ operation is perfectly well defined; what it stops being is *self-similar*.
 That is exactly why the two levels make a moiré: on Penrose they are the same
 tiling at two scales, and off it they are two different tilings.
 
+**Inflation is the same statement with the other sign.** It is
+`γⱼ ↦ γ_{j−1} + γ_{j+1}`, whose rows sum to +2, so on the class it is
+`s ↦ 2s`. Jake: "inflation leaves penrose (sum + sum) mod 1 = 0." Penrose is
+closed under both directions, and for the same reason — 0 is fixed by doubling
+whichever way you turn it.
+
+**And the dyadic case is the same observation read forwards.** Deflating m
+times multiplies the class by 2ᵐ, and `2ᵐ · k/2ᵐ = k ∈ ℤ`. There is nothing to
+prove: a dyadic class reaches Penrose exactly when the doubling has cleared its
+denominator, which is the m in its own name.
+
+**What the `shift` in `inflate()` is for.** Deflation is two-to-one on classes —
+`s` and `s + ½` both land on `−2s` — so inflation has to choose a preimage, and
+the plain doubling `s ↦ 2s` is not one. `inflate()` subtracts
+`round(Σq / 2)` from every offset when the patch is not Penrose, and that is
+exactly the correction: measured, inflate-then-deflate returns the class it
+started from for 0, 1/2, 1/4, 1/5, 1/8 and 3/8. On Penrose the shift is zero
+because nothing needs choosing.
+
+| class | inflates to | deflates back to |
+|---|---|---|
+| 0 | 0 | 0 |
+| 1/2 | 3/4 | 1/2 |
+| 1/4 | 7/8 | 1/4 |
+| 1/5 | 9/10 | 1/5 |
+| 1/8 | 15/16 | 1/8 |
+
 Three consequences worth putting on the page:
 
 * **1/2 is the special case.** One deflation lands it in Penrose. A tiling that
@@ -6539,6 +6615,27 @@ Three consequences worth putting on the page:
   only other candidates for a self-similar generalized tiling.
 * **Dyadic classes are transient**: `k/2ᵐ` reaches Penrose in m steps, and
   nothing else does.
+
+### 12.1b-i The 97.4% was mine, not the tiling's — CORRECTED 2026-10-27
+
+The first run of §12.1b reported Penrose at 97.4%, and I left it open whether
+deflation carried a stray translation. It did not. **The γ was wrong.**
+
+I had generated each class by spreading it evenly — `[s/5, s/5, s/5, s/5,
+s/5]` — so Penrose came out as `(0,0,0,0,0)`: every family's line 0 through the
+origin, **ten singular triples**, the most degenerate pentagrid there is. That
+patch is not a Penrose tiling in general position and has no business standing
+for the class. With `guard: false` in the measuring script there was nothing to
+nudge it off the singular set either — which is precisely what the guard is for.
+
+A γ in general position registers **100.00%**, with no non-zero distance
+anywhere. The off-Penrose figures moved much less (those γ had Σγ ∉ ℤ, so they
+were not singular) but are now measured over four independent offsets each.
+
+The lesson for the page: **uniform γ is the singular family.** A control that
+spreads a class evenly is the most convenient way to reach it and the worst way
+to measure it, and moiré will want to reach classes by moving *one* offset, or
+to keep the guard on.
 
 ### 12.1a The numerical floor, which the page has to respect
 
@@ -6562,24 +6659,41 @@ question.
 
 Take a patch, deflate it, scale the result by λ = 1/φ to put both in one world
 frame, and ask how far each parent vertex is from the nearest child vertex. The
-answer is **always either 0 or exactly φ⁻² = 0.3820** — nothing in between:
+answer is **always either 0 or exactly φ⁻² = 0.3820** — nothing in between.
 
-| class | parent vertices landing exactly on a child |
-|---|---|
-| Penrose | 97.4% |
-| LI 1/4 | 71.8% |
-| LI 0.31 | 65.4% |
-| LI 1/2 | 53.8% |
+On Penrose it is always 0. **Every** parent vertex is a child vertex, which is
+what the substitution says and what `tools/gamma.test.mjs` now asserts: over
+four γ in general position, not one vertex of several hundred moves, and the
+set of non-zero distances is empty.
+
+Off it, the share that registers is a **property of the class**, not of the γ —
+four independent offsets agree to within a point — and it is symmetric about
+s = 1/2:
+
+| s | 0 | 1/16 | 1/10 | 1/8 | 1/5 | 1/4 | 0.31 | 3/8 | 1/2 | 5/8 | 3/4 | 4/5 | 7/8 | 15/16 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| registers | **100** | 89.9 | 85.1 | 81.0 | 72.7 | 68.9 | 65.3 | 61.6 | **59.6** | 61.9 | 70.0 | 75.1 | 83.2 | 91.1 |
 
 So the moiré is not a vague beat pattern — it is the field of φ⁻²
-displacements, and its density is a direct reading of how far the deflation has
-moved the tiling out of its own class. That is the page's measurement, and it
-should probably be a readout as well as a picture.
+displacements, and its density is a direct, class-invariant reading of how far
+deflation has carried the tiling out of its own class. The page should show the
+number as well as the picture.
 
-*Open:* Penrose is 97.4%, not 100%, at radius 5 as well as 7, so it is not a
-window effect. Either deflation here carries a small translation that
-`reduce()` does not remove, or a few vertices genuinely move. Worth settling —
-the page will make it visible whether we want it to or not.
+Two things to notice, both counterintuitive enough to be worth the page saying
+out loud:
+
+* **s = 1/2 registers worst, at 59.6%** — even though it is the class that
+  deflates *into* Penrose in a single step. Landing in Penrose and resembling
+  your own parent are different questions.
+* The curve is smooth in s, with no feature at the rational classes. The
+  arithmetic of §12.1 — which classes are fixed, which fall into Penrose —
+  lives entirely in where the orbit *goes*, and leaves no trace in how much the
+  first step disturbs.
+
+*Open:* an exact form for the curve. A quadratic symmetric about 1/2,
+`0.596 + 1.62(s − ½)²`, fits to about a point, and 1.62 is suspiciously φ — but
+the residuals are the same size as the scatter, so this is a shape, not a
+result.
 
 ### 12.2 The page
 
@@ -6705,3 +6819,89 @@ something to put the reader in front of.
    each parent vertex to its child, where they differ? That is the moiré's
    skeleton rather than its appearance, and it would make the 97.4% / 53.8%
    visible as a picture.
+
+---
+
+## 13. Site chrome — one bar, built not copied (Jake, 2026-10-27) — TABLED
+
+> about the nav: I think we will need a common area on the top with
+> hierarchical drop downs eventually, even things like moble/medium/wide and
+> dark/light mode. This would be another plan. create it and table it.
+
+**Tabled at Jake's word.** Written down so the shape is agreed before the
+eleventh page forces it.
+
+### 13.1 Why it will have to happen
+
+The bar is hand-copied into ten HTML files. It has survived three rewrites
+because all ten copies stayed byte-identical, which is luck rather than
+design — §12.6 rewrote nine of them at once only because a script could check
+they were the same first. The moment one page wants a different bar, the
+copies diverge and nobody notices until a link is dead.
+
+Three things want to live up there and none of them can, in a copied block:
+
+1. **Hierarchy.** Eight entries is already the width of the page. The
+   deprecated pages are off it (§12.6) and the sub-sites are an afterthought
+   with a different style. Grouping — *the method · the tilings · the
+   solids · asides* — needs a menu, and a menu needs to be built once.
+2. **Width.** mobile / medium / wide. The canvas is sized in CSS today
+   (`min(calc(100vh - 150px), 720px)`) and the pages that put two side by side
+   carry their own breakpoints. A width mode is a page-level decision that
+   every page has to agree on.
+3. **Theme.** dark / light. This is the one with teeth — see 13.3.
+
+### 13.2 What it is
+
+One module that renders the bar into a `<header>` every page carries, from a
+table of pages it owns, with the current page marked from `location.pathname`.
+The HTML keeps one line; the module keeps the list.
+
+Settings — width, theme — are **per reader, not per page**, so they belong in
+`localStorage` under one key and are applied to `<html>` as data attributes
+before first paint. §9's machinery is the wrong home: that is state *of a
+canvas*, scoped to a page and shareable in a URL, and a reader's theme is
+neither.
+
+### 13.3 Theme is not a color swap, and this is the part to think about first
+
+The site's colors are in `site.css` custom properties and would mostly follow
+a `[data-theme]` switch. **What would not follow is everything drawn on a
+canvas**, and that is most of what the site is:
+
+* `FAMILY_COLORS`, the five family hues — the reticulum's own, and the thing a
+  reader uses to tell families apart on every page (§10.6 question 4 already
+  asks whether they are a palette or an identity; a dark mode answers it by
+  force).
+* `CLUSTER_FILL` and `P1_FILL`, two palettes of one role set, with
+  `P1_STAR` on top.
+* `POOL`, the index balls, whose three stops per ball are tuned for a light
+  ground.
+* `ARC_COLORS`, the arrow greens and reds, the `#222` dots, the `#c0392b`
+  vertex dot, the hairline grays — scattered constants in `pentagrid.ts` and
+  `growth.ts`.
+
+So **theme is §10's palette work with a second column**, not a CSS change.
+Doing the chrome first and the palettes later gets a switch that lightens the
+page around a stubbornly light picture. That is the real dependency here, and
+it is why this is tabled behind §10 rather than beside it.
+
+### 13.4 Order, when it is untabled
+
+1. The bar as a module, rendering today's eight entries and the current-page
+   mark. No behavior change, ten files lose their copy.
+2. Grouping and the dropdowns.
+3. Width modes — which needs the per-page breakpoints gathered first.
+4. Theme, after §10's palettes exist, as a second column in them.
+
+### 13.5 Open
+
+1. **Does the chrome belong to this site or to the widget?** §9.8's embed story
+   has a canvas traveling to someone else's page. The bar must not follow it.
+   Easiest if the chrome module is never imported by `view/`.
+2. **Where does the narrative sit?** `method.html` has its own step bar, which
+   is a second navigation with a different shape. One bar or two.
+3. **Theme-aware canvases, or a fixed picture?** A diagram that keeps its
+   light ground inside a dark page is a legitimate choice — many papers do it —
+   and it is a great deal less work than restating every palette. Worth
+   deciding before 13.4's step 4, not during.

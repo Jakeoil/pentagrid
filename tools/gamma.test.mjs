@@ -788,3 +788,105 @@ test("the deflation map's spectrum, and why inflate is its inverse", () => {
     for (let i = 0; i < 8; i++) c *= -2;
     assert.ok(Math.abs(c) > 50, `the all-ones component only reached ${c}`);
 });
+
+// ── Deflation and the vertex set ──────────────────────────────────────
+
+const PHI_ = (1 + Math.sqrt(5)) / 2;
+const DIRS_ = makeDirections(true);
+
+/** Every vertex of the patch, deduped, in WORLD units — tiling units times λ. */
+function worldVertices(gamma, lambda, R) {
+    const rs = collectRhombs({ n: 5, directions: DIRS_, gamma },
+        { xMin: -R / lambda, xMax: R / lambda, yMin: -R / lambda, yMax: R / lambda });
+    const V = new Map();
+    for (const r of rs) for (const v of r.vertices) {
+        const x = v[0] * lambda, y = v[1] * lambda;
+        V.set(`${Math.round(x * 1e5)},${Math.round(y * 1e5)}`, { x, y });
+    }
+    return V;
+}
+
+/** Parent vertices that land exactly on a child vertex, and the misses. */
+function registration(values, R = 12, inset = 3) {
+    const gs = createGammaSet({ n: 5, guard: false });
+    gs.setLocked(-1);
+    gs.setValues(values);
+    const parent = worldVertices(gs.values(), 1, R);
+    gs.deflate();
+    const child = [...worldVertices(gs.values(), 1 / PHI_, R).values()];
+    const cell = new Map();
+    for (const w of child) {
+        const k = `${Math.round(w.x * 2)},${Math.round(w.y * 2)}`;
+        if (!cell.has(k)) cell.set(k, []);
+        cell.get(k).push(w);
+    }
+    let hit = 0, total = 0;
+    const offsets = new Set();
+    for (const v of parent.values()) {
+        if (Math.hypot(v.x, v.y) > R - inset) continue;
+        total++;
+        let best = Infinity;
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+            for (const w of cell.get(`${Math.round(v.x * 2) + dx},${Math.round(v.y * 2) + dy}`) ?? []) {
+                best = Math.min(best, Math.hypot(w.x - v.x, w.y - v.y));
+            }
+        }
+        if (best < 1e-6) hit++; else offsets.add(best.toFixed(4));
+    }
+    return { hit, total, offsets };
+}
+
+// Four Penrose γ in general position, and the same four pushed into other LI
+// classes by moving one offset. Σγ mod 1 is the class.
+const SPREAD = [
+    [0.0817, 0.3391, -0.2234, 0.1109, -0.3083],
+    [0.141, -0.272, 0.319, -0.088, -0.100],
+    [-0.213, 0.077, 0.166, 0.291, -0.321],
+    [0.301, 0.119, -0.254, -0.037, -0.129],
+];
+const inClass = (base, s) => base.map((v, i) => (i === 4 ? v + s : v));
+
+test("a Penrose deflation contains every vertex of its parent, exactly", () => {
+    // The substitution says the coarse tiling's corners stay corners, so the
+    // parent vertex set is a SUBSET of the child's -- not approximately.
+    for (const base of SPREAD) {
+        const { hit, total, offsets } = registration(base);
+        assert.ok(total > 300, `only ${total} vertices to test`);
+        assert.equal(hit, total, `${total - hit} of ${total} parent vertices moved`);
+        assert.equal(offsets.size, 0, `distances seen: ${[...offsets]}`);
+    }
+});
+
+test("a uniform gamma is the singular family, and does not speak for its class", () => {
+    // γ = (0,0,0,0,0) is every family's line 0 through the origin: ten singular
+    // triples, and a patch that is not a Penrose tiling in general position.
+    // Measuring registration there reads well under 100% and says nothing about
+    // Penrose -- which is exactly the mistake PLAN §12.1b first recorded.
+    assert.equal(singularTriples([0, 0, 0, 0, 0], 10000).length, 10);
+    for (const base of SPREAD) {
+        assert.equal(singularTriples(base.map((v) => Math.round(v * 10000)), 10000).length, 0,
+                     "the spread γ should be regular");
+    }
+    const { hit, total } = registration([0, 0, 0, 0, 0]);
+    assert.ok(hit < total * 0.95, `the singular patch registered ${hit}/${total}`);
+});
+
+test("off Penrose the misses are all exactly one length, and the share is the class", () => {
+    const PHI2 = (PHI_ ** -2).toFixed(4);
+    for (const [s, want] of [[0.5, 0.596], [0.25, 0.689], [0.125, 0.810]]) {
+        let H = 0, T = 0;
+        const seen = new Set();
+        for (const base of SPREAD) {
+            const { hit, total, offsets } = registration(inClass(base, s));
+            H += hit; T += total;
+            for (const o of offsets) seen.add(o);
+        }
+        // Nothing moves by anything but φ⁻².
+        assert.deepEqual([...seen], [PHI2], `at s=${s} the misses were ${[...seen]}`);
+        // And the share is a property of the class, not of the γ: four
+        // independent offsets agree to within a point.
+        const got = H / T;
+        assert.ok(Math.abs(got - want) < 0.015,
+                  `s=${s} registered ${(got * 100).toFixed(1)}%, not ${(want * 100).toFixed(0)}%`);
+    }
+});
