@@ -22,14 +22,23 @@ const ev = (x, y, extra = {}) => ({
     preventDefault() {}, ...extra,
 });
 
+/**
+ * By class, not by position. Counting children broke the moment the bar grew
+ * a third child -- the `float-extras` slot the reticulum's restore button
+ * moved into -- and the failure was a TypeError about `textContent` rather
+ * than anything naming the bar.
+ */
+const byClass = (el, cls) => (el.children ?? []).find((c) => c.className === cls);
 const parts = (p) => {
-    const bar = p.element.children[0];
+    const bar = byClass(p.element, "float-bar");
+    const controls = byClass(bar, "float-controls");
     return {
         bar,
-        title: bar.children[0],
-        collapse: bar.children[1].children[0],
-        close: bar.children[1].children[1],
-        body: p.element.children[1],
+        title: byClass(bar, "float-title"),
+        extras: byClass(bar, "float-extras"),
+        collapse: controls.children[0],
+        close: controls.children[1],
+        body: byClass(p.element, "float-body"),
     };
 };
 
@@ -43,6 +52,11 @@ test("a panel has a bar, a body, and the two buttons", () => {
     assert.equal(collapse.textContent, "▾");
     assert.equal(body.className, "float-body");
     assert.equal(p.body, body, "content goes in the body, not the frame");
+    // The slot a host can put its own control in, empty until it does.
+    const { extras } = parts(p);
+    assert.ok(extras, "no float-extras slot in the bar");
+    assert.equal((extras.children ?? []).length, 0, "the slot starts empty");
+    assert.equal(p.barExtras, extras, "barExtras is not the slot in the bar");
 });
 
 test("dragging the bar moves the panel and remembers where", () => {

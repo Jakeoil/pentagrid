@@ -4167,6 +4167,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const P_ROWS = new Set([
         "Penrose", "Penrose hover", "system", "face shade", "pentaplex", "penrose face",
         "for groups", "edge style", "vertex style", "VE census", "singularities",
+        "next-rhomb", "kites", "misc",
     ]);
     function panelFor(title: string): HTMLElement {
         return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
@@ -4196,8 +4197,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         {
             title: "Penrose",
             rows: ["Penrose", "Penrose hover", "system", "face shade", "pentaplex",
-                   "penrose face", "for groups", "edge style", "vertex style",
-                   "VE census", "singularities"],
+                   "next-rhomb", "kites", "misc", "for groups", "edge style",
+                   "vertex style", "VE census", "singularities"],
         },
     ];
     const sectionEls: { el: HTMLElement; rows: HTMLElement[] }[] = [];
@@ -4641,11 +4642,26 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         pOuter.removeChild(kid);
                     }
                 }
+                pOuter.classList.add("inline-fold");
                 const pFold = document.createElement("details");
                 pFold.className = "row-fold penta-fold";
                 const pHead = document.createElement("summary");
-                pHead.textContent = "pentaplex";
                 pFold.appendChild(pHead);
+                // Shut, it says which of the two halves are running. Jake:
+                // "while Pentaplex is collapsed, show edge and/or face only
+                // when set. Uncollapsed show all."
+                const pSync = () => {
+                    pOuter.classList.toggle("fold-open", pFold.open);
+                    const on = pFold.open
+                        ? []
+                        : [["pentaEdge", "edge"], ["pentaFace", "face"]]
+                            .filter(([k]) => tileStyle[k as keyof TileStyle])
+                            .map(([, label]) => label);
+                    pHead.textContent = on.length ? `pentaplex · ${on.join(" ")}` : "pentaplex";
+                };
+                pFold.addEventListener("toggle", pSync);
+                panelSyncs.push(pSync);
+                pSync();
                 pOuter.appendChild(pFold);
                 // Two lines beside the name, not one long one. Jake, 2026-10-23:
                 // "Make it a little looser. space it out over two lines. And
@@ -4663,7 +4679,54 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 pLines.appendChild(pLine2);
                 pFold.appendChild(pLines);
                 const pRow = pLine1;
-                const fRow = row(panelFor("penrose face"), "penrose face");
+                /**
+                 * A folded row of dressings: its name alone while open, its
+                 * name plus whatever is switched ON while shut.
+                 *
+                 * Jake, 2026-10-28: "collapse next-rhomb. show edge and/or
+                 * face only when set. Uncollapsed show all." A dressing row is
+                 * mostly off, and a shut fold that says nothing about what is
+                 * on makes you open all four to find the one you left running.
+                 */
+                const dressFold = (
+                    name: string, parts: () => string[],
+                ): HTMLElement => {
+                    const outer = row(panelFor(name), name, "");
+                    for (const kid of Array.from(outer.children)) {
+                        if ((kid as HTMLElement).className === "panel-label") {
+                            outer.removeChild(kid);
+                        }
+                    }
+                    // Shut, these four sit on one line together rather than
+                    // taking a row each — Jake: "is it possible to flow the
+                    // pentaplex, next rhomb, kites and misc on the same line
+                    // when collapsed." Open, the row takes its width back so
+                    // its controls lay out. The class is toggled rather than
+                    // left to `:has(details[open])`, so it is deterministic
+                    // and a test can read it.
+                    outer.classList.add("inline-fold");
+                    const fold = document.createElement("details");
+                    fold.className = "row-fold dress-fold";
+                    const head = document.createElement("summary");
+                    fold.appendChild(head);
+                    const body = document.createElement("div");
+                    body.className = "dress-line";
+                    fold.appendChild(body);
+                    outer.appendChild(fold);
+                    const sync = () => {
+                        outer.classList.toggle("fold-open", fold.open);
+                        const on = fold.open ? [] : parts();
+                        head.textContent = on.length ? `${name} · ${on.join(" ")}` : name;
+                    };
+                    fold.addEventListener("toggle", sync);
+                    panelSyncs.push(sync);
+                    sync();
+                    return body;
+                };
+                /** Which of a set of dressings are on, by their labels. */
+                const onOf = (...pairs: [keyof TileStyle, string][]) =>
+                    pairs.filter(([k]) => tileStyle[k]).map(([, label]) => label);
+
                 const dress = (
                     parent: HTMLElement,
                     key: "pentaFace" | "pentaEdge" | "nextgenFace" | "nextgenEdge"
@@ -4673,19 +4736,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 ) => {
                     const cb = checkbox(parent, label, tileStyle[key], (v) => {
                         tileStyle[key] = v;
+                        syncPanel();          // a shut fold names what is on
                         draw();
                     });
                     cb.title = title;
-                };
-                /**
-                 * A name for the pair that follows it, so two checkboxes can
-                 * both be called "edge" in one row and still be read.
-                 */
-                const group = (parent: HTMLElement, text: string) => {
-                    const el = document.createElement("span");
-                    el.className = "panel-group";
-                    el.textContent = text;
-                    parent.appendChild(el);
                 };
                 // Three colorings, one set of pentagons: what changes is the
                 // boundary between the colors. The face and edge switches are
@@ -4773,53 +4827,64 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 const after = document.createElement("select");
                 after.className = "line-pick";
                 after.style.width = "86px";
-                after.title = "standard: the P1 palette — blue ground, orange Pe1, yellow "
-                    + "Pe3. afterimage: its complement, pale — what the colors look like "
-                    + "when you have stared at the pentagons and the faces go off. Computed "
-                    + "from the palette, not listed beside it.";
-                for (const [value, text] of [["standard", "standard"],
+                after.title = "classic: the P1 palette — blue ground, orange Pe1, yellow "
+                    + "Pe3, and the default. afterimage: its complement, pale — what the "
+                    + "colors look like when you have stared at the pentagons and the faces "
+                    + "go off. Computed from the palette, not listed beside it.";
+                for (const [value, text] of [["classic", "classic"],
                                              ["afterimage", "afterimage"]] as const) {
                     const o = document.createElement("option");
                     o.value = value;
                     o.textContent = text;
                     after.appendChild(o);
                 }
-                after.value = tileStyle.afterimage ? "afterimage" : "standard";
+                after.value = tileStyle.afterimage ? "afterimage" : "classic";
                 after.addEventListener("change", () => {
                     tileStyle.afterimage = after.value === "afterimage";
                     draw();
                 });
                 pLine2.appendChild(after);
 
-                // And the rest, each a pair: the outline and the fill.
-                group(fRow, "next-rhomb");
-                dress(fRow, "nextgenEdge", "edge", "The next generation's edges and nothing "
+                // And the rest, a fold each. They used to be three groups on
+                // one `penrose face` row, which Jake asked to be rid of: the
+                // name said nothing the three group labels did not, and the
+                // row was the widest thing in the panel.
+                const nRow = dressFold("next-rhomb",
+                    () => onOf(["nextgenEdge", "edge"], ["nextgenFace", "face"]));
+                dress(nRow, "nextgenEdge", "edge", "The next generation's edges and nothing "
                     + "else, drawn over every face — so the deflation can be read through "
                     + "whatever is coloring the tiles.");
-                dress(fRow, "nextgenFace", "face", "The deflation filled: thick gold and "
+                dress(nRow, "nextgenFace", "face", "The deflation filled: thick gold and "
                     + "thin gray at 1/φ. With edge as well and the face edges off, the tile "
                     + "IS the next generation.");
-                group(fRow, "kites");
-                dress(fRow, "kitesEdge", "edge", "P2's edges and nothing else, over every "
+
+                const kRow = dressFold("kites",
+                    () => onOf(["kitesEdge", "edge"], ["kitesFace", "face"]));
+                dress(kRow, "kitesEdge", "edge", "P2's edges and nothing else, over every "
                     + "face — the kite and dart boundaries read through the coloring.");
-                dress(fRow, "kitesFace", "face", "P2 on the rhombs, filled: kites light, a "
+                dress(kRow, "kitesFace", "face", "P2 on the rhombs, filled: kites light, a "
                     + "dart in every thick.");
-                group(fRow, "misc");
-                dress(fRow, "ammann", "ammann", "Ammann bars: five families of lines parallel "
+
+                const mRow = dressFold("misc",
+                    () => onOf(["ammann", "ammann"], ["curves", "curves"],
+                               ["faceEdges", "face edges"], ["offPenrose", "off Penrose"]));
+                dress(mRow, "ammann", "ammann", "Ammann bars: five families of lines parallel "
                     + "to the gridlines, spaced in Conway's musical sequence — the Fibonacci "
                     + "word, gaps of √5/2 and φ√5/2. Five chords a tile, one per family, and "
                     + "they come out straight exactly when the tiling is Penrose. Every LI "
                     + "class carries them; a superposed 2k-gon tile carries none.");
-                dress(fRow, "curves", "curves", "The matching curves as filled regions, dark "
+                dress(mRow, "curves", "curves", "The matching curves as filled regions, dark "
                     + "at the arrow corner.");
-                const fe = checkbox(fRow, "face edges", tileStyle.faceEdges, (v) => {
+                const fe = checkbox(mRow, "face edges", tileStyle.faceEdges, (v) => {
                     tileStyle.faceEdges = v;
+                    syncPanel();
                     draw();
                 });
                 fe.title = "Outline each face from the tile layer, so the edges can be seen "
                     + "with the edge layer off — which is what examining penta or kites wants.";
-                const offP = checkbox(fRow, "off Penrose", tileStyle.offPenrose, (v) => {
+                const offP = checkbox(mRow, "off Penrose", tileStyle.offPenrose, (v) => {
                     tileStyle.offPenrose = v;
+                    syncPanel();
                     draw();
                 });
                 offP.title = "Draw the index-placed dressings — arrows, curves, penta, next-gen, "
@@ -6228,7 +6293,12 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         setFeatures,
         setGridAlpha: (a) => { grid.gridAlpha = a; draw(); },
-        setTileStyle: (st) => { Object.assign(tileStyle, st); draw(); },
+        // syncPanel as well as draw: the panel is a READING of the state, so
+        // a style written from outside — an attribute, the session, a reset,
+        // a page's own setup — has to move the controls with it. Without it a
+        // folded row went on claiming nothing was switched on while the
+        // picture showed otherwise.
+        setTileStyle: (st) => { Object.assign(tileStyle, st); syncPanel(); draw(); },
         // Copies, not the live objects: see the interface. Shallow is enough —
         // every field of both is a primitive, which tools/stateinv.test.mjs
         // counts and so would notice if one stopped being.

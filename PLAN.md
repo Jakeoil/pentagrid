@@ -3915,7 +3915,16 @@ of looking at the picture.
 
 ---
 
-## 5.99 An SVG renderer, alongside the canvas (Jake, 2026-10-24 — UNDER DISCUSSION, nothing built)
+## 5.99 An SVG renderer, alongside the canvas (Jake, 2026-10-24 — BUILT 2026-10-26)
+
+> **Status.** Built and usable, as the open-items list above records: a
+> recording context (`src/svg/record.ts`), the composite (`src/svg/export.ts`),
+> the save (`src/svg/download.ts`), `handle.svg()`, and an **export svg**
+> button in the panel's settings row. 41 tests. method exports one file,
+> split two. What is left is optional and listed at the end: `<defs>`/`<use>`
+> for the repeated prototiles, and a better `measureText`. The sections below
+> are the discussion and the measurements that got there, kept because the
+> numbers in them are what the decisions rest on.
 
 Jake: *"I am toying with the idea of rendering the canvases in method and split
 in svg alternativily. Not a replacement."*

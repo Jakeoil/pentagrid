@@ -30,6 +30,12 @@ export type GammaControl = GammaBank & {
     push?: () => void;
     /** Pull the slot. False when there is nothing in it for this grid. */
     restore?: () => boolean;
+    /**
+     * The `restore` button itself, so a host can put it somewhere better than
+     * the presets popup. It hides itself when the slot is empty, wherever it
+     * is. `mountFloatingReticulum` moves it to the title bar.
+     */
+    restoreButton?: HTMLElement;
 };
 
 /** The state fields a range input can drive. */
@@ -587,7 +593,7 @@ export function mountReticulum(
         });
     }
 
-    return { element: wrap, sync: () => render(), push, restore };
+    return { element: wrap, sync: () => render(), push, restore, restoreButton: restoreBtn };
 }
 
 export interface FloatingReticulumOptions {
@@ -664,6 +670,13 @@ export function mountFloatingReticulum(
         // The selected preset's name replaces the title. Jake's spec.
         onPreset: (name) => panel.setTitle(`${opts.presetPrefix ?? ""}${name}`),
     });
+
+    // Jake: "Move restore button to right side of heading bar. only show it
+    // when there is something to restore." It was at the top of the presets
+    // popup, which meant opening the catalog to find out whether there was
+    // anything carried over at all. In the bar it answers that by being there
+    // or not — it already hides itself when the slot is empty.
+    if (control.restoreButton) panel.barExtras.appendChild(control.restoreButton);
 
     reopen.addEventListener("click", () => {
         panel.show();

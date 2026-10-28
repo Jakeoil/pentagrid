@@ -285,6 +285,20 @@ footer {
     white-space: nowrap;
     text-overflow: ellipsis;
 }
+.float-extras { display: flex; gap: 4px; align-items: center; }
+.float-extras:empty { display: none; }
+/* The restore button, once it is in the bar: a quiet chip, not a title. */
+.float-extras .ret-restore {
+    font-size: 11px;
+    padding: 1px 7px;
+    border: 1px solid #cbd5e0;
+    border-radius: 999px;
+    background: #f7fafc;
+    color: #4a5568;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.float-extras .ret-restore:hover { background: #edf2f7; }
 .float-controls { display: flex; gap: 2px; }
 .float-controls button {
     background: transparent;
@@ -665,3 +679,30 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
     background: transparent;
     mix-blend-mode: multiply;
 }
+
+/* pentaplex, next-rhomb, kites and misc flow onto one line while they are
+   shut, and take a row back as soon as one is opened. `:not([hidden])` so the
+   display:none that exposeRows relies on still wins -- the two selectors are
+   otherwise the same weight, and source order would decide it. */
+.panel-row.inline-fold:not([hidden]) {
+    display: inline-flex;
+    width: auto;
+    vertical-align: middle;
+    margin: 4px 16px 4px 0;
+}
+.panel-row.inline-fold.fold-open:not([hidden]) {
+    display: flex;
+    width: 100%;
+    margin: 4px 0;
+}
+
+/* A dressing row, folded: the name alone when open, the name plus what is
+   switched on when shut. Same shape as the pentaplex fold above it. */
+.dress-fold[open] {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+.dress-fold summary { width: max-content; }
+.dress-fold .dress-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

@@ -27,6 +27,13 @@ export interface FloatingPanel {
     element: HTMLElement;
     /** Put your content in here. */
     body: HTMLElement;
+    /**
+     * A slot in the title bar, to the LEFT of collapse and close, for a
+     * control that belongs to the panel rather than to its contents — the
+     * reticulum's `restore` being the case it was added for. Empty and
+     * invisible until something is put in it.
+     */
+    barExtras: HTMLElement;
     show: () => void;
     hide: () => void;
     setTitle: (t: string) => void;
@@ -82,6 +89,9 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
     const titleEl = document.createElement("span");
     titleEl.className = "float-title";
     titleEl.textContent = opts.title;
+    const barExtras = document.createElement("span");
+    barExtras.className = "float-extras";
+
     const controls = document.createElement("span");
     controls.className = "float-controls";
 
@@ -96,6 +106,7 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
     controls.appendChild(collapseBtn);
     controls.appendChild(closeBtn);
     bar.appendChild(titleEl);
+    bar.appendChild(barExtras);
     bar.appendChild(controls);
 
     const body = document.createElement("div");
@@ -207,6 +218,7 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
     return {
         element,
         body,
+        barExtras,
         show: () => { element.hidden = false; place(); },
         hide: () => { element.hidden = true; },
         setTitle: (t) => { titleEl.textContent = t; },

@@ -700,7 +700,13 @@ function panelSwitches(panel) {
         if (!n.children) return;
         for (const c of n.children) {
             const t = typeof c.textContent === "string" ? c.textContent : "";
-            if (c.className === "panel-label" && t) row = t;
+            // The row div's own name first. Reading it off a `panel-label`
+            // only works for rows that HAVE one, and a folded row drops its
+            // label so the summary can sit at the left margin -- so pentaplex
+            // and the three dressing folds were being attributed to whatever
+            // row happened to come before them.
+            if (typeof c.dataset?.row === "string" && c.dataset.row) row = c.dataset.row;
+            else if (c.className === "panel-label" && t) row = t;
             if (c.className === "layer-toggle") {
                 const box = c.children.find((x) => x.type === "checkbox");
                 const label = c.children
@@ -1500,7 +1506,7 @@ test("split: the Penrose group draws in the second container, the axes in both, 
     // the panel: G rows left, P rows right
     const gRows = [...panelRows(gPanel).keys()], pRows = [...panelRows(pPanel).keys()];
     for (const r of ["Pentagrid", "Hover", "style"]) assert.ok(gRows.includes(r), `${r} should be on the G side`);
-    for (const r of ["Penrose", "Penrose hover", "system", "pentaplex", "penrose face",
+    for (const r of ["Penrose", "Penrose hover", "system", "pentaplex", "misc",
                      "edge style"]) {
         assert.ok(pRows.includes(r), `${r} should be on the P side`);
     }
@@ -1683,7 +1689,7 @@ test("the multigrid: createPentagrid at n = 8 builds, the reticulum has sixteen 
     const rows = panelRows(panel);
     assert.ok(!rows.get("edge style").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
     assert.ok(!rows.has("pentaplex"), "no penta off the pentagrid");
-    assert.ok(!rows.has("penrose face"), "no index-placed dressings off the pentagrid");
+    assert.ok(!rows.has("misc"), "no index-placed dressings off the pentagrid");
     assert.ok(!rows.has("for groups"), "and no rhomb groups to place them on");
     assert.equal(rows.get("ribbons").length, 8, `eight family controls: ${rows.get("ribbons").map((c) => c.label)}`);
 });
@@ -2026,8 +2032,8 @@ test("the panel reads in three sections, and split puts the third on the right",
     const GRID = ["== view", "View", "ribbons", "settings", "== grid",
                   "Pentagrid", "Hover", "style"];
     const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
-                 "pentaplex", "penrose face", "for groups", "edge style", "vertex style",
-                 "VE census", "singularities"];
+                 "pentaplex", "next-rhomb", "kites", "misc", "for groups",
+                 "edge style", "vertex style", "VE census", "singularities"];
 
     const panel = sizedHost(800, 200);
     createPentagrid({ container: sizedHost(800, 800), panel });
@@ -3278,6 +3284,110 @@ test("the circles' overlaps are painted blue, and only the circles have any", ()
                  "no face, nothing painted twice, no lens");
 });
 
+test("a shut dressing fold names what is switched on; open it is just the name", () => {
+    // Jake, 2026-10-28: "while Pentaplex is collapsed, show edge and/or face
+    // only when set. Uncollapsed show all." Same for next-rhomb, kites, and
+    // misc, which show every switch that is on.
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({ container: sizedHost(800, 800), panel });
+
+    const folds = [];
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (typeof c.className === "string"
+                && (c.className.includes("dress-fold") || c.className.includes("penta-fold"))) {
+                folds.push(c);
+            }
+            walk(c);
+        }
+    };
+    walk(panel);
+    const head = (f) => (f.children ?? []).find((c) => c.tagName === "summary");
+    const named = Object.fromEntries(folds.map((f) => [head(f).textContent, f]));
+    for (const name of ["pentaplex", "next-rhomb", "kites", "misc"]) {
+        assert.ok(name in named, `no ${name} fold: saw ${Object.keys(named)}`);
+    }
+
+    // Nothing is on to begin with, so each says only its name. `open` must be
+    // set explicitly: the DOM stub is a Proxy and an unassigned property reads
+    // back truthy, so a test that only reads it cannot tell shut from open.
+    for (const f of folds) f.open = false;
+    h.setTileStyle({});                  // a redraw, to run the panel syncs
+    const summary = () => folds.map((f) => head(f).textContent).sort();
+
+    h.setTileStyle({ pentaEdge: true, kitesFace: true, ammann: true, offPenrose: true });
+    assert.deepEqual(summary(),
+                     ["kites · face", "misc · ammann off Penrose", "next-rhomb",
+                      "pentaplex · edge"].sort(),
+                     `shut folds read ${summary().join(" | ")}`);
+
+    // Both halves of a pair, and the pair reads both.
+    h.setTileStyle({ nextgenEdge: true, nextgenFace: true });
+    assert.ok(summary().includes("next-rhomb · edge face"));
+
+    // Shut, the four flow on one line: the row goes inline and gives its width
+    // back only when it is opened. Jake: "is it possible to flow the pentaplex,
+    // next rhomb, kites and misc on the same line when collapsed."
+    const rowOfFold = (f) => {
+        let hit = null;
+        const find = (el) => {
+            for (const c of el.children ?? []) {
+                if ((c.children ?? []).includes(f)) hit = c;
+                find(c);
+            }
+        };
+        find(panel);
+        return hit;
+    };
+    for (const f of folds) {
+        const r = rowOfFold(f);
+        assert.ok(r, "a fold is not inside a row");
+        assert.ok(r.classList.contains("inline-fold"), "a shut fold does not flow inline");
+        assert.equal(r.classList.contains("fold-open"), false,
+                     "a shut fold is claiming the whole row");
+    }
+
+    // And by CLICKING the switch, which is the path a reader takes and a
+    // different one from setTileStyle: the checkbox has to re-sync the
+    // summaries itself.
+    const curves = panelSwitches(panel).find((sw) => sw.row === "misc" && sw.label === "curves");
+    assert.ok(curves, "no curves switch in misc");
+    curves.box.checked = true;
+    (curves.box.on?.change ?? []).forEach((fn) => fn());
+    assert.ok(summary().includes("misc · ammann curves off Penrose"),
+              `after clicking curves the folds read ${summary().join(" | ")}`);
+
+    // Open, the name stands alone -- the switches themselves are showing.
+    for (const f of folds) {
+        f.open = true;
+        (f.on?.toggle ?? []).forEach((fn) => fn());
+    }
+    assert.deepEqual(summary(), ["kites", "misc", "next-rhomb", "pentaplex"]);
+    for (const f of folds) {
+        assert.equal(rowOfFold(f).classList.contains("fold-open"), true,
+                     "an open fold did not take its row back");
+    }
+});
+
+test("the P1 palette dropdown says classic, and classic is the default", () => {
+    // Jake: "change standard to classic in dropdown. default classic."
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({ container: sizedHost(800, 800), panel });
+    const picks = [];
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (c.tagName === "select") {
+                picks.push((c.children ?? []).map((o) => o.textContent).join("/"));
+            }
+            walk(c);
+        }
+    };
+    walk(panel);
+    const pair = picks.find((p) => p.includes("afterimage"));
+    assert.equal(pair, "classic/afterimage", `the palette dropdown reads ${pair}`);
+    assert.equal(h.getTileStyle().afterimage, false, "classic is not the default");
+});
+
 test("the ammann switch sits before curves, and draws red bars over the faces", () => {
     // Jake: Ammann bars in classic red, before curves. They can be put on all
     // LI rhombs. The geometry and the four facts behind it are tested in
@@ -3291,11 +3401,17 @@ test("the ammann switch sits before curves, and draws red bars over the faces", 
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
 
-    // In the penrose face row's misc group, immediately before curves.
-    const row = panelSwitches(panel).filter((s) => s.row === "penrose face").map((s) => s.label);
-    assert.deepEqual(row, ["edge", "face", "edge", "face", "ammann", "curves",
-                           "face edges", "off Penrose"],
-                     `the row reads ${row.join(" ")}`);
+    // The three groups that shared one `penrose face` row are three folds now,
+    // each named by what used to be its group label.
+    const rowOf = (name) => panelSwitches(panel).filter((s) => s.row === name)
+                                                .map((s) => s.label);
+    assert.deepEqual(rowOf("next-rhomb"), ["edge", "face"]);
+    assert.deepEqual(rowOf("kites"), ["edge", "face"]);
+    // ammann immediately before curves, as Jake asked, and the two general
+    // switches after them.
+    const misc = rowOf("misc");
+    assert.deepEqual(misc, ["ammann", "curves", "face edges", "off Penrose"],
+                     `misc reads ${misc.join(" ")}`);
 
     const layer = h.stack.get("penrose-tiles");
     const log = [];
