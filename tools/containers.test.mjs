@@ -3304,7 +3304,7 @@ test("a shut dressing fold names what is switched on; open it is just the name",
     walk(panel);
     const head = (f) => (f.children ?? []).find((c) => c.tagName === "summary");
     const named = Object.fromEntries(folds.map((f) => [head(f).textContent, f]));
-    for (const name of ["pentaplex", "next-rhomb", "kites", "misc"]) {
+    for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "for groups"]) {
         assert.ok(name in named, `no ${name} fold: saw ${Object.keys(named)}`);
     }
 
@@ -3317,8 +3317,8 @@ test("a shut dressing fold names what is switched on; open it is just the name",
 
     h.setTileStyle({ pentaEdge: true, kitesFace: true, ammann: true, offPenrose: true });
     assert.deepEqual(summary(),
-                     ["kites · face", "misc · ammann off Penrose", "next-rhomb",
-                      "pentaplex · edge"].sort(),
+                     ["for groups", "kites · face", "misc · ammann off Penrose",
+                      "next-rhomb", "pentaplex · edge"].sort(),
                      `shut folds read ${summary().join(" | ")}`);
 
     // Both halves of a pair, and the pair reads both.
@@ -3362,7 +3362,7 @@ test("a shut dressing fold names what is switched on; open it is just the name",
         f.open = true;
         (f.on?.toggle ?? []).forEach((fn) => fn());
     }
-    assert.deepEqual(summary(), ["kites", "misc", "next-rhomb", "pentaplex"]);
+    assert.deepEqual(summary(), ["for groups", "kites", "misc", "next-rhomb", "pentaplex"]);
     for (const f of folds) {
         assert.equal(rowOfFold(f).classList.contains("fold-open"), true,
                      "an open fold did not take its row back");
@@ -4366,4 +4366,43 @@ test("the pentaplex inlay clips every pentagon to its tile", () => {
     assert.ok(oInl.clips > oOver.clips + 1000,
               `outie: ${oInl.clips} clips against ${oOver.clips}`);
     assert.ok(oInl.fills > oOver.fills, "outie: the inlay drew no more faces");
+});
+
+test("for groups applies only when the system is rhomb groups", () => {
+    // Jake: "show for groups only when system rhomb-groups is selected." Every
+    // control in it decorates the groups, and with the tiles colored by type
+    // there are no groups on screen to decorate.
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({ container: sizedHost(800, 800), panel });
+    const rowNamed = (name) => {
+        let hit = null;
+        const walk = (el) => {
+            for (const c of el.children ?? []) {
+                if (c.dataset?.row === name) hit = c;
+                walk(c);
+            }
+        };
+        walk(panel);
+        return hit;
+    };
+    const groups = rowNamed("for groups");
+    assert.ok(groups, "no for-groups row at all");
+
+    assert.equal(h.getTileStyle().color, "type", "the default system is not thick/thin");
+    assert.equal(groups.hidden, true, "for groups shows with the tiles colored by type");
+
+    h.setTileStyle({ color: "groups" });
+    assert.equal(groups.hidden, false, "for groups stayed hidden on rhomb groups");
+
+    h.setTileStyle({ color: "kowalewski" });
+    assert.equal(groups.hidden, true, "for groups outstayed the system that wanted it");
+
+    // And a host that excludes the row wins over the condition: the two
+    // questions are different and both used to write `hidden` directly.
+    h.setTileStyle({ color: "groups" });
+    assert.equal(groups.hidden, false);
+    h.exposeRows(["View"]);
+    assert.equal(groups.hidden, true, "an excluded row put itself back");
+    h.exposeRows(null);
+    assert.equal(groups.hidden, false, "the row did not come back with the exposure");
 });

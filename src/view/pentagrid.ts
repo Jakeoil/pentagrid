@@ -1849,12 +1849,32 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         draw();
     }
 
-    function exposeRows(labels: readonly string[] | null) {
+    /**
+     * Rows that decide for themselves whether they apply at all — `for groups`
+     * only means something when the system IS rhomb groups, the VE census only
+     * when the VE mark is up.
+     *
+     * Kept apart from `exposeRows` because the two answer different questions
+     * and both used to write `hidden` directly: a row the host had excluded
+     * could put itself back the next time its own condition came true. Moiré
+     * excludes both of these, so the clash was already there to be hit.
+     */
+    const rowWhen = new Map<string, () => boolean>();
+    /** The host's list, or null for "all of them". */
+    let exposedRows: readonly string[] | null = null;
+
+    function applyRowVisibility() {
         for (const [label, el] of panelRows) {
-            el.hidden = labels !== null && !labels.includes(label);
+            const allowed = exposedRows === null || exposedRows.includes(label);
+            el.hidden = !(allowed && (rowWhen.get(label)?.() ?? true));
         }
         // A section with nothing left in it would be a heading over a gap.
         for (const sec of sectionEls) sec.el.hidden = sec.rows.every((r) => r.hidden);
+    }
+
+    function exposeRows(labels: readonly string[] | null) {
+        exposedRows = labels;
+        applyRowVisibility();
     }
 
     // ── View transforms ───────────────────────────────────────────────
@@ -4366,6 +4386,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function syncPanel() {
         for (const { key, cb } of featureBoxes) cb.checked = features[key];
         for (const sync of panelSyncs) sync();
+        applyRowVisibility();
         viewStats?.();
     }
 
@@ -4578,6 +4599,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.addEventListener("change", () => {
                 tileStyle.color = sel.value as TileStyle["color"];
                 bandWrap.hidden = tileStyle.color !== "bands";
+                syncPanel();          // `for groups` applies only to groups
                 draw();
             });
 
@@ -4893,7 +4915,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     + "readings at half strength.";
 
                 // The two that are placed by the GROUPS rather than by one tile.
-                const gRow = row(panelFor("for groups"), "for groups");
+                // Only when the system IS rhomb groups: every control in it
+                // is about the groups, and with the tiles colored by type or
+                // by Kowalewski there are no groups on screen to decorate.
+                // Jake: "show for groups only when system rhomb-groups is
+                // selected." Folded like the four above it, and flowing with
+                // them.
+                rowWhen.set("for groups", () => tileStyle.color === "groups");
+                const gRow = dressFold("for groups",
+                    () => onOf(["p1Face", "face"], ["p1Grid", "grid"],
+                               ["bigRhombsFace", "big-face"], ["bigRhombsGrid", "big-grid"]));
                 // The rhomb-group P1, with the same face/edge halves penta
                 // has for the big-rhomb one, and the bends one scale up.
                 const p1s = document.createElement("select");
@@ -4921,12 +4952,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 gRow.appendChild(p1s);
                 const p1f = checkbox(gRow, "face", tileStyle.p1Face, (v) => {
                     tileStyle.p1Face = v;
+                    syncPanel();
                     draw();
                 });
                 p1f.title = "Fill the group P1: blue ground, yellow Pe3, orange Pe1, and the "
                     + "Pe5 pentagons the same blue as the gaps.";
                 const p1g = checkbox(gRow, "grid", tileStyle.p1Grid, (v) => {
                     tileStyle.p1Grid = v;
+                    syncPanel();
                     draw();
                 });
                 p1g.title = "The group P1's boundaries as lines and nothing else, so the "
@@ -4934,6 +4967,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // And the generation above, in the same two halves.
                 const bigF = checkbox(gRow, "big-face", tileStyle.bigRhombsFace, (v) => {
                     tileStyle.bigRhombsFace = v;
+                    syncPanel();
                     draw();
                 });
                 bigF.title = "The generation ABOVE this one, washed in: the inflation, "
@@ -4941,6 +4975,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     + "at a sixth strength. next-gen read the other way.";
                 const bigG = checkbox(gRow, "big-grid", tileStyle.bigRhombsGrid, (v) => {
                     tileStyle.bigRhombsGrid = v;
+                    syncPanel();
                     draw();
                 });
                 bigG.title = "The same generation above as OUTLINES — the inflated tiling's "
@@ -5082,10 +5117,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "star runs off the patch, and the superposed, the singular vertices "
                 + "carrying more than a whole turn — one has too little to read and "
                 + "the other too much, and neither is an environment.";
+            rowWhen.set("VE census", () => tileStyle.vertexMark === "ve");
             let censusOf: Rhomb[] | null = null;
             const showCensus = () => {
                 const on = tileStyle.vertexMark === "ve";
-                censusRow.hidden = !on;
                 // Shut, there is nothing to say and nothing to count: the
                 // census is the one readout that walks the whole patch, so
                 // folding it away saves the work as well as the jitter.
@@ -5307,6 +5342,10 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // Every row exists now, so the panel can be laid out in reading order.
         sectionPanel();
+        // And the rows that apply only sometimes can decide, for the first
+        // time — `sectionEls` has to exist before this can hide an empty
+        // section, which is why it is here and not where the rows are built.
+        applyRowVisibility();
         updatePenroseStatus();
     }
 
