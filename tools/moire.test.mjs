@@ -45,6 +45,10 @@ const doc = globalThis.document;
 const cap = (id) => doc.getElementById(id).textContent ?? "";
 const control = (cls) => inputs.find((i) => i.className === cls);
 const fire = (el) => (el.on?.change ?? []).forEach((fn) => fn());
+const click = (el) => (el.on?.click ?? []).forEach((fn) => fn());
+/** A button in the bar, by class — buttons are not `inputs`. */
+const button = (cls) => (doc.getElementById("moire-bar").children ?? [])
+    .find((c) => c.className === cls);
 /** Set A's offsets and let the page hear about it. */
 const setA = (values) => {
     page.sideA.gamma.setLocked(-1);
@@ -125,4 +129,33 @@ test("the merge switch stacks the canvases, and only while it is on", () => {
     merge.checked = false;
     fire(merge);
     assert.equal(grid.classList.contains("merged"), false, "the canvases stayed stacked");
+});
+
+test("reset page puts the whole page back, switches included", () => {
+    // The per-side `reset page` is in the settings row, which exposeRows trims
+    // away here, so this button is the only way back. Jake: "Is there a clear
+    // all button to go back to page defaults."
+    const reset = button("moire-reset");
+    assert.ok(reset, "no reset-page button in the bar");
+
+    // Put everything out of its default state.
+    const link = control("moire-link"), steps = control("moire-steps");
+    const merge = control("moire-merge"), grid = doc.getElementById("moire-grid");
+    setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.25]);      // A off Penrose
+    steps.value = "3"; fire(steps);
+    link.checked = false; fire(link);
+    merge.checked = true; fire(merge);
+    assert.match(cap("moire-a-caption"), /class 1\/4/);
+    assert.equal(grid.classList.contains("merged"), true);
+
+    click(reset);
+
+    assert.equal(link.checked, true, "link did not come back on");
+    assert.equal(steps.value, "1", "the step count did not come back to 1");
+    assert.equal(merge.checked, false, "merge did not come back off");
+    assert.equal(grid.classList.contains("merged"), false, "the canvases stayed stacked");
+    // Both tilings back to the page's own γ, which is Penrose, and B one
+    // deflation below it.
+    assert.match(cap("moire-a-caption"), /^A — class 0 · Penrose/);
+    assert.match(cap("moire-b-caption"), /^B — class 0 · Penrose, λ = φ⁻¹/);
 });

@@ -215,6 +215,10 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
             state.x = opts.x ?? null;
             state.y = opts.y ?? null;
             state.collapsed = false;
+            // Clearing the width drops back to the stylesheet's, which is a
+            // definite number — not to shrink-to-fit, which is what made a
+            // reset panel come back larger than it went away. Jake: "After
+            // resetting γ panels, sometimes reticulums get big."
             state.w = null;
             element.hidden = false;
             place();

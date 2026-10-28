@@ -616,6 +616,13 @@ export interface FloatingReticulumOptions {
      */
     x?: number;
     y?: number;
+    /**
+     * Put before a preset's name when it takes over the title. Empty by
+     * default, which is Jake's spec — "the selected preset's name replaces the
+     * title" — and right for a page with one reticulum. A page with two needs
+     * to keep telling them apart, so moiré passes "A · " and "B · ".
+     */
+    presetPrefix?: string;
     /** The slider bank to fold, if the page has one. */
     sliders?: HTMLElement;
     /** Start with the sliders folded away. Default true: the reticulum is usually
@@ -655,7 +662,7 @@ export function mountFloatingReticulum(
     const control = mountReticulum(set, panel.body, {
         colors: opts.colors,
         // The selected preset's name replaces the title. Jake's spec.
-        onPreset: (name) => panel.setTitle(name),
+        onPreset: (name) => panel.setTitle(`${opts.presetPrefix ?? ""}${name}`),
     });
 
     reopen.addEventListener("click", () => {

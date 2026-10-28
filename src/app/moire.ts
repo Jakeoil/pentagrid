@@ -157,10 +157,23 @@ if (aHost && bHost && bar && grid) {
         + "for when one has been dragged behind the other, off the edge, or into a "
         + "corner of a window that is now a different size.";
 
+    // The whole page back to how it arrives. The per-side `reset page` lives in
+    // the settings row, which `exposeRows` trims away here, so without this
+    // there is no way back at all — and two sides, two reticula and three
+    // switches is a lot of state to put right by hand. Jake: "Is there a clear
+    // all button to go back to page defaults."
+    const resetAll = document.createElement("button");
+    resetAll.type = "button";
+    resetAll.className = "moire-reset";
+    resetAll.textContent = "reset page";
+    resetAll.title = "Everything back to the page's own setup: both tilings, both "
+        + "views, the switches here, and the two reticula. This also throws away "
+        + "what the page remembered of your last visit.";
+
     const note = document.createElement("span");
     note.className = "moire-note";
 
-    bar.append(linkLabel, stepLabel, mergeLabel, findRet, note);
+    bar.append(linkLabel, stepLabel, mergeLabel, findRet, resetAll, note);
 
     // ── Linking ───────────────────────────────────────────────────────
     //
@@ -241,13 +254,13 @@ if (aHost && bHost && bar && grid) {
     const W = globalThis.innerWidth || 1200;
     const aRet = mountFloatingReticulum(a.gamma, {
         colors: FAMILY_COLORS, id: "moire-a", title: "A · γ",
-        reopenLabel: "show A's γ",
+        reopenLabel: "show A's γ", presetPrefix: "A · ",
         x: Math.max(12, Math.round(W * 0.5) - 320), y: 96,
         buttons: A.panelRow("View") ?? document.body,
     });
     const bRet = mountFloatingReticulum(b.gamma, {
         colors: FAMILY_COLORS, id: "moire-b", title: "B · γ",
-        reopenLabel: "show B's γ",
+        reopenLabel: "show B's γ", presetPrefix: "B · ",
         x: Math.max(12, Math.round(W * 0.5) + 20), y: 96,
         buttons: B.panelRow("View") ?? document.body,
     });
@@ -255,6 +268,22 @@ if (aHost && bHost && bar && grid) {
     findRet.addEventListener("click", () => {
         aRet.panel.resetPlace();
         bRet.panel.resetPlace();
+    });
+
+    resetAll.addEventListener("click", () => {
+        // The switches first, so the γ resets below land with the link in the
+        // state it is going to be left in rather than the one it happened to
+        // be in.
+        linkBox.checked = true;
+        steps.value = "1";
+        mergeBox.checked = false;
+        grid.classList.remove("merged");
+        A.reset();
+        B.reset();
+        aRet.panel.resetPlace();
+        bRet.panel.resetPlace();
+        syncB();
+        say();
     });
 
     syncB();

@@ -243,6 +243,13 @@ footer {
     border: 1px solid #ccc;
     border-radius: 8px;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+    /* A definite width, or a fixed-position box shrink-to-fits its contents
+       and the TITLE drives the layout: picking a preset renames the bar and
+       the whole panel jumps wider. Jake: "Reticulum changes size (bigger)
+       sometimes when I press presets." Resizing by the grip still overrides
+       this inline; clearing that override comes back here rather than to
+       whatever the content happens to want. */
+    width: 300px;
 }
 .float-panel[hidden] { display: none; }
 /* The resize grip: bottom-right corner, a small diagonal. */
@@ -268,7 +275,16 @@ footer {
     border-bottom: 1px solid #ddd;
     border-radius: 8px 8px 0 0;
 }
-.float-title { font-size: 12px; color: #555; }
+/* min-width: 0 so a long preset name is elided rather than pushing the bar
+   wider than the panel. */
+.float-bar > * { min-width: 0; }
+.float-title {
+    font-size: 12px;
+    color: #555;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
 .float-controls { display: flex; gap: 2px; }
 .float-controls button {
     background: transparent;
@@ -630,7 +646,7 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 .moire-opt { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .moire-steps { width: 42px; font-size: 12px; }
 .moire-note { font-family: monospace; color: #888; margin-left: auto; }
-.moire-find { font-size: 11px; padding: 2px 7px; cursor: pointer; }
+.moire-find, .moire-reset { font-size: 11px; padding: 2px 7px; cursor: pointer; }
 
 /* Merged: both viewports in the one grid cell, at method's size, the upper
    one transparent so the lower shows through and multiplied so the overlap
