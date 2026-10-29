@@ -6955,3 +6955,277 @@ it is why this is tabled behind §10 rather than beside it.
    light ground inside a dark page is a legitimate choice — many papers do it —
    and it is a great deal less work than restating every palette. Worth
    deciding before 13.4's step 4, not during.
+
+---
+
+## 14. The dissection lab (Jake, 2026-10-29) — PLANNED, nothing built
+
+> Sun outie with Sun B=-2. The don't fit, but Oh So Close. Most doesn't fit at
+> all! What tiling it this? Is this a P(?) [...] I believe there are several
+> definite tilings for each innie or outie. And they would break rules. How to
+> proceed? Make a lab page with the possible dissections (and genuinely
+> occurring) of the rhombs.
+
+### 14.1 Why it does not fit — MEASURED
+
+The group-scale P1 is pentagons of circumradius exactly **one rhomb edge**,
+centered on the rhomb-group centers. Asking where its outline's points sit
+against the rhombs of each generation, on the sun at radius 16 (885 corners,
+~900 apexes):
+
+| | pentagon corners | outie apexes | innie apexes |
+|---|---|---|---|
+| rhombs at gen 0 | **0%** | 72.5% | 28.0% |
+| rhombs at gen −1 | **0%** | 72.5% | 28.0% |
+| rhombs at gen −2 | **0%** | **100%** | **100%** |
+| rhombs at gen −3 | **0%** | **100%** | **100%** |
+
+**B = −2 is the pairing Jake was looking at**, and the table says why it drew
+his eye: that is exactly the generation where the outie apexes go from 72.5% to
+every single one. He found the row by looking; the measurement only names it.
+
+Two facts, and between them they are the whole of "oh so close":
+
+1. **Every 18° apex is a vertex of the tiling two deflations down** — all of
+   them, innie and outie alike, and so of every finer generation after that,
+   since a Penrose deflation contains its parent's vertices (§12.1b). The legs
+   are 1/φ, which is the *next* generation's edge, so the bend points being
+   φ⁻² points is one step finer than the legs suggest. That is the near miss.
+2. **No pentagon corner is a vertex of any generation of the PENROSE tiling.**
+   Not at −2, not at −4. `p1Pentagons` puts the corners at `c − vⱼ` at a
+   minimum-index center and `c + vⱼ` at a maximum, which is *opposite* the
+   directions the rhombs leave along: they point into the gap.
+
+### 14.1a The two shapes, and what they are made of — MEASURED
+
+Jake: *"The rhombs ARE a Penrose tiling. It's the innies and outie dissections
+(not iterated). They can be dissected with rhombs, presume uniquely, some (like
+the hex) several ways. Can you make a set which builds an LI class tiling?"*
+
+Measuring the bent outlines directly — every leg, every angle, and the areas —
+rather than guessing at them:
+
+**Every leg is 1/φ exactly, and every angle is a multiple of 36°, on both.**
+
+| | shape | area, in rhombs of edge 1/φ |
+|---|---|---|
+| **outie** | a **regular decagon** of side 1/φ — ten equal sides, every interior angle 144° | **5 thick + 5 thin** = 10 tiles |
+| **innie** | a five-pointed star, points 72°, reflex 216° | **5 thick**, no thin |
+
+And the thing Jake asked for next:
+
+> I'm also interested in the rhombs formed by the innie outie xor.
+
+**The XOR is five thin rhombs** — one straddling each pentagon edge, with the
+innie's apex and the outie's apex as its two opposite corners. Measured on all
+five: sides 0.61803 to twelve places, angles exactly 36° and 144°. So
+
+```
+    innie (5 thick)  +  XOR (5 thin)  =  outie (5 thick + 5 thin)
+```
+
+which is why the two differ by exactly the thin tiles and why the pair always
+looked like two readings of one object.
+
+### 14.1b It is not a coincidence: the outie IS the singularity decagon
+
+> Or is it just a co-incidence that pentaplex works that way.
+
+No. A regular decagon of side s dissects into ten rhombs of edge s — it is a
+zonogon, the sum of five directions — and **the number of ways is 62**. That
+number is already in this repo, measured for a different reason:
+`src/geometry/zonohedron.ts`, *"the rhombic tilings of the 2k-gon are exactly
+those surfaces. There are 2 for the hexagon, 8 for the octagon, 62 for the
+decagon."*
+
+So the outie's dissections **are** the readings of a pentagrid singularity —
+the same 62 §5.-1b enumerates, of which §5.-1b's own table says **10 are
+Penrose-legal**. Jake's *"some (like the hex) several ways"* is the hexagon's
+2, which is the Necker flip.
+
+The 18° bend does not resemble the singularity decagon. It produces one, at
+every pentagon.
+
+**So the answer to "can you make a set which builds an LI class tiling" is yes,
+and the set is already enumerated.** What is open is whether a consistent
+GLOBAL choice exists — 62 local options per decagon, and the constraint is that
+neighbors share edges. That is a satisfiability question over the patch, and
+`walls.ts` already holds the per-decagon half of it.
+
+### 14.1c A correction to 14.1's reading of the LI class
+
+§14.1 reported that the pentagon corners sit in no Penrose tiling's vertex set
+at any depth, and in several non-zero classes' at φ⁻². **That measurement
+varied the class but kept the PHASE tied to A's own γ** — every comparison
+tiling was a deflation of A. Two tilings of one class differ by a translation,
+so "class 0 excludes the corners" is proven only for A's deflations, not for
+class 0 at large. The honest statement is narrower: *the corners are not
+vertices of A's own deflations, at any depth.*
+
+§14.1a supersedes it in any case. The corners are the decagon's own vertices,
+and the decagon's dissections are rhombs of edge 1/φ — so the question is not
+which tiling the corners belong to but which of the 62 readings each decagon
+takes.
+
+### 14.1d The tile space: six shapes, P1-3 and S1-3 — MEASURED
+
+Jake: *"tilespace is 3 pentas, 3 stars. P\* and S\*"* — confirmed against the
+patch, and it is six. Taking each pentagon's five edges as a cyclic word of
+which bend OUTWARD, canonical under rotation and reflection, over 241 pentagons
+of the sun at radius 20:
+
+| | class | bends out | count | boundary, as ±vⱼ at length 1/φ |
+|---|---|---|---|---|
+| **P1** | Pe3 | `00011` | 85 | `-1 +4 -2 +0 +1 -3 +2 -4 +3 -0` |
+| **P2** | Pe1 | `01011` | 20 | `-1 +4 -2 +0 +1 -3 -4 +2 +3 -0` |
+| **P3** | Pe1 | `01111` | 100 | `-1 +4 -2 +0 -3 +1 -4 +2 +3 -0` |
+| **S1** | Pe5 | `00001` | 15 | `-1 +3 +4 -2 -3 +0 -4 +1 -0 +2` |
+| **S2** | Pe5 | `00111` | 15 | `-1 +4 -2 +0 -3 +1 +2 -4 +3 -0` |
+| **S3** | Pe5 | `11111` | 6 | `+3 -1 +4 -2 +0 -3 +1 -4 +2 -0` |
+
+Six, and the classes sort themselves: **Pe3 is always 2-of-5, Pe1 always 3 or
+4, Pe5 always odd.** The pentas are the Pe3 and Pe1 forms, the stars the three
+Pe5 ones. Only S3 is the full regular decagon, and it is the rarest at 6 in
+241; the all-in star never occurs at all.
+
+**All six have the same edge multiset.** Every boundary is ten edges of length
+1/φ, each of the five directions appearing exactly once with each sign. They
+differ only in the CYCLIC ORDER of those ten edges — which is to say, they are
+the same ten vectors assembled six ways. S3's order is the angular one, which
+is what makes it the convex zonogon; the rest are the non-convex rearrangements.
+
+That is a strong constraint on the next step. A region whose boundary uses each
+direction once each way has the right edge bag for a rhombic dissection; what
+differs between the six is how much area the order encloses, and so how many
+rhombs each takes.
+
+### 14.1e All six occur in real patches, Penrose included — MEASURED
+
+Jake: *"Look for fits in the patches. Look for fits in LI != 0 patches."* —
+which sidestepped the enumeration entirely and got the answer empirically.
+
+The test: slide each shape over a patch at every vertex and all twenty
+orientations (ten rotations, two mirrors), and accept a placement when no rhomb
+straddles the boundary and the enclosed rhombs' areas sum to the shape's.
+Deduped by the SET of rhombs covered, since a symmetric shape is otherwise
+found once per orientation and S3's ten-fold symmetry would count every decagon
+twenty times. Patch radius 9; `thick` and `thin` are controls.
+
+| class | P1 | P2 | P3 | S1 | S2 | S3 | *thick* | *thin* |
+|---|---|---|---|---|---|---|---|---|
+| **0 (Penrose)** | 59 | 109 | 145 | 84 | 59 | 55 | *225* | *126* |
+| **1/2** | 27 | 151 | 132 | 60 | 56 | 46 | *222* | *124* |
+| **1/4** | 36 | 112 | 149 | 57 | 55 | 55 | *219* | *128* |
+| **1/5** | 43 | 105 | 147 | 67 | 54 | 55 | *221* | *128* |
+| **0.31** | 32 | 120 | 148 | 55 | 56 | 52 | *219* | *128* |
+
+**Every one of the six is a union of whole rhombs, in every class tried,
+Penrose included.** So each qualifies on its own — Wieringa-wise too, since a
+union of patch rhombs inherits the patch's own index labeling and that is
+what the lift needs.
+
+**P1 is the one that moves.** It is markedly rarer off Penrose — 59 down to 27
+at class 1/2 — while P2 goes the other way, 109 up to 151. The other four
+barely shift. If the six are to be a tile set, P1's frequency is the only one
+strongly class-dependent, and worth watching.
+
+What is NOT answered: whether a *consistent* choice exists across a whole
+patch. Each shape fits somewhere; that is not the same as the six tiling
+together.
+
+### 14.1f Three wrong turns, recorded so they are not retaken
+
+This took four attempts and the first three were mine being wrong. Worth
+writing down, because two of them are traps the next attempt could fall into.
+
+1. **Corner-cutting hung.** Shaving a rhomb off a convex corner swaps two
+   adjacent letters of the boundary word — true, and the basis of the standard
+   bijection — but the word keeps its LENGTH. The termination test was "word
+   is empty", which never happens, so it recursed forever.
+2. **Adding an area test did not save it.** Corner-cutting terminates only on a
+   convex zonogon, and five of the six shapes are not one. A star has no lower
+   surface to peel from. That model does not reach them at all, which is also
+   why `zonohedron.ts`'s enumerator — which is exactly this method — gives S3's
+   62 and says nothing about the other five.
+3. **The fit scan returned zero everywhere, including Penrose**, which should
+   have been visibly impossible. It was caught only by adding a control: a
+   single thick rhomb also scored 0. The bug was counting a corner that lies
+   ON the shape's boundary as inside, so every neighboring tile looked like a
+   straddler. A corner on the boundary belongs to neither side.
+
+The control is the lesson. A scan whose answer is "none anywhere" should be
+made to find something known before its zero is believed.
+
+**The abstract enumeration is still unbuilt**, and after two wrong models it
+wants thinking about rather than a third attempt. §14.1e answers the question
+that prompted it without needing it.
+
+### 14.2 What the lab page is for
+
+The question underneath is Jake's: *"I believe there are several definite
+tilings for each innie or outie. And they would break rules."* §14.1 says the
+current figure is not a rhomb dissection; it does not say no dissection exists.
+A rhomb can be cut into next-generation rhombs in more than one way, and the
+standard deflation is only the one that preserves the matching rules. The page
+is for laying the alternatives out and seeing which the figure actually uses.
+
+Three panels, left to right:
+
+1. **The prototiles, large.** A thick and a thin at generation m, with the
+   next generation's grid over them, and every candidate cut drawn as a
+   choosable overlay. Robinson's is one entry; the others are whatever the
+   enumeration in 14.3 turns up.
+2. **The census.** A real patch, each tile labeled with which dissection it is
+   carrying, and the frequencies — the same shape as §11.9's VE census, and
+   for the same reason: the question is which ones *occur*, not which ones
+   are drawable.
+3. **The rule check.** Each dissection with the AR arrows on, marking where
+   the matching rule fails. Jake expects them to break rules; the page should
+   say exactly which edges and how often, rather than leaving it at "breaks".
+
+### 14.3 The enumeration, which is the first piece of work
+
+Before any page there is a question to answer: **what are the dissections?**
+A rhomb of edge 1 cut into rhombs of edge 1/φ has area φ² times the small
+tile's, so a thick holds φ²·sin72/sin72 = φ² ≈ 2.618 — not an integer, so a
+dissection into whole next-generation rhombs *of the same two shapes* does not
+exist tile-for-tile, and Robinson's cuts are into HALF tiles. That is the first
+thing the page has to be honest about, and probably the reason the figure does
+not dissect: the pieces are half-rhombs, and a boundary drawn through whole
+tiles has nowhere to land.
+
+So the enumeration is over **half-rhomb** dissections, and the thing to count
+is how many ways the two prototiles cut into the next generation's halves with
+the edges matching across the seam. Robinson's is one. §14.2's panel 1 needs
+the rest.
+
+### 14.4 Order of work
+
+1. The enumeration, as a measurement with a test — the count, and each
+   dissection as data. No page yet.
+2. Panel 1, the prototiles and the overlays.
+3. Panel 2, the census over a real patch.
+4. Panel 5.99-style: the rule check.
+
+### 14.5 Open
+
+1. **Which non-zero class, exactly?** Several reach 100% at φ⁻², so the test
+   as run says "not 0" sharply and "which one" not at all. A sharper question:
+   is the corner set a *natural* sub-pattern of one class's vertices — its
+   rhomb-group centers, say — rather than an arbitrary subset of several? That
+   would name the class instead of excluding one.
+
+2. **Is the 18° figure meant to be a dissection at all?** §14.1a says half of
+   it is not Penrose, so it cannot be a dissection of Penrose rhombs. It may be
+   a decoration that happens to use φ-related lengths, or it may be a genuine
+   object of a non-zero class drawn on the wrong parent — which would make the
+   pentaplex thread and the dissection thread two different investigations.
+2. **Which generation is the figure's natural partner?** The apexes say φ⁻².
+   Worth drawing the φ⁻² rhombs under the 18° figure before anything else —
+   it is one `n` away on moiré and would settle whether the near miss is a
+   near miss or a coincidence of two scales.
+3. **Is the apex fit a fact about the figure, or about φ⁻² being fine?**
+   Every generation below −2 also scores 100%, because a deflation contains
+   its parent's vertices. So −2 is the FIRST generation that fits, which is
+   the meaningful statement — but the test should be that it is the coarsest
+   one, not merely one that works, or the claim says less than it sounds.
