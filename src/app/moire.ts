@@ -69,6 +69,22 @@ if (aHost && bHost && bar && grid) {
 
     const lam = (h: PentagridHandle) => h.gamma.model.lambda ?? 1;
 
+    /**
+     * Give B the zoom range that means the same thing as A's.
+     *
+     * The wheel's limits are in pixels per TILING unit, and B's tiling unit
+     * is λB where A's is λA, so B's range is A's scaled by the same factor
+     * `convertView` uses. Without it the pair stops zooming at a different
+     * place on each side, and crossing between them jumps.
+     */
+    const SCALE_MIN = 10, SCALE_MAX = 400;
+    const pairScales = () => {
+        if (!a || !b) return;
+        const k = lam(b) / lam(a);
+        a.setScaleRange(SCALE_MIN, SCALE_MAX);
+        b.setScaleRange(SCALE_MIN * k, SCALE_MAX * k);
+    };
+
     // A view is in TILING units and a tiling unit is λ world units, so two
     // sides at different generations do not share view numbers. What they
     // share is the world: the invariants are scale/λ and λ·view, which the
@@ -103,7 +119,9 @@ if (aHost && bHost && bar && grid) {
     B.exposeRows(ROWS);
     sideA = A;
     sideB = B;
-    // Whatever the two restored separately, they are in register from here.
+    // Whatever the two restored separately, they are in register from here —
+    // the same rectangle of the plane, and the same room to zoom.
+    pairScales();
     relay(() => b, () => a)(A.getView());
 
     // ── The bar: link, how many deflations, merge ─────────────────────
@@ -194,7 +212,11 @@ if (aHost && bHost && bar && grid) {
             if (k > 0) b.gamma.deflate(); else b.gamma.inflate();
         }
         syncing = false;
-        // λ moved under B, so the two no longer agree on view numbers.
+        // λ moved under B, so the two no longer agree on view numbers — nor
+        // on how far the wheel should go. Both have to be put back in
+        // correspondence, or the zoom stops at a different world scale
+        // depending on which canvas the pointer is over.
+        pairScales();
         relay(() => b, () => a)(A.getView());
         say();
     };

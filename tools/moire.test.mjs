@@ -159,3 +159,86 @@ test("reset page puts the whole page back, switches included", () => {
     assert.match(cap("moire-a-caption"), /^A — class 0 · Penrose/);
     assert.match(cap("moire-b-caption"), /^B — class 0 · Penrose, λ = φ⁻¹/);
 });
+
+// ── The two canvases stay on the same rectangle of the plane ──────────
+
+const PHI_ = (1 + Math.sqrt(5)) / 2;
+/** The first descendant of a host that listens for `type`. */
+const listener = (hostId, type) => {
+    let hit = null;
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (!hit && c.on?.[type]?.length) hit = c;
+            walk(c);
+        }
+    };
+    walk(doc.getElementById(hostId));
+    return hit;
+};
+const fireOn = (hostId, type, ev) =>
+    (listener(hostId, type).on[type] ?? []).forEach((fn) => fn(ev));
+const lamOf = (h) => h.gamma.model.lambda ?? 1;
+/** Center and span in WORLD units -- what the two must agree on, whatever
+ *  their generations and so whatever their view numbers. */
+const onScreen = (h) => {
+    const v = h.getView(), L = lamOf(h);
+    return [v.x * L, v.y * L, (800 / v.scale) * L];
+};
+const apart = () => {
+    const a = onScreen(page.sideA), b = onScreen(page.sideB);
+    return Math.max(...a.map((x, i) => Math.abs(x - b[i])));
+};
+const wheel = (hostId, dir, x = 400, y = 400) =>
+    fireOn(hostId, "wheel", { preventDefault() {}, deltaY: dir * 120, offsetX: x, offsetY: y });
+
+test("zooming OFF CENTER keeps the two on the same rectangle", () => {
+    // The bug Jake hit: the view was relayed between writing x and writing y,
+    // so every zoom handed the other canvas the new x and the PREVIOUS y.
+    // Zooming at dead center hides it -- there the two y are equal -- which is
+    // why it has to be tested off center.
+    const reset = button("moire-reset");
+    click(reset);
+    assert.ok(apart() < 1e-9, "not in register to begin with");
+    for (const [x, y] of [[300, 250], [520, 610], [120, 700]]) {
+        wheel("moire-a", -1, x, y);
+        assert.ok(apart() < 1e-9, `zoom at (${x}, ${y}) on A left them ${apart().toFixed(4)} apart`);
+        wheel("moire-b", 1, x, y);
+        assert.ok(apart() < 1e-9, `zoom at (${x}, ${y}) on B left them ${apart().toFixed(4)} apart`);
+    }
+    click(reset);
+});
+
+test("the double-click reset moves both, not one", () => {
+    // Same shape: the scale was relayed before the center was written, and the
+    // center was never relayed at all.
+    const reset = button("moire-reset");
+    click(reset);
+    wheel("moire-a", -1, 300, 250);
+    wheel("moire-a", -1, 300, 250);
+    assert.ok(apart() < 1e-9);
+    fireOn("moire-a", "dblclick", {});
+    assert.ok(apart() < 1e-9, `after a double-click they are ${apart().toFixed(4)} apart`);
+    const [x, y, span] = onScreen(page.sideA);
+    assert.ok(Math.abs(x) < 1e-9 && Math.abs(y) < 1e-9, "the reset did not center A");
+    click(reset);
+});
+
+test("the two share one zoom limit, so crossing between them does not jump", () => {
+    // The wheel's bounds are in pixels per TILING unit, and B's tiling unit is
+    // smaller, so the same numbers stop the two at different world scales.
+    // Whichever canvas the pointer was over then decided where zooming ended,
+    // and moving to the other jumped by phi.
+    const reset = button("moire-reset");
+    click(reset);
+    for (let i = 0; i < 14; i++) wheel("moire-a", -1);       // A to its limit
+    const atLimit = onScreen(page.sideA)[2];
+    for (let i = 0; i < 3; i++) wheel("moire-b", -1);        // keep going on B
+    const past = onScreen(page.sideA)[2];
+    assert.ok(Math.abs(past - atLimit) < 1e-9,
+              `B zoomed ${(atLimit / past).toFixed(2)}x past A's limit`);
+    wheel("moire-a", -1);                                     // and back to A
+    assert.ok(Math.abs(onScreen(page.sideA)[2] - past) < 1e-9,
+              "the zoom jumped when the pointer crossed over");
+    assert.ok(apart() < 1e-9, "and they are out of register");
+    click(reset);
+});

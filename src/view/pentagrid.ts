@@ -713,6 +713,14 @@ export interface PentagridHandle {
     onFeatureOn: (cb: (key: keyof Features) => void) => void;
     /** Read the current pan and zoom. */
     getView: () => View;
+    /**
+     * How far the wheel zooms, in pixels per tiling unit — default 10 to 400.
+     *
+     * A page pairing two canvases at different λ has to put them in
+     * correspondence, or the limit falls at a different world zoom on each
+     * and crossing between them jumps. `src/view/register.ts` has the factor.
+     */
+    setScaleRange: (min: number, max: number) => void;
     /** Drive the pan and zoom from outside. Does NOT fire onViewChange, so two
      *  linked instances cannot bounce updates off each other forever. */
     setView: (v: View) => void;
@@ -1938,14 +1946,33 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     let panLastY = 0;
     let lastPinchDist = 0;
 
+    /**
+     * How far in and out the wheel will go, in pixels per tiling unit.
+     *
+     * A pair of canvases showing the same world at different λ do NOT have
+     * the same range: a deflated tiling needs φ times the scale to show the
+     * same region. With both clamped at 10 and 400 the limit landed at a
+     * different world zoom on each side, and `setView` does not clamp — so
+     * whichever canvas the pointer was over decided where the zoom stopped,
+     * and moving to the other one jumped. Jake, on moiré merged: "zooming in
+     * and out, the screens are not synchronized. slightly off. by jumps."
+     */
+    let scaleMin = 10;
+    let scaleMax = 400;
+
     function zoomAtScreen(sx: number, sy: number, factor: number) {
         const cx = canvas.w / 2;
         const cy = canvas.h / 2;
         const [mx, my] = screenToMath(sx, sy, cx, cy);
-        scale = Math.max(10, Math.min(400, scale * factor));
+        scale = Math.max(scaleMin, Math.min(scaleMax, scale * factor));
         viewX = mx - (sx - cx) / scale;
-        notifyView();
         viewY = my + (sy - cy) / scale;
+        // AFTER both, not between them. It used to sit on the line above, so
+        // every zoom handed a relayed canvas the new x and the PREVIOUS y —
+        // which on a page with two of them drifted vertically a step at a
+        // time. Jake, on moiré merged: "zooming in and out, the screens are
+        // not synchronized. slightly off. by jumps."
+        notifyView();
         draw();
     }
 
@@ -2017,9 +2044,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // Double-click to reset view
     onEvent("dblclick", () => {
         scale = 60;
-        notifyView();
         viewX = 0;
         viewY = 0;
+        // After all three. It used to fire between the scale and the center,
+        // so a relayed canvas was handed the new scale with the OLD center
+        // and never told about the move — leaving the pair out of register
+        // until something else nudged it.
+        notifyView();
         draw();
     });
 
@@ -5057,9 +5088,15 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             syncMark();
             idx.addEventListener("change", () => {
                 tileStyle.vertexMark = idx.value as TileStyle["vertexMark"];
+                // The LAYER on, so the marks can be seen — but not the hover.
+                // Picking a mark used to switch `hoverVertex` on as a
+                // convenience, which made a hover arrive that the reader had
+                // not asked for and that no default says should be there.
+                // Jake: "some of the hover default are turned on. make sure
+                // they're off. and make sure that's the default." The hover
+                // has its own switch, in the row above.
                 if (idx.value !== "dot") {
-                    setFeatures({ penroseVertices: true, hoverVertex: true },
-                                { merge: true });
+                    setFeatures({ penroseVertices: true }, { merge: true });
                 }
                 draw();
             });
@@ -5075,7 +5112,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "vertex where several readings are superposed, and ? a whole star "
                 + "the sixteen do not name. The index runs 1 to 4 on a Penrose "
                 + "patch and 1 to 5 otherwise, and the extremes are the rhomb-group "
-                + "centers. Hover one to see the K-region it came from.";
+                + "centers. With the vertex hover on, pointing at one outlines the "
+                + "K-region it came from.";
 
             // ── The census ────────────────────────────────────────────
             //
@@ -6348,6 +6386,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         panelRow: (label) => panelRows.get(label),
         onFeatureOn: (cb) => { featureOnListeners.push(cb); },
         getView: () => ({ scale, x: viewX, y: viewY }),
+        setScaleRange: (min, max) => { scaleMin = min; scaleMax = max; },
         setView: (v) => {
             scale = v.scale;
             viewX = v.x;

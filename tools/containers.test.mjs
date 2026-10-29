@@ -12,6 +12,7 @@ import { createRegionPanel } from "../dist/view/region-panel.js";
 import { polygonArea, pointInPolygon, convexBoundary } from "../dist/geometry/acceptance.js";
 import { rhombDeflation } from "../dist/geometry/decor.js";
 import { collectRhombs, makeDirections } from "../dist/geometry/pentagrid.js";
+import { NO_FEATURES } from "../dist/state/defaults.js";
 
 function host(w = 800, h = 600) {
     const el = makeStub({
@@ -3386,6 +3387,56 @@ test("the P1 palette dropdown says classic, and classic is the default", () => {
     const pair = picks.find((p) => p.includes("afterimage"));
     assert.equal(pair, "classic/afterimage", `the palette dropdown reads ${pair}`);
     assert.equal(h.getTileStyle().afterimage, false, "classic is not the default");
+});
+
+const HOVERS = ["hoverRegion", "hoverSegment", "hoverCrossing",
+                "hoverVertex", "hoverEdge", "hoverFace"];
+
+test("every hover is off by default, and nothing in the panel turns one on", () => {
+    // Jake: "some of the hover default are turned on. make sure they're off.
+    // and make sure that's the default." Picking a vertex mark used to switch
+    // hoverVertex on as a convenience, so a hover arrived that the reader had
+    // not asked for and no default said should be there.
+    assert.deepEqual(HOVERS.filter((k) => NO_FEATURES[k]), [],
+                     "a hover is on in the shipped defaults");
+
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({ container: sizedHost(800, 800), panel });
+    const on = () => HOVERS.filter((k) => h.getFeatures()[k]);
+    assert.deepEqual(on(), [], "a page with no feature set came up hovering");
+
+    // Work every select and every checkbox in the panel. None of them is a
+    // hover switch except the ones in the hover rows, which are feature
+    // toggles and say so.
+    const selects = [];
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (c.tagName === "select") selects.push(c);
+            walk(c);
+        }
+    };
+    walk(panel);
+    for (const sel of selects) {
+        for (const o of sel.children ?? []) {
+            sel.value = o.value;
+            (sel.on?.change ?? []).forEach((fn) => fn());
+            assert.deepEqual(on(), [],
+                             `choosing "${o.value}" switched on ${on().join(", ")}`);
+        }
+    }
+    for (const sw of panelSwitches(panel)) {
+        if (sw.row === "Hover" || sw.row === "Penrose hover") continue;
+        sw.box.checked = true;
+        (sw.box.on?.change ?? []).forEach((fn) => fn());
+        assert.deepEqual(on(), [], `"${sw.label}" in ${sw.row} switched on ${on().join(", ")}`);
+    }
+
+    // And the hover rows DO still work -- this is not "the switches are gone".
+    const vh = panelSwitches(panel).find((sw) => sw.row === "Penrose hover");
+    assert.ok(vh, "no Penrose hover row to turn one on with");
+    vh.box.checked = true;
+    (vh.box.on?.change ?? []).forEach((fn) => fn());
+    assert.ok(on().length > 0, "the hover row no longer turns a hover on");
 });
 
 test("the ammann switch sits before curves, and draws red bars over the faces", () => {

@@ -27,11 +27,15 @@ if (gridHost && tileHost) {
         panelP: byId("split-tiles-panel"),
         // Start regular — the "regular" preset — rather than on the singular default.
         gamma: [0.07, 0.11, 0.13, 0.17, -0.48],
+        // The six hovers are NOT among them, though they are what this page
+        // is for. A hover that arrives switched on follows the pointer about
+        // from the first moment, and the reader has not asked anything yet.
+        // Jake: "start split quiet too." They are a row of switches in each
+        // panel — Hover on the grid side, Penrose hover on the tiling side —
+        // and the hint under the canvases says so.
         features: {
             gridLines: true, kRegions: true, intersectionDots: true, axes: false, center: true,
             penroseVertices: true, penroseEdges: true, penroseTiles: true,
-            hoverRegion: true, hoverSegment: true, hoverCrossing: true,
-            hoverVertex: true, hoverEdge: true, hoverFace: true,
         },
     });
 

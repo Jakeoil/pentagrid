@@ -6814,8 +6814,8 @@ title, and the mathematics of §12.1 in prose — the class map, what each class
 does, and the φ⁻² measurement — with a line saying nothing is built yet and
 pointing here. No script tag.
 
-*Still to do:* an `<a class="card">` on index beside Split, once there is
-something to put the reader in front of.
+The index card landed 2026-10-28, once the page was worth the click — after
+Split, where the nav puts it.
 
 ### 12.7 Order of work — 1 to 4 BUILT 2026-10-27
 
