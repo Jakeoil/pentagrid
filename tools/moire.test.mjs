@@ -327,3 +327,13 @@ test("the dressing folds are actually on screen, not merely built", () => {
     page.sideA.setTileStyle({ color: "type" });
     page.sideB.setTileStyle({ color: "type" });
 });
+
+test("the page says which build it is", () => {
+    // Only roof carried a stamp; method gets its tag from the narrative step
+    // bar, which this page has no reason to have. Jake: "I can't see a
+    // buildid on the page."
+    const stamp = doc.getElementById("moire-buildid");
+    assert.ok(stamp, "no build-id element");
+    assert.match(stamp.textContent ?? "", /^build id \d\d:\d\d:\d\d$/,
+                 `the stamp reads ${JSON.stringify(stamp.textContent)}`);
+});

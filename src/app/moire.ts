@@ -14,6 +14,7 @@ import type { PentagridHandle, View } from "../view/pentagrid.js";
 import { mountFloatingReticulum } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 import { convertView } from "../view/register.js";
+import { BUILD_ID } from "../build-id.js";
 
 const byId = (id: string) => document.getElementById(id) ?? undefined;
 
@@ -357,6 +358,12 @@ if (aHost && bHost && bar && grid) {
         syncB();
         say();
     });
+
+    // The stamp, under the canvases. Only roof carried one; method gets its
+    // tag from the narrative step bar, which this page has no reason to have.
+    // Jake: "I can't see a buildid on the page."
+    const stamp = byId("moire-buildid");
+    if (stamp) stamp.textContent = `build id ${BUILD_ID}`;
 
     syncB();
     say();
