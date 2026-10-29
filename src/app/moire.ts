@@ -31,7 +31,16 @@ const bar = byId("moire-bar");
 const grid = byId("moire-grid");
 
 /** The rows a side keeps. Everything else is behind the reticulum and settings. */
-const ROWS = ["View", "Pentagrid", "Penrose", "edge style", "vertex style"];
+const ROWS = [
+    "View", "Pentagrid", "Penrose", "edge style", "vertex style",
+    // The dressing folds. They were left out at first and so never showed:
+    // they are one line each while shut and flow together onto one, so they
+    // cost the panel a single row and are the quickest way to tell two
+    // generations apart. Jake: "I don't see the folded (collapsed?) entries
+    // above the canvases." `for groups` still appears only when the system is
+    // rhomb groups — that is its own condition, not this list.
+    "pentaplex", "next-rhomb", "kites", "misc", "for groups",
+];
 
 /** Σγ mod 1 — the LI class, and the only thing about γ this page is about. */
 function liClass(h: PentagridHandle): number {
@@ -264,6 +273,47 @@ if (aHost && bHost && bar && grid) {
         // The stack only means anything in register.
         if (mergeBox.checked) relay(() => b, () => a)(A.getView());
     });
+
+    // ── The two panels, laid out the same ─────────────────────────────
+    //
+    // Each side has the same five folded rows, and they open independently —
+    // so one panel grows a line while the other does not, every row below it
+    // shifts on one side only, and the canvas under it drops. The two stop
+    // corresponding, which on a page whose whole point is comparing them is
+    // the wrong way round. Jake: "Try to keep the window containers the same
+    // height when they uncollapse like in split. [...] Put them in the same
+    // relative positions."
+    //
+    // So a fold opens on both sides or neither. Same rows, same heights, every
+    // control in the same place, and the two canvases stay level.
+    const foldsOf = (panel: HTMLElement | undefined): Map<string, HTMLDetailsElement> => {
+        const out = new Map<string, HTMLDetailsElement>();
+        if (!panel) return out;
+        const walk = (el: Element, row: string | null) => {
+            const name = (el as HTMLElement).dataset?.row || row;
+            if (el.tagName?.toLowerCase() === "details" && name && !out.has(name)) {
+                out.set(name, el as HTMLDetailsElement);
+            }
+            for (const kid of Array.from(el.children ?? [])) walk(kid, name);
+        };
+        walk(panel, null);
+        return out;
+    };
+    const fa = foldsOf(byId("moire-a-panel"));
+    const fb = foldsOf(byId("moire-b-panel"));
+    for (const [name, da] of fa) {
+        const db = fb.get(name);
+        if (!db) continue;
+        // No re-entry guard needed: each side only writes when the two
+        // DISAGREE, so the echo finds them equal and stops. Which matters,
+        // because a browser fires `toggle` after the fact rather than during
+        // the assignment, and a synchronous flag would already be down.
+        const mirror = (from: HTMLDetailsElement, to: HTMLDetailsElement) => () => {
+            if (to.open !== from.open) to.open = from.open;
+        };
+        da.addEventListener("toggle", mirror(da, db));
+        db.addEventListener("toggle", mirror(db, da));
+    }
 
     // ── Two reticula, named apart and placed apart ────────────────────
     //

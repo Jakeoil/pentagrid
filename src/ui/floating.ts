@@ -58,6 +58,18 @@ interface Placed {
 
 const storeKey = (id: string) => `pentagrid.panel.${id}`;
 
+/**
+ * The stacking order of the floating panels, as a running counter.
+ *
+ * One panel is the usual case and `z-index: 200` from the stylesheet is the
+ * whole story. Two of them — moiré drives two reticula — overlap, and the one
+ * underneath cannot be worked without first dragging the other off it. Jake:
+ * "When I use the one in the back, move it to the front." So touching a panel
+ * anywhere raises it, which is what every window manager does and what nobody
+ * has to be told.
+ */
+let topZ = 200;
+
 function load(id: string, fallback: Placed): Placed {
     try {
         const raw = globalThis.localStorage?.getItem(storeKey(id));
@@ -83,6 +95,15 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
     const element = document.createElement("div");
     element.className = "float-panel";
     element.id = opts.id;
+
+    /** Bring it above the others. */
+    function raise() {
+        element.style.zIndex = String(++topZ);
+    }
+    // On the panel, not the bar: the point is that reaching for a CONTROL in
+    // the one behind brings it forward, and the bar is the part you can
+    // already get at. Bubbles up from whatever was pressed.
+    element.addEventListener("pointerdown", raise);
 
     const bar = document.createElement("div");
     bar.className = "float-bar";
@@ -219,7 +240,7 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
         element,
         body,
         barExtras,
-        show: () => { element.hidden = false; place(); },
+        show: () => { element.hidden = false; place(); raise(); },
         hide: () => { element.hidden = true; },
         setTitle: (t) => { titleEl.textContent = t; },
         isCollapsed: () => state.collapsed,
@@ -234,6 +255,7 @@ export function createFloatingPanel(opts: FloatingPanelOptions): FloatingPanel {
             state.w = null;
             element.hidden = false;
             place();
+            raise();
             save(opts.id, state);
         },
     };

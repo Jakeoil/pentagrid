@@ -211,3 +211,27 @@ test("the grip resizes the panel, and the width is remembered", () => {
     assert.equal(p.element.style.left, "30px", "the bar still drags");
     assert.equal(p.element.style.width, "180px", "and dragging the bar does not resize");
 });
+
+test("touching a panel brings it to the front", () => {
+    // One panel and the stylesheet's z-index is the whole story. Two of them
+    // overlap, and the one underneath cannot be worked without dragging the
+    // other off it first. Jake: "When I use the one in the back, move it to
+    // the front."
+    storage();
+    const a = createFloatingPanel({ id: "z1", title: "A" });
+    const b = createFloatingPanel({ id: "z2", title: "B" });
+    const z = (p) => Number(p.element.style.zIndex || 0);
+
+    // Pressing anywhere in a panel raises it -- a control, not just the bar,
+    // since reaching for a control is exactly the case that was stuck.
+    a.element.on.pointerdown.forEach((fn) => fn({}));
+    b.element.on.pointerdown.forEach((fn) => fn({}));
+    assert.ok(z(b) > z(a), "the panel pressed second did not come forward");
+
+    a.element.on.pointerdown.forEach((fn) => fn({}));
+    assert.ok(z(a) > z(b), "the one behind stayed behind when it was used");
+
+    // And showing one puts it in front, since it has just been asked for.
+    b.show();
+    assert.ok(z(b) > z(a), "a panel re-opened from behind stayed behind");
+});

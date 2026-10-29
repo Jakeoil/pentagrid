@@ -242,3 +242,88 @@ test("the two share one zoom limit, so crossing between them does not jump", () 
     assert.ok(apart() < 1e-9, "and they are out of register");
     click(reset);
 });
+
+test("a fold opens on both sides at once, so the two panels stay the same shape", () => {
+    // Each side carries the same folded rows. Opened independently, one panel
+    // grows a line and the other does not: every row below it shifts on one
+    // side only and the canvas under it drops, so the two stop corresponding.
+    // Jake: "Try to keep the window containers the same height when they
+    // uncollapse like in split. [...] Put them in the same relative positions."
+    const foldsOf = (id) => {
+        const out = new Map();
+        const walk = (el, row) => {
+            for (const c of el.children ?? []) {
+                const n = c.dataset?.row || row;
+                if (c.tagName === "details" && n && !out.has(n)) out.set(n, c);
+                walk(c, n);
+            }
+        };
+        walk(doc.getElementById(id), null);
+        return out;
+    };
+    const A = foldsOf("moire-a-panel"), B = foldsOf("moire-b-panel");
+    assert.deepEqual([...A.keys()], [...B.keys()], "the two panels carry different rows");
+    for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "for groups"]) {
+        assert.ok(A.has(name), `no ${name} fold on A`);
+    }
+    // The stub does not fire `toggle` on assignment the way a browser does, so
+    // the handlers are run by hand -- which is also what makes the mirroring
+    // visible rather than hidden inside the DOM.
+    const fire = (d) => (d.on?.toggle ?? []).forEach((f) => f());
+    for (const d of [...A.values(), ...B.values()]) d.open = false;
+
+    for (const name of ["pentaplex", "kites", "for groups"]) {
+        A.get(name).open = true;
+        fire(A.get(name));
+        assert.equal(B.get(name).open, true, `opening ${name} on A left B shut`);
+        A.get(name).open = false;
+        fire(A.get(name));
+        assert.equal(B.get(name).open, false, `shutting ${name} on A left B open`);
+    }
+    // And the other way round: B leads just as well.
+    B.get("misc").open = true;
+    fire(B.get("misc"));
+    assert.equal(A.get("misc").open, true, "opening misc on B left A shut");
+
+    // The echo stops rather than bouncing: running the mirror again changes
+    // nothing, which is what lets a browser's after-the-fact `toggle` be safe.
+    fire(A.get("misc"));
+    fire(B.get("misc"));
+    assert.equal(A.get("misc").open, true);
+    assert.equal(B.get("misc").open, true);
+});
+
+test("the dressing folds are actually on screen, not merely built", () => {
+    // They were in the DOM and hidden: exposeRows trims the panel to a named
+    // list and the folds were not on it, so the mirroring worked on rows
+    // nobody could see. Jake: "I don't see the folded (collapsed?) entries
+    // above the canvases."
+    const shown = (id) => {
+        const out = [];
+        const walk = (el) => {
+            for (const c of el.children ?? []) {
+                if (c.dataset?.row && c.hidden !== true) out.push(c.dataset.row);
+                walk(c);
+            }
+        };
+        walk(doc.getElementById(id));
+        return out;
+    };
+    for (const id of ["moire-a-panel", "moire-b-panel"]) {
+        const rows = shown(id);
+        for (const name of ["pentaplex", "next-rhomb", "kites", "misc"]) {
+            assert.ok(rows.includes(name), `${name} is not showing in ${id}: ${rows.join(" ")}`);
+        }
+        // `for groups` keeps its own condition -- the system is thick/thin here.
+        assert.ok(!rows.includes("for groups"),
+                  "for groups is showing with the tiles colored by type");
+    }
+    // and turning the system to groups brings it out, on both sides
+    page.sideA.setTileStyle({ color: "groups" });
+    page.sideB.setTileStyle({ color: "groups" });
+    for (const id of ["moire-a-panel", "moire-b-panel"]) {
+        assert.ok(shown(id).includes("for groups"), `for groups stayed hidden in ${id}`);
+    }
+    page.sideA.setTileStyle({ color: "type" });
+    page.sideB.setTileStyle({ color: "type" });
+});
