@@ -7160,6 +7160,93 @@ made to find something known before its zero is believed.
 wants thinking about rather than a third attempt. §14.1e answers the question
 that prompted it without needing it.
 
+### 14.1g A P1-style tiling for the other LI classes — MEASURED
+
+Jake's actual goal, stated after the innie/outie thread ran out: *"I would like
+to find a P1 style tiling for the other LI classes. [...] I was looking for a
+pentagon packing (pentagons with the blue spacer/st\* tiles)."*
+
+**It exists. It is the same three pentagons, and it is sparse.**
+
+`p1Pentagons` returns nothing off Penrose, which looked like the obstacle but
+is only `findClusters` refusing a patch whose index spans five levels. The
+mechanism underneath still works, and splits cleanly:
+
+| index level | which tiles land there | choice? |
+|---|---|---|
+| 1 | the LOW tiles (m = 1), at their v0 | none — forced |
+| 5 | the HIGH tiles (m = 3), at their v2 | none — forced |
+| 2 and 4 | the MIDDLE tiles (m = 2) | either end |
+
+On Penrose there are four levels and no middles: every tile is forced, which is
+why the packing is complete there.
+
+**The forced groups off Penrose are exactly Pe5, Pe3 and Pe1 — nothing else.**
+At class 1/5, radius 11: Pe1×25, Pe3×17, Pe5×5, and no other composition
+whatever. Same at 1/2 and 1/4. So the question "what vocabulary would a
+generalized P1 need" has the answer **none beyond Penrose's own**.
+
+What changes is density:
+
+| class | pentagons | area covered |
+|---|---|---|
+| **0 (Penrose)** | 105 | **79.4%** |
+| 1/5 | 39 | 29.5% |
+| 1/4 | 33 | 25.0% |
+| 0.31 | 30 | 22.7% |
+| 1/2 | 26 | 19.6% |
+
+So a non-Penrose class gives a genuine P1-style packing — the same three
+pentagons, in the same three kinds — covering a quarter of the plane instead of
+four fifths, with the rest spacer. Which is what Jake asked for, with a lot more
+blue.
+
+### 14.1h Full density is not available — MEASURED
+
+Could the middle tiles be assigned so that every tile joins a group and the
+packing reaches Penrose's density? Each middle has two candidate centers, which
+is exactly what `dressingReadings` already hands back at half strength. That
+makes a constraint-satisfaction problem: choose a center for each middle so
+that every center ends as Pe5, Pe3, Pe1 — or empty, since most vertices are not
+centers at all.
+
+Searched with propagation, Penrose as the control:
+
+| centers required within | Penrose | 1/5 | 2/5 | 3/5 | 4/5 | 1/10 | 0.31 |
+|---|---|---|---|---|---|---|---|
+| 8 | **true** | **true** | false | false | false | **true** | false |
+| 10 | **true** | false | *timeout* | false | false | **true** | false |
+| 12 | **true** | false | *timeout* | *timeout* | false | false | *timeout* |
+
+**Penrose is true at every radius; every non-zero class eventually fails.** 1/5
+and 1/10 reach furthest — radius 8 and 10 — then fail. A local solution that
+will not extend, which is the same shape as everything else in this section.
+
+So the sparse packing of §14.1g is the ceiling, and the middle tiles are
+irreducibly spacer: they do not aggregate into anything pentagon-like.
+
+Two things this does NOT establish. The **timeouts** are undetermined rather
+than false. And the search required Penrose's three group types — which would
+be an arbitrary constraint, except that §14.1g measured the forced groups and
+found those three and nothing else. The constraint is the tiling's own.
+
+### 14.1i The controls, again
+
+Three of the four searches in §14.1e–h were wrong before they were right, and
+every one was caught by a control rather than by inspection:
+
+* the fit scan returned zero everywhere until a single thick rhomb was added as
+  a control and also scored zero;
+* the first CSP had **Penrose coming out false**, because it demanded every
+  center near the patch rim classify when those groups are simply unfinished;
+* the second had Penrose false again, because it required every candidate
+  vertex to BE a group — when most vertices are not centers and empty has to
+  count as an answer.
+
+A search over a quasilattice should always be run on Penrose first, where the
+answer is known. All three bugs were invisible in the off-Penrose numbers and
+obvious the moment the control ran.
+
 ### 14.2 What the lab page is for
 
 The question underneath is Jake's: *"I believe there are several definite
