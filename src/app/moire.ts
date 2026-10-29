@@ -156,14 +156,32 @@ if (aHost && bHost && bar && grid) {
     steps.min = "-3";
     steps.max = "3";
     steps.step = "1";
-    steps.value = "1";
+    steps.value = "-1";
     steps.className = "moire-steps";
     const stepLabel = label("B = ");
-    stepLabel.title = "How many times B is deflated relative to A. Negative inflates "
-        + "instead. Each deflation multiplies the LI class by −2 and divides the "
-        + "tiling's scale by φ.";
+    stepLabel.title = "How many times B is INFLATED relative to A — negative deflates "
+        + "instead. Jake asked for it this way round, opposite to the page's own "
+        + "argument: each inflation multiplies the LI class by 2 and the tiling's "
+        + "scale by φ, each deflation by −2 and 1/φ.";
     stepLabel.appendChild(steps);
-    stepLabel.appendChild(document.createTextNode(" × deflate(A)"));
+    stepLabel.appendChild(document.createTextNode(" × inflate(A)"));
+
+    // The second parameter. It lives on B's GammaSet, which is also what B's
+    // own reticulum writes, so the two controls are two ways to the one piece
+    // of state rather than two copies of it.
+    const norm = document.createElement("input");
+    norm.type = "number";
+    norm.step = "1";
+    norm.value = "0";
+    norm.className = "moire-norm";
+    const normLabel = label(" n = φ");
+    normLabel.title = "An extra power of φ on B's λ, on top of the inflation: "
+        + "λ = φ^(k + n). The INFLATION moves γ and λ together, since it is a map "
+        + "on the offsets that happens to rescale the grid; this moves λ alone — B "
+        + "held still and resized, which is the one thing inflating cannot do. 0 is "
+        + "B at its own size. B's reticulum carries the same number.";
+    normLabel.appendChild(norm);
+    const normOf = () => Math.round(Number(norm.value) || 0);
 
     const mergeBox = document.createElement("input");
     mergeBox.type = "checkbox";
@@ -201,7 +219,7 @@ if (aHost && bHost && bar && grid) {
     const note = document.createElement("span");
     note.className = "moire-note";
 
-    bar.append(linkLabel, stepLabel, mergeLabel, findRet, resetAll, note);
+    bar.append(linkLabel, stepLabel, normLabel, mergeLabel, findRet, resetAll, note);
 
     // ── Linking ───────────────────────────────────────────────────────
     //
@@ -219,8 +237,11 @@ if (aHost && bHost && bar && grid) {
         b.gamma.setGeneration(a.gamma.getGeneration());
         b.gamma.setValues(a.gamma.values());
         for (let i = 0; i < Math.abs(k); i++) {
-            if (k > 0) b.gamma.deflate(); else b.gamma.inflate();
+            // k counts INFLATIONS, so a positive one goes up. The default is
+            // −1, which is the deflation the page is about.
+            if (k > 0) b.gamma.inflate(); else b.gamma.deflate();
         }
+        b.gamma.setNormalization(normOf());
         syncing = false;
         // λ moved under B, so the two no longer agree on view numbers — nor
         // on how far the wheel should go. Both have to be put back in
@@ -259,10 +280,17 @@ if (aHost && bHost && bar && grid) {
         // link box and the step count, so the page looked permanently broken.
         // Jake: "when I reset, I couldn't get it back."
         if (linkBox.checked) { syncB(); return; }
+        norm.value = String(b!.gamma.getNormalization());
         say();
     });
     linkBox.addEventListener("change", () => { syncB(); say(); });
     steps.addEventListener("change", syncB);
+    norm.addEventListener("change", () => {
+        if (!b) return;
+        // Straight onto B when the two are not linked, since syncB
+        // declines to run then and the number would go nowhere.
+        if (linkBox.checked) syncB(); else b.gamma.setNormalization(normOf());
+    });
 
     // ── Merge ─────────────────────────────────────────────────────────
     //
@@ -348,7 +376,8 @@ if (aHost && bHost && bar && grid) {
         // state it is going to be left in rather than the one it happened to
         // be in.
         linkBox.checked = true;
-        steps.value = "1";
+        steps.value = "-1";
+        norm.value = "0";
         mergeBox.checked = false;
         grid.classList.remove("merged");
         A.reset();

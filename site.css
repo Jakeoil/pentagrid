@@ -659,6 +659,7 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 }
 .moire-opt { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .moire-steps { width: 42px; font-size: 12px; }
+.moire-norm { width: 66px; font-size: 12px; }
 .moire-note { font-family: monospace; color: #888; margin-left: auto; }
 .moire-find, .moire-reset { font-size: 11px; padding: 2px 7px; cursor: pointer; }
 
@@ -706,3 +707,7 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 }
 .dress-fold summary { width: max-content; }
 .dress-fold .dress-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* The normalization, beside the generation buttons it multiplies. */
+.ret-norm { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: #777; }
+.ret-norm-in { width: 62px; font-size: 11px; }

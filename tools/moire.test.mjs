@@ -81,21 +81,29 @@ test("B is A deflated: the class follows s to -2s mod 1", () => {
     assert.match(cap("moire-b-caption"), /class 3\/5/);
 });
 
-test("the step count is how many deflations B is", () => {
+test("the step count is how many INFLATIONS B is", () => {
+    // Jake asked for it this way round -- "First inflation factor (yes,
+    // opposite of moire)" -- so a positive k goes UP and the page's own
+    // subject, deflation, is the negative direction and the default.
     const steps = control("moire-steps");
     assert.ok(steps, "no step control");
+    assert.equal(steps.value, "-1", "the default is not one deflation");
+
     setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.125]);   // 1/8
-    steps.value = "3";
+    steps.value = "-3";
     fire(steps);
     // 1/8 -> 3/4 -> 1/2 -> 0, and three deflations is λ = φ⁻³.
     assert.match(cap("moire-b-caption"), /class 0 · Penrose/);
     assert.match(cap("moire-b-caption"), /λ = φ⁻³/);
-    // Negative inflates instead, and inflation is a right inverse: three back
-    // up from 1/8 and three down again is 1/8.
+    // Zero is B at A's own generation, so it reads A's class back.
     steps.value = "0";
     fire(steps);
     assert.match(cap("moire-b-caption"), /class 1\/8/);
-    steps.value = "1";
+    // And positive goes the other way: two inflations is λ = φ².
+    steps.value = "2";
+    fire(steps);
+    assert.match(cap("moire-b-caption"), /λ = φ²/);
+    steps.value = "-1";
     fire(steps);
 });
 
@@ -151,7 +159,7 @@ test("reset page puts the whole page back, switches included", () => {
     click(reset);
 
     assert.equal(link.checked, true, "link did not come back on");
-    assert.equal(steps.value, "1", "the step count did not come back to 1");
+    assert.equal(steps.value, "-1", "the step count did not come back to one deflation");
     assert.equal(merge.checked, false, "merge did not come back off");
     assert.equal(grid.classList.contains("merged"), false, "the canvases stayed stacked");
     // Both tilings back to the page's own γ, which is Penrose, and B one
@@ -336,4 +344,45 @@ test("the page says which build it is", () => {
     assert.ok(stamp, "no build-id element");
     assert.match(stamp.textContent ?? "", /^build id \d\d:\d\d:\d\d$/,
                  `the stamp reads ${JSON.stringify(stamp.textContent)}`);
+});
+
+test("the normalization reaches B as a power of phi, and resizes it alone", () => {
+    // The second parameter: an extra power of phi on B's lambda, on top of the
+    // inflation. It lives on B's GammaSet, which is also what B's reticulum
+    // writes, so the two controls are two ways to one piece of state.
+    const PHI_ = (1 + Math.sqrt(5)) / 2;
+    const reset = button("moire-reset");
+    click(reset);
+    const steps = control("moire-steps"), norm = control("moire-norm");
+    assert.ok(norm, "no normalization control in the bar");
+    assert.equal(norm.value, "0");
+    assert.equal(page.sideB.gamma.getNormalization(), 0);
+
+    const gammaB = () => page.sideB.gamma.values().join(",");
+    const before = gammaB();
+    norm.value = "2";
+    fire(norm);
+    assert.equal(page.sideB.gamma.getNormalization(), 2, "the bar's n did not reach B");
+    assert.equal(page.sideA.gamma.getNormalization(), 0, "it reached A as well");
+    assert.equal(gammaB(), before, "n moved B's gamma, which only the inflation may do");
+
+    // B is one deflation down by default, so phi^2 on top puts its lambda at
+    // phi: the deflated tiling drawn LARGER than its parent, which is the kind
+    // of reconciliation the control exists for.
+    assert.ok(Math.abs(page.sideB.gamma.model.lambda - PHI_) < 1e-9,
+              `B's lambda is ${page.sideB.gamma.model.lambda}, not phi`);
+
+    // It survives a change of generation -- lambda is the two exponents added.
+    steps.value = "2";
+    fire(steps);
+    assert.equal(page.sideB.gamma.getNormalization(), 2, "changing the inflation wiped n");
+    assert.ok(Math.abs(page.sideB.gamma.model.lambda - PHI_ ** 4) < 1e-9);
+
+    // And the two canvases are still on the same rectangle of the plane: n
+    // rides on lambda, which the relay already reads.
+    assert.ok(apart() < 1e-9, `n left them ${apart().toFixed(4)} apart`);
+
+    click(reset);
+    assert.equal(norm.value, "0", "reset did not put n back");
+    assert.equal(page.sideB.gamma.getNormalization(), 0, "reset left B scaled");
 });

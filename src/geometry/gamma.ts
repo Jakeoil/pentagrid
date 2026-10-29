@@ -79,11 +79,32 @@ export interface GammaSet {
     setGuard: (on: boolean) => void;
     getGuard: () => boolean;
     /**
-     * The generation: λ = φ^m is the gridline spacing (model.lambda). 0 is the
-     * unit grid; each step down is one deflation's worth of scale.
+     * The generation: λ = n·φ^m is the gridline spacing (model.lambda). 0 is
+     * the unit grid; each step down is one deflation's worth of scale.
      */
     setGeneration: (m: number) => void;
     getGeneration: () => number;
+    /**
+     * The normalization `q`: λ = φ^(m + q), where m is the generation.
+     *
+     * Also a power of φ — Jake, 2026-10-29: "this scaling factor must also be
+     * in terms of phi powers" — which makes it look redundant beside the
+     * generation until you notice what each one touches. **The generation
+     * moves γ and λ together**, because a deflation is a map on the offsets
+     * that happens to rescale the grid. **The normalization moves λ alone.**
+     * So this is the tiling held still and resized, which is the one thing
+     * `deflate` cannot do.
+     *
+     * That is what lining a decoration up with rhombs needs. Jake: "I believe
+     * I need a scaling factor in addition to an inflation factor in order to
+     * line up tiles. [...] It seemed to me that the groupings produced by 18
+     * degree pentas should have dovetailed into a rhomb pattern."
+     *
+     * Everything that reads λ — the view's register, moiré's relay — follows
+     * without being told. 0 is the tiling at its own size.
+     */
+    setNormalization: (q: number) => void;
+    getNormalization: () => number;
     /**
      * One deflation: γ ↦ Mγ with γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃) and λ ↦ λ/φ. The tiling
      * this leaves, drawn at the new λ, is exactly the old tiling with every
@@ -277,6 +298,12 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     const directions: Vec2[] = [];
     const gamma: number[] = new Array(n).fill(0);
     let generation = 0;
+    /** The power of φ on λ beside the generation's. See `setNormalization`. */
+    let normalization = 0;
+    /** λ is the two exponents together, so neither can be set and forgotten. */
+    const applyLambda = () => {
+        model.lambda = Math.pow(PHI, generation + normalization);
+    };
     const PHI = (1 + Math.sqrt(5)) / 2;
     const model: Pentagrid & { lambda: number } = {
         n, directions, gamma, lambda: 1,
@@ -450,10 +477,18 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         getGuard: () => guard,
         setGeneration: (m) => {
             generation = Math.round(m);
-            model.lambda = Math.pow(PHI, generation);
+            applyLambda();
             for (const cb of listeners) cb();
         },
         getGeneration: () => generation,
+        setNormalization: (q) => {
+            // An exponent, so a whole number: the scales this reconciles are
+            // φ apart and nothing between them is a rung.
+            normalization = Number.isFinite(q) ? Math.round(q) : 0;
+            applyLambda();
+            for (const cb of listeners) cb();
+        },
+        getNormalization: () => normalization,
         deflate: () => {
             // The shift map is the pentagrid's (φ = −(ζ² + ζ³) in Z[ζ₅]); at
             // another n only the spacing steps.
@@ -463,7 +498,7 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
             reduce();
             uniformIntent = q.every((v) => v === q[0]);
             generation -= 1;
-            model.lambda = Math.pow(PHI, generation);
+            applyLambda();
             settle();
         },
         inflate: () => {
@@ -476,7 +511,7 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
             reduce();
             uniformIntent = q.every((v) => v === q[0]);
             generation += 1;
-            model.lambda = Math.pow(PHI, generation);
+            applyLambda();
             settle();
         },
 

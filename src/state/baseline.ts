@@ -33,6 +33,11 @@ export interface GammaSnapshot {
     symmetry: boolean;
     guard: boolean;
     generation: number;
+    /**
+     * The extra power of φ on λ. Optional: a snapshot written before it
+     * existed restores as 0, which is the tiling at its own size.
+     */
+    normalization?: number;
     enabled: boolean[];
     lines: (number | null)[];
     isolated: number | null;
@@ -46,6 +51,7 @@ export function captureGamma(g: GammaSet): GammaSnapshot {
         symmetry: g.getSymmetry(),
         guard: g.getGuard(),
         generation: g.getGeneration(),
+        normalization: g.getNormalization(),
         enabled: g.enabledFlags(),
         lines: g.lineFlags(),
         isolated: g.isolated(),
@@ -69,6 +75,10 @@ export function restoreGamma(g: GammaSet, s: GammaSnapshot) {
     g.setValues(s.exact.map((q) => q / s.den));
     g.setLocked(s.locked);
     g.setGeneration(s.generation);
+    // `?? 0` so a snapshot written before the normalization existed -- a
+    // session from a previous visit, an old saved setup -- restores as the
+    // tiling at its own size rather than as NaN.
+    g.setNormalization(s.normalization ?? 0);
     for (let i = 0; i < s.enabled.length; i++) g.setFamilyEnabled(i, s.enabled[i]);
     for (let i = 0; i < s.lines.length; i++) g.setFamilyLine(i, s.lines[i]);
     g.setIsolated(s.isolated);

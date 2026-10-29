@@ -526,7 +526,7 @@ export function mountReticulum(
     gen.hidden = n !== 5;
     const lambdaOut = document.createElement("span");
     lambdaOut.className = "ret-lambda";
-    lambdaOut.title = "λ, the gridline spacing, as a power of φ. The tiling's edge is λ too.";
+    lambdaOut.title = "λ, the gridline spacing: the generation's power of φ times the normalization n beside it. The tiling's edge is λ too.";
     gen.appendChild(lambdaOut);
     const genBtn = (text: string, title: string, on: () => void) => {
         const b = document.createElement("button");
@@ -544,6 +544,34 @@ export function mountReticulum(
             + "The tiling becomes its own deflation, in place.", () => { off(); set.deflate(); });
         genBtn("inflate", "One generation up: λ × φ and the inverse map on γ.", () => { off(); set.inflate(); });
     }
+
+    // The normalization, beside the generation it multiplies. The generation
+    // moves λ in steps of φ, which is the only ratio deflation makes; a figure
+    // drawn ON the tiles need not sit on that ladder, and lining one
+    // generation's decoration up with another's rhombs wants a factor between
+    // the rungs. Jake, 2026-10-29: "I believe I need a scaling factor in
+    // addition to an inflation factor in order to line up tiles."
+    const normLabel = document.createElement("label");
+    normLabel.className = "ret-norm";
+    normLabel.title = "n, an extra power of φ on λ: λ = φ^(m + n), where m is the "
+        + "generation. It looks redundant beside deflate and inflate until you see "
+        + "what each one touches — the GENERATION moves γ and λ together, because a "
+        + "deflation is a map on the offsets that happens to rescale the grid, while "
+        + "this moves λ ALONE. The tiling held still and resized, which is the one "
+        + "thing deflate cannot do, and what lining a decoration up with rhombs needs.";
+    normLabel.appendChild(document.createTextNode("n = φ"));
+    const normIn = document.createElement("input");
+    normIn.type = "number";
+    normIn.step = "1";
+    normIn.className = "ret-norm-in";
+    normIn.value = String(set.getNormalization());
+    normIn.addEventListener("change", () => {
+        set.setNormalization(Math.round(Number(normIn.value) || 0));
+        render();
+    });
+    normLabel.appendChild(normIn);
+    gen.appendChild(normLabel);
+
     wrap.appendChild(gen);
 
     wrap.appendChild(popup);
@@ -566,7 +594,14 @@ export function mountReticulum(
         const m = set.getGeneration();
         const sup = (k: number) => (k < 0 ? "\u207b" : "") + String(Math.abs(k)).split("")
             .map((d) => "\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079"[+d]).join("");
-        lambdaOut.textContent = `λ = φ${sup(m)}`;
+        // λ is the two exponents added. Shown apart while the normalization
+        // is doing something, so the generation does not disappear into the
+        // total: m is what γ followed, and m + q is only the scale.
+        const q = set.getNormalization();
+        lambdaOut.textContent = q === 0
+            ? `λ = φ${sup(m)}`
+            : `λ = φ${sup(m)}·φ${sup(q)} = φ${sup(m + q)}`;
+        if (Number(normIn.value) !== q) normIn.value = String(q);
     };
     set.onChange(render);
     render();

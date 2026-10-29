@@ -6,6 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createGammaSet, describeSum, penroseCondition } from "../dist/geometry/gamma.js";
 import { singularTriples } from "../dist/geometry/regularity.js";
+import { captureGamma, restoreGamma } from "../dist/state/baseline.js";
 import { collectRhombs, computeKTuple, makeDirections } from "../dist/geometry/pentagrid.js";
 import { readFileSync } from "node:fs";
 import { liftLocal } from "../dist/geometry/roof.js";
@@ -889,4 +890,73 @@ test("off Penrose the misses are all exactly one length, and the share is the cl
         assert.ok(Math.abs(got - want) < 0.015,
                   `s=${s} registered ${(got * 100).toFixed(1)}%, not ${(want * 100).toFixed(0)}%`);
     }
+});
+
+// ── The normalization ─────────────────────────────────────────────────
+
+test("the normalization is a power of phi on lambda ALONE", () => {
+    // Jake: "this scaling factor must also be in terms of phi powers." It
+    // looks redundant beside the generation until you see what each touches:
+    // the GENERATION moves gamma and lambda together, since a deflation is a
+    // map on the offsets that happens to rescale the grid; this moves lambda
+    // alone -- the tiling held still and resized, which deflate cannot do.
+    const PHI_ = (1 + Math.sqrt(5)) / 2;
+    const g = createGammaSet({ n: 5 });
+    g.setLocked(-1);
+    g.setValues([0.0817, 0.3391, -0.2234, 0.1109, -0.3083]);
+    const gamma0 = g.values().join(",");
+    assert.equal(g.getNormalization(), 0, "it does not start at the tiling's own size");
+    assert.equal(g.model.lambda, 1);
+
+    for (const q of [2, -1, 5, -3]) {
+        g.setNormalization(q);
+        assert.ok(Math.abs(g.model.lambda - PHI_ ** q) < 1e-9, `n = ${q} missed lambda`);
+        assert.equal(g.values().join(","), gamma0, `n = ${q} moved gamma`);
+    }
+
+    // It rides THROUGH a generation change: lambda is the two exponents added.
+    g.setNormalization(0);
+    g.deflate();
+    const deflated = g.values().join(",");
+    assert.equal(g.getGeneration(), -1);
+    g.setNormalization(1);
+    assert.ok(Math.abs(g.model.lambda - 1) < 1e-12,
+              `lambda is ${g.model.lambda}, not phi^(-1+1)`);
+    assert.equal(g.values().join(","), deflated,
+                 "the normalization undid the deflation instead of just rescaling it");
+    assert.equal(g.getNormalization(), 1, "the exponent itself moved");
+
+    // An exponent, so a whole number -- the scales this reconciles are phi
+    // apart and nothing between them is a rung.
+    g.setNormalization(1.7);
+    assert.equal(g.getNormalization(), 2, "a fraction was not rounded to a rung");
+    for (const bad of [NaN, Infinity]) {
+        g.setNormalization(bad);
+        assert.equal(g.getNormalization(), 0, `${bad} was taken as an exponent`);
+        assert.ok(Number.isFinite(g.model.lambda), "lambda came back as NaN");
+    }
+});
+
+test("a snapshot carries the normalization, and an old one restores as 0", () => {
+    const PHI_ = (1 + Math.sqrt(5)) / 2;
+    const g = createGammaSet({ n: 5 });
+    g.setNormalization(2);
+    g.deflate();
+    const snap = captureGamma(g);
+    assert.equal(snap.normalization, 2, "the snapshot dropped it");
+
+    g.setNormalization(0);
+    g.setGeneration(0);
+    restoreGamma(g, snap);
+    assert.equal(g.getGeneration(), -1);
+    assert.equal(g.getNormalization(), 2, "the restore dropped it");
+    assert.ok(Math.abs(g.model.lambda - PHI_) < 1e-12, "lambda did not come back");
+
+    // Written before the field existed -- a session from an earlier visit, a
+    // saved setup -- comes back as the tiling's own size rather than as NaN.
+    const old = { ...snap };
+    delete old.normalization;
+    restoreGamma(g, old);
+    assert.equal(g.getNormalization(), 0, "an old snapshot did not default to 0");
+    assert.ok(Number.isFinite(g.model.lambda), "lambda came back as NaN");
 });
