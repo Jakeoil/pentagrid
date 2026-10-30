@@ -41,7 +41,7 @@ const ROWS = [
     // generations apart. Jake: "I don't see the folded (collapsed?) entries
     // above the canvases." `for groups` still appears only when the system is
     // rhomb groups — that is its own condition, not this list.
-    "pentaplex", "next-rhomb", "kites", "misc", "for groups",
+    "pentaplex", "next-rhomb", "kites", "misc", "band", "for groups",
 ];
 
 /** Σγ mod 1 — the LI class, and the only thing about γ this page is about. */

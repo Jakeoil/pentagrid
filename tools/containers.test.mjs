@@ -971,20 +971,22 @@ test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", 
     };
     const pair = fills();                          // one per laid-out tile + one per 2k-gon
 
-    // The band BAR turns them on now, not the dropdown: the system stays
-    // `pair` and the width is what changes.
+    // The band BAR turns them on now, not the dropdown, and they lie OVER the
+    // faces rather than replacing them -- so every tile keeps its own fill and
+    // the ribbons are three more quads on top of it.
     h.setTileStyle({ band: 0.5 });
     const bands = fills();
-    // Three per laid-out tile and none for the 2k-gons — so strictly more than
-    // 3x(pair minus the 2k-gons) is impossible and strictly less than 3x pair
-    // is exactly the 2k-gons going unpainted.
-    assert.ok(bands < 3 * pair, `bands ${bands} should be under 3 x ${pair}: 2k-gons were painted`);
-    assert.ok(bands > 2 * pair, `bands ${bands} should be ~3x ${pair}: not three quads per tile`);
+    // pair + 3 per laid-out tile, and a 2k-gon takes none: strictly more than
+    // the faces alone, and strictly under pair + 3 x pair, the shortfall being
+    // exactly the 2k-gons going un-ribboned.
+    assert.ok(bands > pair, `bands ${bands} should be over the ${pair} faces alone`);
+    assert.ok(bands < 4 * pair, `bands ${bands} should be under ${pair} + 3 x ${pair}: 2k-gons got ribbons`);
+    assert.ok(bands > 3 * pair, `bands ${bands} should be about ${pair} + 3 x ${pair}`);
 
     // Zero-width bands are no bands, so the tiles go back to being painted
     // by the system -- which is the whole point of the bar being the switch.
     h.setTileStyle({ band: 0 });
-    assert.equal(fills(), pair, "band 0 should leave the system's own fill");
+    assert.equal(fills(), pair, "band 0 should leave the system's own fill and nothing more");
 
     h.setTileStyle({ band: 1 });
     assert.equal(fills(), bands, "band 1 should paint the same three quads, full width");
@@ -1027,12 +1029,17 @@ test("height shading is wieringa's ramp: one gradient per tile, low corner to hi
     const highs = new Set(grads.map((g) => g.stops[2][1]));
     assert.ok(lows.size >= 2 && highs.size >= 2, "the ramp is flat — the range is not being used");
 
-    // It is an overlay, not a color: over families2 every band quad is ramped.
-    h.setTileStyle({ color: "bands", band: 0.5 });
+    // It is an overlay, not a color: with the ribbons on, every quad is
+    // ramped -- the faces underneath AND the three band quads over each.
+    const faces = grads.length;
+    h.setTileStyle({ band: 0.5 });
     grads.length = 0; fills = 0;
     h.redraw();
-    assert.equal(grads.length, fills, "over families2 each quad should carry the ramp");
-    assert.equal(grads.length % 3, 0, "three ramped quads per tile");
+    assert.equal(grads.length, fills, "with ribbons on, each quad should carry the ramp");
+    assert.ok(grads.length > faces,
+              `${grads.length} ramped quads is no more than the ${faces} faces alone`);
+    assert.ok(grads.length > 3 * faces,
+              `${grads.length} should be about the faces plus three per tile`);
 
     // And off is off: no gradients at all.
     h.setTileStyle({ color: "type", ramp: 0 });
@@ -2041,7 +2048,7 @@ test("the panel reads in three sections, and split puts the third on the right",
     const GRID = ["== view", "View", "ribbons", "settings", "== grid",
                   "Pentagrid", "Hover", "style"];
     const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
-                 "pentaplex", "next-rhomb", "kites", "misc", "for groups",
+                 "pentaplex", "next-rhomb", "kites", "misc", "band", "for groups",
                  "edge style", "vertex style", "VE census", "singularities"];
 
     const panel = sizedHost(800, 200);
@@ -3313,7 +3320,8 @@ test("a shut dressing fold names what is switched on; open it is just the name",
     walk(panel);
     const head = (f) => (f.children ?? []).find((c) => c.tagName === "summary");
     const named = Object.fromEntries(folds.map((f) => [head(f).textContent, f]));
-    for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "for groups", "height"]) {
+    for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "band",
+                        "for groups", "height"]) {
         assert.ok(name in named, `no ${name} fold: saw ${Object.keys(named)}`);
     }
 
@@ -3326,7 +3334,7 @@ test("a shut dressing fold names what is switched on; open it is just the name",
 
     h.setTileStyle({ pentaEdge: true, kitesFace: true, ammann: true, offPenrose: true });
     assert.deepEqual(summary(),
-                     ["for groups", "height", "kites · face",
+                     ["band", "for groups", "height", "kites · face",
                       "misc · ammann off Penrose", "next-rhomb",
                       "pentaplex · edge"].sort(),
                      `shut folds read ${summary().join(" | ")}`);
@@ -3381,7 +3389,8 @@ test("a shut dressing fold names what is switched on; open it is just the name",
         (f.on?.toggle ?? []).forEach((fn) => fn());
     }
     assert.deepEqual(summary(),
-                     ["for groups", "height", "kites", "misc", "next-rhomb", "pentaplex"]);
+                     ["band", "for groups", "height", "kites", "misc",
+                      "next-rhomb", "pentaplex"]);
     for (const f of folds) {
         assert.equal(rowOfFold(f).classList.contains("fold-open"), true,
                      "an open fold did not take its row back");
@@ -3475,6 +3484,8 @@ test("scrolling a slider nudges it, on the step and inside the ends", () => {
         }
     };
     walk(panel);
+    // the ribbon width lives in the `band` fold and is labeled `width` there
+    bars.band = bars.width;
     for (const name of ["band", "opacity"]) assert.ok(bars[name], `no ${name} bar`);
 
     const spin = (bar, n, dir) => {
@@ -3505,6 +3516,43 @@ test("scrolling a slider nudges it, on the step and inside the ends", () => {
     spin(bars.opacity, 40, 1);
     assert.equal(h.getTileStyle().opacity, 0.1,
                  `opacity bottomed at ${h.getTileStyle().opacity}, not its own minimum`);
+});
+
+test("the bands are drawn after every face and before every edge", () => {
+    // Jake: "They get drawn (z-order) after the face treatments, but before
+    // the edge treatments. special." Counting quads says they are THERE; only
+    // the order says they are in the right place, so this watches the draw
+    // calls go by with a face treatment, the bands and two edge treatments all
+    // on at once.
+    const h = createPentagrid({
+        container: sizedHost(800, 800),
+        features: { penroseTiles: true, gridLines: false },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.0817, 0.3391, -0.2234, 0.1109, -0.3083]);
+    h.setTileStyle({ kitesFace: true, band: 0.4, nextgenEdge: true, p1Grid: true });
+
+    const layer = h.stack.get("penrose-tiles");
+    const log = [];
+    layer.ctx.fill = function () { log.push({ t: "fill", s: String(this.fillStyle) }); };
+    layer.ctx.stroke = function () { log.push({ t: "stroke", s: String(this.strokeStyle) }); };
+    h.redraw();
+
+    // a band quad takes one of the five family hues
+    const FAMILY = ["#e63946", "#f3a712", "#2a9d8f", "#4361ee", "#9d4edd"];
+    const band = (e) => e.t === "fill" && FAMILY.some((c) => e.s.includes(c));
+    const first = log.findIndex(band);
+    const last = log.map(band).lastIndexOf(true);
+    const stroke = log.findIndex((e) => e.t === "stroke");
+    assert.ok(first > 0, "no band quads were drawn at all");
+    assert.ok(stroke > 0, "no edge strokes were drawn, so the order proves nothing");
+
+    // faces first -- there are fills before the bands start
+    assert.ok(log.slice(0, first).some((e) => e.t === "fill"),
+              "the bands were drawn before any face");
+    // and every band is down before the first outline
+    assert.ok(last < stroke,
+              `a band at ${last} is drawn after the first edge stroke at ${stroke}`);
 });
 
 test("the ammann switch sits before curves, and draws red bars over the faces", () => {

@@ -2661,7 +2661,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return rampColor(base, rampT(sum / r.outlineK.length));
     }
     function resolutionBase(r: Resolution): string | null {
-        if (bandsOn()) return null;                        // Jake: not the 2k-gons
         if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
         // A dressing is placed by the index and a stack has no one index, so a
         // 2k-gon takes the bare face under whichever dressing is on.
@@ -3759,12 +3758,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // The system is the FACE: no faces, no thick/thin ground, and
                 // the dressings go straight onto the page.
                 if (features.penroseTiles) {
-                    if (bandsOn()) {
-                        drawBands(tc, rhomb, sv, cx, cy);
-                    } else {
-                        tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
-                        tc.fill();
-                    }
+                    tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
+                    tc.fill();
                 }
                 // Clip to the tile ONCE, here, while the current path is still
                 // the tile. Each dressing used to do its own, which worked for
@@ -3844,6 +3839,34 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     drawLensPass(tc, pieces, cx, cy);
                 }
                 pentaPass = { pieces, cx, cy };
+            }
+            // The bands, over every face and under every outline — their own
+            // place in the order, between the two. Jake: "They get drawn
+            // (z-order) after the face treatments, but before the edge
+            // treatments. special."
+            //
+            // They used to replace the tile's fill, which is why the gaps
+            // between them came out white: nothing had painted there. As a
+            // pass they lie over whatever the faces left, and only the colored
+            // part is theirs — the gaps are not drawn on at all, so every
+            // decoration underneath shows through. Jake: "only the colored
+            // part, the white background is not part of them."
+            //
+            // A 2k-gon takes its face and no band: a stack has no one pair of
+            // families to take its colors from.
+            //
+            // Not called `ribbons` anywhere, though Jake notes that is one of
+            // their names: this panel already has a `ribbons` row, and it is
+            // the grid-side one about a family carrying a line SET.
+            if (bandsOn()) {
+                for (const rhomb of rhombs) {
+                    const sv = rhomb.vertices.map(([vx, vy]) =>
+                        mathToScreen(vx, vy, cx, cy)) as [number, number][];
+                    tc.save();
+                    tc.globalAlpha = tileStyle.opacity;
+                    drawBands(tc, rhomb, sv, cx, cy);
+                    tc.restore();
+                }
             }
             if (tileStyle.ammann || tileStyle.nextgenEdge || tileStyle.kitesEdge) {
                 // Coarsest first: the bars are spaced wider than a tile, the
@@ -4226,7 +4249,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const P_ROWS = new Set([
         "Penrose", "Penrose hover", "system", "face shade", "pentaplex", "penrose face",
         "for groups", "edge style", "vertex style", "VE census", "singularities",
-        "next-rhomb", "kites", "misc",
+        "next-rhomb", "kites", "misc", "band",
     ]);
     function panelFor(title: string): HTMLElement {
         return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
@@ -4256,8 +4279,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         {
             title: "Penrose",
             rows: ["Penrose", "Penrose hover", "system", "face shade", "pentaplex",
-                   "next-rhomb", "kites", "misc", "for groups", "edge style",
-                   "vertex style", "VE census", "singularities"],
+                   "next-rhomb", "kites", "misc", "band", "for groups",
+                   "edge style", "vertex style", "VE census", "singularities"],
         },
     ];
     const sectionEls: { el: HTMLElement; rows: HTMLElement[] }[] = [];
@@ -4662,19 +4685,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 draw();
             });
 
-            // The band bar, always there and always readable. It used to hide
-            // unless the dropdown said `bands`, so the one control that says
-            // how wide a band is only existed once you had already chosen
-            // them. Zero is none, and that is the default.
-            const bandWrap = slider(sRow, "band",
-                "Width of each gridline's band across the tile, as a fraction of "
-                + "the edge — and the switch for the bands themselves. 0 leaves "
-                + "the tiles bare and the system dropdown beside it in charge; "
-                + "anything above draws the families2 bands, 100% covering the tile.",
-                { min: 0, max: 1, step: 0.02 }, tileStyle.band, (v) => `${Math.round(v * 100)}%`,
-                (v) => { tileStyle.band = v; draw(); });
             sRow.appendChild(sel);
-            sRow.appendChild(bandWrap);   // re-append: it must follow the select
 
             // How the fill is shaded.
             // `height` folds the two things that shade a FACE -- the contour
@@ -4976,6 +4987,22 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     + "face — the kite and dart boundaries read through the coloring.");
                 dress(kRow, "kitesFace", "face", "P2 on the rhombs, filled: kites light, a "
                     + "dart in every thick.");
+
+                // The ribbons get a fold like the dressings they lie over,
+                // and sit after them. Jake: "move the band (fold it only
+                // showing percent when not zero) after misc." The percent is
+                // the whole state, so it is the whole summary.
+                const bandRow = dressFold("band",
+                    () => (tileStyle.band > 0 ? [`${Math.round(tileStyle.band * 100)}%`] : []));
+                slider(bandRow, "width",
+                    "Width of each gridline's band across the tile, as a fraction of "
+                    + "the edge — and the switch for the bands themselves. 0 is none; "
+                    + "above it the families2 ribbons lie over every face and under "
+                    + "every outline, 100% covering the tile. A 2k-gon takes none: a "
+                    + "stack has no one pair of families to color.",
+                    { min: 0, max: 1, step: 0.02 }, tileStyle.band,
+                    (v) => `${Math.round(v * 100)}%`,
+                    (v) => { tileStyle.band = v; syncPanel(); draw(); });
 
                 const mRow = dressFold("misc",
                     () => onOf(["ammann", "ammann"], ["curves", "curves"],
