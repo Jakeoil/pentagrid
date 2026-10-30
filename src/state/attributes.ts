@@ -8,7 +8,7 @@
  *
  * So the serialized form of a setup is attributes on the container:
  *
- *     <div id="stage" data-width="800" data-penrose-tiles data-color="bands"
+ *     <div id="stage" data-width="800" data-penrose-tiles data-color="groups"
  *          data-band="0.5" data-penta-face data-penta-shape="innie"></div>
  *
  * Which is one surface used two ways — a host page configuring a widget, and a

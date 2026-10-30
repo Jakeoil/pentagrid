@@ -131,7 +131,7 @@ test("a page's own setup is reachable as attributes, which is the goal's point",
         container: host(), panel: host({}, "p1"),
         features: { penroseTiles: true, penroseEdges: true, gridLines: false },
         tileStyle: { color: "bands", band: 0.3, pentaFace: true,
-                     pentaShape: "innie", shading: true, ramp: 0.5 },
+                     pentaShape: "innie", ramp: 0.5, isogloss: true },
     });
     // Its baseline is that config, so embed against a BARE baseline instead.
     code.markBaseline();

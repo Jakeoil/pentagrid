@@ -158,7 +158,7 @@ test("the drawing after a reset is identical, byte for byte", () => {
     assert.ok(before.length > 2000, "nothing was drawn, so this proves nothing");
 
     h.setTileStyle({ color: "groups", pentaFace: true, pentaShape: "outie",
-                     shading: true, opacity: 0.5 });
+                     ramp: 0.8, opacity: 0.5 });
     h.setFeatures({ kRegions: true, penroseVertices: true }, { merge: true });
     h.setView({ scale: 70, x: 1.5, y: 2 });
     h.gamma.setValues([0.3, 0.1, 0.2, 0.25, 0.15]);

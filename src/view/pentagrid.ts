@@ -379,12 +379,6 @@ export interface TileStyle {
      * holds everywhere — which is the picture. Off by default. Jake's idea.
      */
     offPenrose: boolean;
-    /**
-     * The height ramp, over whatever color is chosen — wieringa-roof's shading.
-     * Lighter towards the top of the patch, darker towards the bottom, each tile
-     * a gradient from its low corner to its high. See heightGradient.
-     */
-    shading: boolean;
     /** Strength of the ramp, 0..1. wieringa-roof's `shade` slider. */
     ramp: number;
     /** Tile edges as real lines rather than a hairline, as grow.html's setting. */
@@ -2119,6 +2113,20 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     /** The circled index's radius: big enough to read, never bigger than a tile corner. */
     const markRadius = () => Math.max(6, Math.min(9, scale * 0.12));
 
+    /**
+     * Are the bands on? The WIDTH says so — Jake, 2026-10-30: "take bands out
+     * of system. simply have a labeled band bar and percent in on its own
+     * where it was." A zero-wide band is no band, so the slider is the switch
+     * and the system dropdown is left to say what a bare tile is.
+     *
+     * One rule at every n. Leaving `bands` in the heptagrid's dropdown would
+     * have been worse than taking it out: with the width defaulting to 0,
+     * choosing it drew nothing at all. The `bands` value survives in the
+     * `color` enum for a setup saved before this, where it now means only
+     * "not one of the others".
+     */
+    const bandsOn = () => tileStyle.band > 0;
+
     /** A unit vector, or (0,0) if there is none. */
     const unit = (x: number, y: number): [number, number] => {
         const n = Math.hypot(x, y);
@@ -2645,7 +2653,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      */
     function resolutionFill(r: Resolution): string | null {
         const base = resolutionBase(r);
-        if (base === null || !tileStyle.shading) return base;
+        if (base === null || tileStyle.ramp <= 0) return base;
         // The ramp, flat at its mean height: its corners span more than one
         // diagonal, and a stack has no one surface to shade.
         let sum = 0;
@@ -2653,7 +2661,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return rampColor(base, rampT(sum / r.outlineK.length));
     }
     function resolutionBase(r: Resolution): string | null {
-        if (tileStyle.color === "bands") return null;      // Jake: not the 2k-gons
+        if (bandsOn()) return null;                        // Jake: not the 2k-gons
         if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
         // A dressing is placed by the index and a stack has no one index, so a
         // 2k-gon takes the bare face under whichever dressing is on.
@@ -3692,7 +3700,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     function ramped(
         tc: CanvasRenderingContext2D, rhomb: Rhomb, sv: [number, number][], base: string,
     ): string | CanvasGradient {
-        return tileStyle.shading ? heightGradient(tc, rhomb, sv, base) : base;
+        return tileStyle.ramp > 0 ? heightGradient(tc, rhomb, sv, base) : base;
     }
 
     /**
@@ -3751,7 +3759,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // The system is the FACE: no faces, no thick/thin ground, and
                 // the dressings go straight onto the page.
                 if (features.penroseTiles) {
-                    if (tileStyle.color === "bands") {
+                    if (bandsOn()) {
                         drawBands(tc, rhomb, sv, cx, cy);
                     } else {
                         tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
@@ -4374,11 +4382,30 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         const val = document.createElement("span");
         val.className = "slider-val";
         val.textContent = format(value);
+        const set = (v: number) => {
+            const c = Math.min(range.max, Math.max(range.min, v));
+            // Back onto the step, or a wheel's worth of 0.02s drifts into
+            // 0.30000000000000004 and the readout wobbles.
+            const q = Math.round(c / range.step) * range.step;
+            const r = Math.round(q * 1e6) / 1e6;
+            input.value = String(r);
+            val.textContent = format(r);
+            onInput(r);
+        };
         input.addEventListener("input", () => {
             const v = parseFloat(input.value);
             val.textContent = format(v);
             onInput(v);
         });
+        // Scroll over a slider to nudge it. Jake: "allow scrolling on band and
+        // opacity bars." Not passive, because the page must NOT scroll under
+        // the pointer while the bar is taking the gesture.
+        input.addEventListener("wheel", (e) => {
+            const ev = e as WheelEvent;
+            ev.preventDefault();
+            const dir = ev.deltaY < 0 ? 1 : -1;
+            set(parseFloat(input.value) + dir * range.step);
+        }, { passive: false });
         wrap.append(nm, input, val);
         parent.appendChild(wrap);
         return wrap;
@@ -4615,11 +4642,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "of the two parallel colors, drawn as the bands themselves, `band` "
                 + "wide. A 2k-gon follows the same choice. The dressings are separate "
                 + "switches, not alternatives.";
+            // No `bands` in the dropdown at any n: it is the band bar's own
+            // business now, and the dropdown is left saying what a BARE tile
+            // is.
             const systems = model.n === 5
                 ? [["type", "thick/thin"], ["groups", "rhomb groups"],
-                   ["kowalewski", "Kowalewski"], ["bands", "bands (families2)"]] as const
-                : [["type", "by shape"], ["pair", "families"],
-                   ["bands", "bands (families2)"]] as const;
+                   ["kowalewski", "Kowalewski"]] as const
+                : [["type", "by shape"], ["pair", "families"]] as const;
             for (const [value, text] of systems) {
                 const opt = document.createElement("option");
                 opt.value = value;
@@ -4629,43 +4658,73 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             sel.value = tileStyle.color;
             sel.addEventListener("change", () => {
                 tileStyle.color = sel.value as TileStyle["color"];
-                bandWrap.hidden = tileStyle.color !== "bands";
                 syncPanel();          // `for groups` applies only to groups
                 draw();
             });
 
-            // The band width, for families2 only — grow.html's slider, here.
+            // The band bar, always there and always readable. It used to hide
+            // unless the dropdown said `bands`, so the one control that says
+            // how wide a band is only existed once you had already chosen
+            // them. Zero is none, and that is the default.
             const bandWrap = slider(sRow, "band",
                 "Width of each gridline's band across the tile, as a fraction of "
-                + "the edge. 100% covers the tile; 0 leaves it bare.",
+                + "the edge — and the switch for the bands themselves. 0 leaves "
+                + "the tiles bare and the system dropdown beside it in charge; "
+                + "anything above draws the families2 bands, 100% covering the tile.",
                 { min: 0, max: 1, step: 0.02 }, tileStyle.band, (v) => `${Math.round(v * 100)}%`,
                 (v) => { tileStyle.band = v; draw(); });
-            bandWrap.hidden = tileStyle.color !== "bands";
             sRow.appendChild(sel);
             sRow.appendChild(bandWrap);   // re-append: it must follow the select
 
             // How the fill is shaded.
-            const shadeRow = row(panelFor("face shade"), "face shade");
-            const iso = checkbox(shadeRow, "isoglosses", tileStyle.isogloss, (v) => {
+            // `height` folds the two things that shade a FACE -- the contour
+            // lines and the Wieringa ramp -- and says which are running when it
+            // is shut. The ramp lost its separate on/off switch: a strength of
+            // zero is off, so the one number says both. Jake: "folded word
+            // 'height' with 'isogloss' and 'shading' percent shown if not
+            // false/0."
+            const shadeRow = row(panelFor("face shade"), "face shade", "");
+            for (const kid of Array.from(shadeRow.children)) {
+                if ((kid as HTMLElement).className === "panel-label") {
+                    shadeRow.removeChild(kid);
+                }
+            }
+            shadeRow.classList.add("inline-fold");
+            const hFold = document.createElement("details");
+            hFold.className = "row-fold dress-fold";
+            const hHead = document.createElement("summary");
+            hFold.appendChild(hHead);
+            const hBody = document.createElement("div");
+            hBody.className = "dress-line";
+            hFold.appendChild(hBody);
+            shadeRow.appendChild(hFold);
+            const hSync = () => {
+                shadeRow.classList.toggle("fold-open", hFold.open);
+                const on: string[] = [];
+                if (!hFold.open) {
+                    if (tileStyle.isogloss) on.push("isogloss");
+                    if (tileStyle.ramp > 0) on.push(`${Math.round(tileStyle.ramp * 100)}%`);
+                }
+                hHead.textContent = on.length ? `height · ${on.join(" ")}` : "height";
+            };
+            hFold.addEventListener("toggle", hSync);
+            panelSyncs.push(hSync);
+
+            const iso = checkbox(hBody, "isogloss", tileStyle.isogloss, (v) => {
                 tileStyle.isogloss = v;
+                syncPanel();
                 draw();
             });
             iso.title = "Contour lines across each tile, perpendicular to its long diagonal.";
-
-            // The height ramp — wieringa-roof's shading — over whatever color is
-            // chosen, with the roof's strength slider beside it when it is on.
-            const shadeBox = checkbox(shadeRow, "height", tileStyle.shading, (v) => {
-                tileStyle.shading = v;
-                rampWrap.hidden = !v;
-                draw();
-            });
-            shadeBox.title = "Shade by Wieringa height: lighter towards the top of the "
+            slider(hBody, "shading",
+                "Strength of the Wieringa height ramp: lighter towards the top of the "
                 + "patch, darker towards the bottom, each tile a gradient from its low "
-                + "corner to its high. Over any color, families2 included.";
-            const rampWrap = slider(shadeRow, "ramp", "Strength of the height ramp.",
+                + "corner to its high. Over any color, bands included. 0 is off — the "
+                + "ramp has no separate switch, because a strength of nothing is none.",
                 { min: 0, max: 1, step: 0.05 }, tileStyle.ramp, (v) => `${Math.round(v * 100)}%`,
-                (v) => { tileStyle.ramp = v; draw(); });
-            rampWrap.hidden = !tileStyle.shading;
+                (v) => { tileStyle.ramp = v; syncPanel(); draw(); });
+            hSync();
+
             slider(shadeRow, "opacity", "Tile transparency. Edges and decoration stay solid.",
                 { min: 0.1, max: 1, step: 0.05 }, tileStyle.opacity, (v) => `${Math.round(v * 100)}%`,
                 (v) => { tileStyle.opacity = v; draw(); });

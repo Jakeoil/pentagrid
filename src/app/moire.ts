@@ -33,7 +33,8 @@ const grid = byId("moire-grid");
 
 /** The rows a side keeps. Everything else is behind the reticulum and settings. */
 const ROWS = [
-    "View", "Pentagrid", "Penrose", "edge style", "vertex style",
+    "View", "Pentagrid", "Penrose", "system", "face shade",
+    "edge style", "vertex style",
     // The dressing folds. They were left out at first and so never showed:
     // they are one line each while shut and flow together onto one, so they
     // cost the panel a single row and are the quickest way to tell two
@@ -258,9 +259,20 @@ if (aHost && bHost && bar && grid) {
         const cap = (id: string, name: string, h: PentagridHandle, s: number) => {
             const el = byId(id);
             if (!el) return;
-            const m = h.gamma.getGeneration();
-            el.textContent = `${name} — class ${sayClass(s)}`
-                + (m ? `, λ = φ${m > 0 ? "" : "⁻"}${"¹²³⁴⁵⁶⁷⁸⁹"[Math.abs(m) - 1] ?? Math.abs(m)}` : "");
+            // λ is the generation AND the normalization — it used to report the
+            // generation alone, so a side scaled by n said nothing about it and
+            // the shrink from the inflation looked like n's doing. Shown as
+            // both parts when n is pulling, the way the reticulum does it, so
+            // it is clear which is which. Jake: "n = phi: 0 actually shrinks
+            // them. Shouldn't it be phi^0 = 1 for same size?" — it is; the
+            // shrink was the inflation stepper, sitting at −1.
+            const m = h.gamma.getGeneration(), q = h.gamma.getNormalization();
+            const sup = (k: number) => (k < 0 ? "⁻" : "")
+                + String(Math.abs(k)).split("")
+                    .map((d) => "⁰¹²³⁴⁵⁶⁷⁸⁹"[+d]).join("");
+            const lam = q !== 0 ? `, λ = φ${sup(m)}·φ${sup(q)} = φ${sup(m + q)}`
+                      : m !== 0 ? `, λ = φ${sup(m)}` : "";
+            el.textContent = `${name} — class ${sayClass(s)}${lam}`;
         };
         cap("moire-a-caption", "A", a, sa);
         cap("moire-b-caption", "B", b, sb);

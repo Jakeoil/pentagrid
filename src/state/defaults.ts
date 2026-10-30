@@ -43,7 +43,7 @@ export const NO_FEATURES: Features = {
  * inventory derives from it.
  */
 export const TILE_DEFAULTS: TileStyle = {
-    color: "type", isogloss: false, shading: false, ramp: 1, opacity: 1, band: 0.5,
+    color: "type", isogloss: false, ramp: 0, opacity: 1, band: 0,
     curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
     pentaOverlay: true,
     pentaBoundary: "circle",

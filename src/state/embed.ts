@@ -8,7 +8,7 @@
  * So: one string, the markup for a container that reproduces what you are
  * looking at.
  *
- *     <div id="stage" data-color="bands" data-penta-face
+ *     <div id="stage" data-band="0.5" data-penta-face
  *          data-gamma="2000,2000,2000,2000,2000" data-gamma-den="10000"></div>
  *
  * **It carries more than the flat fields.** §9.3's scopes are about what

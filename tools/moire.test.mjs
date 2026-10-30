@@ -386,3 +386,28 @@ test("the normalization reaches B as a power of phi, and resizes it alone", () =
     assert.equal(norm.value, "0", "reset did not put n back");
     assert.equal(page.sideB.gamma.getNormalization(), 0, "reset left B scaled");
 });
+
+test("the caption reports lambda from the generation AND the normalization", () => {
+    // It used to read the generation alone, so a side scaled by n said nothing
+    // about it -- and the shrink from the inflation looked like n's doing.
+    // Jake: "n = phi: 0 actually shrinks them. Shouldn't it be phi^0 = 1 for
+    // same size?" It is; the shrink was the stepper, sitting at -1.
+    const reset = button("moire-reset");
+    click(reset);
+    const steps = control("moire-steps"), norm = control("moire-norm");
+
+    // k = 0, n = 0 really is the same size, and says nothing about λ.
+    steps.value = "0"; fire(steps);
+    assert.doesNotMatch(cap("moire-b-caption"), /λ/, "an unscaled B talked about λ");
+    assert.equal(page.sideB.gamma.model.lambda, page.sideA.gamma.model.lambda,
+                 "k = 0, n = 0 is not the same size after all");
+
+    // n alone shows as both parts, so which one is pulling is visible.
+    norm.value = "1"; fire(norm);
+    assert.match(cap("moire-b-caption"), /λ = φ⁰·φ¹ = φ¹/, cap("moire-b-caption"));
+    steps.value = "-1"; fire(steps);
+    assert.match(cap("moire-b-caption"), /λ = φ⁻¹·φ¹ = φ⁰/, cap("moire-b-caption"));
+    steps.value = "2"; norm.value = "-3"; fire(norm);
+    assert.match(cap("moire-b-caption"), /λ = φ²·φ⁻³ = φ⁻¹/, cap("moire-b-caption"));
+    click(reset);
+});

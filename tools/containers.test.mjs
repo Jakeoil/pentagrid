@@ -971,7 +971,9 @@ test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", 
     };
     const pair = fills();                          // one per laid-out tile + one per 2k-gon
 
-    h.setTileStyle({ color: "bands", band: 0.5 });
+    // The band BAR turns them on now, not the dropdown: the system stays
+    // `pair` and the width is what changes.
+    h.setTileStyle({ band: 0.5 });
     const bands = fills();
     // Three per laid-out tile and none for the 2k-gons — so strictly more than
     // 3x(pair minus the 2k-gons) is impossible and strictly less than 3x pair
@@ -979,8 +981,10 @@ test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", 
     assert.ok(bands < 3 * pair, `bands ${bands} should be under 3 x ${pair}: 2k-gons were painted`);
     assert.ok(bands > 2 * pair, `bands ${bands} should be ~3x ${pair}: not three quads per tile`);
 
+    // Zero-width bands are no bands, so the tiles go back to being painted
+    // by the system -- which is the whole point of the bar being the switch.
     h.setTileStyle({ band: 0 });
-    assert.equal(fills(), 0, "band 0 should paint nothing");
+    assert.equal(fills(), pair, "band 0 should leave the system's own fill");
 
     h.setTileStyle({ band: 1 });
     assert.equal(fills(), bands, "band 1 should paint the same three quads, full width");
@@ -993,7 +997,7 @@ test("height shading is wieringa's ramp: one gradient per tile, low corner to hi
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { color: "type", shading: true, ramp: 1 },
+        tileStyle: { color: "type", ramp: 1 },
     });
     h.gamma.setGuard(true);                      // a regular patch, so every fill is a tile
 
@@ -1031,7 +1035,7 @@ test("height shading is wieringa's ramp: one gradient per tile, low corner to hi
     assert.equal(grads.length % 3, 0, "three ramped quads per tile");
 
     // And off is off: no gradients at all.
-    h.setTileStyle({ color: "type", shading: false });
+    h.setTileStyle({ color: "type", ramp: 0 });
     grads.length = 0;
     h.redraw();
     assert.equal(grads.length, 0, "shading off should build no gradients");
@@ -1190,7 +1194,7 @@ test("tile style is a setting, not a feature flag", () => {
         tileStyle: { color: "pair", isogloss: true, opacity: 0.5 },
     });
     assert.equal(typeof h.setTileStyle, "function");
-    h.setTileStyle({ shading: true });
+    h.setTileStyle({ ramp: 1 });
     h.redraw();
     h.setTileStyle({ isogloss: false, opacity: 1 });
     h.redraw();
@@ -1441,10 +1445,13 @@ test("a singularity is drawn as a P-region, by the tile and edge layers", () => 
     assert.ok(filled > 0, "nothing was filled at all");
 
     // and the style choice reaches them
-    for (const color of ["type", "pair", "bands", "groups", "p1", "curves", "pentagons", "nextgen", "kites"]) {
-        h.setTileStyle({ color });
+    for (const color of ["type", "pair", "groups", "p1", "curves", "pentagons", "nextgen", "kites"]) {
+        h.setTileStyle({ color, band: 0 });
         assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, color);
     }
+    // and the bands, which are the band BAR now rather than a color
+    h.setTileStyle({ color: "type", band: 0.3 });
+    assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, "bands");
 });
 
 test("tile is the fill and edge is the outline — never both from one layer", () => {
@@ -1686,7 +1693,8 @@ test("the multigrid: createPentagrid at n = 8 builds, the reticulum has sixteen 
     const walk = (node) => { if (!node || !node.children) return; for (const c of node.children) { if (c.tagName === "select" && c.className === "line-pick" && c.children.some((o) => o.value === "type")) sel = c; walk(c); } };
     walk(panel);
     assert.ok(sel, "the tile style select exists");
-    assert.deepEqual(sel.children.map((o) => o.value), ["type", "pair", "bands"]);
+    // `bands` has left the dropdown at every n -- the band bar is its switch.
+    assert.deepEqual(sel.children.map((o) => o.value), ["type", "pair"]);
     const rows = panelRows(panel);
     assert.ok(!rows.get("edge style").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
     assert.ok(!rows.has("pentaplex"), "no penta off the pentagrid");
@@ -3305,7 +3313,7 @@ test("a shut dressing fold names what is switched on; open it is just the name",
     walk(panel);
     const head = (f) => (f.children ?? []).find((c) => c.tagName === "summary");
     const named = Object.fromEntries(folds.map((f) => [head(f).textContent, f]));
-    for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "for groups"]) {
+    for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "for groups", "height"]) {
         assert.ok(name in named, `no ${name} fold: saw ${Object.keys(named)}`);
     }
 
@@ -3318,8 +3326,9 @@ test("a shut dressing fold names what is switched on; open it is just the name",
 
     h.setTileStyle({ pentaEdge: true, kitesFace: true, ammann: true, offPenrose: true });
     assert.deepEqual(summary(),
-                     ["for groups", "kites · face", "misc · ammann off Penrose",
-                      "next-rhomb", "pentaplex · edge"].sort(),
+                     ["for groups", "height", "kites · face",
+                      "misc · ammann off Penrose", "next-rhomb",
+                      "pentaplex · edge"].sort(),
                      `shut folds read ${summary().join(" | ")}`);
 
     // Both halves of a pair, and the pair reads both.
@@ -3348,6 +3357,14 @@ test("a shut dressing fold names what is switched on; open it is just the name",
                      "a shut fold is claiming the whole row");
     }
 
+    // `height` carries a percentage rather than a word, since the ramp's
+    // strength is the switch: zero is off.
+    h.setTileStyle({ isogloss: true, ramp: 0.4 });
+    assert.ok(summary().includes("height · isogloss 40%"),
+              `height reads ${summary().find((x) => x.startsWith("height"))}`);
+    h.setTileStyle({ isogloss: false, ramp: 0 });
+    assert.ok(summary().includes("height"), "a bare height fold lost its name");
+
     // And by CLICKING the switch, which is the path a reader takes and a
     // different one from setTileStyle: the checkbox has to re-sync the
     // summaries itself.
@@ -3363,7 +3380,8 @@ test("a shut dressing fold names what is switched on; open it is just the name",
         f.open = true;
         (f.on?.toggle ?? []).forEach((fn) => fn());
     }
-    assert.deepEqual(summary(), ["for groups", "kites", "misc", "next-rhomb", "pentaplex"]);
+    assert.deepEqual(summary(),
+                     ["for groups", "height", "kites", "misc", "next-rhomb", "pentaplex"]);
     for (const f of folds) {
         assert.equal(rowOfFold(f).classList.contains("fold-open"), true,
                      "an open fold did not take its row back");
@@ -3437,6 +3455,56 @@ test("every hover is off by default, and nothing in the panel turns one on", () 
     vh.box.checked = true;
     (vh.box.on?.change ?? []).forEach((fn) => fn());
     assert.ok(on().length > 0, "the hover row no longer turns a hover on");
+});
+
+test("scrolling a slider nudges it, on the step and inside the ends", () => {
+    // Jake: "allow scrolling on band and opacity bars." A range input ignores
+    // the wheel on its own, so every slider gets a handler -- and it is not
+    // passive, or the page scrolls under the pointer while the bar takes it.
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({ container: sizedHost(800, 800), panel });
+    const bars = {};
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (c.className === "band-setting") {
+                const name = (c.children ?? [])[0]?.textContent;
+                const input = (c.children ?? []).find((x) => x.type === "range");
+                if (name && input) bars[name] = input;
+            }
+            walk(c);
+        }
+    };
+    walk(panel);
+    for (const name of ["band", "opacity"]) assert.ok(bars[name], `no ${name} bar`);
+
+    const spin = (bar, n, dir) => {
+        let prevented = 0;
+        for (let i = 0; i < n; i++) {
+            (bar.on?.wheel ?? []).forEach((fn) =>
+                fn({ deltaY: dir * 100, preventDefault() { prevented++; } }));
+        }
+        return prevented;
+    };
+    // up is more, down is less, and the step is the slider's own
+    assert.equal(h.getTileStyle().band, 0, "band does not start at nothing");
+    const prevented = spin(bars.band, 5, -1);
+    // EXACTLY 0.1, not near it: five additions of 0.02 give
+    // 0.10000000000000002, which is what the snap-to-step is for -- a
+    // tolerance here would pass whether the snapping existed or not.
+    assert.equal(h.getTileStyle().band, 0.1,
+                 `five scrolls gave ${h.getTileStyle().band}, not a clean 5 x 0.02`);
+    assert.equal(prevented, 5, "the page would scroll under the pointer");
+    spin(bars.band, 3, 1);
+    assert.equal(h.getTileStyle().band, 0.04);
+
+    // and it stops at the ends rather than running past them
+    spin(bars.band, 40, 1);
+    assert.equal(h.getTileStyle().band, 0, "band ran below nothing");
+    spin(bars.opacity, 40, -1);
+    assert.equal(h.getTileStyle().opacity, 1, "opacity ran above whole");
+    spin(bars.opacity, 40, 1);
+    assert.equal(h.getTileStyle().opacity, 0.1,
+                 `opacity bottomed at ${h.getTileStyle().opacity}, not its own minimum`);
 });
 
 test("the ammann switch sits before curves, and draws red bars over the faces", () => {
