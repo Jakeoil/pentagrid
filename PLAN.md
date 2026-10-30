@@ -7347,3 +7347,97 @@ the rest.
    its parent's vertices. So −2 is the FIRST generation that fits, which is
    the meaningful statement — but the test should be that it is the coarsest
    one, not merely one that works, or the claim says less than it sounds.
+
+---
+
+## 15. What `big-face` and `big-grid` are (Jake, 2026-10-30) — MEASURED
+
+> I have a question about what you are rendering in groups, big-face and
+> big-grid. What's it based on. [...] Why does it survive non penrose, unlike
+> groups. [...] Is it an inflation? phi or phi squared?
+
+### 15.1 The algorithm: one inflation, φ
+
+Three lines in the `big-rhombs` layer, and no more:
+
+```
+γ′ⱼ = γⱼ₋₁ + γⱼ₊₁          one inflation, the matrix N = S + S⁴
+collectRhombs(γ′, rect / φ)  a fresh pentagrid, dualized in its own right
+vertex × φ                   scaled back into this tiling's units
+```
+
+**φ, not φ².** Measured: the big rhombs' edge is **1.6180** in the patch's own
+units, where the base tiles are 1.
+
+The thing to see is that it is not a figure drawn *on* the tiling. It builds a
+**second pentagrid** out of the inflated offsets and dualizes it exactly the
+way the base tiling was made. The ×φ only puts the result in the same
+coordinates.
+
+### 15.2 Why it survives off Penrose: it is a GRID construction, not an INDEX one
+
+| | needs | breaks when |
+|---|---|---|
+| `groups`, `p1Pentagons` | the index to span exactly **four** levels | Σγ ∉ ℤ gives five |
+| `big-face`, `big-grid` | only **γ** | never — `collectRhombs` takes any γ |
+
+`findClusters` reads the index and refuses a five-level patch (§14.1g). This
+reads nothing: it makes a grid and dualizes it, which is defined for every γ.
+That is the whole of the difference.
+
+### 15.3 It is not based on the groups — but on Penrose it CONTAINS them
+
+Jake: *"It's great, but not really based on groups (like group pentaplex)...or
+is it."* The code never computes a group. But the two are not unrelated.
+
+Inside r = 10 on a Penrose patch there are **146** inflated vertices, and they
+sit at these index levels:
+
+| level | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|
+| inflated vertices | 54 | 22 | 19 | 51 |
+
+Levels 1 and 4 are the extremes, which is exactly what a group center is — and
+**54 + 51 = 105, which is every one of the patch's 105 group centers, with none
+missing.** The other 41 sit at the middle levels 2 and 3, where no group is.
+
+So the containment is one way and exact:
+
+> **group centers ⊊ inflated vertices**, the extras being the middle-index ones.
+
+The inflated grid finds the group centers without being told what a group is —
+they are its extreme-index vertices — and then carries 41 more besides. "Based
+on groups" is the wrong way round: the groups are a *part* of it, picked out by
+the index it never consults.
+
+Off Penrose the question lapses, because there are no groups. The inflated
+vertices spread across all five levels, and 17 of 148 at LI 1/2 are **not patch
+vertices at all** (5 of 148 at 1/5) — see §15.4.
+
+### 15.4 The inflated grid is in a DIFFERENT LI class
+
+| patch class | big-rhombs class | inflated vertices that are patch vertices |
+|---|---|---|
+| **0 (Penrose)** | **0** | **586/586 — 100%** |
+| 1/5 | 2/5 | 97.1% |
+| 1/4 | 1/2 | 94.1% |
+| 0.31 | 0.62 | 93.4% |
+| **1/2** | **0** | 90.7% |
+
+On Penrose it is exact: every inflated vertex IS a patch vertex, which is what
+earns it the name "the generation above". Off Penrose it is 91–97% — close
+enough to read as the generation above, and genuinely not one. A few percent of
+its corners sit where the patch has no vertex.
+
+**And the 1/2 row is §12.1 arriving early.** Jake: *"It is what I suspected,
+LI(.5) inflates to penrose (we discovered) this was before the discovery."* The
+layer was written long before the class map `s ↦ 2s` was worked out, and it has
+been quietly demonstrating it: a half-class patch draws a Penrose grid over
+itself, because 2 · ½ = 1 ≡ 0.
+
+One detail that is a choice rather than a law: this uses the **plain**
+inflation, with no `shift`. `GammaSet.inflate()` subtracts `round(Σq/2)` off
+Penrose to pick one of deflation's two preimages (§12.1), and this does not —
+so the class here is exactly 2s where the button's would differ. Neither is
+wrong; they are answering different questions, and only one of them has to
+invert anything.
