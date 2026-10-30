@@ -7247,6 +7247,37 @@ A search over a quasilattice should always be run on Penrose first, where the
 answer is known. All three bugs were invisible in the off-Penrose numbers and
 obvious the moment the control ran.
 
+### 14.1j Why the six cannot tile anything — MEASURED
+
+Jake: *"I think you have already determined that the innie/outie tiles filled
+in with rhombs are not useful for tiling any LI class."* The conclusion is
+right; what had been determined was not quite that, so it is worth separating.
+
+What §14.1e showed was that each shape **fits** — every one of the six occurs
+as a union of whole rhombs, in Penrose and in every class tried. What §14.1h
+showed was that the *cluster* packing cannot reach full density. Neither is the
+statement that the six cannot tile. That one needs its own measurement, and it
+is this:
+
+**On a Penrose patch the bent pentagons cover 83.0% of the plane.** Straight
+they cover 79.4%; bending gains 3.6 points. They never cover, so they never
+tile — and Penrose is their best case. Off it the pentagons themselves drop to
+20–30% (§14.1g), so the gap only widens.
+
+So the six are a **packing with spacer**, which is exactly what P1 is and was
+never going to be otherwise. The reason they do not tile is not that they fail
+to fit — they fit everywhere — but that they do not cover.
+
+**And the innie/outie rule is sound, which is the positive half.** Of the 525
+pentagon edges in a radius-10 disk, **293 are shared with another pentagon and
+every single one of those is bent opposite ways by its two owners — 293
+opposite, 0 same.** The interlocking is exact: no overlap, no gap, no choice
+to make. The other 232 edges border blue, where an outie bulges into the
+spacer with nothing pushing back, and that is where the 3.6 points come from.
+
+So the construction does what it was designed to do. It is a decoration of a
+packing, not a tiling, and no amount of rhomb-filling changes that.
+
 ### 14.2 What the lab page is for
 
 The question underneath is Jake's: *"I believe there are several definite
