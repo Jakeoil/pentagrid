@@ -10,7 +10,7 @@
 //
 // A pure view. It reports moves and renders what it is told.
 
-import { wheelNotch, snapStep, makeNotchGate } from "./wheel.js";
+import { wheelNotch, snapStep, snapStepWith, makeNotchGate } from "./wheel.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const W = 100;
@@ -24,6 +24,49 @@ const attrs = (n: SVGElement, a: Record<string, string | number>) => {
     return n;
 };
 const phase = (x: number) => ((x % 1) + 1) % 1;
+
+/**
+ * The thirds, which are stops.
+ *
+ * Σγ mod 1 is the LI class, and 1/3 is special: deflation is `s ↦ −2s`, so it
+ * holds 1/3 and holds 2/3, and inflation is `s ↦ 2s`, so it swaps them. With 0
+ * (Penrose) that is the whole fixed set — every other class wanders. Jake,
+ * 2026-10-31: "1/3 is a very special class (sum) put a stop at the 1/3 and 2/3
+ * mark on the sum... Note that inflation will alternate between 1/3 and 2/3."
+ *
+ * They are exact, not nearly: γ is carried as rationals over a denominator
+ * divisible by 3, so a third is a whole numerator and the alternation above
+ * runs forever without drift.
+ */
+const THIRDS = [1 / 3, 2 / 3] as const;
+
+/** Near enough to BE a third: the arithmetic is exact, so this only eats float dust. */
+const THIRD_TOL = 1e-9;
+
+/**
+ * How wide the detent is to a dragging thumb, in turns.
+ *
+ * A notch finds a third by arithmetic, but a drag is continuous and would pass
+ * through it: one turn is about 88 units across, so this is a half-unit catch
+ * either side — a stop you can feel, and the only way to land on a third by
+ * hand.
+ */
+const CATCH = 0.006;
+
+/** Which third this phase is, if any. */
+const whichThird = (p: number): number | undefined =>
+    THIRDS.find((t) => Math.abs(p - t) < THIRD_TOL);
+
+/** The exact third a freely dragged value should fall into, if one is in reach. */
+function catchThird(x: number): number {
+    const k = Math.floor(x);
+    for (const t of THIRDS) {
+        if (Math.abs(x - (k + t)) < CATCH) return k + t;
+        // The turn above, for a drag that crossed the wrap.
+        if (Math.abs(x - (k + 1 + t)) < CATCH) return k + 1 + t;
+    }
+    return x;
+}
 
 export interface SumStripState {
     sum: number;
@@ -81,6 +124,13 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
         const x = L + (k / count) * (R - L);
         ticks.appendChild(attrs(el("line"),
             { x1: x, y1: BASE - 3.2, x2: x, y2: BASE + 3.2, class: "ss-tick" }));
+    }
+    // The thirds get their own marks, shorter and in their own color: they are
+    // not graduations of the fifths and must not read as some of them.
+    for (const t of THIRDS) {
+        const x = L + t * (R - L);
+        ticks.appendChild(attrs(el("line"),
+            { x1: x, y1: BASE - 2, x2: x, y2: BASE + 2, class: "ss-tick ss-third" }));
     }
     svg.appendChild(ticks);
 
@@ -145,9 +195,9 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
             return;
         }
         // Otherwise a plain notch snaps to the next tenth, like an axis; a
-        // fine one is thousandths.
-        if (Math.abs(d) === step) { opts.onChange(snapStep(current, step, d)); return; }
-        opts.onChange(current + d);
+        // fine one is thousandths. Both pass through the thirds: at the coarse
+        // step that reads 300, 33*, 400, and at the fine one 333, 33*, 334.
+        opts.onChange(snapStepWith(current, Math.abs(d) === step ? step : fine, d, THIRDS));
     }, { passive: false });
 
     hit.addEventListener("pointerdown", (ev) => {
@@ -162,7 +212,7 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
         const x = at(ev as PointerEvent);
         // One turn across the bed, so the touch matches an axis of the decagon.
         const next = current + (x - from) / (R - L);
-        opts.onChange(snap ? Math.round(next / snap) * snap : next);
+        opts.onChange(snap ? Math.round(next / snap) * snap : catchThird(next));
         from = x;
     });
     const end = () => { dragging = false; };
@@ -176,13 +226,24 @@ export function createSumStrip(opts: SumStripOptions): SumStrip {
         const p = phase(s.sum);
         const x = L + p * (R - L);
         attrs(marker, { x1: x, x2: x });
-        readout.textContent = String(Math.round(p * UNITS) % UNITS).padStart(String(UNITS - 1).length, "0");
+        const digits = String(UNITS - 1).length;
+        const plain = String(Math.round(p * UNITS) % UNITS).padStart(digits, "0");
+        // A third is not a whole number of these units, so it cannot be said in
+        // them: the last digit becomes a star. 33* and 66* are a third and two
+        // thirds EXACTLY, and are not the 333 and 667 next door to them.
+        const third = whichThird(p);
+        readout.textContent = third === undefined
+            ? plain
+            : plain.slice(0, digits - 1) + "*";
         if (!warnTimer) {
             svg.setAttribute("class", "sumstrip" + (s.released ? " released" : ""));
         }
         // The unwrapped total still decides which Penrose representative you have,
         // so it is a hover away rather than gone.
-        const t = `Σγ = ${s.sum.toFixed(4)} · phase ${readout.textContent}`;
+        const t = `Σγ = ${s.sum.toFixed(4)} · phase ${readout.textContent}`
+            + (third === undefined ? ""
+               : ` — exactly ${third === THIRDS[0] ? "1/3" : "2/3"}, which deflation`
+                 + " holds and inflation swaps for the other");
         svg.setAttribute("aria-label", t);
         readout.setAttribute("title", t);
     }

@@ -128,9 +128,9 @@ export interface SingularPreset {
 /**
  * The preset denominator.
  *
- * It MUST divide the gamma set's own denominator (2000n, so 10000 at n = 5) or
+ * It MUST divide the gamma set's own denominator (6000n, so 30000 at n = 5) or
  * the phases are rounded on the way in and the vector you get is not the vector
- * the rule was checked against. 60 does not divide 10000; 100 does. A test pins
+ * the rule was checked against. 60 does not divide 30000; 100 does. A test pins
  * the round trip rather than trusting this comment.
  */
 const D = 100;

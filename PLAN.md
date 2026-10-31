@@ -38,7 +38,7 @@ State of play, 2026-09-17.
   2k-gons 41 and growth 40. The chart in MODULES.md is generated from the code
   and a test fails if it drifts. Features are independent booleans; a narrative
   page imposes a set and exposes the panel rows it cares about.
-- **γ is a `GammaSet`** (`geometry/gamma.ts`): exact rationals over `2000n`, a
+- **γ is a `GammaSet`** (`geometry/gamma.ts`): exact rationals over `6000n`, a
   total that may be locked or free, a guard that holds off the singular set, the
   per-family enable / single line / isolate / ribbons filters. Every view is a
   view over it; the reticulum and the folded slider bank drive the same set.
@@ -2611,7 +2611,7 @@ shows. `classifySingularities` in `geometry/hunt.ts` is the decider.
 **Two things the tests caught.**
 
 - **Preset denominators must divide the gamma set's.** It carries rationals over
-  `2000n` — 10000 at n = 5 — so presets over 60 were silently rounded on the way
+  `6000n` — 30000 at n = 5 — so presets over 60 were silently rounded on the way
   in and `7/60` arrived as `0.1167`. The vector on screen was then not the vector
   the rule had been checked against. Presets are over 100, and the round trip is
   pinned.
@@ -3261,7 +3261,7 @@ Three consequences for us:
   integer ⟹ regular. Lutfalla proves it for all odd n.
 - **Our statement is under-qualified.** The split `u + φv = 0 ⟹ u = v = 0` needs
   u and v *rational*, so the corollary holds for **rational γ**. The code is safe
-  — γ is exact rationals over 2000n by construction — and §5.27 now says
+  — γ is exact rationals over 6000n by construction — and §5.27 now says
   so.
 - **n = 7 is much easier than this plan assumed.** An earlier note that the ℚ(ζ₇) split
   would need a real rederivation was wrong in practice: for odd n the guard is just
@@ -3282,8 +3282,9 @@ What the threading turned up:
 - **The denominator has to be a multiple of n.** γ is carried as exact rationals
   so the guard can *decide*, and the distinguished uniform offset is 1/n — but
   10000/7 is not an integer, so P₇(1/7) was not representable at all. The default
-  is now `2000n`, which is 10000 at n = 5 (unchanged) and 14000 at n = 7, and
-  keeps both 1/n and ½ exact.
+  is now `6000n`, which is 30000 at n = 5 and 42000 at n = 7, and keeps 1/n, ½
+  and — since §12.1a's floor was lifted — the thirds exact. It was `2000n` until
+  2026-10-31, when the thirds were wanted exactly.
 - **`thick` is an n = 5 name.** A grid of order n makes ⌊n/2⌋ rhombs, corner
   angle 2πc/n, so a heptagrid has three. `Rhomb.cls` carries that separation;
   `thick` stays as the pentagrid reading of it (cls 1 is the fat one at 72°,
@@ -5342,7 +5343,7 @@ count the first draft was `/([a-zA-Z0-9]+):\s*-?[0-9.]+/`, which does not match
 a list read off the live objects cannot miscount them.)
 
 **γ is the one piece that is already exact.** `gammaSet.exact()` returns integer
-numerators over `den = 2000n`, and the deflation gauge fixing (§5.3) keeps those
+numerators over `den = 6000n`, and the deflation gauge fixing (§5.3) keeps those
 numerators small. So the reticulum can be carried byte-exact between pages with
 no float round-trip — which matters, because `provenRegular` and the whole
 singularity catalog are decided on the rationals, not measured on the doubles.
@@ -6663,23 +6664,44 @@ spreads a class evenly is the most convenient way to reach it and the worst way
 to measure it, and moiré will want to reach classes by moving *one* offset, or
 to keep the guard on.
 
-### 12.1a The numerical floor, which the page has to respect
+### 12.1a The numerical floor — LIFTED, 2026-10-31
 
-`GammaSet`'s denominator is 2000n = **10000**. The doubling map doubles the
-representation error at every step, so a class that is not exactly
-representable visibly walks away from itself. 1/3 is a fixed class in exact
-arithmetic and measures:
+The floor was real and this is the record of it. `GammaSet`'s denominator was
+2000n = **10000**, and the doubling map doubles the representation error at
+every step, so a class that is not exactly representable visibly walks away
+from itself. 1/3 is a fixed class in exact arithmetic and measured:
 
 ```
 0.33350 → 0.33300 → 0.33400 → 0.33200 → 0.33600 → 0.32800 → 0.34400
 ```
 
-— the error doubling each time. So the page should prefer classes whose
-denominator divides 10000 (halves, quarters, fifths, eighths, sixteenths,
-twentieths…), and should probably **say which class it is in and how far it has
-drifted**, rather than let a reader conclude that 1/3 is not fixed. 1/3, 1/7
-and friends are not available at this denominator; raising it is a separate
-question.
+— the error doubling each time. The note ended "1/3, 1/7 and friends are not
+available at this denominator; raising it is a separate question."
+
+**Raised.** The default is now `6000n` = **30000** at n = 5, so 1/3 is the
+whole numerator 10000 and 2/3 is 20000. Deflation `s ↦ −2s` holds each of them
+and inflation `s ↦ 2s` swaps them, now exactly and forever: the walk above does
+not happen. Nothing else moved — 10000 divides 30000, so every preset, link,
+session and stored γ restores to the same number it was saved as, and a test
+pins that round trip.
+
+What it cost: the guard's nudge is one unit of the denominator, so it is a
+third of its old size (3.3e-5, from 1e-4). That is a nudge off the integers,
+where only rationality class matters, so a third of nothing is still nothing.
+
+1/7 is still not available at n = 5 and does not need to be: it is not fixed by
+either map. The classes that are — 0, 1/3, 2/3 — are all exact now.
+
+**The strip stops at them.** Jake, 2026-10-31: *"1/3 is a very special class
+(sum) put a stop at the 1/3 and 2/3 mark on the sum… Note that inflation will
+alternate between 1/3 and 2/3."* The sum strip carries the two thirds as
+detents alongside its grid: a coarse notch reads 100, 200, 300, **33\***, 400 …
+600, **66\***, 700, and a fine one 333, **33\***, 334. A third is not a whole
+number of thousandths, so it cannot be *said* in them — hence the star in the
+last digit, which is also what distinguishes 33\* from the plain 333 beside it.
+A drag has a half-unit catch either side, since a continuous gesture would
+otherwise pass straight through a point it can never land on. `describeSum`
+names the class, and the thirds are marked on the bed in their own color.
 
 ### 12.1b What the overlay actually shows — MEASURED
 

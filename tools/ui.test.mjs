@@ -438,8 +438,12 @@ test("Sigma is a phase too: 000..999, graduated in fifths, same touch", () => {
     const readout = kids.find((c) => cls(c) === "ss-readout");
     assert.ok(hit && bed && ticks && sigma && readout, "the strip is missing a part");
 
-    // one turn across, graduated at the four fifths
-    assert.equal(ticks.children.length, 4, "fifths only: 1/5, 2/5, 3/5, 4/5");
+    // one turn across, graduated at the four fifths, plus the two thirds --
+    // which are stops rather than graduations and carry their own class.
+    const fifths = ticks.children.filter((c) => cls(c) === "ss-tick");
+    const thirds = ticks.children.filter((c) => cls(c) === "ss-tick ss-third");
+    assert.equal(fifths.length, 4, "fifths only: 1/5, 2/5, 3/5, 4/5");
+    assert.equal(thirds.length, 2, "1/3 and 2/3 are marked");
 
     // the phase, not the total
     assert.equal(readout.textContent, "000", "Σγ = 1 is phase 000");
@@ -590,4 +594,247 @@ test("a slider steps under the wheel, and stays on its grid", () => {
     wheelSteps(fine, () => {});
     for (let i = 0; i < 100; i++) fine.wheel(-100);
     assert.equal(parseFloat(fine.value), 0.5);
+});
+
+// ── the two exponent steppers ─────────────────────────────────────
+
+// Jake: "integrate the inflation and lambda settings. two hoverable buttons.
+// I^i and \lambda^n (for legibility) scrollable with mouse or up down arrows
+// while hovering (or w and s keys)."
+function steppers() {
+    const set = createGammaSet({ guard: false });
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+    const wrap = host.children[0];
+    // className, not getAttribute: these are createElement nodes, and the
+    // stub answers getAttribute from the data-width/height pair alone.
+    const cls = (c) => String(c.className || "");
+    const gen = wrap.children.find((c) => cls(c).includes("ret-gen"));
+    assert.ok(gen, "no generation row");
+    const buttons = gen.children.filter((c) => cls(c) === "ret-step");
+    assert.equal(buttons.length, 2, `${buttons.length} steppers, not two`);
+    const lambdaOut = gen.children.find((c) => cls(c) === "ret-lambda");
+    return { set, I: buttons[0], L: buttons[1], lambdaOut };
+}
+
+const wheel = (el, deltaY) => {
+    const e = { deltaY, dp: false, preventDefault() { this.dp = true; } };
+    el.on.wheel[0](e);
+    assert.ok(e.dp, "the wheel handler let the page scroll under it");
+};
+const key = (el, k) => {
+    el.on.mouseenter[0]();
+    const e = { key: k, dp: false, preventDefault() { this.dp = true; } };
+    for (const fn of document.on.keydown ?? []) fn(e);
+    el.on.mouseleave[0]();
+    return e;
+};
+
+test("the steppers wear their exponents: script I for the inflation, lambda for n", () => {
+    const { set, I, L, lambdaOut } = steppers();
+    assert.equal(I.textContent, "ℐ⁰", `the inflation reads ${JSON.stringify(I.textContent)}`);
+    assert.equal(L.textContent, "λ⁰");
+    // At n = 0 the total repeats the inflation's exponent, so it stays quiet.
+    assert.equal(lambdaOut.textContent, "");
+
+    wheel(I, -1);                                 // up is up, as everywhere else
+    assert.equal(set.getGeneration(), 1);
+    assert.equal(I.textContent, "ℐ¹", "the superscript did not follow");
+    wheel(I, 1);
+    wheel(I, 1);
+    assert.equal(set.getGeneration(), -1);
+    assert.equal(I.textContent, "ℐ⁻¹", "no minus sign on a deflation");
+
+    wheel(L, -1);
+    assert.equal(set.getNormalization(), 1);
+    assert.equal(L.textContent, "λ¹");
+    // Now the two exponents differ, so the sum is worth saying.
+    assert.equal(lambdaOut.textContent, "= φ⁰");
+});
+
+test("the arrows and w/s drive whichever stepper the pointer is over", () => {
+    for (const k of ["ArrowUp", "w", "W"]) {
+        const { set, I, L } = steppers();
+        assert.ok(key(I, k).dp, `${k} was not taken`);
+        assert.equal(set.getGeneration(), 1, `${k} over the inflation`);
+        assert.equal(set.getNormalization(), 0, `${k} over the inflation moved n`);
+        assert.ok(key(L, k).dp);
+        assert.equal(set.getNormalization(), 1, `${k} over lambda`);
+        assert.equal(set.getGeneration(), 1, `${k} over lambda moved the generation`);
+    }
+    for (const k of ["ArrowDown", "s", "S"]) {
+        const { set, I, L } = steppers();
+        key(I, k);
+        assert.equal(set.getGeneration(), -1, `${k} over the inflation`);
+        key(L, k);
+        assert.equal(set.getNormalization(), -1, `${k} over lambda`);
+    }
+    // With the pointer nowhere near, the keys are the page's own again.
+    const { set, I } = steppers();
+    I.on.mouseenter[0]();
+    I.on.mouseleave[0]();
+    for (const fn of document.on.keydown ?? []) fn({ key: "w", preventDefault() {} });
+    assert.equal(set.getGeneration(), 0, "a stepper kept the keys after the pointer left");
+
+    // And not while someone is typing: a gamma box under the pointer would
+    // otherwise eat its own w and s.
+    I.on.mouseenter[0]();
+    for (const fn of document.on.keydown ?? []) {
+        fn({ key: "w", target: { tagName: "INPUT" }, preventDefault() {} });
+    }
+    assert.equal(set.getGeneration(), 0, "a stepper stole a keystroke from a text box");
+    I.on.mouseleave[0]();
+});
+
+test("the inflation moves gamma; the normalization moves lambda alone", () => {
+    // The distinction the two buttons exist to keep: a deflation is a map on
+    // the offsets that happens to rescale the grid, and n is the rescale with
+    // the offsets held still.
+    const PHI = (1 + Math.sqrt(5)) / 2;
+    const { set, I, L } = steppers();
+    set.setSum(0.5, true);
+    const before = set.values().join(",");
+
+    wheel(L, -1);
+    assert.equal(set.values().join(","), before, "n moved gamma");
+    assert.ok(Math.abs(set.model.lambda - PHI) < 1e-12,
+              `n = 1 put lambda at ${set.model.lambda}, not phi`);
+
+    wheel(I, 1);                                  // one deflation
+    assert.notEqual(set.values().join(","), before, "a deflation left gamma alone");
+    // lambda is the two exponents added: phi^(-1 + 1) = 1.
+    assert.ok(Math.abs(set.model.lambda - 1) < 1e-12,
+              `lambda is ${set.model.lambda}, not the two exponents added`);
+});
+
+// ── the thirds are stops ──────────────────────────────────────────
+
+// Jake, 2026-10-31: "1/3 is a very special class (sum) put a stop at the 1/3
+// and 2/3 mark on the sum. e.g. 100, 200, 300, 33*, 400, 500, 600, 66*, 700
+// etc. made the thousants similar 333, 33*, 335 and 666, 66* and 667. As close
+// as possible. Note that inflation will alternate between 1/3 and 2/3."
+function strip() {
+    const set = createGammaSet({ guard: false });
+    const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
+    mountReticulum(set, host, { colors: COLORS });
+    const cls = (c) => c.getAttribute("class") || "";
+    const s = host.children[0].children[1];
+    const kids = s.children;
+    return {
+        set,
+        hit: kids.find((c) => cls(c) === "ss-hit"),
+        readout: kids.find((c) => cls(c) === "ss-readout"),
+        notch: (dir, fine = false) => kids.find((c) => cls(c) === "ss-hit")
+            .on.wheel[0]({ deltaY: dir, shiftKey: fine, preventDefault() {} }),
+    };
+}
+
+test("the coarse notch stops at the thirds: 300, 33*, 400", () => {
+    const { set, readout, notch } = strip();
+    const seen = [];
+    set.setSum(0, true);
+    for (let i = 0; i < 7; i++) { notch(-1); seen.push(readout.textContent); }
+    assert.deepEqual(seen, ["100", "200", "300", "33*", "400", "500", "600"]);
+    notch(-1);
+    assert.equal(readout.textContent, "66*");
+    notch(-1);
+    assert.equal(readout.textContent, "700");
+
+    // And the same coming back down, which is the same stops in reverse.
+    const back = [];
+    for (let i = 0; i < 4; i++) { notch(1); back.push(readout.textContent); }
+    assert.deepEqual(back, ["66*", "600", "500", "400"]);
+});
+
+test("the fine notch stops there too: 333, 33*, 334", () => {
+    const { set, readout, notch } = strip();
+    set.setSum(0.332, true);
+    const up = [];
+    for (let i = 0; i < 3; i++) { notch(-1, true); up.push(readout.textContent); }
+    assert.deepEqual(up, ["333", "33*", "334"]);
+
+    set.setSum(0.668, true);
+    const down = [];
+    for (let i = 0; i < 3; i++) { notch(1, true); down.push(readout.textContent); }
+    assert.deepEqual(down, ["667", "66*", "666"]);
+});
+
+test("the stop is the exact third, and 33* is not the 333 beside it", () => {
+    const { set, readout, notch } = strip();
+    set.setSum(0.333, true);
+    assert.equal(readout.textContent, "333", "a plain thousandth wears no star");
+    notch(-1, true);
+    // Exact, not near: the denominator is divisible by 3, so a third is a whole
+    // numerator -- which is what makes Jake's alternation hold forever.
+    assert.equal(set.getSum(), 1 / 3, `the stop is ${set.getSum()}, not a third`);
+    assert.equal(set.exact().reduce((a, b) => a + b, 0) * 3, set.denominator,
+                 "the third is not a whole numerator");
+    assert.equal(readout.textContent, "33*");
+});
+
+test("both steppers hold a third: the fixed classes stay fixed, exactly", () => {
+    // What Jake flagged, measured. Deflation is s -> -2s on the class, so it
+    // holds 1/3 (-2/3 = 1/3 mod 1) and holds 2/3. Inflation undoes a
+    // deflation, and deflation is 2-to-1 on classes, so it has two preimages
+    // to pick from -- half a turn apart. It now picks the one that holds a
+    // fixed class, where the old branch sent 1/3 to 5/6 and left the fixed set
+    // for good. So the thirds are stops in the arithmetic too, not only on the
+    // strip; at den 10000 the class drifted instead (PLAN 12.1a).
+    const { set, readout, notch } = strip();
+    set.setSum(0, true);
+    for (let i = 0; i < 4; i++) notch(-1);               // 100, 200, 300, 33*
+    assert.equal(readout.textContent, "33*");
+
+    // The class is exact in the numerators; the dust is in reading a phase off
+    // an unreduced representative (4/3 and 1/3 are the same class, and the
+    // remainder of 1.3333... is not 0.3333... to the last bit).
+    const phase = () => ((set.getSum() % 1) + 1) % 1;
+    const at = (t, what) => assert.ok(Math.abs(phase() - t) < 1e-9,
+                                      `${what} left the class at ${phase()}`);
+    for (let i = 1; i <= 12; i++) { set.inflate(); at(1 / 3, `inflation ${i}`); }
+    for (let i = 1; i <= 12; i++) { set.deflate(); at(1 / 3, `deflation ${i}`); }
+    assert.equal(readout.textContent, "33*", "the star went out");
+
+    // And the same at 2/3, the other one.
+    set.setSum(2 / 3, true);
+    assert.equal(readout.textContent, "66*");
+    for (let i = 1; i <= 6; i++) { set.inflate(); at(2 / 3, `inflation ${i}`); }
+    for (let i = 1; i <= 6; i++) { set.deflate(); at(2 / 3, `deflation ${i}`); }
+    assert.equal(readout.textContent, "66*", "the star went out at 2/3");
+});
+
+test("picking the preimage did not cost the round trip", () => {
+    // The branch is free only because both choices are exact inverses: an
+    // inflation followed by a deflation has to return the very same
+    // numerators, or the stepper is not a stepper.
+    for (const s of [0, 0.1, 1 / 3, 0.5, 2 / 3, 1.5, -1 / 3]) {
+        const g = createGammaSet({ guard: false });
+        g.setSum(s, true);
+        const before = g.exact().join(",");
+        g.inflate();
+        g.deflate();
+        assert.equal(g.exact().join(","), before, `s = ${s} did not come home`);
+    }
+});
+
+test("a drag has a catch at the thirds, since it could never land on one", () => {
+    // One turn is the bed, 67 of the strip's 100 units, and the stub reports
+    // the strip 800px wide -- so a turn is 536px and a third of one is 179.
+    const { set, hit, readout } = strip();
+    set.setSum(0, true);
+    const TURN = 536;
+    hit.on.pointerdown[0]({ clientX: 0, pointerId: 1,
+                            preventDefault() {}, stopPropagation() {} });
+    hit.on.pointermove[0]({ clientX: (1 / 3 - 0.002) * TURN, pointerId: 1 });
+    hit.on.pointerup[0]({ pointerId: 1 });
+    assert.equal(readout.textContent, "33*", `the catch missed: ${readout.textContent}`);
+    assert.equal(set.getSum(), 1 / 3);
+
+    // Outside the catch it is a free drag, as it was.
+    set.setSum(0, true);
+    hit.on.pointerdown[0]({ clientX: 0, pointerId: 1,
+                            preventDefault() {}, stopPropagation() {} });
+    hit.on.pointermove[0]({ clientX: 0.3 * TURN, pointerId: 1 });
+    hit.on.pointerup[0]({ pointerId: 1 });
+    assert.equal(readout.textContent, "300");
 });

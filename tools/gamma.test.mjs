@@ -16,10 +16,12 @@ const sumOf = (a) => a.reduce((x, y) => x + y, 0);
 
 test("the default is what the page had before the extraction", () => {
     // A pure move must not move anything: all zeros is singular, so the guard
-    // nudges to [1,2,3,4,-10] units of 1e-4, which is what shipped.
+    // nudges to [1,2,3,4,-10] units of the denominator, which is what shipped.
+    // The denominator itself went to 30000 on 2026-10-31, so a third is a whole
+    // numerator -- the nudge is the same four numerators, a third the size.
     const g = createGammaSet();
     assert.deepEqual(g.exact(), [1, 2, 3, 4, -10]);
-    assert.equal(g.denominator, 10000);
+    assert.equal(g.denominator, 30000);
     assert.equal(sumOf(g.exact()), 0, "the sum constraint must survive the nudge");
     assert.deepEqual(g.singular(), []);
     assert.ok(g.nudged(), "the default should have needed a nudge");
@@ -475,11 +477,26 @@ test("Σγ = 1 evenly split is P₅(1/5), exactly and regularly", () => {
     // regularity guard decides rather than measures.
     const g = createGammaSet();
     g.setSum(1, true);
-    assert.deepEqual(g.exact(), [2000, 2000, 2000, 2000, 2000], "not exactly 1/5 each");
-    assert.equal(g.denominator, 10000);
+    assert.deepEqual(g.exact(), [6000, 6000, 6000, 6000, 6000], "not exactly 1/5 each");
+    assert.equal(g.denominator, 30000);
     assert.ok(g.isUniform());
     assert.deepEqual(g.singular(), [], "1/5 is not an integer, so nothing is singular");
     assert.match(describeSum(g.getSum(), g.nudged(), g.isUniform()), /global 5-fold/);
+});
+
+test("the thirds are named: the other classes deflation holds", () => {
+    // 1/3 and 2/3 are the whole fixed set besides Penrose -- deflation is
+    // s -> -2s, which holds each of them, and inflation swaps... no: it holds
+    // them too, now it picks the preimage that does. So the caption says which
+    // one you are in rather than filing it under "generalised".
+    assert.match(describeSum(1 / 3, false, false), /Σγ ≡ 1\/3/);
+    assert.match(describeSum(1 / 3, false, false), /held by deflation/);
+    assert.match(describeSum(2 / 3 + 3, false, false), /Σγ ≡ 2\/3/,
+                 "the class is the phase, so a representative three turns up is the same");
+    assert.match(describeSum(0.334, false, false), /^generalised$/,
+                 "a thousandth away is not the class");
+    assert.match(describeSum(1 / 3, false, false, 7), /Σγ ≡ 1\/3 \(mod 1\)/,
+                 "the thirds are not a Penrose name, so they survive a change of n");
 });
 
 test("uniformity is intent, so the guard's nudge does not end it but a dial does", () => {
@@ -525,7 +542,7 @@ test("n = 5 is untouched by the threading: same denominator, same words", () => 
     // refactor whose whole point is other n. This pins the parts it shows.
     const g = createGammaSet();
     assert.equal(g.n, 5);
-    assert.equal(g.denominator, 10000, "the pentagrid's denominator changed");
+    assert.equal(g.denominator, 30000, "the pentagrid's denominator changed");
     assert.equal(g.model.directions.length, 5);
 
     const say = () => describeSum(g.getSum(), g.nudged(), g.isUniform(), g.n);
@@ -538,21 +555,21 @@ test("n = 5 is untouched by the threading: same denominator, same words", () => 
         "largest pentagon · generalised P₅(½) — global 10-fold, thin-rhomb flowers");
 });
 
-test("a heptagrid represents 1/7 exactly, which 10000 could not", () => {
+test("a heptagrid represents 1/7 exactly, which a round 10000 could not", () => {
     // The guard decides rather than measures, so the distinguished uniform
     // offset has to land on an integer numerator. 10000/7 does not.
     const g = createGammaSet({ n: 7 });
     assert.equal(g.n, 7);
-    assert.equal(g.denominator, 14000, "must be a multiple of n");
+    assert.equal(g.denominator, 42000, "must be a multiple of n");
     assert.equal(g.getLocked(), 6, "the locked index follows n");
 
     g.setSum(1, true);                                  // uniform r = 1/7
-    assert.deepEqual(g.exact(), new Array(7).fill(2000));
+    assert.deepEqual(g.exact(), new Array(7).fill(6000));
     assert.ok(g.exact().every((q) => q / g.denominator === 1 / 7));
     assert.ok(g.provenRegular(), "Thm 2.2: odd n, non-integer rational offsets");
 
     g.setSum(3.5, true);                                // uniform r = 1/2
-    assert.deepEqual(g.exact(), new Array(7).fill(7000));
+    assert.deepEqual(g.exact(), new Array(7).fill(21000));
     assert.ok(g.provenRegular());
 });
 

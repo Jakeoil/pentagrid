@@ -65,3 +65,33 @@ export function snapStep(cur: number, unit: number, d: number): number {
     const k = d > 0 ? Math.floor(cur / unit + eps) + 1 : Math.ceil(cur / unit - eps) - 1;
     return k * unit;
 }
+
+/**
+ * `snapStep` with extra stops that are not on the grid.
+ *
+ * Σγ mod 1 is the LI class, and the classes worth stopping at are not all
+ * multiples of a thousandth: deflation is `s ↦ −2s` and inflation `s ↦ 2s`, so
+ * besides 0 the only classes either map fixes are **1/3 and 2/3** — deflation
+ * holds each one, inflation swaps them. A third is not a multiple of anything
+ * the readout counts in, so it has to be carried alongside the grid rather
+ * than on it.
+ *
+ * `detents` are phases in [0, 1) and recur every turn, like the quantity they
+ * stop. A detent is taken only when it falls strictly between where you are
+ * and where the plain step would have put you: sitting on one, the next notch
+ * leaves it.
+ */
+export function snapStepWith(
+    cur: number, unit: number, d: number, detents: readonly number[],
+): number {
+    const eps = 1e-9;
+    let best = snapStep(cur, unit, d);
+    for (const p of detents) {
+        // The representative of p nearest `cur` in the direction of travel.
+        const v = d > 0
+            ? Math.floor(cur - p + eps) + 1 + p
+            : Math.ceil(cur - p - eps) - 1 + p;
+        best = d > 0 ? Math.min(best, v) : Math.max(best, v);
+    }
+    return best;
+}

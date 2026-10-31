@@ -64,7 +64,11 @@ test("a query reaches the view, flat fields and slices alike", () => {
     assert.equal(t.color, "bands");
     assert.equal(t.band, 0.3);
     assert.equal(t.pentaFace, true);
-    assert.equal(h.gamma.exact().join(","), "2000,2000,2000,2000,2000");
+    // Over the query's own denominator, 2000/10000 -- which is 6000/30000 over
+    // the set's, and exactly, which is the point of carrying the denominator
+    // in the link instead of assuming today's.
+    assert.equal(h.gamma.exact().join(","), "6000,6000,6000,6000,6000");
+    assert.equal(h.gamma.denominator, 30000);
     assert.equal(h.gamma.getLocked(), 0);
     assert.equal(h.getView().scale, 72);
     assert.equal(h.getView().x, 1.5);

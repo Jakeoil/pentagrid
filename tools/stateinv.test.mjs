@@ -82,8 +82,8 @@ test("gamma is exactly serializable, which is what lets the reticulum travel", (
     assert.ok(/exact:\s*\(\)\s*=>/.test(gamma) || gamma.includes("exact: ()"),
               "GammaSet.exact is gone, and the shared slice would have to "
               + "round-trip doubles");
-    assert.ok(gamma.includes("options.denominator ?? 2000 * n"),
-              "the denominator rule moved; PLAN 9.2 quotes den = 2000n");
+    assert.ok(gamma.includes("options.denominator ?? 6000 * n"),
+              "the denominator rule moved; PLAN 9.2 quotes den = 6000n");
 });
 
 test("the widget's first three attributes are shipped, and the raster is one layer", () => {

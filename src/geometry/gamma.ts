@@ -246,12 +246,19 @@ export function describeSum(
     const frac = ((sum % 1) + 1) % 1;
     const integral = frac < 1e-9 || frac > 1 - 1e-9;
     const half = Math.abs(frac - 0.5) < 1e-9;
+    // The thirds, which are the other fixed classes: deflation is s ↦ −2s, so
+    // it holds 1/3 and holds 2/3, and inflation s ↦ 2s swaps them. With 0 that
+    // is the whole fixed set, and the strip stops at all three.
+    const third = Math.abs(frac - 1 / 3) < 1e-9 ? "1/3"
+        : Math.abs(frac - 2 / 3) < 1e-9 ? "2/3" : "";
     const cls = penrose
         ? (integral ? "Penrose"
             : half ? "generalised (Σγ ≡ ½) — thin-rhomb flowers"
+            : third ? `generalised (Σγ ≡ ${third}) — held by deflation, swapped by inflation`
             : "generalised")
         : (integral ? "Σγ ≡ 0 (mod 1)"
             : half ? "Σγ ≡ ½ (mod 1)"
+            : third ? `Σγ ≡ ${third} (mod 1)`
             : "Σγ generic");
     return figure ? `${figure} · ${cls}` : cls;
 }
@@ -275,9 +282,23 @@ export function penroseCondition(
 
 export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
     const n = options.directions?.length ?? options.n ?? NUM_GRIDS;
-    // 1/n has to land on an integer numerator, and so does 1/2; 2000n does both
-    // and keeps the pentagrid's historical 10000.
-    const den = options.denominator ?? 2000 * n;
+    // 1/n has to land on an integer numerator, and so do 1/2 and — since
+    // 2026-10-31 — 1/3: 6000n does all three, where the old 2000n missed the
+    // thirds by a third of a unit.
+    //
+    // The thirds have to be EXACT, not near. Deflation is `s ↦ −2s` on the LI
+    // class and inflation `s ↦ 2s`, so besides 0 the only classes either map
+    // fixes are 1/3 and 2/3 — deflation holds each, inflation swaps them. At
+    // 2000n the nearest representable sum to 1/3 was 3333/10000, which is a
+    // different class: inflating it doubles the error every step, so the
+    // alternation Jake asked the strip to stop at would drift off the thirds
+    // and never come back. Over 30000 a third is 10000 and the alternation is
+    // forever.
+    //
+    // Everything the old denominator could say, this one still says: 10000
+    // divides 30000, so every stored γ, preset and session restores to the
+    // same number it was saved as.
+    const den = options.denominator ?? 6000 * n;
     let sumQ = Math.round((options.sum ?? 0) * den);
     let locked = options.locked ?? n - 1;
     let symmetry = options.symmetry ?? true;
@@ -504,7 +525,27 @@ export function createGammaSet(options: GammaSetOptions = {}): GammaSet {
         inflate: () => {
             const total = q.reduce((a, b) => a + b, 0);
             const penrose = total % den === 0;
-            const shift = penrose ? 0 : Math.round(total / 2);
+            let shift = penrose ? 0 : Math.round(total / 2);
+            // WHICH PREIMAGE. Deflation is 2-to-1 on the LI class — s ↦ −2s —
+            // so an inflation that undoes it has two to choose from, and the
+            // choice is the uniform `shift`: the two values that keep the
+            // inverse exact differ by den/2, which moves the class by half a
+            // turn. Both are honest inflations; only the class tells them
+            // apart.
+            //
+            // The round(total/2) branch picks one by the representative rather
+            // than the class, and at Σγ = 1/3 that left the fixed set: 1/3
+            // inflated to 5/6, while 2/3 happened to hold. 3Σγ ≡ 0 marks the
+            // classes deflation holds — 0, 1/3, 2/3, the whole fixed set — and
+            // when the class is one of them, the branch that holds it is the
+            // one to take. Jake, 2026-10-31: "1/3 is a very special class."
+            //
+            // So all three fixed classes now stay put in BOTH directions, and
+            // the stops on the sum strip mean what they say.
+            if (!penrose && (3 * total) % den === 0) {
+                const moved = (2 * total - n * shift - total) % den;
+                if (((moved % den) + den) % den !== 0) shift += den / 2;
+            }
             const next = n === 5 ? q.map((_, j) => q[(j + n - 1) % n] + q[(j + 1) % n] - shift) : q.slice();
             locked = -1;
             for (let j = 0; j < n; j++) q[j] = next[j];
