@@ -168,7 +168,10 @@ globalThis.document = makeStub({
         return el;
     },
     body: makeStub(),
-    addEventListener: noop,
+    // The recording one, not a no-op: a control whose keys are bound at the
+    // document (because key events do not target a merely hovered element)
+    // had nowhere for a test to reach them, and "it registered a handler"
+    // is not the same claim as "the handler does the right thing".
 });
 globalThis.window = makeStub({ addEventListener: noop, devicePixelRatio: 1 });
 globalThis.Touch = class {};

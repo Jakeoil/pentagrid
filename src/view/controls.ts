@@ -514,63 +514,99 @@ export function mountReticulum(
 
     wrap.appendChild(tools);
 
-    // λ, the spacing, as a power of φ, with the generation buttons: "deflate"
-    // and "inflate" step it with the shifts, which is de Bruijn's deflation on
-    // the grid — the finer tiling lands inside the old one, the star at the
-    // center upside down. There is no spacing-only button: that is a zoom, the
-    // wheel does it, and next to deflate it only invited the wrong press.
-    // The pentagrid's only: λ is a power of φ because φ is ℤ[ζ₅]'s unit and the
-    // deflation is its. What the scale is at seven is not known yet (Jake).
+    // The two exponents, as two buttons: ℐⁱ for the inflation and λⁿ for the
+    // normalization. Jake, 2026-10-31: "integrate the inflation and lambda
+    // settings. two hoverable buttons. I^i and λ^n (for legibility) scrollable
+    // with mouse or up down arrows while hovering (or w and s keys)."
+    //
+    // Four controls became two. `deflate` and `inflate` were a pair of verbs
+    // that between them said one number, and the normalization was a number
+    // box next to a readout saying the same thing again. A superscript IS the
+    // number, so the control and its value are one glyph.
+    //
+    // The two are not the same kind of thing, which is the point of keeping
+    // them apart: ℐ moves γ AND λ, because a deflation is a map on the offsets
+    // that happens to rescale the grid; λ moves the scale alone.
     const gen = document.createElement("div");
     gen.className = "ret-tools ret-gen";
     gen.hidden = n !== 5;
     const lambdaOut = document.createElement("span");
     lambdaOut.className = "ret-lambda";
-    lambdaOut.title = "λ, the gridline spacing: the generation's power of φ times the normalization n beside it. The tiling's edge is λ too.";
-    gen.appendChild(lambdaOut);
-    const genBtn = (text: string, title: string, on: () => void) => {
+    lambdaOut.title = "λ, the gridline spacing, and the tiling's edge: φ to the two "
+        + "exponents added.";
+
+    /** Whichever stepper the pointer is over, for the keys to find. */
+    let hovered: { up: () => void; down: () => void } | null = null;
+    const stepper = (glyph: string, title: string,
+                     up: () => void, down: () => void) => {
         const b = document.createElement("button");
         b.type = "button";
-        b.className = "ret-bump";
-        b.textContent = text;
+        b.className = "ret-step";
         b.title = title;
-        b.addEventListener("click", () => { on(); render(); });
+        const go = (fn: () => void) => { fn(); render(); };
+        // Scroll, arrows, or w/s — all three, because the pointer is already
+        // there and reaching for the keyboard to change a number you are
+        // looking at is a worse gesture than turning the wheel.
+        b.addEventListener("wheel", (e) => {
+            const ev = e as WheelEvent;
+            ev.preventDefault();          // the page must not scroll under it
+            go(ev.deltaY < 0 ? up : down);
+        }, { passive: false });
+        const keys = (e: KeyboardEvent) => {
+            const k = e.key;
+            if (k === "ArrowUp" || k === "w" || k === "W") { e.preventDefault(); go(up); }
+            else if (k === "ArrowDown" || k === "s" || k === "S") { e.preventDefault(); go(down); }
+        };
+        b.addEventListener("keydown", keys);     // when it has focus
+        b.addEventListener("mouseenter", () => { hovered = { up, down }; });
+        b.addEventListener("mouseleave", () => { hovered = null; });
+        // A click is the obvious gesture and should do the obvious thing.
+        b.addEventListener("click", () => go(up));
         gen.appendChild(b);
-        return b;
+        return { el: b, glyph };
     };
-    if (n === 5) {
-        const off = () => { symmetric = false; symInput.checked = false; mirror = false; mirrorInput.checked = false; };
-        genBtn("deflate", "One generation down: λ ÷ φ and γ\u2033\u2c7c = \u2212(γ\u2c7c\u208a\u2082 + γ\u2c7c\u208a\u2083). "
-            + "The tiling becomes its own deflation, in place.", () => { off(); set.deflate(); });
-        genBtn("inflate", "One generation up: λ × φ and the inverse map on γ.", () => { off(); set.inflate(); });
-    }
 
-    // The normalization, beside the generation it multiplies. The generation
-    // moves λ in steps of φ, which is the only ratio deflation makes; a figure
-    // drawn ON the tiles need not sit on that ladder, and lining one
-    // generation's decoration up with another's rhombs wants a factor between
-    // the rungs. Jake, 2026-10-29: "I believe I need a scaling factor in
-    // addition to an inflation factor in order to line up tiles."
-    const normLabel = document.createElement("label");
-    normLabel.className = "ret-norm";
-    normLabel.title = "n, an extra power of φ on λ: λ = φ^(m + n), where m is the "
-        + "generation. It looks redundant beside deflate and inflate until you see "
-        + "what each one touches — the GENERATION moves γ and λ together, because a "
-        + "deflation is a map on the offsets that happens to rescale the grid, while "
-        + "this moves λ ALONE. The tiling held still and resized, which is the one "
-        + "thing deflate cannot do, and what lining a decoration up with rhombs needs.";
-    normLabel.appendChild(document.createTextNode("n = φ"));
-    const normIn = document.createElement("input");
-    normIn.type = "number";
-    normIn.step = "1";
-    normIn.className = "ret-norm-in";
-    normIn.value = String(set.getNormalization());
-    normIn.addEventListener("change", () => {
-        set.setNormalization(Math.round(Number(normIn.value) || 0));
-        render();
-    });
-    normLabel.appendChild(normIn);
-    gen.appendChild(normLabel);
+    let steps: { el: HTMLButtonElement; glyph: string }[] = [];
+    if (n === 5) {
+        const off = () => {
+            symmetric = false; symInput.checked = false;
+            mirror = false; mirrorInput.checked = false;
+        };
+        steps = [
+            stepper("\u2110",
+                "ℐ, the inflation: how many generations up this tiling has been "
+                + "taken, as the superscript. Up inflates — λ × φ and γ′ⱼ = γⱼ₋₁ + "
+                + "γⱼ₊₁; down deflates — λ ÷ φ and γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃), the tiling "
+                + "becoming its own deflation in place. It moves γ AND λ, because "
+                + "a deflation is a map on the offsets that happens to rescale the "
+                + "grid. Scroll it, or use the arrows or w/s while pointing at it.",
+                () => { off(); set.inflate(); },
+                () => { off(); set.deflate(); }),
+            stepper("λ",
+                "λ's own exponent, on top of the inflation's: the scale ALONE, "
+                + "with γ left where it is. The tiling held still and resized, "
+                + "which is the one thing deflating cannot do — deflate once, then "
+                + "put this to 1, and the deflated γ is drawn at its parent's "
+                + "size. Scroll it, or use the arrows or w/s while pointing at it.",
+                () => set.setNormalization(set.getNormalization() + 1),
+                () => set.setNormalization(set.getNormalization() - 1)),
+        ];
+        // The keys work while the pointer is over a stepper, focus or not —
+        // "while hovering" was the ask, and a button you have to click first
+        // is a button you have already used.
+        document.addEventListener("keydown", (e) => {
+            if (!hovered) return;
+            // Not while someone is typing: a γ box under the pointer would
+            // eat its own w and s.
+            const t = e.target as { tagName?: string } | null;
+            const tag = String(t?.tagName ?? "").toLowerCase();
+            if (tag === "input" || tag === "textarea" || tag === "select") return;
+            const k = e.key;
+            if (k === "ArrowUp" || k === "w" || k === "W") { e.preventDefault(); hovered.up(); render(); }
+            else if (k === "ArrowDown" || k === "s" || k === "S") { e.preventDefault(); hovered.down(); render(); }
+        });
+    }
+    gen.appendChild(lambdaOut);
 
     wrap.appendChild(gen);
 
@@ -598,10 +634,17 @@ export function mountReticulum(
         // is doing something, so the generation does not disappear into the
         // total: m is what γ followed, and m + q is only the scale.
         const q = set.getNormalization();
-        lambdaOut.textContent = q === 0
-            ? `λ = φ${sup(m)}`
-            : `λ = φ${sup(m)}·φ${sup(q)} = φ${sup(m + q)}`;
-        if (Number(normIn.value) !== q) normIn.value = String(q);
+        // The exponent goes ON the button: the control and the number it holds
+        // are one glyph, which is the whole point of folding four controls
+        // into two.
+        if (steps.length === 2) {
+            steps[0].el.textContent = steps[0].glyph + sup(m);
+            steps[1].el.textContent = steps[1].glyph + sup(q);
+        }
+        // The total is the one thing neither superscript says, so it is the
+        // only readout left — and only while the normalization is doing
+        // something, since at q = 0 it just repeats ℐ's exponent.
+        lambdaOut.textContent = q === 0 ? "" : `= φ${sup(m + q)}`;
     };
     set.onChange(render);
     render();
