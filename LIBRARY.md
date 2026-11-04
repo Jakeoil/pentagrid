@@ -151,12 +151,116 @@ is the tier where wieringa has something pentagrid lacks.
 
 ---
 
+## 1a. The four Jake named, and what each costs — MEASURED 2026-11-04
+
+Jake, 2026-11-04: *"Another thing I would like to expose is the UI, especially
+the reticulum UI and the mathematics used to generate the pentagrid, and the
+dualization mathematics, and some of the UI, in the process of being organized
+which dresses up the vertices, edges, faces and groups (mostly Penrose context
+sensitive stuff). And the grow logic will be very important for wieringa too."*
+
+Four asks, and they are **not** the same size. Two are facade work and nothing
+else; one is fifty lines of extraction; one is the largest refactor in the
+repo. Taking them in that order is what keeps the plan honest.
+
+### 1. The reticulum UI — nothing to extract
+
+Stage 0 already. `createReticulum` + `createSumStrip` + `createGammaBank` +
+`ui/wheel`, 1,180 lines, and the closure stops there: the reticulum reports
+moves and renders what it is told, and knows nothing about γ, pentagrids or φ.
+
+### 2. The pentagrid, and the dualization — nothing to extract
+
+| module | lines | closure | what it carries |
+|---|---|---|---|
+| `geometry/types` | 110 | 1 | `Vec2`, `Rhomb`, `Pentagrid`, `LineSet` |
+| `geometry/pentagrid` | 382 | 2 | `makeDirections`, the K functions, `collectRhombs` |
+| `geometry/gamma` | 594 | 4 | `GammaSet`: exact rationals, the guard, deflation |
+| `geometry/regularity` | 164 | 1 | singular triples, decided on integers |
+
+This **is** the dualization: `Kⱼ(x) = ⌈x·vⱼ + γⱼ⌉` and `f = Σ Kⱼ vⱼ`, with
+`collectRhombs` walking the crossings and emitting rhombs with their `(j, k)`,
+their K-tuples and their corner levels. All pure, all already imported in node
+by 721 tests. A facade entry and a `.d.ts`, and it is exposed.
+
+### 3. The dressing — two halves, and only one of them is hard
+
+**The mathematics is already library-shaped.** Everything context-sensitive
+about the Penrose side is pure, in its own module, with a closure of one or two
+files:
+
+| module | lines | closure | dresses |
+|---|---|---|---|
+| `geometry/decor` | 365 | 2 | the arcs — the two loop families |
+| `geometry/ammann` | 438 | 3 | the Ammann bars, and the cut behind each family |
+| `geometry/clusters` | 202 | 3 | the groups: Pe5, Pe3, Pe1, St5, St3, St1 |
+| `geometry/vertexenv` | 239 | 2 | the 16 vertex environments, and the census |
+| `geometry/walls` | 385 | 4 | the pentaplex, the 18° innie and outie |
+| `geometry/resolve` | 206 | 3 | what a singular vertex resolves into |
+| `view/pool` | 70 | **0** | the index mark: the disc, and the pool balls |
+
+**The UI is not.** The dressing panel is `view/pentagrid.ts` lines 4241–5489 —
+**1,248 lines inside `createPentagrid`'s closure** — and the drawing it
+switches is another ~1,800 (lines 2111–3948). Both read the closure's private
+state. That is the largest extraction in this plan, and it is the one Jake
+describes as *"in the process of being organized"* — the folded dressing rows,
+`rowWhen` / `exposedRows`, `panelSyncs` all landed in the last fortnight. **So
+it goes last** (§7, Stage 5): extracting a panel that is still changing shape
+means doing the work twice and pinning the wrong surface.
+
+There is an honest answer in the meantime that needs no refactor at all: **the
+dressing vocabulary is already a public API.** `state/inventory.ts`'s 73
+fields, documented in `MODULES.md`, reach every treatment through
+`data-*` attributes, the query string and `setTileStyle` — so a consumer can
+drive the whole dressing today without the panel, and `copy setup` writes the
+markup for them. What the panel adds is the *controls*, not the capability.
+
+### 4. The grow logic — fifty lines, and the best value in the plan
+
+The surprise. `view/growth.ts` is 1,973 lines and drags the entire 39-file
+knot, because `createGrowthView` builds a pentagrid underneath itself — so by
+the §0 measurements it looked unreachable. It is not. **The grow and fold
+mathematics is one 25-line function**, `world()` at line 404:
+
+```ts
+// the registration gain, so a tile at grow = 0 sits on the crossing that
+// made it: n/2 because Sum_j v_j v_j^T = (n/2) I
+const gain = dirs.length / 2;
+const x = (1 - grow) * gain * r.x0 + grow * cx
+        + grow * ((a - 0.5) * vj[0] + (b - 0.5) * vk[0]);
+...
+return [x, y, fold * grow * RISE * (m + a + b)];
+```
+
+A tile's corner at `(grow, fold)`, lerped from the crossing that made it to
+where it belongs, standing to `RISE·(index + a + b)` as the roof rises. Beside
+it, `projectToScreen` (17 lines) is **already a top-level export**, and its
+comment says why: *"the same world-to-screen mapping the renderer uses, exposed
+so it can be checked without a canvas."* The extraction pattern already exists
+in the file; this just finishes it.
+
+So the grow core is `world()` + `projectToScreen` + `geometry/roof.ts`'s lift
+— call it 150 lines of pure function in a new `geometry/growth.ts`, with
+`grow`/`fold`/`seat` as arguments instead of closure reads, and the view
+calling it. Nothing about the view changes except where the formula lives.
+
+**What wieringa-roof gains, specifically.** It has the lift (`computeLift`,
+`pos3D`) and a three.js camera, so not those. It has no **partial** fold and no
+grow at all: a net that rises from flat to roof at `fold = t`, or a patch that
+assembles from its own crossings, is capability it cannot currently draw — and
+`unfold.ts` / `cutaway.ts` are exactly the pages that would want to show a
+crease opening by degrees. This is the one ask where the answer is *new page*,
+not *less duplication*.
+
 ## 2. What `lib/` does **not** expose
 
 - **`view/pentagrid` and `view/controls`** — one mutually recursive knot of 39
   files and 17,272 lines, with `state/inventory`'s 73-field vocabulary baked
   in. It is the application, not a library, and trying to make it one would be
   the whole refactor with none of the benefit.
+- **`view/growth`** — the view, for the same reason: it builds a pentagrid
+  underneath itself, so its closure *is* the knot. Its mathematics is a
+  different matter — §1a.4.
 - **`app/*`, `bootstrap/*`, `discrete/*`, `method.ts`** — pages.
 - **`site.css` beyond the 76 instrument lines** — the look belongs to each
   project. Jake's standing rule on penrose-mosaic ("don't change the look")
@@ -421,6 +525,22 @@ mathematics bug.
 **Done when:** φ is defined once in each repo rather than four and two times,
 there is one zonohedron constructor, and both projects' pages render unchanged.
 
+### Stage 2b — the grow core
+
+`geometry/growth.ts`: `world()` and `projectToScreen` lifted out of
+`createGrowthView`'s closure as pure functions taking `{grow, fold}` and an
+optional seat, with the view calling them (§1a.4). Then `lib/grow.js`, with the
+lift beside it.
+
+Small, and the highest value per line in the plan: it is the one entry
+wieringa-roof cannot approximate with what it already has, and the one that
+opens a page rather than deleting a duplicate.
+
+**Done when:** `roof.html`, `grow.html` and `grow7.html` draw exactly what they
+draw today — a golden test over `world()` at a few `(grow, fold)` pairs,
+written *before* the move, is what says so — and one wieringa page shows a
+crease opening by degrees.
+
 ### Stage 3 — the harness, which the facade cannot deliver
 
 `tools/domstub.mjs`, `pagecheck.mjs`, `spelling.test.mjs`, `stamp.mjs` are node
@@ -444,6 +564,30 @@ promised name rather than `dist/view/pentagrid.js`). Pull each when a second
 page wants it, not before — a facade entry with one consumer is a guess, and
 §4's traffic in the other direction (wieringa's `prefs.ts`, `sheet.ts`,
 `palettes.yaml`) waits for the same signal from the other side.
+
+---
+
+### Stage 5 — the dressing panel, once the reorganization settles
+
+Last, deliberately. 1,248 lines of panel and ~1,800 of drawing inside
+`createPentagrid`'s closure (§1a.3), and the panel is *currently being
+reorganized* — the dressing folds, the row-visibility map and the panel syncs
+all landed within the last fortnight. Extracting a surface that is still moving
+means pinning the wrong one.
+
+The shape it wants, when it is time: `createDressingPanel({ get, set })` —
+a panel over a tile-style getter and setter rather than over a closure, which
+is the same seam `setTileStyle` and the 73 attribute fields already describe.
+The drawing follows the same way: a `drawDressings(ctx, rhombs, style)` that
+reads a style object instead of a closure, which is most of what the layer
+callbacks already do.
+
+Until then the dressing is reachable anyway, through the attributes and the
+query (§1a.3). That is the argument for patience: nothing is blocked by
+waiting.
+
+**Done when:** `method.html` and `split.html` are visually identical, Jake
+having looked, and a second page drives the panel with no pentagrid behind it.
 
 ---
 
@@ -485,3 +629,6 @@ page wants it, not before — a facade entry with one consumer is a guess, and
    for the least risk and it is the only stage that touches nothing visual.
 4. **Versioning, eventually.** The release branch in §6, or the standing advice
    to copy `dist/` for anything that must not move.
+5. **Whether the grow core (Stage 2b) comes before the geometry merges.** It is
+   the ask with no duplicate to delete and a new wieringa page at the end of
+   it, which is a better first demonstration than deleting a second φ.

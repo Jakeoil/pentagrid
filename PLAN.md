@@ -7489,6 +7489,24 @@ places the modules exist — a git or jsDelivr dependency would fetch a tree wit
 no `dist/` in it. And **a sibling's `../pentagrid/lib/x.js` needs one HTTP root
 above both repos**, since `http.server` sanitizes `..` away.
 
+Jake, 2026-11-04, named four things to expose, and they are not the same size
+(`LIBRARY.md` §1a). The **reticulum** and the **pentagrid/dualization
+mathematics** need a facade and nothing else. The **dressing** — vertices,
+edges, faces, groups — is already library-shaped on the mathematics side
+(`decor`, `ammann`, `clusters`, `vertexenv`, `walls`, `resolve`, `pool`, every
+one of them pure with a closure of two or three files) and is 1,248 lines of
+panel plus ~1,800 of drawing inside `createPentagrid`'s closure on the UI side,
+which is the largest extraction in the repo and goes last, since that panel is
+the thing currently being reorganized. Meanwhile the dressing is already
+drivable through the 73 attribute fields, which is why waiting blocks nothing.
+
+And the **grow logic** was the surprise: `view/growth.ts` drags the whole knot,
+but the grow and fold mathematics is `world()`, **25 lines**, plus the already
+top-level `projectToScreen`. Extracting it as a pure `geometry/growth.ts` is
+the highest value per line in the plan and the one ask that opens a page for
+wieringa-roof rather than deleting a duplicate — it has the lift already, and
+no partial fold and no grow at all.
+
 Two sections of this plan are implicated. **§10 (palettes and defaults as data,
 TABLED)** is already built in wieringa-roof as `palettes.yaml` compiled to TS,
 so it can arrive from there rather than be written here. **§5.99's SVG
