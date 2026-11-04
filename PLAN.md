@@ -7463,3 +7463,35 @@ Penrose to pick one of deflation's two preimages (§12.1), and this does not —
 so the class here is exactly 2s where the button's would differ. Neither is
 wrong; they are answering different questions, and only one of them has to
 invert anything.
+
+---
+
+## 16. `lib/` — the pentagrid code as a library (Jake, 2026-11-03)
+
+In its own document: **`LIBRARY.md`**. Jake: *"want to make the pentagrid code
+and knowledge available to the wieringa-roof project as a library, and in the
+future all other projects... In particular the pentagrid code and reticulum
+stuff."* And, on the shape: *"No new repo"* — browser-compatible ES modules
+under `lib/`, importable by a sibling project locally and from this repo's
+Pages URL, with the application unchanged. penrose-mosaic's `lib/` plan is the
+model.
+
+The short of it, measured 2026-11-03: all 45 built modules import in plain node
+with no DOM and no stub (59 ms, 7.7 MB), the reticulum's whole dependency
+closure is one 97-line helper, and `view/pentagrid` is a 39-file, 17,272-line
+knot that stays internal. So the instruments and `geometry/` are library
+material and the application is not — which changes nothing about whole-canvas
+embedding, since that already works off the Pages URL (`MODULES.md`).
+
+Two measurements decide the mechanics. **`dist/` is gitignored** and built by
+`deploy.yml` on push, so the Pages URL and a local working tree are the only
+places the modules exist — a git or jsDelivr dependency would fetch a tree with
+no `dist/` in it. And **a sibling's `../pentagrid/lib/x.js` needs one HTTP root
+above both repos**, since `http.server` sanitizes `..` away.
+
+Two sections of this plan are implicated. **§10 (palettes and defaults as data,
+TABLED)** is already built in wieringa-roof as `palettes.yaml` compiled to TS,
+so it can arrive from there rather than be written here. **§5.99's SVG
+remainder** gains a second consumer only if some future project draws to canvas
+and wants paper — wieringa emits SVG directly from `sheet.ts` and does not need
+the recorder.
