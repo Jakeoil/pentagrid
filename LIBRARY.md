@@ -478,7 +478,7 @@ Reordered for the in-repo facade. Nothing here moves a file out of this
 repository, so every stage is additive and reversible — which is the main
 practical win over the separate-repo plan.
 
-### Stage 0 — `lib/reticulum.js` and the surface test
+### Stage 0 — `lib/reticulum.js` and the surface test — the test landed early
 
 The facade for the thing Jake named, plus the test that makes a facade
 meaningful.
@@ -494,6 +494,11 @@ which is exactly the signal a consumer needs and the only thing a facade is
 
 Then `lib/css/reticulum.css`, and `lib/reticulum.d.ts` so wieringa's `tsc`
 sees the types.
+
+**The surface test landed with Stage 2b instead** (2026-11-04), because the
+grow core went first and an entry point with nothing pinning it is the thing
+this stage exists to prevent. `lib/reticulum.js` adds a row to its golden list;
+the machinery is there.
 
 **Done when:** a scratch HTML page in this repo drives `createReticulum` through
 `lib/reticulum.js` with no other import, the surface test passes, and the same
@@ -525,7 +530,7 @@ mathematics bug.
 **Done when:** φ is defined once in each repo rather than four and two times,
 there is one zonohedron constructor, and both projects' pages render unchanged.
 
-### Stage 2b — the grow core
+### Stage 2b — the grow core — BUILT 2026-11-04
 
 `geometry/growth.ts`: `world()` and `projectToScreen` lifted out of
 `createGrowthView`'s closure as pure functions taking `{grow, fold}` and an
@@ -540,6 +545,61 @@ opens a page rather than deleting a duplicate.
 draw today — a golden test over `world()` at a few `(grow, fold)` pairs,
 written *before* the move, is what says so — and one wieringa page shows a
 crease opening by degrees.
+
+**Built, 2026-11-04**, on Jake's *"Do the grow core first."* What landed:
+
+- **`src/geometry/growth.ts`** — `tileCorner`, `outlineCorner`, `crossingLerp`,
+  `standHeight`, `registrationGain`, and `projectToScreen` moved in beside
+  them. Pure; its closure is `types` and `roof`. The two corner functions share
+  one law instead of two copies, and `crossingLerp` / `standHeight` are written
+  as the call sites wrote them — same operations, same order — because a
+  refactor of a formula that changes a last bit is not a refactor.
+- **`view/growth.ts`** keeps `world()` and `outlineAt()` as two-line wrappers:
+  the law is the module's, the state and the seat lookup are the view's. It
+  re-exports `projectToScreen` from where callers and `containers.test.mjs`
+  found it.
+- **`tools/growcore.test.mjs`** — 8 tests. The first is the pin: the SVG of a
+  roof page at five `(grow, fold)` pairs, **captured before the move** and
+  compared after — length, coordinate count, the first tile's six numbers and a
+  digest of the whole document. **Identical in all five.** The other seven say
+  what the law means: grow 0 collapses every `(a, b)` to the gained crossing
+  and the fold cannot lift it off the plane; grow 1 puts the four corners on
+  the rhomb's own vertices; the height is `fold·grow·RISE·level` and one step
+  of `(a, b)` is one `RISE`; a seat translates and re-levels and does not
+  reshape; and `Σⱼ vⱼvⱼᵀ = (n/2)I` is measured at n = 5 and 7 rather than
+  asserted.
+- **`lib/grow.js`** and **`lib/grow.d.ts`** — the first entry point, 16 names:
+  the law, the lift, and `makeDirections` / `collectRhombs` so the entry is
+  usable alone. Its header documents the structural contract a tile must meet
+  (`j, k, x0, y0, vertices, kTuples` — the last two being the ones easy to
+  forget, since they are what the grow and the height are measured from).
+- **`tools/surface.test.mjs`** — Stage 0's test, arriving here instead: the
+  golden export list per entry, the rule that a facade re-exports only
+  `../dist/`, a check that the `.d.ts` declares every name the `.js` exports,
+  and that each header shows the published URL and says where `dist/` comes
+  from.
+
+**Verified both import styles.** The sibling path is Jake's own, run from
+`wieringa-roof/`:
+
+```js
+import { tileCorner, collectRhombs, makeDirections, projectToScreen, RISE }
+    from "../pentagrid/lib/grow.js";
+// 92 rhombs from the sibling import, RISE = 0.5
+//   fold 0:   z = 0.0000   screen y = 495.3
+//   fold 0.5: z = 1.0000   screen y = 460.4
+//   fold 1:   z = 2.0000   screen y = 425.5
+```
+
+The published form is the same file at
+`https://jakeoil.github.io/pentagrid/lib/grow.js` once the deploy action has
+run. **Still open:** the browser side of the local case needs §9.1 settled —
+one HTTP root above both repos — since a page served from `wieringa-roof/`
+cannot reach `../pentagrid/` through its own server. Node has no such
+restriction, which is why the check above could run today.
+
+**Not done:** the wieringa page. That is a change in the other repo and waits
+on §9.1 and on Jake.
 
 ### Stage 3 — the harness, which the facade cannot deliver
 

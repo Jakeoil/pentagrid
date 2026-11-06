@@ -13,6 +13,10 @@
 import { createPentagrid } from "./pentagrid.js";
 import type { PentagridHandle } from "./pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
+import { tileCorner, outlineCorner } from "../geometry/growth.js";
+// The world-to-screen mapping moved out with the growth law it belongs to;
+// re-exported from here because that is where callers and a test found it.
+export { projectToScreen } from "../geometry/growth.js";
 import { drawIndexMark } from "./pool.js";
 import { resolveConcurrency, angleCode } from "../geometry/resolve.js";
 import type { Resolution } from "../geometry/resolve.js";
@@ -332,30 +336,6 @@ const ramped = (c: RGB, t: number): RGB => {
 /** What a rhombohedron's angle code means, at n = 5. PLAN §5.0. */
 const CELL_SHAPE: Record<string, string> = { "122": "oblate", "113": "acute" };
 
-/**
- * The same world-to-screen mapping the renderer uses, exposed so it can be
- * checked without a canvas. Pan is applied in screen space; with elevation π/2
- * and azimuth 0 this is exactly the pentagrid's mathToScreen.
- */
-export function projectToScreen(
-    state: Pick<GrowthState, "azimuth" | "elevation">,
-    p: Vec3,
-    view: { scale: number; x: number; y: number },
-    cx: number,
-    cy: number,
-) {
-    const ca = Math.cos(state.azimuth), sa = Math.sin(state.azimuth);
-    const xr = p[0] * ca - p[1] * sa;
-    const yr = p[0] * sa + p[1] * ca;
-    const ce = Math.cos(state.elevation), se = Math.sin(state.elevation);
-    const sx = xr, sy = -(yr * se + p[2] * ce);
-    return {
-        x: cx + (sx - view.x) * view.scale,
-        y: cy + (sy + view.y) * view.scale,
-        depth: yr * ce - p[2] * se,
-    };
-}
-
 export function createGrowthView(config: GrowthConfig): GrowthHandle {
     const state: GrowthState = { ...DEFAULTS };
     if (config.lift) { state.fold = 1; state.grow = 1; state.elevation = 0.95; state.azimuth = 0.35; }
@@ -401,28 +381,10 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     const seatKeyOf = (r: Rhomb) =>
         `${r.x0.toFixed(6)},${r.y0.toFixed(6)}|${r.j},${r.k}`;
 
+    // The law itself is `geometry/growth.ts`; what belongs to the view is the
+    // state it reads and the seat it looks up.
     function world(r: Rhomb, dirs: readonly Vec2[], a: number, b: number): Vec3 {
-        const { grow, fold } = state;
-        // The registration gain, so a tile at grow = 0 sits on the crossing that
-        // made it. It is n/2 because Sum_j v_j v_j^T = (n/2)I — 5/2 here for the
-        // pentagrid, 7/2 for a heptagrid — and dirs already knows n.
-        const gain = dirs.length / 2;
-        const vj = dirs[r.j], vk = dirs[r.k];
-        // A seat moves the base corner and nothing else. tileLocal keeps
-        // using the rhomb's own vertices, so a dressing computed in the
-        // old place maps to the right (a, b) and lands in the new one.
-        const seat = seats?.get(seatKeyOf(r));
-        const v0 = seat ? seat.at : r.vertices[0];
-        const cx = v0[0] + (vj[0] + vk[0]) / 2, cy = v0[1] + (vj[1] + vk[1]) / 2;
-        const x = (1 - grow) * gain * r.x0 + grow * cx
-            + grow * ((a - 0.5) * vj[0] + (b - 0.5) * vk[0]);
-        const y = (1 - grow) * gain * r.y0 + grow * cy
-            + grow * ((a - 0.5) * vj[1] + (b - 0.5) * vk[1]);
-        // The height is the INDEX, not the position: a corner stands at
-        // RISE*(index + popcount). A seated rhomb carries the index of the
-        // mask it was seated at, which its own K-tuple need not predict.
-        const m = seat ? seat.index : vertexIndex(r.kTuples[0]);
-        return [x, y, fold * grow * RISE * (m + a + b)];
+        return tileCorner(r, dirs, a, b, state, seats?.get(seatKeyOf(r)) ?? null);
     }
 
     /**
@@ -619,13 +581,7 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
     function outlineAt(
         c: Concurrency, K: readonly number[], p: Vec2, dirs: readonly Vec2[],
     ): Vec3 {
-        const { grow, fold } = state;
-        const gain = dirs.length / 2;
-        return [
-            (1 - grow) * gain * c.x + grow * p[0],
-            (1 - grow) * gain * c.y + grow * p[1],
-            fold * grow * RISE * vertexIndex(K),
-        ];
+        return outlineCorner([c.x, c.y], p, K, dirs, state);
     }
 
     /**

@@ -155,6 +155,41 @@ Give the container a size in CSS and say nothing about it in the config — the
 module measures it and follows it. To pin a size instead, put `data-width` and
 `data-height` on the container and it will not reflow.
 
+### From a sibling project, or anybody's page — `lib/`
+
+`lib/` is this project's **public entry points**: small hand-written files, one
+per subject, that name what is promised and re-export it. Import them by
+relative path from a checkout beside this one, or by URL from the site:
+
+```js
+// local development, from a sibling project
+import { tileCorner, projectToScreen } from "../pentagrid/lib/grow.js";
+
+// or published
+import { tileCorner } from "https://jakeoil.github.io/pentagrid/lib/grow.js";
+```
+
+Two things to know:
+
+- **Names in `lib/` are a promise; paths under `dist/` are not.** The internal
+  layout moves. `tools/surface.test.mjs` holds a golden list of every name each
+  entry exports, so the surface cannot change without someone deciding to let
+  it. Importing `dist/…` directly still works and is what the whole-canvas
+  examples below do — it is just not a promise.
+- **`dist/` is built, not committed.** On the site the deploy action builds it;
+  in a sibling checkout, `npm run build` does. So a fresh clone needs one build
+  before `lib/` resolves.
+
+A `.d.ts` sits beside each entry, so a TypeScript consumer gets the real
+declarations from the same path with no `paths` mapping.
+
+| entry | what it carries |
+|---|---|
+| `lib/grow.js` | the growth law (`tileCorner` at a partial grow and fold), the Wieringa lift, `projectToScreen`, and `makeDirections` / `collectRhombs` so it is usable alone |
+
+The plan for the rest — the reticulum, the dressing mathematics, the SVG
+recorder — is `LIBRARY.md`.
+
 ### From anybody else's page
 
 The modules are plain ES modules served from GitHub Pages with

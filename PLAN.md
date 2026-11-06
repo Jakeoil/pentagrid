@@ -7507,6 +7507,16 @@ the highest value per line in the plan and the one ask that opens a page for
 wieringa-roof rather than deleting a duplicate — it has the lift already, and
 no partial fold and no grow at all.
 
+**Stage 2b is built, 2026-11-04**, on Jake's *"Do the grow core first."*
+`src/geometry/growth.ts` holds the law — `tileCorner`, `outlineCorner`,
+`crossingLerp`, `standHeight`, `registrationGain`, `projectToScreen` — and
+`view/growth.ts` keeps `world()` and `outlineAt()` as two-line wrappers over
+it. `lib/grow.js` is the first public entry point, `tools/growcore.test.mjs`
+pins the drawn output against five `(grow, fold)` states captured **before** the
+move (identical to the last digit), and `tools/surface.test.mjs` pins the
+export list so the promised surface cannot drift. The sibling import Jake asked
+for runs today from `wieringa-roof/`.
+
 Two sections of this plan are implicated. **§10 (palettes and defaults as data,
 TABLED)** is already built in wieringa-roof as `palettes.yaml` compiled to TS,
 so it can arrive from there rather than be written here. **§5.99's SVG
