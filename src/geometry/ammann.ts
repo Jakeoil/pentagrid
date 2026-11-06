@@ -318,39 +318,13 @@ export function ammannPerp(pg: Pentagrid, family: number): number {
 /**
  * One family of the Ammann quasilattice, as a `LineSet` the pentagrid can use.
  *
- * Socolar and Steinhardt's Eq. (3) at ρ = σ = τ (PLAN §7.4a) is the closed
- * form, and it is O(1) in the line number, which is why a family can be a
- * function rather than a list:
- *
- *     at(n) = T·( n + α + (1/φ)⌊n/φ + β⌋ )
- *
- * with T the short spacing, α the phase and β the cut. In our terms α = c/T
- * and β = −w/φ, so `ammannFit`'s output feeds straight in. The spacings are T
- * and φT in the Fibonacci word, two gaps in the ratio φ, which is what makes
- * the dual of five of these a Penrose tiling — one generation down from the
- * one the bars were read off.
- *
- * `indexAt` inverts it: at(n) grows like T·n·(1 + 1/φ²), so the estimate is
- * exact to a line or two and a short walk finishes it.
+ * `fibonacciLines` moved to `geometry/fibonacci.ts` on 2026-11-06, when the
+ * hexagrid wanted the same function for the icosahedral families: a
+ * quasiperiodic position function belongs to neither dimension. Re-exported
+ * from here, which is where it was built and where callers look for it.
  */
-export function fibonacciLines(T: number, alpha: number, beta: number): LineSet {
-    const at = (n: number) => T * (n + alpha + Math.floor(n / PHI + beta) / PHI);
-    const DEN = 1 + 1 / (PHI * PHI);
-    return {
-        at,
-        indexAt(t: number): number {
-            let n = Math.round((t / T - alpha - beta / PHI) / DEN);
-            // at() is increasing, so walk to the smallest n with at(n) >= t.
-            // The tolerance is there so that indexAt(at(n)) is n and not n+1:
-            // at() is a float, and landing a hair under its own value would
-            // cost a whole line.
-            const EPS = 1e-9;
-            while (at(n) < t - EPS) n++;
-            while (at(n - 1) >= t - EPS) n--;
-            return n + 0;        // Math.round can hand back -0; a line is 0.
-        },
-    };
-}
+export { fibonacciLines } from "./fibonacci.js";
+import { fibonacciLines } from "./fibonacci.js";
 
 /**
  * The five families of a patch's quasilattice, ready for `collectRhombs`.

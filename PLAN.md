@@ -90,6 +90,10 @@ Nothing here blocks anything. Ordered by how likely they are to be wanted.
    Steinhardt's Eq. (23) once their γₙ is read as our perp projection over φ.
    Next is §7.5 (the reticulum switch: bars dualize to the DEFLATION, not to the
    tiling — their correction, §7.4a) and §7.6 (the hover and the readout).
+1a. **The 3D section's pages.** §8.7 steps 1, 2 and 4 are built — `zono3.ts`,
+   `golden-zonohedra`, and now `hexagrid.ts` with Socolar's census measured
+   (§8.8). What is left is pages: 1 and 3 (the roof intro, why two
+   rhombohedra), then 4 and 5, which are the two the hexagrid was for.
 2. **Draw the nudged lines.** A reading of a 2k-gon comes from a configuration
    of the concurrent lines pulled apart; `nudgeOf` names it and the readout
    says it, but nothing draws it. That is the one thing left from §5.0 that
@@ -5263,13 +5267,106 @@ with **explode** and **cut** and nothing else in the frame.
    close trick are both worth taking as they are. Page 2 is the first thing
    to look at.
 3. Pages 1 and 3.
-4. The hexagrid in `geometry/` — the 6-direction grid, its dual, and the
+4. ~~The hexagrid in `geometry/` — the 6-direction grid, its dual, and the
    Fibonacci families from §7's `fibonacciLines` (which already generalizes:
-   `LineSet` does not care that it is 3D).
+   `LineSet` does not care that it is 3D).~~ **BUILT 2026-11-06** — §8.8.
 5. Pages 4–6.
 
 Step 1 is worth doing whatever happens to the rest: it is the mathematics, it
 is testable, and §5.0 has already done two thirds of it in the plane.
+
+### 8.8 The hexagrid, and Socolar measured — BUILT 2026-11-06
+
+Jake: *"Do the hexagrid in geometry."* `src/geometry/hexagrid.ts`, with twelve
+tests in `tools/hexagrid.test.mjs`. It is de Bruijn's construction one
+dimension up and **nothing else changed**: `Kⱼ(x) = ⌈x·vⱼ + γⱼ⌉` and
+`f(K) = Σⱼ Kⱼ vⱼ`, the same two formulas, with planes where the pentagrid has
+lines and `ICO_AXES` for the normals.
+
+`fibonacciLines` moved out of `ammann.ts` into **`geometry/fibonacci.ts`** on
+the way, because a quasiperiodic position function belongs to neither
+dimension — it took the hexagrid to notice. `ammann.ts` re-exports it, so
+nothing that used it had to change.
+
+**The gain is the same formula.** Σⱼ vⱼvⱼᵀ = (n/d)·I, measured at 2·I: six unit
+vectors isotropic in three dimensions, trace 6 over dimension 3. The plane's
+5/2 (§5.26) is the same statement at n = 5, d = 2. So `DUAL_GAIN = 2` is not a
+constant anyone chose, and every edge of the dual is one vⱼ — unit length,
+every face the golden rhomb, diagonals in the ratio φ, asserted over every
+face of every cell of a patch.
+
+#### The periodic hexagrid — the regular case
+
+Generic γ, box of side 5: **1541 cells, every one of order 3**, no coincidences
+anywhere. Two shapes and no others, and the number ratio is φ:
+
+| | count | ratio |
+|---|---|---|
+| A6, prolate | 950 | |
+| O6, oblate | 591 | **1.607** → φ, and 1.616 at the larger box |
+
+Which is thick-to-thin in the plane, one dimension up. It **tiles**, and that
+is measured rather than hoped: 120 sampled points, each in **exactly one** cell
+by the half-space test, and Σvolume over the cells is 1.000 of (gain·L)³.
+
+#### Socolar's Fibonacci hexagrid — and the oblate rhombohedron vanishes
+
+Their αₙ = 1/τ, βₙ = −½ for all six grids, which §7.4a's dictionary hands
+straight to `fibonacciLines`. The census, box of side 7:
+
+| cell | order | count |
+|---|---|---|
+| A6, prolate | 3 | 362 |
+| B12, Bilinski | 4 | 30 |
+| F20, Fedorov | 5 | 50 |
+| K30, Kepler | 6 | 35 |
+| **O6, oblate** | 3 | **0** |
+
+**Zero oblate rhombohedra, in every box tried.** That is §8.3's second
+quotation, measured: *"anywhere one might have expected an intersection of
+three planes whose dual is an oblate rhombohedron, additional planes pass
+through the intersection."* Every would-be oblate has been swallowed by a
+higher-order intersection, which is also §8.3's table row — *the prolate
+rhombohedron, the ONLY non-singular dual* — arriving as a count rather than a
+claim. And the four cells are π(C³), π(C⁴), π(C⁵), π(C⁶) with no reading, no
+nudge and no choice: the cell of an order-k intersection is `zonohedron` of
+exactly the k incident normals, k(k−1) faces and k²−k+2 vertices, asserted.
+
+**Both of their numbers are load-bearing**, which is the sharpest evidence they
+are not decorative:
+
+| α | β | oblate rhombohedra |
+|---|---|---|
+| 1/τ | −½ | **0** |
+| 1/τ | −0.2 | 148 |
+| 0 | −½ | 316 |
+| ½ | −½ | 317 |
+
+Move either and the oblates come back in force. The zero is a property of that
+cut and of nothing else. (The β-window is wider than the point: −0.6 through
+−0.4 all give zero, so what is special is an interval, and −½ is in it.)
+
+**And the singular tiling still tiles.** Same test, four cell shapes in play:
+120 points, each in exactly one cell. Volume: at T = 1 the dual fills
+1/MEAN_GAP³ = 0.379 of the periodic one's space — a *density*, not a gap, since
+a Fibonacci family's mean spacing is T(1 + 1/φ²) = 1.382T — and at
+T = 1/1.382 = 0.7236 the two fill the same space, ratio 1.0. So the comparison
+between the two grids is now on equal terms.
+
+#### What this does not claim
+
+That the Fibonacci dual IS the icosahedral PLI class. Socolar says it is and
+says the periodic one cannot be; what is measured here is a necessary
+consequence — the vanishing of the oblate as a non-singular dual, and the four
+named cells. A local-isomorphism test would be its own piece of work.
+
+#### What it opens
+
+Pages 4 and 5 of §8.6 now have their mathematics. Page 4 is the two grids and
+this census side by side; page 5 is the packing of the four cells, and
+`cellContains` is already there for the cutaway — a point-in-zonotope test by
+support function, which is what proved the tiling and is what a cutting plane
+needs.
 
 ## 9. Parameterizing the canvases — the plan (Jake, 2026-10-24)
 
