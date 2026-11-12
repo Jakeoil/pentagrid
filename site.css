@@ -1,3 +1,21 @@
+/* The instrument stylesheets, imported rather than inlined.
+ *
+ * `lib/css/` is published alongside `lib/reticulum.js`, so another project
+ * linking those files gets the same bytes our pages do — LIBRARY.md §7,
+ * Stage 3, and Jake's standing rule that the look must not change in the
+ * doing. These must stay at the top: an `@import` is only honored before
+ * every other rule.
+ *
+ * Checked before moving them: no selector appears both here and there, and
+ * every class-free rule left in this file (`:root`, `*`, `body`, `h1`..`h3`,
+ * `p`, `a`, `footer`) is an element selector, which a class beats whatever
+ * the order. So the cascade cannot have changed.
+ */
+@import "lib/css/reticulum.css";
+@import "lib/css/panel.css";
+@import "lib/css/dials.css";
+@import "lib/css/loupe.css";
+
 /* Shared shell for the exploration pages. Page-specific rules stay in-page.
    Modeled on wieringa-roof/site.css: a centered wrap, generous measure, and
    viewports that take the full width they are given. */
@@ -148,27 +166,6 @@ a { color: var(--accent); }
     padding: 12px 16px;
     margin: 0 0 12px;
 }
-.dial { display: flex; flex-direction: column; align-items: center; }
-.dial label { font-size: 15px; font-family: "Times New Roman", serif; font-style: italic; }
-.dial input[type=range] { writing-mode: vertical-lr; direction: rtl; height: 92px; width: 24px; }
-.dial .value { font-family: ui-monospace, Menlo, monospace; font-size: 11px; margin-top: 3px; }
-.dial.computed input[type=range] { opacity: 0.5; }
-.sum-display { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--ink-faint); }
-/* The dial the wheel last moved. Enough to find it again, not enough to shout. */
-.dial.active { outline: 1px solid #bbb; outline-offset: 2px; border-radius: 3px; }
-.sum-dial { align-items: stretch; width: 210px; }
-.sum-dial input[type=range] { writing-mode: horizontal-tb; direction: ltr; width: 100%; height: auto; }
-.sum-cap { font-size: 15px; font-family: "Times New Roman", serif; font-style: italic; }
-/* Its own row, so the text cannot stretch the dials, and a reserved height so
-   going from one line to two does not shift what is under it. */
-.sum-note {
-    flex: 1 0 100%;
-    font-size: 11.5px;
-    color: var(--ink-faint);
-    line-height: 1.45;
-    min-height: 2.9em;
-    margin-top: 2px;
-}
 
 .hint { font-size: 12.5px; color: var(--ink-faint); margin-top: 8px; }
 
@@ -180,172 +177,23 @@ footer {
     color: var(--ink-faint);
 }
 
-/* ── Reticulum ─────────────────────────────────────────────────── */
-.reticulum-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.reticulum {
-    width: 100%;
-    min-width: 170px;
-    aspect-ratio: 1 / 1;
-    display: block;
-    overflow: visible;
-    touch-action: none;      /* drags belong to the control, not the page */
-    cursor: crosshair;
-}
-/* only the target and the labels take input; the drawing is transparent to it */
-.ret-rim, .ret-axis, .ret-band, .ret-cross { pointer-events: none; }
-.ret-label { pointer-events: auto; cursor: pointer; }
 
-.ret-rim  { fill: none; stroke: #ccc; stroke-width: 0.008; }
-.ret-line { stroke-width: 0.005; opacity: 0.22; }
-.ret-grid { stroke-width: 0.022; stroke-linecap: round; opacity: 0.85; }
-.ret-axis.live .ret-grid { stroke-width: 0.034; }
-.ret-axis.dependent .ret-grid { opacity: 0.32; stroke-dasharray: 0.045 0.035; }
-.ret-axis.live .ret-line { opacity: 0.5; }
 
-/* the active gamma's full range, side to side — subordinate to the marker */
-.ret-band { opacity: 0; }   /* fill is the family color, washed out */
-.ret-band.on { opacity: 0.55; }
-.ret-ticks { pointer-events: none; }   /* the rest is on the element: see reticulum.ts */
 
-/* a reference mark, not a cursor */
-.ret-cross-active { stroke: #444; stroke-width: 0.012; }
-.ret-cross-dep    { stroke: #aaa; stroke-width: 0.012; }
 
-.ret-label {
-    font-size: 0.21px;
-    font-family: "Times New Roman", serif;
-    font-style: italic;
-}
-.ret-sub { font-size: 0.62em; font-style: normal; }
-.ret-value {
-    font-size: 0.115px;
-    font-family: monospace;
-    opacity: 0.85;
-}
-.ret-value.live { font-weight: bold; opacity: 1; }
-.ret-label.live { font-weight: bold; }
-.ret-readout { font-family: monospace; font-size: 12px; color: #666; }
-.ret-readout.released { color: #bbb; font-style: italic; }
 .penrose-flag { font-size: 12px; font-family: monospace; margin-left: 8px; }
 .view-stats { font-size: 11px; font-family: monospace; color: #888; margin-left: 6px; }
 .corr-cell { display: inline-flex; align-items: center; min-width: 118px; }
-.ret-tools { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: #666; }
-.ret-check { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
-.ret-bump { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #ccc;
-            background: #fff; border-radius: 3px; cursor: pointer; }
-.ret-bump:hover { background: #eee; }
 
-/* ── Floating panel ────────────────────────────────────────────── */
-.float-panel {
-    position: fixed;
-    z-index: 200;
-    background: #fff;
-    border: 1px solid #ccc;
-    border-radius: 8px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
-    /* A definite width, or a fixed-position box shrink-to-fits its contents
-       and the TITLE drives the layout: picking a preset renames the bar and
-       the whole panel jumps wider. Jake: "Reticulum changes size (bigger)
-       sometimes when I press presets." Resizing by the grip still overrides
-       this inline; clearing that override comes back here rather than to
-       whatever the content happens to want. */
-    width: 300px;
-}
-.float-panel[hidden] { display: none; }
-/* The resize grip: bottom-right corner, a small diagonal. */
-.float-grip {
-    position: absolute;
-    right: 0; bottom: 0;
-    width: 16px; height: 16px;
-    cursor: nwse-resize;
-    background: linear-gradient(135deg, transparent 0 50%, #bbb 50% 60%, transparent 60% 75%, #bbb 75% 85%, transparent 85%);
-    border-bottom-right-radius: 8px;
-}
 
-.float-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 5px 5px 5px 11px;
-    cursor: move;
-    user-select: none;
-    touch-action: none;          /* the bar owns the drag, not the page */
-    background: #f2f2f2;
-    border-bottom: 1px solid #ddd;
-    border-radius: 8px 8px 0 0;
-}
-/* min-width: 0 so a long preset name is elided rather than pushing the bar
-   wider than the panel. */
-.float-bar > * { min-width: 0; }
-.float-title {
-    font-size: 12px;
-    color: #555;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-.float-extras { display: flex; gap: 4px; align-items: center; }
-.float-extras:empty { display: none; }
-/* The restore button, once it is in the bar: a quiet chip, not a title. */
-.float-extras .ret-restore {
-    font-size: 11px;
-    padding: 1px 7px;
-    border: 1px solid #cbd5e0;
-    border-radius: 999px;
-    background: #f7fafc;
-    color: #4a5568;
-    cursor: pointer;
-    white-space: nowrap;
-}
-.float-extras .ret-restore:hover { background: #edf2f7; }
-.float-controls { display: flex; gap: 2px; }
-.float-controls button {
-    background: transparent;
-    border: none;
-    color: #888;
-    cursor: pointer;
-    font-size: 13px;
-    font-family: inherit;
-    line-height: 1;
-    padding: 2px 5px;
-}
-.float-controls button:hover { color: #222; }
-.float-body { padding: 10px; }
-.float-panel.collapsed .float-body { display: none; }
 
-/* ── Sigma strip ───────────────────────────────────────────────── */
-.sumstrip { width: 100%; display: block; touch-action: none; }
-/* The bed and its furniture are drawn OVER the target, so they have to be
-   transparent to the pointer — otherwise only the thin margins take a drag,
-   which is exactly how it felt. */
-.ss-bed, .ss-ticks, .ss-marker, .ss-readout { pointer-events: none; }
-.ss-sigma { pointer-events: auto; cursor: pointer; }
-.ss-bed { fill: #ececec; }
-.ss-tick { stroke: #fff; stroke-width: 0.7; }
-/* The thirds are stops, not graduations: deflation holds 1/3 and 2/3 and
-   inflation swaps them, so they are marked in their own color rather than as
-   two more fifths. */
-.ss-third { stroke: #c08a2e; stroke-width: 0.9; }
-.ss-marker { stroke: #444; stroke-width: 1.4; stroke-linecap: round; }
-.sumstrip.released .ss-marker { stroke: #bbb; }
-.ss-sigma {
-    font-size: 8.5px;
-    font-family: "Times New Roman", serif;
-    fill: #555;
-}
-.sumstrip.released .ss-sigma { fill: #bbb; font-style: italic; }
-.ss-readout { font-size: 7.5px; font-family: monospace; fill: #555; }
-.ss-hit { cursor: ew-resize; }
 
-/* Refusing a push at a released total. Not the same language as "inactive". */
-.sumstrip.warn .ss-bed { fill: #f6d0d4; }
-.sumstrip.warn .ss-marker { stroke: #e63946; }
-.sumstrip.warn .ss-sigma, .sumstrip.warn .ss-readout { fill: #e63946; }
-.reticulum[data-warn] .ret-axis.dependent .ret-grid { stroke: #e63946; opacity: 0.9; }
-.reticulum[data-warn] .ret-label.dependent { fill: #e63946; }
 
-.reopen-panel, .fold-controls {
+/* The fold handle, which used to share a rule with `.reopen-panel` — that one
+   went to `lib/css/panel.css` with the panel it belongs to, and this is the
+   page's own half of it, written out rather than imported. Two small copies
+   beat one rule that two owners have to agree about. */
+.fold-controls {
     font: inherit;
     font-size: 12px;
     padding: 3px 9px;
@@ -355,7 +203,7 @@ footer {
     cursor: pointer;
     color: #555;
 }
-.reopen-panel:hover, .fold-controls:hover { background: #eee; }
+.fold-controls:hover { background: #eee; }
 .folded > * { display: none; }
 .folded { margin: 0; }
 
@@ -503,24 +351,6 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     margin-left: 4px;
 }
 .panel-group::after { content: ":"; }
-/* `restore` in the preset popup: looks like a preset, is not one — it pulls the
-   reticulum slot (PLAN §9.3) rather than naming a point in the catalog. Its own
-   class so nothing enumerating `.preset` picks it up, and italic so the eye
-   reads it as the verb it is. */
-button.ret-restore {
-    font: inherit;
-    font-size: 11px;
-    font-style: italic;
-    padding: 2px 7px;
-    margin-right: 4px;
-    color: #ddd;
-    background: #2a2a2e;
-    border: 1px dashed #666;
-    border-radius: 3px;
-    cursor: pointer;
-}
-button.ret-restore:hover { background: #36363c; border-color: #8a8a8a; }
-button.ret-restore[hidden] { display: none; }
 /* What the copy-setup button says after you press it: the clipboard is async
    and can be refused, so the button reports rather than leaving you guessing. */
 .copy-said { font-size: 11px; color: #777; margin-left: 6px; }
@@ -557,19 +387,6 @@ button.ret-restore[hidden] { display: none; }
     .duo { grid-template-columns: var(--duo-col); }
 }
 
-/* The magnifier, created by ui/loupe.ts on any page that enables it — it was
-   styled only in method's own sheet, so everywhere else it came up bare. */
-.loupe {
-    position: absolute;
-    right: 8px;
-    bottom: 8px;
-    z-index: 200;
-    background: #fff;
-    border: 1px solid #888;
-    border-radius: 3px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-    cursor: crosshair;
-}
 .panel-row { margin-left: 14px; }
 .thickness { width: 110px; }
 .layer-swatch {
@@ -620,20 +437,6 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
     font-variant-numeric: tabular-nums;
 }
 
-/* The presets popup under the reticulum's tools: a wrapped row of buttons. */
-.ret-presets {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 6px;
-    padding: 6px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: #fafafa;
-}
-.ret-presets[hidden] { display: none; }
-.ret-settings { font-size: 11.5px; color: #444; }
-.ret-gen { margin-top: 4px; }
 /* The census, folded. Shut it is one word; open it is two lines of monospace
    that rewrap as the patch changes, so it carries a floor of two lines to keep
    the panel -- and the canvas under it -- from moving as you pan. */
@@ -710,43 +513,3 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 }
 .dress-fold summary { width: max-content; }
 .dress-fold .dress-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-
-/* The normalization, beside the generation buttons it multiplies. */
-/* The three exponents: ℐ, λ and φ, each a symbol with its own box.
-   Jake, 2026-11-12: "Cannot read exponents. too small. Separate symbol from
-   exponent, each exponent in it's own _fixed sized_ scrollable box."
-
-   A raised box rather than `symbol ^ box`: the box IS the exponent by its
-   position and size, and a caret would put a third glyph in each of three
-   terms inside a 300px row. The symbol is at reading size and the digits are
-   at label size, which is the ratio a real exponent has — only neither of
-   them is 8px any more. */
-.exp-term { display: inline-flex; align-items: flex-start; gap: 1px; }
-.exp-sym {
-    font: 17px/1 "Times New Roman", Georgia, serif;
-    padding: 2px 0 0; border: 0; background: none; color: #222;
-    cursor: pointer; letter-spacing: 0;
-}
-.exp-sym:hover { color: #0a7a5f; }
-.exp-sym:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
-/* FIXED SIZE, and monospaced: the width is in `ch`, so a minus sign cannot
-   shift the digits under the pointer. "not jitter when negative numbers." */
-.exp-box {
-    font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace;
-    font-variant-numeric: tabular-nums;
-    width: 3.2ch; min-width: 3.2ch; height: 16px; padding: 0;
-    text-align: center; border: 1px solid #ccc; border-radius: 2px;
-    background: #fff; color: #222; cursor: ns-resize;
-}
-.exp-box:hover { background: #eef7f2; border-color: #7a9; }
-.exp-box:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
-/* The floated one — computed from the other two, like Σγ above the row. Gray
-   and dashed rather than hidden: the identity m + q = t is only legible with
-   all three of its terms on the page. */
-.exp-box.exp-float {
-    border-style: dashed; border-color: #d8d8d8; background: transparent;
-    color: #999; cursor: default;
-}
-.exp-box.exp-float:hover { background: transparent; border-color: #d8d8d8; }
-.exp-sym.exp-float-sym { color: #999; }
-.ret-gen .exp-term + .exp-term { margin-left: 7px; }

@@ -1,0 +1,17 @@
+/* The loupe: a pinned magnifier over any canvas view.
+   `createLoupe` from `lib/reticulum.js`. It is the one instrument that needs
+   no stylesheet to be usable — these rules are its look, not its layout. */
+
+/* The magnifier, created by ui/loupe.ts on any page that enables it — it was
+   styled only in method's own sheet, so everywhere else it came up bare. */
+.loupe {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    z-index: 200;
+    background: #fff;
+    border: 1px solid #888;
+    border-radius: 3px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+    cursor: crosshair;
+}

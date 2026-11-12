@@ -1,0 +1,165 @@
+/* The reticulum, its Σ strip, and the three exponent boxes.
+   One of this project's published entry points: `lib/reticulum.js` builds the
+   markup these rules dress, and `site.css` imports this file rather than
+   keeping a copy, so our pages and a consumer's cannot drift apart.
+   LIBRARY.md §5 and §7, Stage 3. */
+
+/* ── Reticulum ─────────────────────────────────────────────────── */
+.reticulum-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.reticulum {
+    width: 100%;
+    min-width: 170px;
+    aspect-ratio: 1 / 1;
+    display: block;
+    overflow: visible;
+    touch-action: none;      /* drags belong to the control, not the page */
+    cursor: crosshair;
+}
+/* only the target and the labels take input; the drawing is transparent to it */
+.ret-rim, .ret-axis, .ret-band, .ret-cross { pointer-events: none; }
+.ret-label { pointer-events: auto; cursor: pointer; }
+.ret-rim  { fill: none; stroke: #ccc; stroke-width: 0.008; }
+.ret-line { stroke-width: 0.005; opacity: 0.22; }
+.ret-grid { stroke-width: 0.022; stroke-linecap: round; opacity: 0.85; }
+.ret-axis.live .ret-grid { stroke-width: 0.034; }
+.ret-axis.dependent .ret-grid { opacity: 0.32; stroke-dasharray: 0.045 0.035; }
+.ret-axis.live .ret-line { opacity: 0.5; }
+/* the active gamma's full range, side to side — subordinate to the marker */
+.ret-band { opacity: 0; }   /* fill is the family color, washed out */
+.ret-band.on { opacity: 0.55; }
+.ret-ticks { pointer-events: none; }   /* the rest is on the element: see reticulum.ts */
+/* a reference mark, not a cursor */
+.ret-cross-active { stroke: #444; stroke-width: 0.012; }
+.ret-cross-dep    { stroke: #aaa; stroke-width: 0.012; }
+.ret-label {
+    font-size: 0.21px;
+    font-family: "Times New Roman", serif;
+    font-style: italic;
+}
+.ret-sub { font-size: 0.62em; font-style: normal; }
+.ret-value {
+    font-size: 0.115px;
+    font-family: monospace;
+    opacity: 0.85;
+}
+.ret-value.live { font-weight: bold; opacity: 1; }
+.ret-label.live { font-weight: bold; }
+.ret-readout { font-family: monospace; font-size: 12px; color: #666; }
+.ret-readout.released { color: #bbb; font-style: italic; }
+.ret-tools { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: #666; }
+.ret-check { display: inline-flex; align-items: center; gap: 3px; cursor: pointer; }
+.ret-bump { font: inherit; font-size: 11px; padding: 1px 6px; border: 1px solid #ccc;
+            background: #fff; border-radius: 3px; cursor: pointer; }
+.ret-bump:hover { background: #eee; }
+/* The restore button, once it is in the bar: a quiet chip, not a title. */
+.float-extras .ret-restore {
+    font-size: 11px;
+    padding: 1px 7px;
+    border: 1px solid #cbd5e0;
+    border-radius: 999px;
+    background: #f7fafc;
+    color: #4a5568;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.float-extras .ret-restore:hover { background: #edf2f7; }
+/* ── Sigma strip ───────────────────────────────────────────────── */
+.sumstrip { width: 100%; display: block; touch-action: none; }
+/* The bed and its furniture are drawn OVER the target, so they have to be
+   transparent to the pointer — otherwise only the thin margins take a drag,
+   which is exactly how it felt. */
+.ss-bed, .ss-ticks, .ss-marker, .ss-readout { pointer-events: none; }
+.ss-sigma { pointer-events: auto; cursor: pointer; }
+.ss-bed { fill: #ececec; }
+.ss-tick { stroke: #fff; stroke-width: 0.7; }
+/* The thirds are stops, not graduations: deflation holds 1/3 and 2/3 and
+   inflation swaps them, so they are marked in their own color rather than as
+   two more fifths. */
+.ss-third { stroke: #c08a2e; stroke-width: 0.9; }
+.ss-marker { stroke: #444; stroke-width: 1.4; stroke-linecap: round; }
+.sumstrip.released .ss-marker { stroke: #bbb; }
+.ss-sigma {
+    font-size: 8.5px;
+    font-family: "Times New Roman", serif;
+    fill: #555;
+}
+.sumstrip.released .ss-sigma { fill: #bbb; font-style: italic; }
+.ss-readout { font-size: 7.5px; font-family: monospace; fill: #555; }
+.ss-hit { cursor: ew-resize; }
+/* Refusing a push at a released total. Not the same language as "inactive". */
+.sumstrip.warn .ss-bed { fill: #f6d0d4; }
+.sumstrip.warn .ss-marker { stroke: #e63946; }
+.sumstrip.warn .ss-sigma, .sumstrip.warn .ss-readout { fill: #e63946; }
+.reticulum[data-warn] .ret-axis.dependent .ret-grid { stroke: #e63946; opacity: 0.9; }
+.reticulum[data-warn] .ret-label.dependent { fill: #e63946; }
+/* `restore` in the preset popup: looks like a preset, is not one — it pulls the
+   reticulum slot (PLAN §9.3) rather than naming a point in the catalog. Its own
+   class so nothing enumerating `.preset` picks it up, and italic so the eye
+   reads it as the verb it is. */
+button.ret-restore {
+    font: inherit;
+    font-size: 11px;
+    font-style: italic;
+    padding: 2px 7px;
+    margin-right: 4px;
+    color: #ddd;
+    background: #2a2a2e;
+    border: 1px dashed #666;
+    border-radius: 3px;
+    cursor: pointer;
+}
+button.ret-restore:hover { background: #36363c; border-color: #8a8a8a; }
+button.ret-restore[hidden] { display: none; }
+/* The presets popup under the reticulum's tools: a wrapped row of buttons. */
+.ret-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+    padding: 6px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fafafa;
+}
+.ret-presets[hidden] { display: none; }
+.ret-settings { font-size: 11.5px; color: #444; }
+.ret-gen { margin-top: 4px; }
+/* The normalization, beside the generation buttons it multiplies. */
+/* The three exponents: ℐ, λ and φ, each a symbol with its own box.
+   Jake, 2026-11-12: "Cannot read exponents. too small. Separate symbol from
+   exponent, each exponent in it's own _fixed sized_ scrollable box."
+
+   A raised box rather than `symbol ^ box`: the box IS the exponent by its
+   position and size, and a caret would put a third glyph in each of three
+   terms inside a 300px row. The symbol is at reading size and the digits are
+   at label size, which is the ratio a real exponent has — only neither of
+   them is 8px any more. */
+.exp-term { display: inline-flex; align-items: flex-start; gap: 1px; }
+.exp-sym {
+    font: 17px/1 "Times New Roman", Georgia, serif;
+    padding: 2px 0 0; border: 0; background: none; color: #222;
+    cursor: pointer; letter-spacing: 0;
+}
+.exp-sym:hover { color: #0a7a5f; }
+.exp-sym:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
+/* FIXED SIZE, and monospaced: the width is in `ch`, so a minus sign cannot
+   shift the digits under the pointer. "not jitter when negative numbers." */
+.exp-box {
+    font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    width: 3.2ch; min-width: 3.2ch; height: 16px; padding: 0;
+    text-align: center; border: 1px solid #ccc; border-radius: 2px;
+    background: #fff; color: #222; cursor: ns-resize;
+}
+.exp-box:hover { background: #eef7f2; border-color: #7a9; }
+.exp-box:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
+/* The floated one — computed from the other two, like Σγ above the row. Gray
+   and dashed rather than hidden: the identity m + q = t is only legible with
+   all three of its terms on the page. */
+.exp-box.exp-float {
+    border-style: dashed; border-color: #d8d8d8; background: transparent;
+    color: #999; cursor: default;
+}
+.exp-box.exp-float:hover { background: transparent; border-color: #d8d8d8; }
+.exp-sym.exp-float-sym { color: #999; }
+.ret-gen .exp-term + .exp-term { margin-left: 7px; }

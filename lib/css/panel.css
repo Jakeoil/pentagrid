@@ -1,0 +1,81 @@
+/* The floating panel: a draggable, resizable box that remembers its place.
+   `createFloatingPanel` from `lib/reticulum.js`. Nothing here is about γ — a
+   panel is a panel. See `lib/css/reticulum.css` for the note on why
+   `site.css` imports these rather than holding them. */
+
+/* ── Floating panel ────────────────────────────────────────────── */
+.float-panel {
+    position: fixed;
+    z-index: 200;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+    /* A definite width, or a fixed-position box shrink-to-fits its contents
+       and the TITLE drives the layout: picking a preset renames the bar and
+       the whole panel jumps wider. Jake: "Reticulum changes size (bigger)
+       sometimes when I press presets." Resizing by the grip still overrides
+       this inline; clearing that override comes back here rather than to
+       whatever the content happens to want. */
+    width: 300px;
+}
+.float-panel[hidden] { display: none; }
+/* The resize grip: bottom-right corner, a small diagonal. */
+.float-grip {
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 16px; height: 16px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 0 50%, #bbb 50% 60%, transparent 60% 75%, #bbb 75% 85%, transparent 85%);
+    border-bottom-right-radius: 8px;
+}
+.float-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 5px 5px 11px;
+    cursor: move;
+    user-select: none;
+    touch-action: none;          /* the bar owns the drag, not the page */
+    background: #f2f2f2;
+    border-bottom: 1px solid #ddd;
+    border-radius: 8px 8px 0 0;
+}
+/* min-width: 0 so a long preset name is elided rather than pushing the bar
+   wider than the panel. */
+.float-bar > * { min-width: 0; }
+.float-title {
+    font-size: 12px;
+    color: #555;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.float-extras { display: flex; gap: 4px; align-items: center; }
+.float-extras:empty { display: none; }
+.float-controls { display: flex; gap: 2px; }
+.float-controls button {
+    background: transparent;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    line-height: 1;
+    padding: 2px 5px;
+}
+.float-controls button:hover { color: #222; }
+.float-body { padding: 10px; }
+.float-panel.collapsed .float-body { display: none; }
+.reopen-panel {
+    font: inherit;
+    font-size: 12px;
+    padding: 3px 9px;
+    border: 1px solid #ccc;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #555;
+}
+.reopen-panel:hover { background: #eee; }
