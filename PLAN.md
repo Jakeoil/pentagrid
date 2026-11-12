@@ -2672,6 +2672,52 @@ is why none of them had to change — and two new ones pin the arrangement: that
 every preset but `regular` is palindromic, and that the lines really are
 symmetric about the vertical, by reflecting the arrangement and comparing.
 
+**Is it complete, and what is the octagon? — MEASURED 2026-11-12.** Jake:
+*"Do you think it is complete? Is the octagon an exceptional singularity? Is
+there an LI class that could possibly have two octagons? Or does every class
+have its own octagon with its own family of spokes."*
+
+**Complete.** Exhaustive over every rational phase vector at denominators 4, 6,
+8, 12, 20 and 24 — up to 7,962,624 vectors — and the answer is the same set
+every time: **eight signatures**, the seven singular ones and `regular`.
+Denominator 12 is now pinned in `tools/hunt.test.mjs`, which also leaves no
+room for a ninth to appear later.
+
+**No phase vector has two octagons.** Not rare — impossible, and the reason is
+in the triple table rather than in the search. For a 4-subset S, the four
+triples inside it have **the four members of S as their lone families, one
+each**:
+
+    S = 0123   lone families 0,1,2,3   pair sums 1+3, 2+3, 0+1, 0+2
+    S = 0124   lone families 0,1,2,4   ...
+
+So an octagon on S needs every γⱼ integral for j ∈ S — and then the pair
+conditions are free, being 0 + 0. Two different 4-subsets of five families
+cover all five between them, so both would force all five integral, which is
+the **decagon**, where `classifySingularities` absorbs the 4-folds into the
+5-fold. At most one octagon per γ, and which one is settled by which family is
+left out: five choices, one orbit under rotation.
+
+**And every class but Penrose has one.** The excluded family's phase IS the
+class: with the other four integral, Σγ ≡ γ_e. So the classes carrying an
+octagon are exactly the non-integral ones — measured as 11 of 12, 19 of 20, 23
+of 24, every value but 0.
+
+**The octagon is the decagon with one family slid off, and the slide is the
+class.** §5.12's identity x·v_e + γ_e = −Σnⱼ + Σγ says how far: with the other
+four integral it reduces to a miss of exactly **Σγ**, in gridline units along
+v_e. Measured at Σγ = 1/2, 1/4, 1/10 and 1/3 — four families through the point
+at distance 0 to the last digit, the fifth at 0.5000, 0.2500, 0.1000, 0.3333.
+Slide it back to zero and the octagon closes into the 5-fold.
+
+So yes, the octagon is the exceptional one, and now in a sharper sense than
+"not Penrose": it is the **only** signature that no Penrose γ can have, the
+only one that cannot occur twice, and the only one whose shape is a continuous
+function of the class it lives in. Σγ = 1/2 is its most spread-out case — the
+fifth family exactly halfway between two of its own lines — which is why the
+preset sits there, and that class is also the one that deflates into Penrose
+(§12.1).
+
 ### 5.13 The superposition, and how it went missing (2026-09-14)
 
 **The regression.**

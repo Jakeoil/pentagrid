@@ -474,3 +474,85 @@ test("and the gridlines really are symmetric about the vertical, measured", () =
                   `"${name}" should be symmetric about the horizontal too`);
     }
 });
+
+// ── the catalog closes, and the octagon is the odd one ────────────
+
+// Jake, 2026-11-12: "Do you think it is complete? Is the octagon an
+// exceptional singularity? Is there an LI class that could possibly have two
+// octagons? Or does every class have its own octagon with its own family of
+// spokes." Measured below: complete at four denominators, never two octagons,
+// and every class but Penrose has one.
+
+test("the catalog is complete: eight signatures, exhaustively", () => {
+    // PLAN section 5.12 searched denominators 10 and 12; this pins 12 in the
+    // suite, and 20 and 24 were run the same way by hand with the same answer.
+    // Seven singular signatures plus `regular`, and nothing else exists.
+    const den = 12;
+    const pg = at([0, 0, 0, 0, 0], den).model;
+    const sigs = new Map();
+    let maxFourFold = 0;
+    const q = [0, 0, 0, 0, 0];
+    for (q[0] = 0; q[0] < den; q[0]++)
+    for (q[1] = 0; q[1] < den; q[1]++)
+    for (q[2] = 0; q[2] < den; q[2]++)
+    for (q[3] = 0; q[3] < den; q[3]++)
+    for (q[4] = 0; q[4] < den; q[4]++) {
+        const kinds = classifySingularities(pg, q, den);
+        const tally = {};
+        for (const k of kinds) tally[k.code] = (tally[k.code] ?? 0) + 1;
+        const sig = Object.keys(tally).sort().map((c) => `${c}x${tally[c]}`).join(" ") || "regular";
+        if (!sigs.has(sig)) sigs.set(sig, q.slice());
+        const four = kinds.filter((k) => k.families.length === 4).length;
+        if (four > maxFourFold) maxFourFold = four;
+    }
+    assert.deepEqual([...sigs.keys()].sort(), [
+        "11111x1 113x5 122x5",         // the decagon
+        "1112x1 113x2 122x2",          // the octagon, with its four hexagons
+        "113x1",                       // one thin
+        "113x1 122x1",                 // the couple
+        "113x2",                       // two thin
+        "122x1",                       // one thick
+        "122x2",                       // two thick
+        "regular",
+    ]);
+
+    // NO PHASE VECTOR HAS TWO OCTAGONS. Not rare -- impossible, and the reason
+    // is in the table: the four triples inside a 4-subset S have the four
+    // members of S as their lone families, one each, so an octagon on S needs
+    // every gamma in S integral. Two different 4-subsets of five families
+    // cover all five, so both would force all five integral -- which is the
+    // decagon, where the 4-folds are absorbed into the 5-fold.
+    assert.equal(maxFourFold, 1);
+});
+
+test("the fifth family misses the octagon by exactly the LI class", () => {
+    // Four integral phases put four families through a point; the fifth misses
+    // it, and PLAN 5.12's identity x.v_e + gamma_e = -Sum(n) + Sum(gamma) says
+    // by how much. With the other four integral, Sum(gamma) = gamma_e, so the
+    // miss IS the class: the octagon is the decagon with one family slid off,
+    // and sliding it back to zero is what closes it into the 5-fold.
+    //
+    // So every LI class except Penrose has an octagon, and Penrose has none.
+    const den = 10000;
+    for (const s of [0.5, 0.25, 0.1, 1 / 3]) {
+        const g = at([0, 0, 0, 0, Math.round(s * den)], den);
+        const m = g.model;
+        const { concurrencies } = scanRegions(m, VIS, { scale: 1 });
+        const octs = concurrencies.filter((c) => c.families.length === 4);
+        assert.equal(octs.length, 1, `Sum(gamma) = ${s}: ${octs.length} octagons`);
+        const c = octs[0];
+        assert.equal(resolveConcurrency(m, c).code, "1112");
+        const miss = [];
+        for (let j = 0; j < 5; j++) {
+            const t = m.directions[j][0] * c.x + m.directions[j][1] * c.y + m.gamma[j];
+            miss.push(Math.abs(t - Math.round(t)));
+        }
+        const through = miss.filter((d) => d < 1e-9).length;
+        assert.equal(through, 4, `four families should pass through, not ${through}`);
+        // Against the phase as STORED: gamma is exact rationals, so a third
+        // is 3333/10000 and the miss is that, not 0.3333...
+        const want = m.gamma[4];
+        assert.ok(Math.abs(Math.max(...miss) - want) < 1e-9,
+                  `the fifth family misses by ${Math.max(...miss)}, not ${want}`);
+    }
+});
