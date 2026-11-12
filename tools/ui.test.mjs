@@ -596,115 +596,171 @@ test("a slider steps under the wheel, and stays on its grid", () => {
     assert.equal(parseFloat(fine.value), 0.5);
 });
 
-// ── the two exponent steppers ─────────────────────────────────────
+// ── the three exponents ───────────────────────────────────────────
 
-// Jake: "integrate the inflation and lambda settings. two hoverable buttons.
-// I^i and \lambda^n (for legibility) scrollable with mouse or up down arrows
-// while hovering (or w and s keys)."
-function steppers() {
+// Jake, 2026-11-12: "Cannot read exponents. too small. Separate symbol from
+// exponent, each exponent in it's own _fixed sized_ scrollable box... Like the
+// gamma/sum decagon above, one of the symbols may be floated, unscrollable,
+// but the sum, of course, must always be correct and not jitter when negative
+// numbers. By default the \phi will float."
+//
+// So: three terms of one identity, m + q = t, with one computed from the other
+// two. The symbols are U+2110 SCRIPT CAPITAL I, U+03BB LAMDA and U+03C6 PHI.
+function exps() {
     const set = createGammaSet({ guard: false });
     const host = { children: [], appendChild(c) { this.children.push(c); return c; } };
     mountReticulum(set, host, { colors: COLORS });
     const wrap = host.children[0];
-    // className, not getAttribute: these are createElement nodes, and the
-    // stub answers getAttribute from the data-width/height pair alone.
     const cls = (c) => String(c.className || "");
     const gen = wrap.children.find((c) => cls(c).includes("ret-gen"));
-    assert.ok(gen, "no generation row");
-    const buttons = gen.children.filter((c) => cls(c) === "ret-step");
-    assert.equal(buttons.length, 2, `${buttons.length} steppers, not two`);
-    const lambdaOut = gen.children.find((c) => cls(c) === "ret-lambda");
-    return { set, I: buttons[0], L: buttons[1], lambdaOut };
+    assert.ok(gen, "no exponent row");
+    const got = {};
+    for (const t of gen.children.filter((c) => cls(c) === "exp-term")) {
+        const sym = t.children.find((c) => cls(c).startsWith("exp-sym"));
+        const box = t.children.find((c) => cls(c).startsWith("exp-box"));
+        got[sym.textContent] = { sym, box };
+    }
+    return { set, I: got["\u2110"], L: got["\u03bb"], P: got["\u03c6"], gen };
 }
 
-const wheel = (el, deltaY) => {
-    const e = { deltaY, dp: false, preventDefault() { this.dp = true; } };
-    el.on.wheel[0](e);
-    assert.ok(e.dp, "the wheel handler let the page scroll under it");
+const roll = (box, dir) => {
+    const e = { deltaY: dir, dp: false, preventDefault() { this.dp = true; } };
+    box.on.wheel[0](e);
+    assert.ok(e.dp, "the wheel handler let the panel scroll under it");
 };
-const key = (el, k) => {
-    el.on.mouseenter[0]();
-    const e = { key: k, dp: false, preventDefault() { this.dp = true; } };
-    for (const fn of document.on.keydown ?? []) fn(e);
-    el.on.mouseleave[0]();
-    return e;
-};
+const floats = (t) => String(t.box.className).includes("exp-float");
+/** The three as numbers, with U+2212 read back as a minus. */
+const nums = (h) => [h.I, h.L, h.P].map((t) => +t.box.textContent.replace("\u2212", "-"));
 
-test("the steppers wear their exponents: script I for the inflation, lambda for n", () => {
-    const { set, I, L, lambdaOut } = steppers();
-    assert.equal(I.textContent, "ℐ⁰", `the inflation reads ${JSON.stringify(I.textContent)}`);
-    assert.equal(L.textContent, "λ⁰");
-    // At n = 0 the total repeats the inflation's exponent, so it stays quiet.
-    assert.equal(lambdaOut.textContent, "");
-
-    wheel(I, -1);                                 // up is up, as everywhere else
-    assert.equal(set.getGeneration(), 1);
-    assert.equal(I.textContent, "ℐ¹", "the superscript did not follow");
-    wheel(I, 1);
-    wheel(I, 1);
-    assert.equal(set.getGeneration(), -1);
-    assert.equal(I.textContent, "ℐ⁻¹", "no minus sign on a deflation");
-
-    wheel(L, -1);
-    assert.equal(set.getNormalization(), 1);
-    assert.equal(L.textContent, "λ¹");
-    // Now the two exponents differ, so the sum is worth saying.
-    assert.equal(lambdaOut.textContent, "= φ⁰");
+test("three terms, the right three symbols, and phi floating by default", () => {
+    const h = exps();
+    assert.ok(h.I && h.L && h.P, "a term is missing");
+    assert.deepEqual(nums(h), [0, 0, 0]);
+    // U+2110 is a script capital I, not a J, and it is one character.
+    assert.equal(h.I.sym.textContent, "\u2110");
+    assert.equal(h.I.sym.textContent.length, 1);
+    assert.equal(h.L.sym.textContent, "\u03bb");
+    assert.equal(h.P.sym.textContent, "\u03c6");
+    // Jake: "By default the phi will float."
+    assert.ok(floats(h.P), "phi must float by default");
+    assert.ok(!floats(h.I) && !floats(h.L), "only one term floats");
 });
 
-test("the arrows and w/s drive whichever stepper the pointer is over", () => {
+test("the sum is always right, whichever term is the computed one", () => {
+    const h = exps();
+    const check = (where) => {
+        const [i, l, p] = nums(h);
+        assert.equal(i + l, p, `${where}: ${i} + ${l} is not ${p}`);
+        assert.equal(i, h.set.getGeneration(), `${where}: I is not the generation`);
+        assert.equal(l, h.set.getNormalization(), `${where}: lambda is not n`);
+    };
+    roll(h.I.box, -1); roll(h.I.box, -1); roll(h.L.box, 1);
+    check("phi floating");                              // 2, -1, 1
+
+    // lambda floats: scrolling I now deflates IN PLACE -- the generation steps
+    // and the normalization absorbs it, so the total never moves.
+    h.L.sym.on.click[0]();
+    assert.ok(floats(h.L) && !floats(h.P), "clicking a symbol floats it");
+    const before = nums(h)[2];
+    roll(h.I.box, 1);
+    check("lambda floating");
+    assert.equal(nums(h)[2], before, "the total moved while phi was free");
+    assert.equal(nums(h)[0], 1, "the generation did not step");
+
+    // I floats: hold the normalization, move the total, the generation follows.
+    h.I.sym.on.click[0]();
+    const n0 = h.set.getNormalization();
+    roll(h.P.box, -1);
+    check("I floating");
+    assert.equal(h.set.getNormalization(), n0, "n moved while it was free");
+});
+
+test("the floated term is not scrollable, by wheel or by key or by click", () => {
+    const h = exps();
+    const was = nums(h);
+    roll(h.P.box, -1);
+    roll(h.P.box, 1);
+    h.P.box.on.click[0]();
+    h.P.box.on.keydown[0]({ key: "w", preventDefault() {} });
+    assert.deepEqual(nums(h), was, "the computed term took a change");
+});
+
+test("negatives do not jitter: a minus is a minus, and the box is fixed width", () => {
+    // The width is CSS (3.2ch, monospaced). What the markup must get right is
+    // the SIGN: U+2212, so it has a digit's advance in the box's font rather
+    // than a hyphen's.
+    const h = exps();
+    roll(h.I.box, 1); roll(h.I.box, 1);
+    assert.equal(h.I.box.textContent, "\u22122");
+    assert.equal(h.P.box.textContent, "\u22122", "the computed term signs the same way");
+    assert.doesNotMatch(h.I.box.textContent, /-/, "an ASCII hyphen would shift the digits");
+    roll(h.I.box, -1); roll(h.I.box, -1);
+    assert.equal(h.I.box.textContent, "0", "and zero is not signed");
+});
+
+test("the arrows and w/s drive whichever box the pointer is over", () => {
     for (const k of ["ArrowUp", "w", "W"]) {
-        const { set, I, L } = steppers();
-        assert.ok(key(I, k).dp, `${k} was not taken`);
-        assert.equal(set.getGeneration(), 1, `${k} over the inflation`);
-        assert.equal(set.getNormalization(), 0, `${k} over the inflation moved n`);
-        assert.ok(key(L, k).dp);
-        assert.equal(set.getNormalization(), 1, `${k} over lambda`);
-        assert.equal(set.getGeneration(), 1, `${k} over lambda moved the generation`);
+        const h = exps();
+        h.I.box.on.mouseenter[0]();
+        for (const fn of document.on.keydown ?? []) fn({ key: k, preventDefault() {} });
+        h.I.box.on.mouseleave[0]();
+        assert.equal(h.set.getGeneration(), 1, `${k} over the inflation`);
+        assert.equal(h.set.getNormalization(), 0, `${k} over the inflation moved n`);
     }
     for (const k of ["ArrowDown", "s", "S"]) {
-        const { set, I, L } = steppers();
-        key(I, k);
-        assert.equal(set.getGeneration(), -1, `${k} over the inflation`);
-        key(L, k);
-        assert.equal(set.getNormalization(), -1, `${k} over lambda`);
+        const h = exps();
+        h.L.box.on.mouseenter[0]();
+        for (const fn of document.on.keydown ?? []) fn({ key: k, preventDefault() {} });
+        h.L.box.on.mouseleave[0]();
+        assert.equal(h.set.getNormalization(), -1, `${k} over lambda`);
     }
-    // With the pointer nowhere near, the keys are the page's own again.
-    const { set, I } = steppers();
-    I.on.mouseenter[0]();
-    I.on.mouseleave[0]();
+    // Pointer away, and the keys are the page's own again.
+    const h = exps();
+    h.I.box.on.mouseenter[0]();
+    h.I.box.on.mouseleave[0]();
     for (const fn of document.on.keydown ?? []) fn({ key: "w", preventDefault() {} });
-    assert.equal(set.getGeneration(), 0, "a stepper kept the keys after the pointer left");
-
-    // And not while someone is typing: a gamma box under the pointer would
-    // otherwise eat its own w and s.
-    I.on.mouseenter[0]();
+    assert.equal(h.set.getGeneration(), 0, "a box kept the keys after the pointer left");
+    // And not while someone is typing.
+    h.L.box.on.mouseenter[0]();
     for (const fn of document.on.keydown ?? []) {
         fn({ key: "w", target: { tagName: "INPUT" }, preventDefault() {} });
     }
-    assert.equal(set.getGeneration(), 0, "a stepper stole a keystroke from a text box");
-    I.on.mouseleave[0]();
+    assert.equal(h.set.getNormalization(), 0, "a box stole a keystroke from a text box");
+    h.L.box.on.mouseleave[0]();
 });
 
 test("the inflation moves gamma; the normalization moves lambda alone", () => {
-    // The distinction the two buttons exist to keep: a deflation is a map on
-    // the offsets that happens to rescale the grid, and n is the rescale with
-    // the offsets held still.
-    const PHI = (1 + Math.sqrt(5)) / 2;
-    const { set, I, L } = steppers();
-    set.setSum(0.5, true);
-    const before = set.values().join(",");
+    // The distinction the row exists to keep. Unchanged by the redesign, and
+    // worth re-asserting through the new controls.
+    const PHI_ = (1 + Math.sqrt(5)) / 2;
+    const h = exps();
+    h.set.setSum(0.5, true);
+    const before = h.set.values().join(",");
 
-    wheel(L, -1);
-    assert.equal(set.values().join(","), before, "n moved gamma");
-    assert.ok(Math.abs(set.model.lambda - PHI) < 1e-12,
-              `n = 1 put lambda at ${set.model.lambda}, not phi`);
+    roll(h.L.box, -1);
+    assert.equal(h.set.values().join(","), before, "n moved gamma");
+    assert.ok(Math.abs(h.set.model.lambda - PHI_) < 1e-12,
+              `n = 1 put lambda at ${h.set.model.lambda}, not phi`);
 
-    wheel(I, 1);                                  // one deflation
-    assert.notEqual(set.values().join(","), before, "a deflation left gamma alone");
-    // lambda is the two exponents added: phi^(-1 + 1) = 1.
-    assert.ok(Math.abs(set.model.lambda - 1) < 1e-12,
-              `lambda is ${set.model.lambda}, not the two exponents added`);
+    roll(h.I.box, 1);                                  // one deflation
+    assert.notEqual(h.set.values().join(","), before, "a deflation left gamma alone");
+    assert.ok(Math.abs(h.set.model.lambda - 1) < 1e-12,
+              `lambda is ${h.set.model.lambda}, not the two exponents added`);
+});
+
+test("lambda floating is deflate-in-place: gamma steps, the drawn scale does not", () => {
+    // The mode the float makes possible, and the reason it is worth having:
+    // "the tiling steps down a generation and is drawn at its parent's size."
+    const h = exps();
+    h.set.setSum(0.5, true);
+    h.L.sym.on.click[0]();
+    const gamma0 = h.set.values().join(","), lambda0 = h.set.model.lambda;
+    roll(h.I.box, 1);                                   // deflate
+    assert.notEqual(h.set.values().join(","), gamma0, "gamma did not deflate");
+    assert.ok(Math.abs(h.set.model.lambda - lambda0) < 1e-12,
+              `lambda went to ${h.set.model.lambda}, not staying at ${lambda0}`);
+    assert.equal(h.set.getGeneration(), -1);
+    assert.equal(h.set.getNormalization(), 1, "n did not absorb the step");
 });
 
 // ── the thirds are stops ──────────────────────────────────────────

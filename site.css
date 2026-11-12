@@ -634,7 +634,6 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 .ret-presets[hidden] { display: none; }
 .ret-settings { font-size: 11.5px; color: #444; }
 .ret-gen { margin-top: 4px; }
-.ret-lambda { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; color: #333; min-width: 58px; }
 /* The census, folded. Shut it is one word; open it is two lines of monospace
    that rewrap as the patch changes, so it carries a floor of two lines to keep
    the panel -- and the canvas under it -- from moving as you pan. */
@@ -713,10 +712,41 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 .dress-fold .dress-line { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* The normalization, beside the generation buttons it multiplies. */
-/* The two exponent steppers, ℐⁱ and λⁿ: big enough to read the superscript,
-   and wide enough that a two-digit exponent does not resize them mid-scroll. */
-.ret-step { font: inherit; font-size: 15px; line-height: 1.1; padding: 0 7px;
-    min-width: 34px; border: 1px solid #ccc; border-radius: 3px;
-    background: #f6f6f6; color: #222; cursor: ns-resize; }
-.ret-step:hover { background: #e9e9e9; border-color: #999; }
-.ret-step:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
+/* The three exponents: ℐ, λ and φ, each a symbol with its own box.
+   Jake, 2026-11-12: "Cannot read exponents. too small. Separate symbol from
+   exponent, each exponent in it's own _fixed sized_ scrollable box."
+
+   A raised box rather than `symbol ^ box`: the box IS the exponent by its
+   position and size, and a caret would put a third glyph in each of three
+   terms inside a 300px row. The symbol is at reading size and the digits are
+   at label size, which is the ratio a real exponent has — only neither of
+   them is 8px any more. */
+.exp-term { display: inline-flex; align-items: flex-start; gap: 1px; }
+.exp-sym {
+    font: 17px/1 "Times New Roman", Georgia, serif;
+    padding: 2px 0 0; border: 0; background: none; color: #222;
+    cursor: pointer; letter-spacing: 0;
+}
+.exp-sym:hover { color: #0a7a5f; }
+.exp-sym:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
+/* FIXED SIZE, and monospaced: the width is in `ch`, so a minus sign cannot
+   shift the digits under the pointer. "not jitter when negative numbers." */
+.exp-box {
+    font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    width: 3.2ch; min-width: 3.2ch; height: 16px; padding: 0;
+    text-align: center; border: 1px solid #ccc; border-radius: 2px;
+    background: #fff; color: #222; cursor: ns-resize;
+}
+.exp-box:hover { background: #eef7f2; border-color: #7a9; }
+.exp-box:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
+/* The floated one — computed from the other two, like Σγ above the row. Gray
+   and dashed rather than hidden: the identity m + q = t is only legible with
+   all three of its terms on the page. */
+.exp-box.exp-float {
+    border-style: dashed; border-color: #d8d8d8; background: transparent;
+    color: #999; cursor: default;
+}
+.exp-box.exp-float:hover { background: transparent; border-color: #d8d8d8; }
+.exp-sym.exp-float-sym { color: #999; }
+.ret-gen .exp-term + .exp-term { margin-left: 7px; }

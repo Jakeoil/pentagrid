@@ -36,6 +36,19 @@ function makeStub(extra = {}) {
             return want;
         },
     };
+    // className and classList are ONE thing in the DOM, and were two here: a
+    // factory that sets `el.className = "box"` and later calls
+    // `el.classList.toggle("box active")` left the two disagreeing, so a test
+    // could read a class the code had just removed -- or miss one it had just
+    // added, which is how the exponent row's floated term looked unfloated.
+    Object.defineProperty(base, "className", {
+        enumerable: true,
+        get: () => [...classes].join(" "),
+        set: (v) => {
+            classes.clear();
+            for (const c of String(v).split(/\s+/)) if (c) classes.add(c);
+        },
+    });
     Object.assign(base, {
         on, children,
         style: {}, classList,

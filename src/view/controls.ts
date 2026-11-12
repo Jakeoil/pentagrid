@@ -3,6 +3,9 @@
 import type { GrowthHandle, GrowthState } from "./growth.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { describeSum } from "../geometry/gamma.js";
+
+/** For the φ box's own readout: λ in figures, not just as an exponent. */
+const PHI = (1 + Math.sqrt(5)) / 2;
 import { createGammaBank } from "../ui/dials.js";
 import type { GammaBank } from "../ui/dials.js";
 import { createReticulum } from "../ui/reticulum.js";
@@ -514,86 +517,170 @@ export function mountReticulum(
 
     wrap.appendChild(tools);
 
-    // The two exponents, as two buttons: ℐⁱ for the inflation and λⁿ for the
-    // normalization. Jake, 2026-10-31: "integrate the inflation and lambda
-    // settings. two hoverable buttons. I^i and λ^n (for legibility) scrollable
-    // with mouse or up down arrows while hovering (or w and s keys)."
+    // The three exponents, as symbol-and-box pairs: ℐ for the inflation, λ for
+    // the normalization, φ for the two added — which is the power of φ the
+    // spacing actually is. Jake, 2026-11-12: "Cannot read exponents. too
+    // small. Separate symbol from exponent, each exponent in it's own _fixed
+    // sized_ scrollable box... Like the gamma/sum decagon above, one of the
+    // symbols may be floated, unscrollable, but the sum, of course, must
+    // always be correct."
     //
-    // Four controls became two. `deflate` and `inflate` were a pair of verbs
-    // that between them said one number, and the normalization was a number
-    // box next to a readout saying the same thing again. A superscript IS the
-    // number, so the control and its value are one glyph.
+    // THE SYMBOLS, since they are easy to mistake for each other: ℐ is U+2110
+    // SCRIPT CAPITAL I (an I, not a J — `\mathscr{I}`), λ is U+03BB, and φ is
+    // U+03C6 GREEK SMALL LETTER PHI, which is LaTeX's `\varphi`. The same
+    // characters are in PLAN.md, because the documentation is Markdown with
+    // the literal codepoints rather than LaTeX — so what is written and what
+    // is drawn cannot drift apart.
     //
-    // The two are not the same kind of thing, which is the point of keeping
-    // them apart: ℐ moves γ AND λ, because a deflation is a map on the offsets
-    // that happens to rescale the grid; λ moves the scale alone.
+    // ONE IDENTITY, THREE TERMS. m + q = t, and the row shows all three with
+    // one of them computed from the other two, exactly as Σγ is computed from
+    // the offsets above. φ floats by default, since the total is what the
+    // other two decide. Click a symbol and that term floats instead, which is
+    // how the row changes meaning rather than just appearance:
+    //
+    //   φ floats    ℐ inflates (γ and λ), λ rescales alone — the plain case
+    //   λ floats    ℐ deflates IN PLACE: the tiling steps down a generation
+    //               and is drawn at the same size, because q absorbs it
+    //   ℐ floats    hold the normalization, move the total, and let the
+    //               generation follow — scrolling either one moves γ
+    //
+    // The boxes are fixed width and monospaced so a minus sign cannot shift
+    // the digits under the pointer: "not jitter when negative numbers."
     const gen = document.createElement("div");
     gen.className = "ret-tools ret-gen";
     gen.hidden = n !== 5;
-    const lambdaOut = document.createElement("span");
-    lambdaOut.className = "ret-lambda";
-    lambdaOut.title = "λ, the gridline spacing, and the tiling's edge: φ to the two "
-        + "exponents added.";
 
-    /** Whichever stepper the pointer is over, for the keys to find. */
-    let hovered: { up: () => void; down: () => void } | null = null;
-    const stepper = (glyph: string, title: string,
-                     up: () => void, down: () => void) => {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "ret-step";
-        b.title = title;
-        const go = (fn: () => void) => { fn(); render(); };
-        // Scroll, arrows, or w/s — all three, because the pointer is already
-        // there and reaching for the keyboard to change a number you are
-        // looking at is a worse gesture than turning the wheel.
-        b.addEventListener("wheel", (e) => {
-            const ev = e as WheelEvent;
-            ev.preventDefault();          // the page must not scroll under it
-            go(ev.deltaY < 0 ? up : down);
-        }, { passive: false });
-        const keys = (e: KeyboardEvent) => {
-            const k = e.key;
-            if (k === "ArrowUp" || k === "w" || k === "W") { e.preventDefault(); go(up); }
-            else if (k === "ArrowDown" || k === "s" || k === "S") { e.preventDefault(); go(down); }
-        };
-        b.addEventListener("keydown", keys);     // when it has focus
-        b.addEventListener("mouseenter", () => { hovered = { up, down }; });
-        b.addEventListener("mouseleave", () => { hovered = null; });
-        // A click is the obvious gesture and should do the obvious thing.
-        b.addEventListener("click", () => go(up));
-        gen.appendChild(b);
-        return { el: b, glyph };
-    };
+    type TermKey = "I" | "lambda" | "phi";
+    /** Which term is computed from the other two. */
+    let floated: TermKey = "phi";
 
-    let steps: { el: HTMLButtonElement; glyph: string }[] = [];
-    if (n === 5) {
-        const off = () => {
+    /** U+2212, so a negative exponent is a minus and not a hyphen. */
+    const show = (v: number) => (v < 0 ? "\u2212" : "") + Math.abs(v);
+
+    /**
+     * Move one term by d, holding whichever two the float leaves free.
+     *
+     * The model has two settings, m and q; t is their sum and is never stored.
+     * So every case below ends in the same two calls, and the only question is
+     * what the pair becomes.
+     */
+    const bump = (key: TermKey, d: number) => {
+        const m = set.getGeneration(), q = set.getNormalization();
+        let nm = m, nq = q;
+        if (floated === "phi") {
+            if (key === "I") nm = m + d;
+            else if (key === "lambda") nq = q + d;
+        } else if (floated === "I") {
+            // Free: q and t, with m = t − q.
+            if (key === "lambda") { nq = q + d; nm = m - d; }
+            else if (key === "phi") { nm = m + d; }
+        } else {
+            // λ floats. Free: m and t, with q = t − m.
+            if (key === "I") { nm = m + d; nq = q - d; }
+            else if (key === "phi") { nq = q + d; }
+        }
+        if (nq !== q) set.setNormalization(nq);
+        // The generation has to move through inflate/deflate, not setGeneration:
+        // a step of it is a map on γ that happens to rescale, and the buttons
+        // must not let the two drift apart. Symmetry and the mirror go off for
+        // the same reason they always did — a deflated γ is neither.
+        for (let guard = 0; guard < 8 && set.getGeneration() !== nm; guard++) {
+            const before = set.getGeneration();
             symmetric = false; symInput.checked = false;
             mirror = false; mirrorInput.checked = false;
-        };
-        steps = [
-            stepper("\u2110",
-                "ℐ, the inflation: how many generations up this tiling has been "
-                + "taken, as the superscript. Up inflates — λ × φ and γ′ⱼ = γⱼ₋₁ + "
-                + "γⱼ₊₁; down deflates — λ ÷ φ and γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃), the tiling "
-                + "becoming its own deflation in place. It moves γ AND λ, because "
-                + "a deflation is a map on the offsets that happens to rescale the "
-                + "grid. Scroll it, or use the arrows or w/s while pointing at it.",
-                () => { off(); set.inflate(); },
-                () => { off(); set.deflate(); }),
-            stepper("λ",
-                "λ's own exponent, on top of the inflation's: the scale ALONE, "
-                + "with γ left where it is. The tiling held still and resized, "
-                + "which is the one thing deflating cannot do — deflate once, then "
-                + "put this to 1, and the deflated γ is drawn at its parent's "
-                + "size. Scroll it, or use the arrows or w/s while pointing at it.",
-                () => set.setNormalization(set.getNormalization() + 1),
-                () => set.setNormalization(set.getNormalization() - 1)),
-        ];
-        // The keys work while the pointer is over a stepper, focus or not —
-        // "while hovering" was the ask, and a button you have to click first
-        // is a button you have already used.
+            if (before < nm) set.inflate(); else set.deflate();
+            if (set.getGeneration() === before) break;      // refused: stop
+        }
+        render();
+    };
+
+    /** Whichever box the pointer is over, for the keys to find. */
+    let hovered: { key: TermKey } | null = null;
+
+    interface Term {
+        key: TermKey;
+        sym: HTMLElement;
+        box: HTMLButtonElement;
+        value: () => number;
+        /** Kept, because the floated box borrows its title and gives it back. */
+        boxTitle: string;
+    }
+    const terms: Term[] = [];
+
+    const term = (
+        key: TermKey, glyph: string, symTitle: string, boxTitle: string,
+        value: () => number,
+    ) => {
+        const wrapEl = document.createElement("span");
+        wrapEl.className = "exp-term";
+
+        const sym = document.createElement("button");
+        sym.type = "button";
+        sym.className = "exp-sym";
+        sym.textContent = glyph;
+        sym.title = symTitle + " Click to compute this one from the other two.";
+        sym.addEventListener("click", () => {
+            if (floated === key) return;
+            floated = key;
+            render();
+        });
+        wrapEl.appendChild(sym);
+
+        const box = document.createElement("button");
+        box.type = "button";
+        box.className = "exp-box";
+        box.title = boxTitle;
+        box.addEventListener("wheel", (e) => {
+            const ev = e as WheelEvent;
+            ev.preventDefault();            // the panel must not scroll under it
+            if (floated === key) return;
+            bump(key, ev.deltaY < 0 ? 1 : -1);
+        }, { passive: false });
+        box.addEventListener("keydown", (e) => {
+            const k = (e as KeyboardEvent).key;
+            const d = k === "ArrowUp" || k === "w" || k === "W" ? 1
+                : k === "ArrowDown" || k === "s" || k === "S" ? -1 : 0;
+            if (!d) return;
+            e.preventDefault();
+            if (floated !== key) bump(key, d);
+        });
+        box.addEventListener("mouseenter", () => { hovered = { key }; });
+        box.addEventListener("mouseleave", () => { hovered = null; });
+        box.addEventListener("click", () => { if (floated !== key) bump(key, 1); });
+        wrapEl.appendChild(box);
+
+        gen.appendChild(wrapEl);
+        terms.push({ key, sym, box, value, boxTitle });
+    };
+
+    if (n === 5) {
+        term("I", "\u2110",
+             "ℐ, the inflation: how many generations up this tiling has been "
+             + "taken. Scrolling it inflates — λ × φ and γ′ⱼ = γⱼ₋₁ + γⱼ₊₁ — or "
+             + "deflates, γ″ⱼ = −(γⱼ₊₂ + γⱼ₊₃). It moves γ AND λ, because a "
+             + "deflation is a map on the offsets that happens to rescale the "
+             + "grid.",
+             "The generation. Scroll it, or use the arrows or w/s while "
+             + "pointing at it.",
+             () => set.getGeneration());
+        term("lambda", "λ",
+             "λ, the normalization: the scale ALONE, with γ left where it is. "
+             + "Float this one and ℐ deflates in place — the tiling steps down "
+             + "a generation and is drawn at its parent's size, which is the "
+             + "one thing deflating cannot otherwise do.",
+             "The normalization. Scroll it, or use the arrows or w/s while "
+             + "pointing at it.",
+             () => set.getNormalization());
+        term("phi", "φ",
+             "φ, the spacing itself: λ = φ to this power, which is the two "
+             + "other exponents added. It floats by default, being what they "
+             + "decide.",
+             "The power of φ the gridline spacing is.",
+             () => set.getGeneration() + set.getNormalization());
+
+        // The keys work while the pointer is over a box, focus or not — "while
+        // hovering" was the ask, and a box you have to click first is a box you
+        // have already changed.
         document.addEventListener("keydown", (e) => {
             if (!hovered) return;
             // Not while someone is typing: a γ box under the pointer would
@@ -602,11 +689,13 @@ export function mountReticulum(
             const tag = String(t?.tagName ?? "").toLowerCase();
             if (tag === "input" || tag === "textarea" || tag === "select") return;
             const k = e.key;
-            if (k === "ArrowUp" || k === "w" || k === "W") { e.preventDefault(); hovered.up(); render(); }
-            else if (k === "ArrowDown" || k === "s" || k === "S") { e.preventDefault(); hovered.down(); render(); }
+            const d = k === "ArrowUp" || k === "w" || k === "W" ? 1
+                : k === "ArrowDown" || k === "s" || k === "S" ? -1 : 0;
+            if (!d) return;
+            e.preventDefault();
+            if (floated !== hovered.key) bump(hovered.key, d);
         });
     }
-    gen.appendChild(lambdaOut);
 
     wrap.appendChild(gen);
 
@@ -634,17 +723,28 @@ export function mountReticulum(
         // is doing something, so the generation does not disappear into the
         // total: m is what γ followed, and m + q is only the scale.
         const q = set.getNormalization();
-        // The exponent goes ON the button: the control and the number it holds
-        // are one glyph, which is the whole point of folding four controls
-        // into two.
-        if (steps.length === 2) {
-            steps[0].el.textContent = steps[0].glyph + sup(m);
-            steps[1].el.textContent = steps[1].glyph + sup(q);
+        // Each box carries its own exponent, and the floated one is marked
+        // rather than hidden: the identity m + q = t is only legible if all
+        // three are there to be read.
+        for (const t of terms) {
+            const v = t.value();
+            const txt = show(v);
+            if (t.box.textContent !== txt) t.box.textContent = txt;
+            const isFloat = floated === t.key;
+            t.box.classList.toggle("exp-float", isFloat);
+            t.sym.classList.toggle("exp-float-sym", isFloat);
+            t.box.title = isFloat
+                ? `Computed: ${t.key === "phi" ? "the other two added"
+                    : "what the other two leave"}. Click another symbol to free it.`
+                : t.boxTitle;
         }
-        // The total is the one thing neither superscript says, so it is the
-        // only readout left — and only while the normalization is doing
-        // something, since at q = 0 it just repeats ℐ's exponent.
-        lambdaOut.textContent = q === 0 ? "" : `= φ${sup(m + q)}`;
+        // λ in figures, on the one box that is about the spacing.
+        const phi = terms.find((t) => t.key === "phi");
+        if (phi) {
+            phi.sym.title = `λ = φ${sup(m + q)} = ${Math.pow(PHI, m + q).toFixed(4)}`
+                + " — the gridline spacing, and the tiling's edge. The two other"
+                + " exponents added. Click to compute this one from the other two.";
+        }
     };
     set.onChange(render);
     render();
