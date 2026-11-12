@@ -392,3 +392,85 @@ test("negating the deca's phases flips it end for end", () => {
     assert.equal(side(p.gamma) * side(p.gamma.map((q) => -q)), -1,
                  "the Pe3 should swap sides of the origin under Gamma -> -Gamma");
 });
+
+// ── the row stands up straight ────────────────────────────────────
+
+// Jake, 2026-11-12: "I would like to arrange the presets better. Make them
+// more symmetric... if the gamma's were rotated 72 degrees clockwise, the
+// gridlines would have horizontal symmetry." He was right about every preset,
+// and the catalog now carries his rotations. These two tests are what keeps
+// them: the arithmetic condition, and the geometry it is supposed to mean.
+
+/**
+ * The grid's lines as direction-and-offset keys, optionally reflected about
+ * the axis at `t` degrees.
+ *
+ * A line is {x : x·v = p}; reflecting it about an axis through the origin
+ * sends the normal v to its mirror image and leaves p alone. (v, p) and
+ * (−v, −p) are the same line, so the key folds the direction into [0, 180).
+ */
+function lineKeys(model, t = null) {
+    const R = 6;
+    const out = new Set();
+    for (let j = 0; j < model.n; j++) {
+        const v = model.directions[j];
+        const a = Math.atan2(v[1], v[0]) * 180 / Math.PI;
+        const dir = t === null ? a : 2 * t - a;
+        for (let n = -R - 2; n <= R + 2; n++) {
+            const p = n - model.gamma[j];
+            if (Math.abs(p) > R) continue;
+            let A = ((dir % 360) + 360) % 360, P = p;
+            if (A >= 180) { A -= 180; P = -P; }
+            out.add(`${A.toFixed(6)}|${P.toFixed(6)}`);
+        }
+    }
+    return out;
+}
+const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
+
+test("every preset but `regular` is palindromic, which IS the vertical mirror", () => {
+    // gamma_j = gamma_{-j} mod 1, so gamma1 = gamma4 and gamma2 = gamma3. That
+    // is the condition for the mirror whose axis is vertical in the frame the
+    // page draws, and writing the presets that way is what makes the row read
+    // as one family of vectors instead of five tilted pictures.
+    for (const p of SINGULAR_PRESETS) {
+        const pal = (a, b) => ((p.gamma[a] - p.gamma[b]) % p.den + p.den) % p.den === 0;
+        if (p.name === "regular") {
+            // The one with no mirror at any rotation, which is the whole point
+            // of it: a generic phase vector.
+            assert.ok(!(pal(1, 4) && pal(2, 3)),
+                      "`regular` is supposed to be generic");
+            continue;
+        }
+        assert.ok(pal(1, 4) && pal(2, 3),
+                  `"${p.name}" is [${p.gamma.join(",")}] — not palindromic`);
+    }
+});
+
+test("and the gridlines really are symmetric about the vertical, measured", () => {
+    // The condition above is arithmetic; this is the geometry it claims.
+    // Reflect the whole line arrangement and compare it with itself.
+    for (const p of SINGULAR_PRESETS) {
+        const g = at(p.gamma, p.den);
+        const base = lineKeys(g.model);
+        const vertical = sameSet(base, lineKeys(g.model, 90));
+        if (p.name === "regular") {
+            // No axis at all, at any angle — checked every degree.
+            for (let t = 0; t < 180; t++) {
+                assert.ok(!sameSet(base, lineKeys(g.model, t)),
+                          `\`regular\` has a mirror at ${t}°`);
+            }
+            continue;
+        }
+        assert.ok(vertical, `"${p.name}" has no vertical mirror`);
+    }
+    // Two that carry a horizontal one as well, and are worth naming: the
+    // decagon has all ten axes, and the restated couple and the turned octagon
+    // have one of each kind, 90° apart.
+    for (const name of ["decagon", "couple", "octagon"]) {
+        const p = SINGULAR_PRESETS.find((q) => q.name === name);
+        const g = at(p.gamma, p.den);
+        assert.ok(sameSet(lineKeys(g.model), lineKeys(g.model, 0)),
+                  `"${name}" should be symmetric about the horizontal too`);
+    }
+});

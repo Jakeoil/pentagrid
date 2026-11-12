@@ -204,6 +204,40 @@ const CAPS: readonly SingularPreset[] = [
  * The Penrose column is short for the reason in COUPLES: an integral total makes
  * the hexagons come in pairs and swallows every 4-fold into a 5-fold.
  */
+/**
+ * THE ROW STANDS UP STRAIGHT — Jake, 2026-11-12.
+ *
+ * *"I would like to arrange the presets better. Make them more symmetric. The
+ * first one I see is 'couple'. I see that if the gamma's were rotated 72
+ * degrees clockwise, the gridlines would have horizontal symmetry... Am I
+ * correct?"* He was, on every one, and the rotations below are his.
+ *
+ * Each of these γ gives a grid with a mirror, but the axis sat at 18°, 72°,
+ * 126° or 162°, so every preset came up tilted a different way and the row
+ * read as a set of unrelated pictures. Rotating a γ is a cyclic shift of its
+ * indices — a rotation of the figure by 72° is a relabeling of which family
+ * points where — so the tiling is not touched at all, only turned. The codes
+ * are identical before and after, asserted.
+ *
+ * **The axes come in two families and a 72° turn cannot cross between them.**
+ * Measured in the frame the page draws, v₀ pointing north:
+ *
+ *     axis at a multiple of 36°   the reflection sends vⱼ ↦ −v_k,
+ *     (0, 36, 72, 108, 144)       so the condition is γ_{m−j} ≡ −γⱼ
+ *     axis at an odd 18°          the reflection sends vⱼ ↦ v_k,
+ *     (18, 54, 90, 126, 162)      so the condition is γ_{m−j} ≡ γⱼ — a palindrome
+ *
+ * A 72° rotation moves an axis by two steps of 36°, so it stays in its family:
+ * a palindromic γ can be stood vertical and never horizontal, and an
+ * anti-palindromic one the other way about. (And the `symmetry` flag — v₀
+ * north or east — is exactly the switch between the two families.)
+ *
+ * So every preset below is now **palindromic**: γ₁ = γ₄ and γ₂ = γ₃, which is
+ * the vertical mirror, written in the vector where it can be read off. The two
+ * exceptions are honest ones: `regular` has no mirror at any rotation, which
+ * is what it is for, and `decagon` has all ten. `tools/hunt.test.mjs` fails if
+ * a preset stops being palindromic.
+ */
 const HUNT: readonly SingularPreset[] = [
     {
         name: "regular", gamma: [7, 11, 13, 17, -48], den: D, penrose: true, group: "hunt",
@@ -211,9 +245,16 @@ const HUNT: readonly SingularPreset[] = [
             + "in closed form, ten integer comparisons. Sums to zero.",
     },
     {
-        name: "couple", gamma: [0, 0, 0, 10, -10], den: D, penrose: true, group: "hunt",
+        name: "couple", gamma: [0, 0, 50, 50, 0], den: D, penrose: true, group: "hunt",
         note: "The smallest Penrose singularity: one K122 and one K113, and "
             + "nothing else. They cannot be separated — see COUPLES.",
+        // RESTATED 2026-11-12 for the vertical mirror — see the note above the
+        // catalog. It was [0,0,0,10,-10], whose only axis is of the reversing
+        // kind, so no rotation could stand it up: 72° clockwise puts that axis
+        // horizontal and that is as close as turning gets. Searching the
+        // palindromic family over twentieths found this one instead — a
+        // genuine couple, K113 on families 023 and K122 on 014, with a
+        // vertical AND a horizontal mirror. Σγ went 0 to 1, both Penrose.
     },
     {
         name: "decagon", gamma: [0, 0, 0, 0, 0], den: D, penrose: true, group: "hunt",
@@ -221,29 +262,36 @@ const HUNT: readonly SingularPreset[] = [
             + "the unique 5-fold at the origin.",
     },
     {
-        name: "octagon", gamma: [0, 0, 0, 0, 50], den: D, penrose: false, group: "hunt",
+        // Rotated 72° counter-clockwise from [0,0,0,0,50]. Its two axes were
+        // 18° and 108°, one of each kind and 90° apart, so the one turn stands
+        // BOTH up: vertical and horizontal at once.
+        name: "octagon", gamma: [50, 0, 0, 0, 0], den: D, penrose: false, group: "hunt",
         note: "Sum(gamma) = 1/2, so NOT Penrose — and that is the point. Four "
             + "integral phases give a K1112, a boat and two thins. No integral "
             + "total can reach it: the fifth family would pass through the same "
             + "point and make it a decagon.",
     },
     {
-        name: "1 thick", gamma: [0, 0, 0, 10, 10], den: D, penrose: false, group: "hunt",
+        // Rotated 72° clockwise from [0,0,0,10,10]: axis 162° → 90°.
+        name: "1 thick", gamma: [0, 0, 10, 10, 0], den: D, penrose: false, group: "hunt",
         note: "A lone K122, with the total off the integers. Not Penrose — at "
             + "Sum(gamma) in Z a hexagon always drags its partner in.",
     },
     {
-        name: "1 thin", gamma: [0, 0, 10, 0, 10], den: D, penrose: false, group: "hunt",
+        // Rotated 144° counter-clockwise from [0,0,10,0,10]: axis 126° → 90°.
+        name: "1 thin", gamma: [0, 10, 0, 0, 10], den: D, penrose: false, group: "hunt",
         note: "A lone K113, the other hexagon. Not congruent to the thick one: "
             + "144/144/72 against 144/108/108.",
     },
     {
-        name: "2 thick", gamma: [0, 10, 0, -10, -10], den: D, penrose: false, group: "hunt",
+        // Rotated 72° clockwise from [0,10,0,-10,-10]: axis 162° → 90°.
+        name: "2 thick", gamma: [10, 0, -10, -10, 0], den: D, penrose: false, group: "hunt",
         note: "Two K122 and no K113 — impossible at an integral total, where the "
             + "two kinds are forced into pairs.",
     },
     {
-        name: "2 thin", gamma: [0, 0, 10, -10, 10], den: D, penrose: false, group: "hunt",
+        // Rotated 144° counter-clockwise from [0,0,10,-10,10]: axis 126° → 90°.
+        name: "2 thin", gamma: [-10, 10, 0, 0, 10], den: D, penrose: false, group: "hunt",
         note: "Two K113 and no K122, the mirror of the case above.",
     },
 ];

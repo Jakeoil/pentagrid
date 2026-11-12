@@ -2625,6 +2625,53 @@ shows. `classifySingularities` in `geometry/hunt.ts` is the decider.
   hundredths and thousandths so every reachable phase is rational — but this is
   stated in `hunt.ts` rather than assumed.
 
+**The row stands up straight — Jake, 2026-11-12.** *"I would like to arrange
+the presets better. Make them more symmetric... if the gamma's were rotated 72
+degrees clockwise, the gridlines would have horizontal symmetry... Am I
+correct?"* He was, on every preset, and the catalog now carries his rotations.
+
+Each γ in the catalog gives a grid with a mirror, but the axes sat at 18°, 72°,
+126° and 162°, so every button came up tilted a different way. Measured two
+ways — the arithmetic condition on γ, and brute force over the reflected line
+arrangement, every degree:
+
+| preset | axis was | rotation | axis now |
+|---|---|---|---|
+| couple | 72° | **restated**, see below | 0° and 90° |
+| octagon | 18°, 108° | 72° counter-clockwise | 0° and 90° |
+| 1 thick, 2 thick | 162° | 72° clockwise | 90° |
+| 1 thin, 2 thin | 126° | 144° counter-clockwise | 90° |
+| sun, star | all five | — | 18, 54, 90, 126, 162 |
+| deca, decagon | 90°, all ten | — | unchanged |
+| regular | **none** | — | none, by design |
+
+**The axes come in two families and a 72° turn cannot cross between them.** In
+the frame the page draws, v₀ north: an axis at a multiple of 36° reflects
+vⱼ ↦ −v_k, so its condition is γ_{m−j} ≡ −γⱼ; an axis at an odd multiple of
+18° reflects vⱼ ↦ v_k, so its condition is γ_{m−j} ≡ γⱼ, a palindrome. A 72°
+rotation moves an axis by two steps of 36° and so stays in its family: a
+palindromic γ can be stood vertical and never horizontal, an anti-palindromic
+one the other way about. The `symmetry` flag — v₀ north or east — is exactly
+the switch between the two families, measured: it sends couple's old axis
+72° → 162° and 1 thick's 162° → 72°.
+
+That is why **couple could not be turned**: its old `[0,0,0,10,-10]` has only
+the reversing kind of axis, and 72° clockwise puts that one horizontal, which
+is as close as turning gets. So it was restated instead. Searching the whole
+palindromic family γ = [a, b, c, c, b] over twentieths showed that **every
+signature in the catalog is attainable with a vertical mirror**, couple
+included, and `[0, 0, ½, ½, 0]` is the one it found: a genuine couple — K113 on
+families 023, K122 on 014 — with a vertical mirror and a horizontal one. Σγ
+went 0 → 1, both Penrose.
+
+A rotation is a relabeling of which family points where, so it does not touch
+the tiling, only turns it: the code multiset is identical before and after,
+asserted, and every note in the catalog stayed true because none of them names
+a family. The existing preset tests pin the TYPE rather than the vector, which
+is why none of them had to change — and two new ones pin the arrangement: that
+every preset but `regular` is palindromic, and that the lines really are
+symmetric about the vertical, by reflecting the arrangement and comparing.
+
 ### 5.13 The superposition, and how it went missing (2026-09-14)
 
 **The regression.**

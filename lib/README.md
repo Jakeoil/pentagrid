@@ -84,7 +84,7 @@ and the TypeScript behind them. Do not edit between the markers.
 |---|---|---|---|---|
 | `dist/geometry/gamma.js` | `src/geometry/gamma.ts` | 595 | no | The γ cluster: everything that decides *which* pentagrid you are looking at. |
 | `dist/geometry/regularity.js` | `src/geometry/regularity.ts` | 165 | no | Regularity: decided exactly, and the float scan for how small things get. |
-| `dist/geometry/hunt.js` | `src/geometry/hunt.ts` | 253 | no | Hunting singularities: which ones a phase vector has, decided exactly. |
+| `dist/geometry/hunt.js` | `src/geometry/hunt.ts` | 301 | no | Hunting singularities: which ones a phase vector has, decided exactly. |
 | `dist/state/baseline.js` | `src/state/baseline.ts` | 87 | no | A page's baseline, and the reset to it — PLAN §9.6, step 3 of §9.10. |
 | `dist/geometry/growth.js` | `src/geometry/growth.ts` | 171 | no | The growth law: where the tiling's points are at a partial grow and fold. |
 | `dist/geometry/roof.js` | `src/geometry/roof.ts` | 91 | no | The Wieringa lift: the tiling stood up into golden rhombi. |
