@@ -2049,7 +2049,7 @@ test("the panel reads in three sections, and split puts the third on the right",
                   "Pentagrid", "Hover", "style"];
     const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
                  "pentaplex", "next-rhomb", "kites", "misc", "band", "for groups",
-                 "edge style", "vertex style", "VE census", "singularities"];
+                 "edge style", "vertex style", "singularities"];
 
     const panel = sizedHost(800, 200);
     createPentagrid({ container: sizedHost(800, 800), panel });
@@ -2240,73 +2240,34 @@ test("split: a hover answers only on the canvas its target is drawn on", () => {
               "a grid hover answered on the Penrose canvas");
 });
 
-test("the VE census row rides with the VE mark, and reads the patch on screen", () => {
+test("the VE census is retired, and the VE mark is not", () => {
+    // Jake, 2026-11-15: "Also VE census should also be retired." It was the
+    // one readout that walked the whole patch on every draw, and it was the
+    // row moire excluded while keeping the mark that turns it on -- so the
+    // same page could show the letters and no census. `veCensus` itself stays
+    // in geometry/vertexenv.ts with its tests: the measurement is worth
+    // keeping, a readout on every pan was not.
     const panel = sizedHost(800, 200);
     const h = createPentagrid({
         container: sizedHost(800, 800), panel,
         features: { penroseTiles: true, penroseVertices: true },
     });
-    h.gamma.setLocked(-1);
-    h.gamma.setValues([0.0817, 0.3391, -0.2234, 0.1109, -0.3083]);   // Penrose
-
-    const find = (cls) => {
-        let hit = null;
-        const walk = (el) => {
-            for (const c of el.children ?? []) {
-                if (c.className === cls) hit = c;
-                walk(c);
-            }
-        };
-        walk(panel);
-        return hit;
+    const seen = [];
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (c.dataset?.row) seen.push(c.dataset.row);
+            if (String(c.className).includes("ve-census")) seen.push("!readout");
+            walk(c);
+        }
     };
-    const readout = find("ve-census");
-    assert.ok(readout, "no census readout in the panel");
-    const rowOf = (el) => {
-        let hit = null;
-        const walk = (p2) => {
-            for (const c of p2.children ?? []) {
-                if (c.dataset?.row === "VE census") hit = c;
-                walk(c);
-            }
-        };
-        walk(panel);
-        return hit;
-    };
-
-    // Off by default: the row hides until the mark asks for it.
-    assert.equal(rowOf().hidden, true, "the census shows with nothing selected");
-
+    walk(panel);
+    assert.ok(!seen.includes("VE census"), "the census row is back");
+    assert.ok(!seen.includes("!readout"), "the census readout is back");
+    // The mark itself is untouched: it says which environment each vertex is,
+    // which is the half that was worth the room.
+    assert.ok(seen.includes("vertex style"), "the vertex style row went with it");
     h.setTileStyle({ vertexMark: "ve" });
-    assert.equal(rowOf().hidden, false, "the census stayed hidden in VE mode");
-
-    // Folded shut it says nothing and counts nothing -- Jake: "it's moving the
-    // canvas". `open` has to be set explicitly here: the DOM stub is a Proxy,
-    // so reading a property nobody assigned hands back a stub, which is
-    // truthy, and a test that only reads it cannot tell shut from open.
-    const fold = find("row-fold census-fold");
-    assert.ok(fold, "the census is not in a fold");
-    fold.open = false;
-    h.redraw();
-    assert.equal(readout.textContent, "", "a shut census still wrote its readout");
-
-    fold.open = true;
-    h.redraw();
-    const text = readout.textContent;
-    // A Penrose patch, so the seven and nothing else among the letters.
-    const [head] = text.split("\n");
-    assert.match(head, /^\d+ stars · /);
-    const letters = [...head.matchAll(/([A-Z*]) \d/g)].map((m) => m[1]);
-    assert.deepEqual([...letters].sort(), ["D", "J", "K", "Q", "S", "T", "V"]);
-    // D leads, at about phi^-2.
-    assert.equal(letters[0], "D");
-    const share = Number(head.match(/D ([\d.]+)/)[1]);
-    assert.ok(share > 36 && share < 43, `D at ${share}%`);
-    // The rim is reported, not folded in.
-    assert.match(text, /\d+ at the rim/);
-
-    h.setTileStyle({ vertexMark: "pool" });
-    assert.equal(rowOf().hidden, true, "the census outstayed the VE mark");
+    assert.equal(h.getTileStyle().vertexMark, "ve");
 });
 
 test("the dots are one per tile, inside the face at the corner the greens point into", () => {

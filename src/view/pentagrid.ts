@@ -32,7 +32,7 @@ export { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js"
 import type { GammaSnapshot } from "../state/baseline.js";
 import { extremeCorner, rhombArcs, rhombArrows, rhombPentagons, rhombDeflation, rhombKitesDarts, dressingReadings, PHI, PENTA_R } from "../geometry/decor.js";
 import { drawIndexMark } from "./pool.js";
-import { veCensus, vertexStars } from "../geometry/vertexenv.js";
+import { vertexStars } from "../geometry/vertexenv.js";
 import { rhombAmmann, ammannBars } from "../geometry/ammann.js";
 import { lighten } from "../ui/reticulum.js";
 import { LayerStack } from "./layers.js";
@@ -1853,8 +1853,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
     /**
      * Rows that decide for themselves whether they apply at all — `for groups`
-     * only means something when the system IS rhomb groups, the VE census only
-     * when the VE mark is up.
+     * only means something when the system IS rhomb groups. (The VE census was
+     * the other one, retired 2026-11-15.)
      *
      * Kept apart from `exposeRows` because the two answer different questions
      * and both used to write `hidden` directly: a row the host had excluded
@@ -4243,19 +4243,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     const featureBoxes: { key: keyof Features; cb: HTMLInputElement }[] = [];
 
     /**
-     * Which panel a row belongs in. One panel is the usual case; with `panelP`
-     * the Penrose rows — the P side of the G/P split — go there instead.
-     */
-    const P_ROWS = new Set([
-        "Penrose", "Penrose hover", "system", "face shade", "pentaplex", "penrose face",
-        "for groups", "edge style", "vertex style", "VE census", "singularities",
-        "next-rhomb", "kites", "misc", "band",
-    ]);
-    function panelFor(title: string): HTMLElement {
-        return config.panelP && P_ROWS.has(title) ? config.panelP : layerPanelDiv;
-    }
-
-    /**
      * The panel's reading order, in three sections.
      *
      * A row is built where its code lives, which is not the order anyone wants
@@ -4280,9 +4267,27 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             title: "Penrose",
             rows: ["Penrose", "Penrose hover", "system", "face shade", "pentaplex",
                    "next-rhomb", "kites", "misc", "band", "for groups",
-                   "edge style", "vertex style", "VE census", "singularities"],
+                   "edge style", "vertex style", "singularities"],
         },
     ];
+    /**
+     * Which panel a row belongs in. One panel is the usual case; with `panelP`
+     * the Penrose rows — the P side of the G/P split — go there instead.
+     *
+     * **Derived from `SECTIONS`, not listed twice.** This was a `P_ROWS` set
+     * naming the same fourteen rows the last section already names, and the
+     * two had drifted: the set still carried `penrose face`, a row that the
+     * dressing folds replaced and nobody builds. Jake, 2026-11-15: *"I think
+     * P_ROWS is a candidate for retirement."* The section list is the one that
+     * has to be right — it decides the reading order — so the panel question
+     * asks it instead of answering alongside it.
+     */
+    const pSide = (): ReadonlySet<string> =>
+        new Set(SECTIONS[SECTIONS.length - 1].rows);
+    function panelFor(title: string): HTMLElement {
+        return config.panelP && pSide().has(title) ? config.panelP : layerPanelDiv;
+    }
+
     const sectionEls: { el: HTMLElement; rows: HTMLElement[] }[] = [];
     /** The Penrose heading, which carries the state of the patch beside its name. */
     let penroseStatus: HTMLElement | null = null;
@@ -4579,6 +4584,30 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             featureToggle(viewRow, "axes", "axes");
             featureToggle(viewRow, "center", "center").title = "Ring the origin.";
         }
+        // And a way back TO the origin, beside the switch that rings it. Jake,
+        // 2026-11-15: "In view, add a button next to the 'center' checkbox to
+        // center the view."
+        //
+        // The pan only, at whatever scale you are at — which is what separates
+        // it from double-clicking the canvas, and is the useful half: having
+        // zoomed in and wandered, you want to come home without losing the
+        // magnification. `notifyView` after both numbers, so a relayed canvas
+        // (split, moiré) is told the whole move at once rather than being
+        // handed one coordinate and the other later.
+        const recenter = document.createElement("button");
+        recenter.type = "button";
+        recenter.className = "ret-bump";
+        recenter.textContent = "recenter";
+        recenter.title = "Put the origin back in the middle. The pan only — the "
+            + "scale stays where you have it. (Double-clicking the canvas resets "
+            + "both.)";
+        recenter.addEventListener("click", () => {
+            viewX = 0;
+            viewY = 0;
+            notifyView();
+            draw();
+        });
+        viewRow.appendChild(recenter);
         const stats = document.createElement("span");
         stats.className = "view-stats";
         viewRow.appendChild(stats);
@@ -5201,88 +5230,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 + "centers. With the vertex hover on, pointing at one outlines the "
                 + "K-region it came from.";
 
-            // ── The census ────────────────────────────────────────────
-            //
-            // What the patch on screen is MADE of, which is figure 5b/c read
-            // off this tiling instead of plotted against gamma. It rides with
-            // the VE mark rather than taking a switch of its own: the mark
-            // says which environment each vertex is, and this says how many
-            // of each there are, and wanting one without the other has not
-            // come up.
-            // Folded away, and shut by default. Jake: "please collapse the ve
-            // census. it's moving the canvas." The readout is two lines of
-            // wrapping text whose width changes with γ and with the patch, so
-            // every pan nudged the panel's height and the canvas under it
-            // slid. Shut, it is one word and the picture holds still.
-            //
-            // As with pentaplex, the summary IS the row's label — the label
-            // span is removed so the name sits at the left margin with every
-            // other name rather than a column in from it.
-            const censusRow = row(panelFor("VE census"), "VE census", "");
-            for (const kid of Array.from(censusRow.children)) {
-                if ((kid as HTMLElement).className === "panel-label") {
-                    censusRow.removeChild(kid);
-                }
-            }
-            const censusFold = document.createElement("details");
-            censusFold.className = "row-fold census-fold";
-            const censusHead = document.createElement("summary");
-            censusHead.textContent = "VE census";
-            censusFold.appendChild(censusHead);
-            const census = document.createElement("span");
-            census.className = "ve-census";
-            censusFold.appendChild(census);
-            censusRow.appendChild(censusFold);
-            census.title = "Every whole star in the patch on screen, by environment, "
-                + "commonest first. On a Penrose patch the seven come out at powers "
-                + "of 1/φ — D φ⁻², J φ⁻³, Q φ⁻⁴, K φ⁻⁵, S and V φ⁻⁶, T φ⁻⁷ — and sum "
-                + "to 1. A ? is a whole star the sixteen do not name. Counted apart "
-                + "and left out of the shares: the rim, the ring of vertices whose "
-                + "star runs off the patch, and the superposed, the singular vertices "
-                + "carrying more than a whole turn — one has too little to read and "
-                + "the other too much, and neither is an environment.";
-            rowWhen.set("VE census", () => tileStyle.vertexMark === "ve");
-            let censusOf: Rhomb[] | null = null;
-            const showCensus = () => {
-                const on = tileStyle.vertexMark === "ve";
-                // Shut, there is nothing to say and nothing to count: the
-                // census is the one readout that walks the whole patch, so
-                // folding it away saves the work as well as the jitter.
-                if (!on || !censusFold.open) {
-                    censusOf = null;
-                    census.textContent = "";
-                    return;
-                }
-                const rhombs = currentRhombs();
-                if (rhombs === censusOf) return;        // the patch has not moved
-                censusOf = rhombs;
-                const c = veCensus(rhombs);
-                if (!c.whole) { census.textContent = "no whole star in view"; return; }
-                // Two lines, because the two halves want different units. A
-                // letter's SHARE is the quantity — it is what figure 5b plots
-                // and what lands on a power of 1/φ. An unnamed word's COUNT is
-                // the quantity: the ones on the walls do not scale with the
-                // patch, and a share would hide exactly that.
-                const named = c.rows.filter((r) => !r.code.startsWith("?"));
-                const odd = c.rows.filter((r) => r.code.startsWith("?"));
-                const pct = (f: number) => (f < 0.0005 ? "<0.1" : (f * 100).toFixed(1));
-                let text = `${c.whole} stars · `
-                    + named.map((r) => `${r.code} ${pct(r.share)}`).join("  ");
-                if (odd.length) {
-                    text += "\nunnamed " + odd.map((r) => `${r.code.slice(1)} ×${r.n}`).join("  ");
-                }
-                const tail = [];
-                if (c.rim) tail.push(`${c.rim} at the rim`);
-                // Only a singular γ makes these, so the line stays quiet until
-                // there is something to say — and then it says how singular.
-                if (c.superposed) tail.push(`${c.superposed} superposed`);
-                if (tail.length) text += `${odd.length ? " · " : "\n"}${tail.join(" · ")}`;
-                census.textContent = text;
-            };
-            censusFold.addEventListener("toggle", () => { censusOf = null; showCensus(); });
-            showCensus();
-            panelSyncs.push(showCensus);
-            afterDraw.push(showCensus);
+            // The census is RETIRED. Jake, 2026-11-15: "Also VE census should
+            // also be retired." It read the patch on screen and reported what it
+            // was made of, figure 5b/c off the tiling rather than plotted — but
+            // it was the one readout that walked the whole patch on every draw,
+            // it was the row that moiré excluded while keeping the mark that
+            // turns it on (so the same page could show the letters and no
+            // census), and the mark itself says which environment a vertex is.
+            // `veCensus` stays in `geometry/vertexenv.ts` with its tests: the
+            // measurement is the thing worth keeping, and `tools/vertexenv.mjs`
+            // or a test is where it belongs rather than on every pan.
         }
 
         // The family controls fold away: five dropdowns and five line numbers

@@ -6757,6 +6757,43 @@ On a Penrose patch J went from 22.5% to 23.2%, which is φ⁻³ to three figures
 
 ---
 
+### 11.12 The panel's backing data, made single-source (Jake, 2026-11-15)
+
+Three nits, and the thread through them is the one Jake named: *"the goal of
+course is to have consistency in the structure of the backing data."*
+
+**The `for groups` fold was not missing.** Jake: *"The for-groups fold on method
+is not on split or moire."* Audited by building all three real page modules
+against the stub: they build the identical rows in the identical order, and
+`for groups` is hidden while the system is thick/thin and shown when it is
+rhomb groups — on each of them, verified by firing the actual dropdown. What
+differs is the **session**: each page remembers its own `tileStyle` whole under
+its own key, so method remembered rhomb groups and split and moiré remembered
+thick/thin. Nothing to fix.
+
+**`P_ROWS` is retired.** It was a set naming the fourteen rows that go to the
+right-hand panel on split — which is exactly the rows the last section of
+`SECTIONS` already names, so the same list was written twice. And it had
+drifted: the set still carried `penrose face`, a row the dressing folds
+replaced and nobody builds. `panelFor` now asks `SECTIONS` instead, since that
+is the list that has to be right anyway (it decides the reading order).
+Measured after: split still divides 6 rows left, 13 right, in the same order.
+
+**The VE census is retired.** It was the one readout that walked the whole
+patch on every draw, and it was the row moiré excluded while keeping the mark
+that switches it on — so one page could show the VE letters and no census.
+`veCensus` stays in `geometry/vertexenv.ts` with its tests: the measurement is
+worth keeping, a readout on every pan was not. The rule it broke is now a
+test: **a row with its own `rowWhen` condition is never excluded by a host**,
+checked against the source so adding a conditional row and forgetting moiré
+fails in the suite rather than on screen.
+
+**And one thing added**: a `recenter` button beside the `center` checkbox in
+the View row. The pan only, at whatever scale you are at — which is what
+separates it from double-clicking the canvas, and is the useful half: having
+zoomed in and wandered, you want the origin back without losing the
+magnification.
+
 ## 12. Moiré — what deflation does off the Penrose class (Jake, 2026-10-27)
 
 > Non zero LI classes do not deflate when gridlines are divided by Phi, but what
@@ -7064,6 +7101,43 @@ link rather than only click it. Six tests, each checked by mutation — the firs
 version of the unlink test passed with the checkbox ignored, because it moved A
 to 1/2, whose deflation is the Penrose that B was already showing. It moves A
 to 1/4 now, so a B that follows reads differently from one that does not.
+
+### 12.9 The link is retired (Jake, 2026-11-15)
+
+Jake: *"Since we have two reticulums with independent inflation, presets and
+sizing, I don't see a use for link B and φ controls. We only need the merge
+checkbox. Just set the defaults on both window the current standard for the
+left screen."*
+
+The bar carried a `link` checkbox, a step count — *B = k × inflate(A)* — and an
+`n = φ` box. All three are gone; `merge` and the two rescue buttons stay.
+
+**They had become a second set of controls for state the reticula own**, and
+the second set was winning. Measured before the change, with the link on,
+which was the default:
+
+```
+B gen=-1 n=0
+setNormalization(2) on B  →  B n = 0        (silently undone)
+inflate B                 →  B gen stays -1 (silently undone)
+```
+
+B's own `ℐ` and `λ` boxes were **dead controls**: B's `onChange` saw the write,
+called `syncB`, and `syncB` rebuilt the generation from A plus the step count
+and the normalization from the box in the bar. Two controls for one number, and
+no sign on screen that one of them did nothing.
+
+So each side now owns itself — a change to either only re-reads its caption —
+and both arrive at the same defaults, which is the second half of the ask: B is
+no longer pre-deflated, and taking it down a generation is a scroll on its own
+`ℐ` box. What the page still does for you is the part the reticula cannot: the
+view relay that keeps the two canvases on one rectangle of the plane, `pairScales`
+for the zoom limits, and `merge`.
+
+The page's own claim is unchanged and still tested — a deflation moves the class
+by s ↦ −2s, 1/2 into Penrose, 1/8 needing three steps, 1/5 running its
+four-cycle — only now the test drives it the way a reader does, on B's own
+deflation rather than through a link.
 
 ### 12.8 For Jake
 

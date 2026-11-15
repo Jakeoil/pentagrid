@@ -135,55 +135,13 @@ if (aHost && bHost && bar && grid) {
     pairScales();
     relay(() => b, () => a)(A.getView());
 
-    // ── The bar: link, how many deflations, merge ─────────────────────
+    // ── The bar: merge, and the two ways back ─────────────────────────
     const label = (text: string) => {
         const l = document.createElement("label");
         l.className = "moire-opt";
         l.appendChild(document.createTextNode(text));
         return l;
     };
-    const linkBox = document.createElement("input");
-    linkBox.type = "checkbox";
-    linkBox.className = "moire-link";
-    linkBox.checked = true;
-    const linkLabel = label(" link");
-    linkLabel.title = "Hold B at A deflated, so changing A's γ — by the reticulum, a "
-        + "preset, or the sum — carries B with it. Off, the two are independent "
-        + "pentagrids and the page is a general comparator.";
-    linkLabel.prepend(linkBox);
-
-    const steps = document.createElement("input");
-    steps.type = "number";
-    steps.min = "-3";
-    steps.max = "3";
-    steps.step = "1";
-    steps.value = "-1";
-    steps.className = "moire-steps";
-    const stepLabel = label("B = ");
-    stepLabel.title = "How many times B is INFLATED relative to A — negative deflates "
-        + "instead. Jake asked for it this way round, opposite to the page's own "
-        + "argument: each inflation multiplies the LI class by 2 and the tiling's "
-        + "scale by φ, each deflation by −2 and 1/φ.";
-    stepLabel.appendChild(steps);
-    stepLabel.appendChild(document.createTextNode(" × inflate(A)"));
-
-    // The second parameter. It lives on B's GammaSet, which is also what B's
-    // own reticulum writes, so the two controls are two ways to the one piece
-    // of state rather than two copies of it.
-    const norm = document.createElement("input");
-    norm.type = "number";
-    norm.step = "1";
-    norm.value = "0";
-    norm.className = "moire-norm";
-    const normLabel = label(" n = φ");
-    normLabel.title = "An extra power of φ on B's λ, on top of the inflation: "
-        + "λ = φ^(k + n). The INFLATION moves γ and λ together, since it is a map "
-        + "on the offsets that happens to rescale the grid; this moves λ alone — B "
-        + "held still and resized, which is the one thing inflating cannot do. 0 is "
-        + "B at its own size. B's reticulum carries the same number.";
-    normLabel.appendChild(norm);
-    const normOf = () => Math.round(Number(norm.value) || 0);
-
     const mergeBox = document.createElement("input");
     mergeBox.type = "checkbox";
     mergeBox.className = "moire-merge";
@@ -206,9 +164,9 @@ if (aHost && bHost && bar && grid) {
 
     // The whole page back to how it arrives. The per-side `reset page` lives in
     // the settings row, which `exposeRows` trims away here, so without this
-    // there is no way back at all — and two sides, two reticula and three
-    // switches is a lot of state to put right by hand. Jake: "Is there a clear
-    // all button to go back to page defaults."
+    // there is no way back at all — and two sides and two reticula is a lot of
+    // state to put right by hand. Jake: "Is there a clear all button to go back
+    // to page defaults."
     const resetAll = document.createElement("button");
     resetAll.type = "button";
     resetAll.className = "moire-reset";
@@ -220,38 +178,7 @@ if (aHost && bHost && bar && grid) {
     const note = document.createElement("span");
     note.className = "moire-note";
 
-    bar.append(linkLabel, stepLabel, normLabel, mergeLabel, findRet, resetAll, note);
-
-    // ── Linking ───────────────────────────────────────────────────────
-    //
-    // B is rebuilt from A rather than nudged: set it to A's offsets and then
-    // deflate it however many steps. One direction only — B never writes back
-    // — so there is no loop to break, only a guard against hearing our own
-    // write while we are making it.
-    let syncing = false;
-    const syncB = () => {
-        if (!linkBox.checked || syncing) return;
-        syncing = true;
-        const k = Math.round(Number(steps.value) || 0);
-        if (!a || !b) return;
-        b.gamma.setLocked(-1);
-        b.gamma.setGeneration(a.gamma.getGeneration());
-        b.gamma.setValues(a.gamma.values());
-        for (let i = 0; i < Math.abs(k); i++) {
-            // k counts INFLATIONS, so a positive one goes up. The default is
-            // −1, which is the deflation the page is about.
-            if (k > 0) b.gamma.inflate(); else b.gamma.deflate();
-        }
-        b.gamma.setNormalization(normOf());
-        syncing = false;
-        // λ moved under B, so the two no longer agree on view numbers — nor
-        // on how far the wheel should go. Both have to be put back in
-        // correspondence, or the zoom stops at a different world scale
-        // depending on which canvas the pointer is over.
-        pairScales();
-        relay(() => b, () => a)(A.getView());
-        say();
-    };
+    bar.append(mergeLabel, findRet, resetAll, note);
 
     const say = () => {
         if (!a || !b) return;
@@ -264,8 +191,8 @@ if (aHost && bHost && bar && grid) {
             // the shrink from the inflation looked like n's doing. Shown as
             // both parts when n is pulling, the way the reticulum does it, so
             // it is clear which is which. Jake: "n = phi: 0 actually shrinks
-            // them. Shouldn't it be phi^0 = 1 for same size?" — it is; the
-            // shrink was the inflation stepper, sitting at −1.
+            // them. Shouldn't it be phi^0 = 1 for same size?" — it is; what
+            // shrank B was the inflation, which is now its own ℐ box.
             const m = h.gamma.getGeneration(), q = h.gamma.getNormalization();
             const sup = (k: number) => (k < 0 ? "⁻" : "")
                 + String(Math.abs(k)).split("")
@@ -282,27 +209,11 @@ if (aHost && bHost && bar && grid) {
         note.textContent = `deflate A again → class ${sayClass(next)}`;
     };
 
-    A.gamma.onChange(() => { syncB(); say(); });
-    B.gamma.onChange(() => {
-        if (syncing) return;
-        // Linked means B IS A deflated, so anything that writes to B directly
-        // — its own reticulum, a preset, the panel's `reset page` — is put
-        // back. Without this, resetting B left it at generation 0 with
-        // nothing to restore the link: syncB only ran from A's changes, the
-        // link box and the step count, so the page looked permanently broken.
-        // Jake: "when I reset, I couldn't get it back."
-        if (linkBox.checked) { syncB(); return; }
-        norm.value = String(b!.gamma.getNormalization());
-        say();
-    });
-    linkBox.addEventListener("change", () => { syncB(); say(); });
-    steps.addEventListener("change", syncB);
-    norm.addEventListener("change", () => {
-        if (!b) return;
-        // Straight onto B when the two are not linked, since syncB
-        // declines to run then and the number would go nowhere.
-        if (linkBox.checked) syncB(); else b.gamma.setNormalization(normOf());
-    });
+    // Each side owns itself: a change to either one only re-reads the caption.
+    // Nothing is put back, because nothing is held — which is the whole of
+    // what retiring the link means.
+    A.gamma.onChange(say);
+    B.gamma.onChange(say);
 
     // ── Merge ─────────────────────────────────────────────────────────
     //
@@ -384,19 +295,17 @@ if (aHost && bHost && bar && grid) {
     });
 
     resetAll.addEventListener("click", () => {
-        // The switches first, so the γ resets below land with the link in the
-        // state it is going to be left in rather than the one it happened to
-        // be in.
-        linkBox.checked = true;
-        steps.value = "-1";
-        norm.value = "0";
         mergeBox.checked = false;
         grid.classList.remove("merged");
         A.reset();
         B.reset();
         aRet.panel.resetPlace();
         bRet.panel.resetPlace();
-        syncB();
+        // Both sides reset to the same page defaults, so the pair arrives in
+        // register — and `reset` throws the session away, which is the only
+        // way back from two sides wandered apart.
+        pairScales();
+        relay(() => b, () => a)(A.getView());
         say();
     });
 
@@ -406,6 +315,5 @@ if (aHost && bHost && bar && grid) {
     const stamp = byId("moire-buildid");
     if (stamp) stamp.textContent = `build id ${BUILD_ID}`;
 
-    syncB();
     say();
 }

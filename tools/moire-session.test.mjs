@@ -57,13 +57,18 @@ test("a stored session does not kill the page on the way in", () => {
     const doc = globalThis.document;
     assert.match(doc.getElementById("moire-a-caption").textContent ?? "", /^A — class/);
     assert.match(doc.getElementById("moire-b-caption").textContent ?? "", /^B — class/);
-    // and the bar got its controls, which is what "no control buttons" meant
+    // and the bar got its controls, which is what "no control buttons" meant.
+    // Four of them now: the link, the step count and the n box were retired
+    // 2026-11-15, the reticula having carried that state all along.
     const bar = doc.getElementById("moire-bar");
-    assert.ok((bar.children ?? []).length >= 5, "the bar is missing its controls");
+    assert.ok((bar.children ?? []).length >= 4, "the bar is missing its controls");
     const classes = (bar.children ?? []).flatMap(
         (c) => [c.className, ...(c.children ?? []).map((k) => k.className)]);
-    for (const want of ["moire-link", "moire-steps", "moire-merge", "moire-find"]) {
+    for (const want of ["moire-merge", "moire-find", "moire-reset"]) {
         assert.ok(classes.includes(want), `no ${want} in the bar`);
+    }
+    for (const gone of ["moire-link", "moire-steps", "moire-norm"]) {
+        assert.ok(!classes.includes(gone), `${gone} is back in the bar`);
     }
 });
 

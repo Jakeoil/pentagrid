@@ -1,8 +1,10 @@
-// moire.html: two pentagrids, one the other deflated, and the register
-// between them. PLAN §12.
+// moire.html: two independent pentagrids, the register between them, and the
+// merge. PLAN §12. The link that held B at "A deflated k times" was retired
+// 2026-11-15, with the step count and the n box that went with it.
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { handlers, inputs, makeStub } from "./domstub.mjs";
 import { convertView } from "../dist/view/register.js";
 
@@ -55,75 +57,73 @@ const setA = (values) => {
     page.sideA.gamma.setValues(values);
 };
 
-test("the page builds two sides and names both classes", () => {
+test("the page builds two sides, named and identical", () => {
+    // Jake, 2026-11-15: "Just set the defaults on both window the current
+    // standard for the left screen." So B no longer arrives pre-deflated --
+    // the two sides are the same tiling until you move one.
     assert.ok(page.sideA && page.sideB, "the page built no sides");
-    // Both start Penrose: A is, and deflation fixes the class at 0.
     assert.match(cap("moire-a-caption"), /^A — class 0 · Penrose/);
     assert.match(cap("moire-b-caption"), /^B — class 0 · Penrose/);
-    // B is one deflation down, and says so; A is at generation 0 and says nothing.
-    assert.match(cap("moire-b-caption"), /λ = φ⁻¹/);
+    // Neither says anything about λ, both being at generation 0.
     assert.doesNotMatch(cap("moire-a-caption"), /λ/);
+    assert.doesNotMatch(cap("moire-b-caption"), /λ/);
+    assert.equal(page.sideB.gamma.getGeneration(), 0);
+    assert.equal(page.sideB.gamma.getNormalization(), 0);
 });
 
-test("B is A deflated: the class follows s to -2s mod 1", () => {
+test("deflating a side moves its class by s to -2s, which is the page", () => {
+    // The arithmetic the page exists for, now driven the way a reader drives
+    // it: set a class on A, copy it to B, and scroll B's own inflation down.
+    const deflateB = (n = 1) => {
+        page.sideB.gamma.setLocked(-1);
+        // From A's own generation, not from wherever B was left: the sides are
+        // independent now, so a test that means "B, one deflation below A" has
+        // to say so.
+        page.sideB.gamma.setGeneration(page.sideA.gamma.getGeneration());
+        page.sideB.gamma.setNormalization(0);
+        page.sideB.gamma.setValues(page.sideA.gamma.values());
+        for (let i = 0; i < n; i++) page.sideB.gamma.deflate();
+    };
     // 1/2 deflates INTO Penrose in one step -- the fact the page exists for.
     setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.5]);
+    deflateB();
     assert.match(cap("moire-a-caption"), /class 1\/2/);
     assert.match(cap("moire-b-caption"), /class 0 · Penrose/);
+    assert.match(cap("moire-b-caption"), /λ = φ⁻¹/, "B says how far down it is");
 
     // 1/4 goes to 1/2, not to 0: one deflation is not enough.
     setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.25]);
-    assert.match(cap("moire-a-caption"), /class 1\/4/);
+    deflateB();
     assert.match(cap("moire-b-caption"), /class 1\/2/);
+    // And three deflations from 1/8 reach Penrose: 1/8 -> 3/4 -> 1/2 -> 0.
+    setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.125]);
+    deflateB(3);
+    assert.match(cap("moire-b-caption"), /class 0 · Penrose/);
+    assert.match(cap("moire-b-caption"), /λ = φ⁻³/);
 
     // 1/5 runs a four-cycle and never reaches Penrose: 1/5 -> 3/5.
     setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.2]);
+    deflateB();
     assert.match(cap("moire-b-caption"), /class 3\/5/);
 });
 
-test("the step count is how many INFLATIONS B is", () => {
-    // Jake asked for it this way round -- "First inflation factor (yes,
-    // opposite of moire)" -- so a positive k goes UP and the page's own
-    // subject, deflation, is the negative direction and the default.
-    const steps = control("moire-steps");
-    assert.ok(steps, "no step control");
-    assert.equal(steps.value, "-1", "the default is not one deflation");
-
-    setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.125]);   // 1/8
-    steps.value = "-3";
-    fire(steps);
-    // 1/8 -> 3/4 -> 1/2 -> 0, and three deflations is λ = φ⁻³.
-    assert.match(cap("moire-b-caption"), /class 0 · Penrose/);
-    assert.match(cap("moire-b-caption"), /λ = φ⁻³/);
-    // Zero is B at A's own generation, so it reads A's class back.
-    steps.value = "0";
-    fire(steps);
-    assert.match(cap("moire-b-caption"), /class 1\/8/);
-    // And positive goes the other way: two inflations is λ = φ².
-    steps.value = "2";
-    fire(steps);
-    assert.match(cap("moire-b-caption"), /λ = φ²/);
-    steps.value = "-1";
-    fire(steps);
-});
-
-test("unlinking leaves B where it was", () => {
-    const link = control("moire-link");
-    assert.ok(link, "no link control");
-    setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083]);           // A back to Penrose
-    const before = cap("moire-b-caption");
-    assert.match(before, /class 0 · Penrose/);
-    link.checked = false;
-    fire(link);
-    // A to 1/4, whose deflation is 1/2 -- so a B that followed would read
-    // DIFFERENTLY from a B that did not. Moving A to 1/2 would not have tested
-    // anything: 1/2 deflates to Penrose, which is where B already was.
-    setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.25]);
-    assert.match(cap("moire-a-caption"), /class 1\/4/);
-    assert.equal(cap("moire-b-caption"), before, "B followed A with the link off");
-    link.checked = true;
-    fire(link);
-    assert.match(cap("moire-b-caption"), /class 1\/2/, "relinking did not catch B up");
+test("the link, the step count and the n box are gone", () => {
+    // Jake, 2026-11-15: "Since we have two reticulums with independent
+    // inflation, presets and sizing, I don't see a use for link B and phi
+    // controls. We only need the merge checkbox." They were a second set of
+    // controls for state the reticula already own -- and while the link was on,
+    // B's own boxes were DEAD, since anything they wrote was put straight back.
+    for (const cls of ["moire-link", "moire-steps", "moire-norm"]) {
+        assert.equal(control(cls), undefined, `${cls} is still in the bar`);
+    }
+    // And B's boxes write through: the generation and the normalization both
+    // stick, which is what the link used to undo.
+    page.sideB.gamma.setNormalization(2);
+    assert.equal(page.sideB.gamma.getNormalization(), 2, "n was put back");
+    const g = page.sideB.gamma.getGeneration();
+    page.sideB.gamma.inflate();
+    assert.equal(page.sideB.gamma.getGeneration(), g + 1, "the inflation was put back");
+    page.sideB.gamma.setNormalization(0);
 });
 
 test("the merge switch stacks the canvases, and only while it is on", () => {
@@ -139,33 +139,36 @@ test("the merge switch stacks the canvases, and only while it is on", () => {
     assert.equal(grid.classList.contains("merged"), false, "the canvases stayed stacked");
 });
 
-test("reset page puts the whole page back, switches included", () => {
+test("reset page puts the whole page back, both sides and the merge", () => {
     // The per-side `reset page` is in the settings row, which exposeRows trims
     // away here, so this button is the only way back. Jake: "Is there a clear
-    // all button to go back to page defaults."
+    // all button to go back to page defaults." With the link retired there is
+    // one switch left in the bar, and two sides to put back.
     const reset = button("moire-reset");
     assert.ok(reset, "no reset-page button in the bar");
-
-    // Put everything out of its default state.
-    const link = control("moire-link"), steps = control("moire-steps");
     const merge = control("moire-merge"), grid = doc.getElementById("moire-grid");
-    setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.25]);      // A off Penrose
-    steps.value = "3"; fire(steps);
-    link.checked = false; fire(link);
+
+    // Put everything out of its default state: A off Penrose, B deflated
+    // twice and scaled, the canvases stacked.
+    setA([0.0817, 0.3391, -0.2234, 0.1109, -0.3083 + 0.25]);
+    page.sideB.gamma.deflate();
+    page.sideB.gamma.deflate();
+    page.sideB.gamma.setNormalization(3);
     merge.checked = true; fire(merge);
     assert.match(cap("moire-a-caption"), /class 1\/4/);
     assert.equal(grid.classList.contains("merged"), true);
 
     click(reset);
 
-    assert.equal(link.checked, true, "link did not come back on");
-    assert.equal(steps.value, "-1", "the step count did not come back to one deflation");
     assert.equal(merge.checked, false, "merge did not come back off");
     assert.equal(grid.classList.contains("merged"), false, "the canvases stayed stacked");
-    // Both tilings back to the page's own γ, which is Penrose, and B one
-    // deflation below it.
+    // Both tilings back to the page's own γ, which is Penrose, and both at
+    // their own default generation -- the same one, now that B is not held
+    // below A.
     assert.match(cap("moire-a-caption"), /^A — class 0 · Penrose/);
-    assert.match(cap("moire-b-caption"), /^B — class 0 · Penrose, λ = φ⁻¹/);
+    assert.match(cap("moire-b-caption"), /^B — class 0 · Penrose/);
+    assert.equal(page.sideB.gamma.getGeneration(), 0, "B did not come back up");
+    assert.equal(page.sideB.gamma.getNormalization(), 0, "reset left B scaled");
 });
 
 // ── The two canvases stay on the same rectangle of the plane ──────────
@@ -346,44 +349,40 @@ test("the page says which build it is", () => {
                  `the stamp reads ${JSON.stringify(stamp.textContent)}`);
 });
 
-test("the normalization reaches B as a power of phi, and resizes it alone", () => {
-    // The second parameter: an extra power of phi on B's lambda, on top of the
-    // inflation. It lives on B's GammaSet, which is also what B's reticulum
-    // writes, so the two controls are two ways to one piece of state.
+test("the normalization resizes a side alone, and keeps the two in register", () => {
+    // The second parameter: an extra power of φ on a side's λ, on top of its
+    // inflation. It used to have a box in the bar as well; now it is the
+    // reticulum's λ box and nothing else, so this drives the set the box
+    // drives. Jake: "two reticulums with independent inflation, presets and
+    // sizing."
     const PHI_ = (1 + Math.sqrt(5)) / 2;
-    const reset = button("moire-reset");
-    click(reset);
-    const steps = control("moire-steps"), norm = control("moire-norm");
-    assert.ok(norm, "no normalization control in the bar");
-    assert.equal(norm.value, "0");
+    click(button("moire-reset"));
     assert.equal(page.sideB.gamma.getNormalization(), 0);
 
     const gammaB = () => page.sideB.gamma.values().join(",");
     const before = gammaB();
-    norm.value = "2";
-    fire(norm);
-    assert.equal(page.sideB.gamma.getNormalization(), 2, "the bar's n did not reach B");
+    page.sideB.gamma.deflate();                       // one generation down
+    page.sideB.gamma.setNormalization(2);
     assert.equal(page.sideA.gamma.getNormalization(), 0, "it reached A as well");
-    assert.equal(gammaB(), before, "n moved B's gamma, which only the inflation may do");
 
-    // B is one deflation down by default, so phi^2 on top puts its lambda at
-    // phi: the deflated tiling drawn LARGER than its parent, which is the kind
-    // of reconciliation the control exists for.
+    // One deflation with φ² on top puts B's λ at φ: the deflated tiling drawn
+    // LARGER than its parent, which is the kind of reconciliation n exists for.
     assert.ok(Math.abs(page.sideB.gamma.model.lambda - PHI_) < 1e-9,
               `B's lambda is ${page.sideB.gamma.model.lambda}, not phi`);
 
-    // It survives a change of generation -- lambda is the two exponents added.
-    steps.value = "2";
-    fire(steps);
-    assert.equal(page.sideB.gamma.getNormalization(), 2, "changing the inflation wiped n");
+    // It survives a change of generation -- λ is the two exponents added.
+    page.sideB.gamma.inflate();
+    page.sideB.gamma.inflate();
+    page.sideB.gamma.inflate();
+    assert.equal(page.sideB.gamma.getNormalization(), 2, "the inflation wiped n");
     assert.ok(Math.abs(page.sideB.gamma.model.lambda - PHI_ ** 4) < 1e-9);
+    assert.notEqual(gammaB(), before, "deflating and inflating left γ alone");
 
     // And the two canvases are still on the same rectangle of the plane: n
-    // rides on lambda, which the relay already reads.
+    // rides on λ, which the relay already reads.
     assert.ok(apart() < 1e-9, `n left them ${apart().toFixed(4)} apart`);
 
-    click(reset);
-    assert.equal(norm.value, "0", "reset did not put n back");
+    click(button("moire-reset"));
     assert.equal(page.sideB.gamma.getNormalization(), 0, "reset left B scaled");
 });
 
@@ -391,23 +390,50 @@ test("the caption reports lambda from the generation AND the normalization", () 
     // It used to read the generation alone, so a side scaled by n said nothing
     // about it -- and the shrink from the inflation looked like n's doing.
     // Jake: "n = phi: 0 actually shrinks them. Shouldn't it be phi^0 = 1 for
-    // same size?" It is; the shrink was the stepper, sitting at -1.
+    // same size?" It is; what shrank B was its inflation, which is now its own
+    // ℐ box and no longer set to −1 on arrival.
     const reset = button("moire-reset");
+    const g = () => page.sideB.gamma;
     click(reset);
-    const steps = control("moire-steps"), norm = control("moire-norm");
 
-    // k = 0, n = 0 really is the same size, and says nothing about λ.
-    steps.value = "0"; fire(steps);
+    // Both at zero really is the same size, and says nothing about λ.
     assert.doesNotMatch(cap("moire-b-caption"), /λ/, "an unscaled B talked about λ");
-    assert.equal(page.sideB.gamma.model.lambda, page.sideA.gamma.model.lambda,
-                 "k = 0, n = 0 is not the same size after all");
+    assert.equal(g().model.lambda, page.sideA.gamma.model.lambda,
+                 "the two sides do not arrive the same size");
 
     // n alone shows as both parts, so which one is pulling is visible.
-    norm.value = "1"; fire(norm);
+    g().setNormalization(1);
     assert.match(cap("moire-b-caption"), /λ = φ⁰·φ¹ = φ¹/, cap("moire-b-caption"));
-    steps.value = "-1"; fire(steps);
+    g().deflate();
     assert.match(cap("moire-b-caption"), /λ = φ⁻¹·φ¹ = φ⁰/, cap("moire-b-caption"));
-    steps.value = "2"; norm.value = "-3"; fire(norm);
+    g().inflate();
+    g().inflate();
+    g().inflate();
+    g().setNormalization(-3);
     assert.match(cap("moire-b-caption"), /λ = φ²·φ⁻³ = φ⁻¹/, cap("moire-b-caption"));
+    // And the generation alone reads as one power, the way A's would.
+    g().setNormalization(0);
+    assert.match(cap("moire-b-caption"), /λ = φ²$/, cap("moire-b-caption"));
     click(reset);
+});
+
+test("a row that decides for itself is never excluded here", () => {
+    // The rule the VE census broke, now that it is gone and `for groups` is
+    // the only one left. A row with its own condition is cheap -- one line
+    // while shut -- and excluding one sets a trap: another included row turns
+    // the condition on, the row puts itself back, and the host's list says no.
+    // So a host either takes all of them or has to say why.
+    //
+    // Read off the source, so adding a `rowWhen` to the panel and forgetting
+    // this page fails here rather than on screen.
+    const panel = readFileSync("dist/view/pentagrid.js", "utf8");
+    const conditional = [...panel.matchAll(/rowWhen\.set\("([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(conditional.length > 0, "no self-conditioning rows found at all");
+    const mine = readFileSync("dist/app/moire.js", "utf8");
+    const rows = [...(mine.match(/const ROWS = \[([\s\S]*?)\n\];/)?.[1] ?? "")
+        .matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(rows.includes("system"), "the ROWS list did not parse");
+    for (const r of conditional) {
+        assert.ok(rows.includes(r), `moire excludes "${r}", which can switch itself on`);
+    }
 });

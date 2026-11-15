@@ -464,8 +464,6 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
     color: var(--ink-faint);
 }
 .moire-opt { display: flex; align-items: center; gap: 4px; cursor: pointer; }
-.moire-steps { width: 42px; font-size: 12px; }
-.moire-norm { width: 66px; font-size: 12px; }
 .moire-note { font-family: monospace; color: #888; margin-left: auto; }
 .moire-find, .moire-reset { font-size: 11px; padding: 2px 7px; cursor: pointer; }
 
