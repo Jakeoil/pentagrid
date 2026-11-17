@@ -14,7 +14,7 @@
   },
   "keywords": [],
   "author": "Jeff Coyle",
-  "license": "ISC",
+  "license": "MIT",
   "description": "Pentagrid explorations",
   "devDependencies": {
     "@types/three": "^0.185.4",
