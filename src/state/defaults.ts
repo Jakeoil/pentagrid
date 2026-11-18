@@ -53,6 +53,12 @@ export const TILE_DEFAULTS: TileStyle = {
     bigRhombsFace: false, bigRhombsGrid: false,
     faceEdges: false, afterimage: false,
     boldEdges: false, arrowStyle: "plain", vertexMark: "dot", offPenrose: false,
+    // The outlines, one switch per de Bruijn index AS THE MARKS NUMBER IT:
+    // 1 to 4 on a Penrose patch, 1 to 5 off it. All off, so the treatment is
+    // inert until asked for, and an edge is drawn only when BOTH its endpoints
+    // are switched on.
+    outline1: false, outline2: false, outline3: false,
+    outline4: false, outline5: false,
 };
 
 /**

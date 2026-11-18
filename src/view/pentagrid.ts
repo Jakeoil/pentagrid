@@ -379,6 +379,48 @@ export interface TileStyle {
      * holds everywhere — which is the picture. Off by default. Jake's idea.
      */
     offPenrose: boolean;
+    /**
+     * THE OUTLINES: one switch per de Bruijn index, and an edge is drawn only
+     * when BOTH its endpoints are switched on.
+     *
+     * Jake, 2026-11-15: *"add new fold: outlines. This is independent of other
+     * edge states. Motivation is to eliminate lines to extreme indexes and
+     * show rhomb groups with special heavy outline. Generalization is to
+     * eliminate lines to any index and research LI's other than zero. That
+     * means one checkbox for each index. All off."*
+     *
+     * Why both ends rather than either: an edge runs between two levels, and
+     * what the motivating case wants is the edges that stay AWAY from the
+     * extremes. Switch 2 and 3 on, leave 1 and 4 off, and every edge touching
+     * a top or bottom vertex vanishes — and the rhomb-group centers are
+     * exactly those extremes (the `vertex style` note says so), so what is
+     * left is the groups, outlined. "Either end" would have left every edge
+     * that merely starts in the middle and kept the spokes.
+     *
+     * Its own layer, above the ordinary edges: *"independent of other edge
+     * states"*, so `edge style`, the arrows and the pseudo edges are not
+     * consulted and this does not consult them. All off is the default and
+     * draws nothing, which is also the layer's visibility test.
+     *
+     * **THE INDEX IS THE ONE THE MARKS SHOW**, which is `vertexIndex` shifted
+     * so the patch's lowest level reads 1 — `indexRange()`'s `lo`. The first
+     * draft used the RAW `vertexIndex` and so was off by that shift wherever
+     * `lo` was not 1, which is most patches: Jake, 2026-11-15, *"On penrose
+     * 3,4 should outline rhomb groups. 4,5 does instead, but looking at
+     * indexes it's connecting 3 and 4."* Exactly the shift. A switch now means
+     * the number you can read on the vertex.
+     *
+     * So the switches are **1 to 5** and there is no 0: normalized, the lowest
+     * level is 1 by construction. 1..4 is a Penrose patch and 5 appears only
+     * off the class — which is the second half of the motivation, since those
+     * are the levels a Penrose patch does not have. Jake: *"only index 1-4
+     * with penrose. 5 necessary for LI. 0 not needed."*
+     */
+    outline1: boolean;
+    outline2: boolean;
+    outline3: boolean;
+    outline4: boolean;
+    outline5: boolean;
     /** Strength of the ramp, 0..1. wieringa-roof's `shade` slider. */
     ramp: number;
     /** Tile edges as real lines rather than a hairline, as grow.html's setting. */
@@ -1556,6 +1598,17 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         },
     });
     stack.add({
+        // The outlines, on their own switch and above the ordinary edges: Jake
+        // asked for them "independent of other edge states", so nothing here
+        // consults `penroseEdges`, `boldEdges` or the arrows, and they do not
+        // consult this. All six switches off draws nothing, which is also why
+        // that is the visibility test rather than a feature flag of its own.
+        id: "penrose-outlines", label: "Outlines", z: PENROSE_Z_FRONT + 1, group: "Penrose",
+        visible: () => anyOutline(),
+        draw: (c) => drawOutlines(
+            c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy),
+    });
+    stack.add({
         // The superposed tiles' edges, dotted, on their own switch. See Features.
         id: "penrose-pseudo", label: "Pseudo edges", z: PENROSE_Z_FRONT + 1, group: "Penrose",
         visible: () => features.pseudoEdges,
@@ -1852,23 +1905,23 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     }
 
     /**
-     * Rows that decide for themselves whether they apply at all — `for groups`
-     * only means something when the system IS rhomb groups. (The VE census was
-     * the other one, retired 2026-11-15.)
+     * The host's list, or null for "all of them" — and now the only thing that
+     * decides whether a row is up.
      *
-     * Kept apart from `exposeRows` because the two answer different questions
-     * and both used to write `hidden` directly: a row the host had excluded
-     * could put itself back the next time its own condition came true. Moiré
-     * excludes both of these, so the clash was already there to be hit.
+     * There used to be a second mechanism beside it, `rowWhen`: rows that
+     * decided for themselves whether they applied, the VE census when the VE
+     * mark was up and `for groups` when the system was rhomb groups. Both are
+     * gone — the census retired, and `for groups` made unconditional — so the
+     * mechanism went with its last user. It was never free: a row the host had
+     * excluded could put itself back the next time its own condition came
+     * true, which is the clash moiré was hitting, and two answers to one
+     * question is what this panel has been spending the week removing.
      */
-    const rowWhen = new Map<string, () => boolean>();
-    /** The host's list, or null for "all of them". */
     let exposedRows: readonly string[] | null = null;
 
     function applyRowVisibility() {
         for (const [label, el] of panelRows) {
-            const allowed = exposedRows === null || exposedRows.includes(label);
-            el.hidden = !(allowed && (rowWhen.get(label)?.() ?? true));
+            el.hidden = !(exposedRows === null || exposedRows.includes(label));
         }
         // A section with nothing left in it would be a heading over a gap.
         for (const sec of sectionEls) sec.el.hidden = sec.rows.every((r) => r.hidden);
@@ -3726,6 +3779,76 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return g;
     }
 
+    /**
+     * Which indexes the outlines are switched on for — see `TileStyle`.
+     *
+     * `m` is the index AS THE MARKS NUMBER IT, 1 at the patch's lowest level.
+     * The caller normalizes, because `indexRange()` is cached per draw and
+     * this is asked four times a tile.
+     */
+    const outlineOn = (m: number): boolean => {
+        switch (m) {
+            case 1: return tileStyle.outline1;
+            case 2: return tileStyle.outline2;
+            case 3: return tileStyle.outline3;
+            case 4: return tileStyle.outline4;
+            case 5: return tileStyle.outline5;
+            // An index outside the five is off rather than clamped: the point
+            // of the switches is to say which levels you want, and a level with
+            // no switch is a level nobody asked for.
+            default: return false;
+        }
+    };
+    /** Is anything switched on? Also the layer's visibility. */
+    const anyOutline = () => tileStyle.outline1 || tileStyle.outline2
+        || tileStyle.outline3 || tileStyle.outline4 || tileStyle.outline5;
+
+    /**
+     * The outlines: tile edges whose BOTH endpoints are on a switched-on index.
+     *
+     * Heavy, dark and round-capped, so what survives reads as one path rather
+     * than a scatter of segments — which is the point when the thing left
+     * standing is a rhomb group's boundary.
+     *
+     * An interior edge belongs to two tiles and is therefore stroked twice.
+     * That is deliberate rather than overlooked: at full opacity the second
+     * stroke lands exactly on the first, and deduplicating would need an edge
+     * key per pair of rounded coordinates — the same keying that has bitten
+     * this file before. If these ever take an alpha, that is the moment to do
+     * the work.
+     */
+    function drawOutlines(
+        tc: CanvasRenderingContext2D, rhombs: readonly Rhomb[], cx: number, cy: number,
+    ) {
+        // The same shift the index marks draw with, so a switch means the
+        // number on the vertex rather than the number underneath it.
+        const { lo } = indexRange();
+        const shown = (K: readonly number[]) => vertexIndex(K) - lo + 1;
+        tc.save();
+        tc.strokeStyle = "#141414";
+        // A LITERAL, like every other stroke here. `tools/stateinv.test.mjs`
+        // holds the premise: PLAN §5.99 route B applies one export scale in
+        // the recording context, which only works while no call site has
+        // already scaled itself. Heavy is 3.2 against the ordinary edge's 2.2.
+        tc.lineWidth = 3.2;
+        tc.lineCap = "round";
+        tc.lineJoin = "round";
+        tc.beginPath();
+        for (const r of rhombs) {
+            for (let i = 0; i < 4; i++) {
+                const j = (i + 1) % 4;
+                if (!outlineOn(shown(r.kTuples[i]))) continue;
+                if (!outlineOn(shown(r.kTuples[j]))) continue;
+                const a = mathToScreen(r.vertices[i][0], r.vertices[i][1], cx, cy);
+                const b = mathToScreen(r.vertices[j][0], r.vertices[j][1], cx, cy);
+                tc.moveTo(a[0], a[1]);
+                tc.lineTo(b[0], b[1]);
+            }
+        }
+        tc.stroke();
+        tc.restore();
+    }
+
     function drawRhombs(
         tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
         fill: boolean, dotted = false,
@@ -4267,7 +4390,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             title: "Penrose",
             rows: ["Penrose", "Penrose hover", "system", "face shade", "pentaplex",
                    "next-rhomb", "kites", "misc", "band", "for groups",
-                   "edge style", "vertex style", "singularities"],
+                   "edge style", "outlines", "vertex style", "singularities"],
         },
     ];
     /**
@@ -5033,6 +5156,43 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     (v) => `${Math.round(v * 100)}%`,
                     (v) => { tileStyle.band = v; syncPanel(); draw(); });
 
+                // ── Outlines: one switch per index ───────────────────
+                //
+                // Jake, 2026-11-15: "add new fold: outlines... one checkbox for
+                // each index. All off. Edges will only be drawn between indexes
+                // that are turned on."
+                //
+                // The summary names the indexes that are up — "outlines · 2 3"
+                // — because that IS the setting, and six boxes shut would
+                // otherwise say nothing about what is drawn.
+                // 1 to 5, the way the marks number them: normalized, the
+                // patch's lowest level IS 1, so there is no 0 to offer.
+                const INDEXES = [1, 2, 3, 4, 5] as const;
+                const outlineKey = (m: number) =>
+                    `outline${m}` as "outline1" | "outline2"
+                        | "outline3" | "outline4" | "outline5";
+                const oRow = dressFold("outlines",
+                    () => INDEXES.filter((m) => tileStyle[outlineKey(m)])
+                        .map((m) => String(m)));
+                for (const m of INDEXES) {
+                    const box = checkbox(oRow, String(m), tileStyle[outlineKey(m)], (v) => {
+                        tileStyle[outlineKey(m)] = v;
+                        syncPanel();
+                        draw();
+                    });
+                    box.title = `Draw tile edges whose BOTH ends are at index ${m}`
+                        + " or another switched-on index. Heavy and dark, in their own"
+                        + " layer above the ordinary edges — the edge style, the arrows"
+                        + " and the pseudo edges are not consulted either way."
+                        + (m === 5
+                            ? " This level only occurs off the Penrose class."
+                            : "")
+                        + " The number is the one the vertex marks show — 1 at the"
+                        + " patch's lowest level — so a pair of switches draws the"
+                        + " edges running between those two levels and nothing else.";
+                    panelSyncs.push(() => { box.checked = tileStyle[outlineKey(m)]; });
+                }
+
                 const mRow = dressFold("misc",
                     () => onOf(["ammann", "ammann"], ["curves", "curves"],
                                ["faceEdges", "face edges"], ["offPenrose", "off Penrose"]));
@@ -5067,7 +5227,13 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // Jake: "show for groups only when system rhomb-groups is
                 // selected." Folded like the four above it, and flowing with
                 // them.
-                rowWhen.set("for groups", () => tileStyle.color === "groups");
+                // Always shown. Jake, 2026-11-15: "Always show for-groups fold.
+                // It is independant of system." It was hidden unless the system
+                // was rhomb groups — on the reasoning that the dressings are
+                // ABOUT groups — but they are not the same question: the system
+                // says how a bare tile is colored, and these draw the group
+                // figure over it whatever the tiles underneath are doing. Shut
+                // it is one word, so showing it always costs nothing.
                 const gRow = dressFold("for groups",
                     () => onOf(["p1Face", "face"], ["p1Grid", "grid"],
                                ["bigRhombsFace", "big-face"], ["bigRhombsGrid", "big-grid"]));

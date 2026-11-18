@@ -31,20 +31,22 @@ test("the state is the size PLAN 9.2 says it is", () => {
     }
     const say = (c) => `${c.bool} bool, ${c.enum} enum, ${c.number} number`;
     assert.equal(say(by.features), "19 bool, 0 enum, 0 number");
-    assert.equal(say(by.tileStyle), "19 bool, 6 enum, 3 number");
+    assert.equal(say(by.tileStyle), "24 bool, 6 enum, 3 number");
     assert.equal(say(by.grid), "0 bool, 0 enum, 2 number");
     assert.equal(say(by.growth), "13 bool, 3 enum, 8 number");
 
-    // 51 booleans, nine base64url characters -- the figure 9.2 quotes -- and
-    // 73 fields in all. `coloredArrows` became the `arrowStyle` enum when the
-    // edge style turned into a dropdown; `shading` went away entirely when the
-    // ramp became its own switch, a strength of zero being off.
+    // 56 booleans, ten base64url characters, and 78 fields in all.
+    // `coloredArrows` became the `arrowStyle` enum when the edge style turned
+    // into a dropdown; `shading` went away entirely when the ramp became its
+    // own switch, a strength of zero being off; and the five `outline1..5`
+    // switches arrived 2026-11-15, one per de Bruijn index as the marks number
+    // them — normalized, the patch's lowest level is 1, so there is no 0.
     const bits = FIELDS.filter((f) => f.kind === "bool").length;
-    assert.equal(bits, 51, `${bits} booleans, not 51`);
-    assert.equal(Math.ceil(bits / 6), 9);
+    assert.equal(bits, 56, `${bits} booleans, not 56`);
+    assert.equal(Math.ceil(bits / 6), 10);
     assert.equal(FIELDS.filter((f) => f.kind === "enum").length, 9, "nine enums");
     assert.equal(FIELDS.filter((f) => f.kind === "number").length, 13, "thirteen numbers");
-    assert.equal(FIELDS.length, 73, `${FIELDS.length} fields, not 73`);
+    assert.equal(FIELDS.length, 78, `${FIELDS.length} fields, not 78`);
 });
 
 test("the read side PLAN 9.1 asks for is on the handle, paired with every setter", () => {

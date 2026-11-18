@@ -312,9 +312,10 @@ Front to back. z decides the order; the group is where the switch lives.
 | z | id | label | group | switched by |
 |---|---|---|---|---|
 | 70 | `axes` | Axes | Axes | `axes` |
-| 35 | `penrose-vertices` | Vertices | Penrose | `penroseVertices` |
-| 34 | `penrose-decor` | Arcs | Penrose | `penroseDecor` |
-| 33 | `penrose-pseudo` | Pseudo edges | Penrose | `pseudoEdges` |
+| 36 | `penrose-vertices` | Vertices | Penrose | `penroseVertices` |
+| 35 | `penrose-decor` | Arcs | Penrose | `penroseDecor` |
+| 34 | `penrose-pseudo` | Pseudo edges | Penrose | `pseudoEdges` |
+| 33 | `penrose-outlines` | Outlines | Penrose |  |
 | 32 | `penrose-edges` | Edges | Penrose | `penroseEdges` |
 | 31 | `big-rhombs` | Big rhombs | Penrose |  |
 | 30 | `penrose-tiles` | Tiles | Penrose | `penroseTiles` |
@@ -378,7 +379,7 @@ field takes its default — so an older embed meets a newer page without
 rotting. An attribute that is absent is a default too, which is why
 `copy setup` emits only what differs from the page's own baseline.
 
-**73 fields** in all: 51 booleans, 9 enums, 13 numbers.
+**78 fields** in all: 56 booleans, 9 enums, 13 numbers.
 
 ### Features — which layers exist
 
@@ -440,6 +441,11 @@ The Penrose side's dressings: colors, the decorations, the shading.
 | `data-arrow-style` | `plain` · `colored` · `dots` | `plain` |
 | `data-vertex-mark` | `dot` · `numbers` · `pool` · `ve` | `dot` |
 | `data-off-penrose` | present / `false` | `false` |
+| `data-outline1` | present / `false` | `false` |
+| `data-outline2` | present / `false` | `false` |
+| `data-outline3` | present / `false` | `false` |
+| `data-outline4` | present / `false` | `false` |
+| `data-outline5` | present / `false` | `false` |
 
 ### Grid — how the gridlines themselves draw
 

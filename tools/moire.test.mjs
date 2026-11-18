@@ -320,23 +320,24 @@ test("the dressing folds are actually on screen, not merely built", () => {
         walk(doc.getElementById(id));
         return out;
     };
+    // All seven of them, on both sides, whatever the system is: `for groups`
+    // stopped conditioning itself on 2026-11-15, and `outlines` arrived the
+    // same day.
     for (const id of ["moire-a-panel", "moire-b-panel"]) {
         const rows = shown(id);
-        for (const name of ["pentaplex", "next-rhomb", "kites", "misc"]) {
+        for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "band",
+                            "for groups", "outlines"]) {
             assert.ok(rows.includes(name), `${name} is not showing in ${id}: ${rows.join(" ")}`);
         }
-        // `for groups` keeps its own condition -- the system is thick/thin here.
-        assert.ok(!rows.includes("for groups"),
-                  "for groups is showing with the tiles colored by type");
     }
-    // and turning the system to groups brings it out, on both sides
-    page.sideA.setTileStyle({ color: "groups" });
-    page.sideB.setTileStyle({ color: "groups" });
-    for (const id of ["moire-a-panel", "moire-b-panel"]) {
-        assert.ok(shown(id).includes("for groups"), `for groups stayed hidden in ${id}`);
+    for (const color of ["groups", "kowalewski", "type"]) {
+        page.sideA.setTileStyle({ color });
+        page.sideB.setTileStyle({ color });
+        for (const id of ["moire-a-panel", "moire-b-panel"]) {
+            assert.ok(shown(id).includes("for groups"),
+                      `for groups hid itself in ${id} on ${color}`);
+        }
     }
-    page.sideA.setTileStyle({ color: "type" });
-    page.sideB.setTileStyle({ color: "type" });
 });
 
 test("the page says which build it is", () => {
@@ -417,23 +418,35 @@ test("the caption reports lambda from the generation AND the normalization", () 
     click(reset);
 });
 
-test("a row that decides for itself is never excluded here", () => {
-    // The rule the VE census broke, now that it is gone and `for groups` is
-    // the only one left. A row with its own condition is cheap -- one line
-    // while shut -- and excluding one sets a trap: another included row turns
-    // the condition on, the row puts itself back, and the host's list says no.
-    // So a host either takes all of them or has to say why.
-    //
-    // Read off the source, so adding a `rowWhen` to the panel and forgetting
-    // this page fails here rather than on screen.
-    const panel = readFileSync("dist/view/pentagrid.js", "utf8");
-    const conditional = [...panel.matchAll(/rowWhen\.set\("([^"]+)"/g)].map((m) => m[1]);
-    assert.ok(conditional.length > 0, "no self-conditioning rows found at all");
-    const mine = readFileSync("dist/app/moire.js", "utf8");
-    const rows = [...(mine.match(/const ROWS = \[([\s\S]*?)\n\];/)?.[1] ?? "")
+test("every row this page names is a row the panel builds", () => {
+    // The host's list is now the ONLY thing that decides whether a row is up:
+    // `rowWhen`, the second mechanism, was retired 2026-11-15 with its last
+    // user when `for groups` became unconditional. Which leaves one way for
+    // this list to be wrong -- naming a row that does not exist, where the
+    // name silently matches nothing -- so that is what this checks.
+    // Comments first: the list is annotated, and a quoted phrase inside a
+    // comment is not a row name.
+    const mine = readFileSync("dist/app/moire.js", "utf8")
+        .split("\n").filter((l) => !l.trimStart().startsWith("//")).join("\n");
+    const named = [...(mine.match(/const ROWS = \[([\s\S]*?)\n\];/)?.[1] ?? "")
         .matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-    assert.ok(rows.includes("system"), "the ROWS list did not parse");
-    for (const r of conditional) {
-        assert.ok(rows.includes(r), `moire excludes "${r}", which can switch itself on`);
+    assert.ok(named.includes("system"), "the ROWS list did not parse");
+
+    const built = new Set();
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (typeof c.dataset?.row === "string" && c.dataset.row) built.add(c.dataset.row);
+            walk(c);
+        }
+    };
+    walk(doc.getElementById("moire-a-panel"));
+    for (const r of named) {
+        assert.ok(built.has(r), `ROWS names "${r}", which the panel does not build`);
+    }
+    // And the dressing folds are all here, which is the thing that was missed
+    // the first time: they are one line each while shut.
+    for (const r of ["pentaplex", "next-rhomb", "kites", "misc", "band",
+                     "for groups", "outlines"]) {
+        assert.ok(named.includes(r), `moire does not expose "${r}"`);
     }
 });

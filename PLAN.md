@@ -6794,6 +6794,79 @@ separates it from double-clicking the canvas, and is the useful half: having
 zoomed in and wandered, you want the origin back without losing the
 magnification.
 
+### 11.13 The outlines, and `for groups` unconditional (Jake, 2026-11-15)
+
+**`for groups` is always shown.** Jake: *"Always show for-groups fold. It is
+independant of system."* It was hidden unless the system was rhomb groups, on
+the reasoning that its controls decorate the groups — but the two are different
+questions: the system says how a BARE tile is colored, and these draw the group
+figure over it whatever the tiles underneath are doing. Shut, the fold is one
+word.
+
+**Which retired `rowWhen`** — the second mechanism deciding whether a row was
+up — with its last user, the VE census having gone the same day (§11.12). The
+host's list is now the only thing that hides a row, which is one answer to one
+question where there were two.
+
+**And a new fold: `outlines`.** Jake: *"This is independent of other edge
+states. Motivation is to eliminate lines to extreme indexes and show rhomb
+groups with special heavy outline. Generalization is to eliminate lines to any
+index and research LI's other than zero. That means one checkbox for each
+index. All off. Edges will only be drawn between indexes that are turned on."*
+
+Five switches, `outline1` … `outline5`, in `TILE_DEFAULTS` — so the inventory
+derives them and they round-trip as `data-outline1` … `data-outline5` with no
+edit (73 fields became 78, 51 booleans 56). An edge is drawn when **both** its
+ends are on a switched-on index, in a layer of its own at z 33, just above the
+ordinary edges: nothing here consults `penroseEdges`, `boldEdges` or the
+arrows, and they do not consult this. All off draws nothing, which is also the
+layer's visibility test.
+
+**The index is the one the MARKS show — FIXED 2026-11-15.** The first draft
+used the raw `vertexIndex` while the vertex marks draw it shifted, `vertexIndex
+− lo + 1`, so that the patch's lowest level reads 1. Wherever that shift is not
+zero the switches were off by it, which is most patches — the page's own
+default γ, the sun, has a raw range of **2..5** and shows 1..4. Jake: *"On
+penrose 3,4 should outline rhomb groups. 4,5 does instead, but looking at
+indexes it's connecting 3 and 4."* Exactly the shift, and now a switch means
+the number you can read on the vertex.
+
+Which also settles how many there are. Normalized, the lowest level IS 1, so
+there is no 0 to offer, and 5 appears only off the Penrose class — Jake: *"only
+index 1-4 with penrose. 5 necessary for LI. 0 not needed."* Five switches, and
+on a Penrose patch the fifth has nothing to pair with, which the test asserts.
+
+**Both ends rather than either**, because of what the motivating case wants: a
+rhomb's corners sit at levels (m, m+1, m+2, m+1), so "either end" would keep
+every edge that merely starts in the middle. Measured, in the shown index, over
+a patch of about 330 tiles:
+
+| switches | the sun (Penrose) | generic Penrose | class ½ |
+|---|---|---|---|
+| shown range | 1..4 | 1..4 | **1..5** |
+| 1, 2 | 26.4% | 24.8% | 5.8% |
+| **2, 3** | **50.0%** | **50.0%** | 44.5% |
+| 3, 4 | 23.6% | 25.2% | 44.2% |
+| 4, 5 | **0** | **0** | 5.5% |
+| 1, 2, 3, 4 | all | all | 94.5% |
+
+Two facts fall out. **One index alone draws nothing**, and so does a pair two
+apart: a tile's four edges join (m,m+1), (m+1,m+2), (m+2,m+1), (m+1,m), so no
+edge joins two corners of the same level and none joins levels two apart —
+those are opposite corners. And the **middle pair is exactly half** the edges
+on a Penrose patch, since whatever level a tile sits at, two of its four edges
+join its middle two corners.
+
+The generalization Jake names comes free: off the Penrose class the shown index
+reaches 5, the `4, 5` column stops being empty, and those are the levels a
+Penrose patch does not have.
+
+One constraint it had to respect: the stroke width is a **literal**, 3.2
+against the ordinary edge's 2.2. `tools/stateinv.test.mjs` holds the premise —
+§5.99's export scale is applied once in the recording context, which only works
+while no call site has scaled itself — and the first draft of this scaled with
+the view and was caught by that test.
+
 ## 12. Moiré — what deflation does off the Penrose class (Jake, 2026-10-27)
 
 > Non zero LI classes do not deflate when gridlines are divided by Phi, but what

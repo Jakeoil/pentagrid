@@ -12,6 +12,7 @@ import { createRegionPanel } from "../dist/view/region-panel.js";
 import { polygonArea, pointInPolygon, convexBoundary } from "../dist/geometry/acceptance.js";
 import { rhombDeflation } from "../dist/geometry/decor.js";
 import { collectRhombs, makeDirections } from "../dist/geometry/pentagrid.js";
+import { vertexIndex } from "../dist/geometry/roof.js";
 import { NO_FEATURES } from "../dist/state/defaults.js";
 
 function host(w = 800, h = 600) {
@@ -2049,7 +2050,7 @@ test("the panel reads in three sections, and split puts the third on the right",
                   "Pentagrid", "Hover", "style"];
     const PEN = ["== Penrose", "Penrose", "Penrose hover", "system", "face shade",
                  "pentaplex", "next-rhomb", "kites", "misc", "band", "for groups",
-                 "edge style", "vertex style", "singularities"];
+                 "edge style", "outlines", "vertex style", "singularities"];
 
     const panel = sizedHost(800, 200);
     createPentagrid({ container: sizedHost(800, 800), panel });
@@ -3282,7 +3283,7 @@ test("a shut dressing fold names what is switched on; open it is just the name",
     const head = (f) => (f.children ?? []).find((c) => c.tagName === "summary");
     const named = Object.fromEntries(folds.map((f) => [head(f).textContent, f]));
     for (const name of ["pentaplex", "next-rhomb", "kites", "misc", "band",
-                        "for groups", "height"]) {
+                        "for groups", "height", "outlines"]) {
         assert.ok(name in named, `no ${name} fold: saw ${Object.keys(named)}`);
     }
 
@@ -3296,13 +3297,20 @@ test("a shut dressing fold names what is switched on; open it is just the name",
     h.setTileStyle({ pentaEdge: true, kitesFace: true, ammann: true, offPenrose: true });
     assert.deepEqual(summary(),
                      ["band", "for groups", "height", "kites · face",
-                      "misc · ammann off Penrose", "next-rhomb",
+                      "misc · ammann off Penrose", "next-rhomb", "outlines",
                       "pentaplex · edge"].sort(),
                      `shut folds read ${summary().join(" | ")}`);
 
     // Both halves of a pair, and the pair reads both.
     h.setTileStyle({ nextgenEdge: true, nextgenFace: true });
     assert.ok(summary().includes("next-rhomb · edge face"));
+
+    // The outlines name the INDEXES that are up, which is the setting itself:
+    // six boxes shut would otherwise say nothing about what is drawn.
+    h.setTileStyle({ outline2: true, outline3: true });
+    assert.ok(summary().includes("outlines · 2 3"), summary().join(" | "));
+    h.setTileStyle({ outline2: false, outline3: false });
+    assert.ok(summary().includes("outlines"));
 
     // Shut, the four flow on one line: the row goes inline and gives its width
     // back only when it is opened. Jake: "is it possible to flow the pentaplex,
@@ -3351,7 +3359,7 @@ test("a shut dressing fold names what is switched on; open it is just the name",
     }
     assert.deepEqual(summary(),
                      ["band", "for groups", "height", "kites", "misc",
-                      "next-rhomb", "pentaplex"]);
+                      "next-rhomb", "outlines", "pentaplex"]);
     for (const f of folds) {
         assert.equal(rowOfFold(f).classList.contains("fold-open"), true,
                      "an open fold did not take its row back");
@@ -4496,10 +4504,17 @@ test("the pentaplex inlay clips every pentagon to its tile", () => {
     assert.ok(oInl.fills > oOver.fills, "outie: the inlay drew no more faces");
 });
 
-test("for groups applies only when the system is rhomb groups", () => {
-    // Jake: "show for groups only when system rhomb-groups is selected." Every
-    // control in it decorates the groups, and with the tiles colored by type
-    // there are no groups on screen to decorate.
+test("for groups is shown whatever the system is", () => {
+    // Jake, 2026-11-15: "Always show for-groups fold. It is independant of
+    // system." It used to be hidden unless the system was rhomb groups, on the
+    // reasoning that its controls decorate the groups -- but the two are
+    // different questions: the system says how a BARE tile is colored, and
+    // these draw the group figure over it whatever the tiles are doing. Shut,
+    // the fold is one word, so showing it always costs a word.
+    //
+    // This also retired `rowWhen`, the second mechanism that decided whether a
+    // row was up, with its last user -- so the host's list is now the only
+    // thing that hides a row.
     const panel = sizedHost(800, 200);
     const h = createPentagrid({ container: sizedHost(800, 800), panel });
     const rowNamed = (name) => {
@@ -4517,20 +4532,85 @@ test("for groups applies only when the system is rhomb groups", () => {
     assert.ok(groups, "no for-groups row at all");
 
     assert.equal(h.getTileStyle().color, "type", "the default system is not thick/thin");
-    assert.equal(groups.hidden, true, "for groups shows with the tiles colored by type");
+    for (const color of ["type", "groups", "kowalewski"]) {
+        h.setTileStyle({ color });
+        assert.equal(groups.hidden, false, `for groups hid itself on ${color}`);
+    }
 
-    h.setTileStyle({ color: "groups" });
-    assert.equal(groups.hidden, false, "for groups stayed hidden on rhomb groups");
-
-    h.setTileStyle({ color: "kowalewski" });
-    assert.equal(groups.hidden, true, "for groups outstayed the system that wanted it");
-
-    // And a host that excludes the row wins over the condition: the two
-    // questions are different and both used to write `hidden` directly.
-    h.setTileStyle({ color: "groups" });
-    assert.equal(groups.hidden, false);
-    h.exposeRows(["View"]);
-    assert.equal(groups.hidden, true, "an excluded row put itself back");
+    // A host that excludes the row still wins: that is the one mechanism left.
+    h.exposeRows(["View", "Penrose"]);
+    assert.equal(groups.hidden, true, "exposeRows did not hide it");
     h.exposeRows(null);
-    assert.equal(groups.hidden, false, "the row did not come back with the exposure");
+    assert.equal(groups.hidden, false, "it did not come back");
+});
+
+test("the outlines draw between switched-on indexes, and nothing else", () => {
+    // Jake, 2026-11-15: "Edges will only be drawn between indexes that are
+    // turned on." BOTH ends, which is what makes switching the extremes off
+    // outline the rhomb groups -- the group centers ARE the extremes.
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({
+        container: sizedHost(800, 800), panel,
+        features: { penroseTiles: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.0817, 0.3391, -0.2234, 0.1109, -0.3083]);      // Penrose
+
+    const layer = h.stack.get("penrose-outlines");
+    assert.ok(layer, "no outlines layer");
+    // All off is the default, and draws nothing -- which is also the layer's
+    // own visibility test, so the pass does not even run. Five switches, not
+    // six: normalized, there is no index 0. Jake: "only index 1-4 with
+    // penrose. 5 necessary for LI. 0 not needed."
+    assert.equal(h.getTileStyle().outline0, undefined, "there is still an outline0");
+    for (const m of [1, 2, 3, 4, 5]) {
+        assert.equal(h.getTileStyle()[`outline${m}`], false, `outline${m} defaults on`);
+    }
+    assert.equal(layer.visible(), false, "the layer is up with every index off");
+
+    h.setTileStyle({ outline2: true });
+    assert.equal(layer.visible(), true, "one index on did not raise the layer");
+
+    // Count what a pass would stroke, from the geometry rather than the canvas:
+    // an edge counts when both its ends are on.
+    const rhombs = collectRhombs(h.gamma.model, { xMin: -4, yMin: -4, xMax: 4, yMax: 4 });
+    // THE INDEX THE MARKS SHOW, which is vertexIndex shifted so the patch's
+    // lowest level reads 1. The first draft of the outlines used the raw one
+    // and so was off by that shift wherever it is not zero -- which is most
+    // patches. Jake: "On penrose 3,4 should outline rhomb groups. 4,5 does
+    // instead, but looking at indexes it's connecting 3 and 4."
+    const levels = rhombs.flatMap((r) => r.kTuples.map((k) => vertexIndex(k)));
+    const lo = Math.min(...levels);
+    const shown = (k) => vertexIndex(k) - lo + 1;
+    const drawn = (on) => {
+        let n = 0;
+        for (const r of rhombs) {
+            for (let i = 0; i < 4; i++) {
+                const a = shown(r.kTuples[i]);
+                const b = shown(r.kTuples[(i + 1) % 4]);
+                if (on.has(a) && on.has(b)) n++;
+            }
+        }
+        return n;
+    };
+    const shownOf = (m) => m - lo + 1;
+    assert.equal(Math.min(...levels.map(shownOf)), 1, "the shown index does not start at 1");
+    // A rhomb's corners are at levels (m, m+1, m+2, m+1), so no edge joins two
+    // corners of the SAME level: one index alone draws nothing at all.
+    assert.equal(drawn(new Set([2])), 0, "one index on its own drew an edge");
+    // Two adjacent levels draw the edges between them, and the count rises as
+    // more levels are let in.
+    const two = drawn(new Set([2, 3]));
+    assert.ok(two > 0, "two adjacent indexes drew nothing");
+    const three = drawn(new Set([2, 3, 4]));
+    assert.ok(three > two, `${three} is not more than ${two}`);
+    // Everything on is every edge: four per tile.
+    assert.equal(drawn(new Set([1, 2, 3, 4, 5])), rhombs.length * 4);
+    // And on a Penrose patch the shown index stops at 4, so the fifth switch
+    // has nothing to pair with -- it is there for the classes that reach it.
+    assert.equal(Math.max(...levels.map(shownOf)), 4, "a Penrose patch should show 1..4");
+    assert.equal(drawn(new Set([4, 5])), 0, "level 5 drew something on Penrose");
+    // And levels two apart share no edge either -- (m, m+2) are opposite
+    // corners, not adjacent ones.
+    assert.equal(drawn(new Set([1, 3])), 0, "indexes two apart drew an edge");
 });
