@@ -471,9 +471,15 @@ function drawTiling(): void {
                 const quad = rhombus(spec, t, inflated, turn, spelling)
                     .map((p) => [p[0] + tile.loc[0], p[1] + tile.loc[1]] as Pt);
                 if (rhombFace !== "none") {
+                    // Colored by rhomb GROUP, which is to say by the pentagon
+                    // the group centers on: star on a Pe5 is blue, boat on a
+                    // Pe3 yellow, diamond on a Pe1 orange. The group's
+                    // membership says the same thing -- star 5 thick, boat
+                    // 3 thick and 1 thin, diamond 1 thick and 2 thin -- so the
+                    // host's own color is the group's color.
                     poly(ctx, quad, cx, cy, k);
-                    ctx.globalAlpha = rhombFace === "transparent" ? 0.3 : 1;
-                    ctx.fillStyle = "#ffffff";
+                    ctx.globalAlpha = rhombFace === "transparent" ? 0.45 : 1;
+                    ctx.fillStyle = FILL[tile.type] ?? "#999";
                     ctx.fill("evenodd");
                     ctx.globalAlpha = 1;
                 }
