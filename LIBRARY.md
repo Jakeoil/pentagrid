@@ -361,6 +361,12 @@ import { createReticulum }
   from "https://jakeoil.github.io/pentagrid/lib/reticulum.js";
 ```
 
+**Discrete directions counts as a project (2026-11-18).** It grows its own
+`lib/` under `discrete-directions/`, by this same rule, and stops being a corner
+of this one. Its charter is `discrete-directions/PLAN.md`. The only thing it
+shares with the pentagrid is dualizing — `dual.html` and `src/discrete/dual.ts`,
+the one file there that imports `view/pentagrid.js` — and that stays here.
+
 An earlier draft of this section argued for a separate repository on the grounds
 that a shared kit has to take code *from* wieringa-roof too (§4) and cannot do that
 from inside one of its consumers. That objection is real and it has a cheaper

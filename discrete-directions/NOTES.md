@@ -803,6 +803,23 @@ Sun.
 Left alone pending Jake saying which end should carry it, since changing it on a
 guess would move a tile that currently tiles correctly.
 
+### Two ladders, not one — the frame that explains the parity
+
+**Jake, 2026-11-18.** `penta()` and `star()` deflate by **φ²**; that is the only
+step the recursion knows. A seed for the odd steps is generated from the original
+seed by those same functions. So there are **two ladders**, even and odd, each
+stepping by φ² within itself, the odd one seeded off the even — hence
+*generations* and *half generations*, the second being a ladder in its own right
+rather than fractions of the first. Whether they combine into one ladder is open,
+and would be a discovery.
+
+Read that way, the two findings below stop being awkward and become the same
+fact. "Half steps do not compose" and "the half rung carries one bit in y" are
+what treating two ladders as one looks like from the inside. Each ladder is
+self-consistent; the alternating (0, ±1) is the **offset between them**, not an
+error within either. That is also why x agrees everywhere and only y carries the
+bit: the two ladders share their x sequence and sit one apart in y.
+
 ### The wheel is set in stone in x, and only in x
 
 **Jake, 2026-09-27:** *Not quite understanding drift of central point. The wheel
