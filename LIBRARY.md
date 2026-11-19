@@ -364,8 +364,18 @@ import { createReticulum }
 **Discrete directions counts as a project (2026-11-18).** It grows its own
 `lib/` under `discrete-directions/`, by this same rule, and stops being a corner
 of this one. Its charter is `discrete-directions/PLAN.md`. The only thing it
-shares with the pentagrid is dualizing — `dual.html` and `src/discrete/dual.ts`,
-the one file there that imports `view/pentagrid.js` — and that stays here.
+shares with the pentagrid is dualizing, and **that sharing now goes through this
+facade.** Jake, 2026-11-18: *dual will stay where it is; it will use pentagrid's
+external library as if it were in another project.* So `dual.html` and its
+script live in `discrete-directions/`, and the one import that crosses the
+boundary is `lib/pentagrid.js` — the entry `createPentagrid` was given for
+exactly this. Nothing else in that project imports the pentagrid, and
+`src/discrete/` now loads nothing at all.
+
+That makes discrete directions this repo's first consumer of its own `lib/`,
+which is the best test the facade has: it is written as a sibling would write
+it, one `../` apart, and it found the two things a facade is for — a missing
+entry point, and a stylesheet that had never left `site.css`.
 
 An earlier draft of this section argued for a separate repository on the grounds
 that a shared kit has to take code *from* wieringa-roof too (§4) and cannot do that

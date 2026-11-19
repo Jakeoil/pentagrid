@@ -104,7 +104,7 @@ else.
 | `geometry/region` | the dual map run backwards; `clipToConvex` | no |
 | `geometry/decor` | arc geometry; `rhombArrows` — the AR-pattern from the indices | no |
 | `geometry/roof` | the Wieringa lift | no |
-| `discrete/wheels` | penrose-mosaic's integer substitution, its inverse and half step, the limiting directions (`discrete-directions/`) | no |
+| `discrete/wheels` | penrose-mosaic's integer substitution, its inverse and half step, the limiting directions. **Ported to `discrete-directions/src/math/e2.js`**; this copy is kept only as the parity oracle | no |
 | `geometry/acceptance` | the perpendicular plane, convex boundaries | no |
 | `view/layers` | `LayerStack` — canvases, z-order, visibility | yes |
 | `view/pentagrid` | `createPentagrid` | yes |

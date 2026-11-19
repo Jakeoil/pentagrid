@@ -1,3 +1,16 @@
+// SUPERSEDED, 2026-11-18 — nothing loads this file.
+//
+// `discrete-directions/dual.html` now loads `discrete-directions/src/ui/dual.js`.
+// The page did not move: Jake, 2026-11-18, *dual will stay where it is; it will
+// use pentagrid's external library as if it were in another project.* So it
+// ported to JavaScript alongside the rest of that project and now takes the
+// pentagrid through `lib/pentagrid.js` and `lib/reticulum.js` — the published
+// facade — instead of reaching into `../view/`. Checked by recording every
+// canvas call and readout both versions make at init: 28,492 operations,
+// identical.
+//
+// Left here only so the move stays one commit at a time. Do not edit it.
+
 // dual.html: dualize the discrete directions.
 //
 // Split's arrangement — grid on the left, its dual on the right, one γ, one

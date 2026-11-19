@@ -14,6 +14,7 @@ import * as jsFlake from "../src/math/flake.js";
 import * as jsStar from "../src/math/star.js";
 import * as jsWalk from "../src/math/walk.js";
 import * as jsPatch from "../src/math/patch.js";
+import * as jsE2 from "../src/math/e2.js";
 
 /** The TypeScript build is gone once a module is ported out of it, which is the
  *  point. Nothing to compare against then, and that is success, not failure. */
@@ -35,6 +36,8 @@ const tsStar = await old("../../dist/bootstrap/star.js");
 const tsWalk = await old("../../dist/bootstrap/walk.js");
 /** @type {typeof jsPatch | null} */
 const tsPatch = await old("../../dist/bootstrap/patch.js");
+/** @type {typeof jsE2 | null} */
+const tsE2 = await old("../../dist/discrete/wheels.js");
 
 const SEEDS = [
     js.PENTA_UP,
@@ -205,4 +208,42 @@ test("the substitution agrees with the TypeScript it was ported from", (t) => {
     const L = js.ladderTo(js.PENTA_UP, 3);
     assert.equal(err(() => tsPatch.expand("Pe9", 0, [0, 0], 1, L)),
                  err(() => jsPatch.expand("Pe9", 0, [0, 0], 1, L)));
+});
+
+test("the E2 wheels agree with the TypeScript they were ported from", (t) => {
+    if (!tsE2) return t.skip("dist/discrete/wheels.js is gone — port complete");
+
+    assert.equal(k(tsE2.WHEELS), k(jsE2.WHEELS));
+    assert.equal(k(tsE2.QUADRILLE), k(jsE2.QUADRILLE));
+    assert.equal(tsE2.SEED_GENERATION, jsE2.SEED_GENERATION);
+    assert.equal(tsE2.PHI, jsE2.PHI);
+
+    const seeds = [
+        jsE2.WHEELS.P, jsE2.WHEELS.S, jsE2.WHEELS.T, jsE2.WHEELS.D,
+        [[0, 7], [4, 3], [6, 1]],            // and one that is nobody's wheel
+        [[-2, 5], [3, -4], [0, 0]],
+    ];
+
+    for (const [i, seed] of seeds.entries()) {
+        for (const f of ["inflate", "deflate", "halfStep", "wheel", "pentagon",
+                         "pentagonDown", "limitSeed", "limitAngles", "discreteDirections"])
+            assert.equal(k(tsE2[f](seed)), k(jsE2[f](seed)), `${f} ${i}`);
+        for (let g = 0; g <= 6; g++)
+            assert.equal(k(tsE2.generation(seed, g)), k(jsE2.generation(seed, g)),
+                `generation ${i}.${g}`);
+        for (const n of [0, 1, 5, 40])
+            assert.equal(k(tsE2.limitSeed(seed, n)), k(jsE2.limitSeed(seed, n)),
+                `limitSeed ${i} x${n}`);
+        assert.equal(k(tsE2.frameOperator(jsE2.discreteDirections(seed))),
+            k(jsE2.frameOperator(jsE2.discreteDirections(seed))), `frameOperator ${i}`);
+    }
+
+    for (const name of ["P", "S", "T", "D"])
+        for (let halves = -6; halves <= 14; halves++)
+            assert.equal(k(tsE2.wheelAt(name, halves)), k(jsE2.wheelAt(name, halves)),
+                `wheelAt ${name} ${halves}`);
+
+    // the defaults, which is how the page calls them
+    assert.equal(k(tsE2.limitAngles()), k(jsE2.limitAngles()));
+    assert.equal(k(tsE2.discreteDirections()), k(jsE2.discreteDirections()));
 });

@@ -23,6 +23,7 @@ const HERE = fileURLToPath(new URL("..", import.meta.url));
 import * as wheels from "../lib/wheels.js";
 import * as tiles from "../lib/tiles.js";
 import * as patch from "../lib/patch.js";
+import * as e2 from "../lib/e2.js";
 import * as all from "../lib/discrete-directions.js";
 
 const SURFACE = {
@@ -38,7 +39,21 @@ const SURFACE = {
         "starPolygon", "starTips", "turn", "vertices",
     ],
     "patch.js": ["SEED_TYPES", "WALK_OF", "expand", "isSeedType", "outlineOf"],
+    "e2.js": [
+        "PHI", "QUADRILLE", "SEED_GENERATION", "WHEELS", "deflate",
+        "discreteDirections", "frameOperator", "generation", "halfStep",
+        "inflate", "limitAngles", "limitSeed", "pentagon", "pentagonDown",
+        "wheel", "wheelAt",
+    ],
 };
+
+/**
+ * The entry points the all-in-one gathers. `e2.js` is left out on purpose: it
+ * is the other representation of the same geometry, and `inflate`, `deflate`
+ * and `pentagon` mean different things in it. One namespace holding both would
+ * put two different functions behind one name.
+ */
+const GATHERED = ["wheels.js", "tiles.js", "patch.js"];
 
 const names = (mod) => Object.keys(mod).sort();
 
@@ -46,15 +61,38 @@ test("each entry point exports exactly its stated surface", () => {
     assert.deepEqual(names(wheels), [...SURFACE["wheels.js"]].sort());
     assert.deepEqual(names(tiles), [...SURFACE["tiles.js"]].sort());
     assert.deepEqual(names(patch), [...SURFACE["patch.js"]].sort());
+    assert.deepEqual(names(e2), [...SURFACE["e2.js"]].sort());
 });
 
-test("the all-in-one is the union of the three, with no collisions", () => {
-    const union = [...new Set(Object.values(SURFACE).flat())].sort();
-    assert.deepEqual(names(all), union);
-    // A name exported by two entry points would be silently dropped by
-    // `export *`, so the three have to be disjoint.
-    const flat = Object.values(SURFACE).flat();
-    assert.equal(flat.length, new Set(flat).size, "two entry points share a name");
+test("every entry point has a golden surface, and every golden surface an entry", () => {
+    const entries = readdirSync(`${HERE}lib`).filter((f) => f.endsWith(".js")).sort();
+    assert.deepEqual(entries, [...Object.keys(SURFACE), "discrete-directions.js"].sort(),
+        "an entry was added or removed without its golden list");
+});
+
+test("the all-in-one is the union of the three it gathers, with no collisions", () => {
+    const gathered = GATHERED.flatMap((f) => SURFACE[f]);
+    assert.deepEqual(names(all), [...new Set(gathered)].sort());
+    // A name exported by two of them would be silently dropped by `export *`,
+    // so the three have to be disjoint.
+    assert.equal(gathered.length, new Set(gathered).size, "two gathered entries share a name");
+});
+
+test("e2 is left out of the all-in-one because it would collide", () => {
+    // Not a gap -- the reason the entry is separate. If these ever stop
+    // colliding, the two representations have converged and that is worth
+    // knowing; until then, importing both means importing them by name.
+    const gathered = new Set(GATHERED.flatMap((f) => SURFACE[f]));
+    const clash = SURFACE["e2.js"].filter((n) => gathered.has(n));
+    assert.deepEqual(clash.sort(), ["SEED_GENERATION", "deflate", "inflate", "pentagon"]);
+    // Three of the four are different functions wearing one name, which is the
+    // whole reason for the separate entry.
+    for (const n of ["deflate", "inflate", "pentagon"])
+        assert.notEqual(e2[n], all[n], `${n} is the same function after all`);
+    // The fourth is not a conflict at all: both projects count the stored seed
+    // as generation 1, and penrose-mosaic is where both got it.
+    assert.equal(e2.SEED_GENERATION, all.SEED_GENERATION);
+    assert.equal(e2.SEED_GENERATION, 1);
 });
 
 test("the facade is the same function, not a copy of it", async () => {
@@ -89,7 +127,8 @@ test("the three entry points cover every module under src/math/", () => {
     // A module nobody can reach through `lib/` is either private on purpose or
     // forgotten. There is nothing private here yet, so the count should match.
     const modules = readdirSync(`${HERE}src/math`).filter((f) => f.endsWith(".js"));
-    assert.deepEqual(modules.sort(), ["flake.js", "patch.js", "star.js", "walk.js", "wheel.js"]);
+    assert.deepEqual(modules.sort(),
+        ["e2.js", "flake.js", "patch.js", "star.js", "walk.js", "wheel.js"]);
     const sources = new Set();
     for (const file of readdirSync(`${HERE}lib`)) {
         if (file === "discrete-directions.js") continue;

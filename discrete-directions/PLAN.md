@@ -103,10 +103,24 @@ So the wheels, the ladder, the tile construction and the substitution — about
 900 lines — are already standalone. One file reaches into the pentagrid, and it
 is the one whose whole subject is the dual map.
 
-**The split follows that line.** `dual.html` and `src/discrete/dual.ts` are
-pentagrid work and stay pentagrid work: they build a multigrid on the discrete
-directions and dualize it, and they need the pentagrid's view code to do it.
-Everything else goes to the library.
+**The split follows that line — but not where this first put it.** The original
+reading was that `dual.html` and `dual.ts` are pentagrid work and stay pentagrid
+work, since they need the pentagrid's view code. Jake, 2026-11-18:
+
+> Dual will stay where it is. It will use pentagrid's external library as if it
+> were in another project.
+
+Which is better, and is what §5 records as done. Dualizing is discrete
+directions' own subject; what belongs to the pentagrid is the *view code* it
+takes to draw a multigrid. So `dual.html` does not move, `dual.ts` ports to
+`src/ui/dual.js` like the other pages, and the one import that crosses the
+boundary goes through `lib/`:
+
+    from here    import { createPentagrid } from "../../../lib/pentagrid.js";
+    a sibling    import { createPentagrid } from "../pentagrid/lib/pentagrid.js";
+
+one `../` apart, and nothing else in this project imports the pentagrid at all.
+That is the whole of the coupling, stated in one line of one file.
 
 ---
 
@@ -285,9 +299,50 @@ place so the move stays one commit at a time, and it is the next thing to
 delete. The five math modules beside it stay until `tools/bootstrap.test.mjs`
 and the parity test are retired.
 
-**Next:** cut `dual.ts` loose, then delete `src/bootstrap/` and
-`port-parity.test.mjs` with it. The Star patch is still broken and still has a
-test asserting so.
+### Cutting `src/discrete/` loose, 2026-11-19
+
+All three of its modules are now here, and `src/discrete/` loads nothing:
+
+| was | is | checked by |
+| --- | --- | --- |
+| `discrete/wheels.ts` | `src/math/e2.js` + `lib/e2.js` | 16 ported tests, and parity on every export |
+| `discrete/index-figure.ts` | `src/ui/index-figure.js` | 1,219 canvas ops and readouts, identical |
+| `discrete/dual.ts` | `src/ui/dual.js` | 28,492 canvas ops and readouts at init, identical |
+
+**`lib/e2.js` is deliberately not in `discrete-directions.js`.** It is the other
+representation of the same geometry — three seeds and their reflections in MATH
+coordinates, against ten tenths of five ordered points in SCREEN coordinates —
+and four names collide: `inflate`, `deflate`, `pentagon` and `SEED_GENERATION`.
+The first three are *different functions wearing one name*, which is exactly
+what one namespace must not hide, so E2 is imported by name and the collision
+becomes a choice. (`SEED_GENERATION` is no conflict at all: both count the
+stored seed as generation 1, and penrose-mosaic is where both got it.) The
+surface test asserts that list, and asserts the three really are different
+functions.
+
+**The pentagrid grew `lib/pentagrid.js` to be consumed.** `createPentagrid` was
+not on its public surface — `lib/gamma.js` is the model and `lib/grow.js` the
+geometry, with no entry for the view. There is one now, with a `.d.ts` beside it
+so this project's `tsc` type-checks the import across the boundary, which it
+does: `dual.js` resolves `lib/pentagrid.d.ts` and the `dist/*.d.ts` behind it.
+
+One gap found and recorded rather than closed, because closing it is a look
+change: that entry ships **no stylesheet**. The instruments in `lib/reticulum.js`
+carry their rules in `lib/css/`; `createPentagrid` assigns about thirty classes
+whose rules are still in the repo's `site.css`, so a consumer outside the
+pentagrid gets a working view with a bare panel. `tools/surface.test.mjs` now
+records that, and in recording it found two classes — `regularity-control` and
+`regularity-meter` — with no rule in *any* stylesheet in the repo, while their
+sibling `penrose-flag` has one. Bare in the pentagrid's own pages too.
+
+`src/discrete/dual.ts` and `index-figure.ts` are marked SUPERSEDED.
+`wheels.ts` is marked PORTED and is still load-bearing: `tools/discrete.test.mjs`
+checks it against penrose-mosaic and the parity test compares the JavaScript
+against it, so it retires when they do.
+
+**Next:** delete `src/bootstrap/`, `src/discrete/` and `port-parity.test.mjs`
+together, once their oracles have moved. The Star patch is still broken and
+still has a test asserting so.
 
 ## 6. What this supersedes
 

@@ -1,3 +1,12 @@
+// PORTED, 2026-11-18 — but still load-bearing, unlike its two neighbors.
+//
+// This module is now `discrete-directions/src/math/e2.js`, and no page imports
+// this copy any more. It stays because two tests still do: `tools/discrete.test.mjs`
+// checks it against penrose-mosaic's own claims, and the port's parity test
+// compares every export of the JavaScript against it. When those retire, so
+// does this. Do not edit it — a change here reaches no page, and would show up
+// as a parity failure rather than as anything working differently.
+
 // The discrete wheels, adapted from penrose-mosaic — the substitution itself,
 // nothing of its drawing.
 //

@@ -29,6 +29,10 @@ const SURFACE = {
         "mountFloatingReticulum", "mountGammaControls", "mountReticulum",
         "signedGamma", "snapStep", "snapStepWith", "wheelNotch", "wheelSteps",
     ],
+    "pentagrid.js": [
+        "GRID_DEFAULTS", "LAYER_FEATURE", "NO_FEATURES", "TILE_DEFAULTS",
+        "createPentagrid",
+    ],
     "grow.js": [
         "RISE", "ROOF_EDGE", "collectRhombs", "crossingLerp", "faceNormal",
         "flatLocal", "generator", "liftLocal", "makeDirections", "outlineCorner",
@@ -124,6 +128,36 @@ test("every class an instrument assigns is styled by the lib CSS it ships", () =
         }
     }
     assert.deepEqual([...missing], [], "classes with no rule in lib/css");
+});
+
+test("lib/pentagrid.js ships no stylesheet, and that is recorded not hidden", () => {
+    // The carve-out its header names. The instruments in lib/reticulum.js ship
+    // their rules in lib/css/, so they come up styled in somebody else's page.
+    // `createPentagrid` does not: it assigns about thirty classes whose rules
+    // are still in this repo's site.css, so a consumer outside this repo gets a
+    // working view with a bare panel. That is a real gap, and this test is here
+    // so it stays visible -- when those rules move, this fails and says so.
+    const css = readdirSync("lib/css").map((f) => readFileSync(`lib/css/${f}`, "utf8")).join("\n");
+    const src = readFileSync("dist/view/pentagrid.js", "utf8");
+    const classes = new Set([
+        ...src.matchAll(/className\s*=\s*"([^"]+)"/g),
+        ...src.matchAll(/setAttribute\("class",\s*"([^"]+)"/g),
+    ].flatMap((m) => m[1].split(/\s+/)).filter(Boolean));
+    const unstyled = [...classes].filter((n) => !css.includes(`.${n}`));
+    assert.ok(unstyled.length > 0,
+        "lib/css now covers the pentagrid view -- delete this test, add the "
+        + "stylesheet to lib/pentagrid.js's header, and move it into the test above");
+    // And site.css is where they live for now, so our own pages do look right.
+    // Two do not live anywhere, which this test found: the regularity meter's
+    // own div and bar have no rule in any stylesheet in the repo, while their
+    // sibling `penrose-flag` does. Bare in our pages as much as in anyone
+    // else's -- a pre-existing gap, recorded here rather than papered over,
+    // and a look change to close.
+    const KNOWN_BARE = ["regularity-control", "regularity-meter"];
+    const site = readFileSync("site.css", "utf8");
+    const homeless = unstyled.filter((n) => !site.includes(`.${n}`));
+    assert.deepEqual(homeless.sort(), KNOWN_BARE,
+        "the set of entirely unstyled classes moved");
 });
 
 test("site.css imports the lib stylesheets rather than holding a copy", () => {

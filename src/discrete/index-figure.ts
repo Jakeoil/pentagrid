@@ -1,3 +1,13 @@
+// SUPERSEDED, 2026-11-18 — nothing loads this file.
+//
+// `discrete-directions/index.html` now loads
+// `discrete-directions/src/ui/index-figure.js`, the same figures ported to
+// JavaScript and taking their wheels from `discrete-directions/lib/e2.js`.
+// Checked by recording every canvas call and readout both versions make:
+// 1,219 operations, identical.
+//
+// Left here only so the move stays one commit at a time. Do not edit it.
+
 // The two figures on the index: the wheel with its angles, and the quadrille
 // pentagon with the real one laid over it.
 //
