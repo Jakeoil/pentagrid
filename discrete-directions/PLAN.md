@@ -161,6 +161,81 @@ the asymmetric regime, and nothing else can either — which is the point of Rul
 
 ---
 
+### Progress — the port, started 2026-11-18
+
+**`src/math/wheel.js` is done.** A faithful port of `src/bootstrap/wheel.ts`:
+the stride family, the two-term pairs, the ladder with half and negative rungs,
+the four wheels and the edge wheel. `@ts-check` with JSDoc carries the types that
+were load-bearing — `Pt`, `Wheel`, `WheelSet` — and `npx tsc --noEmit` on the
+repo is still clean.
+
+Two tests, and the split between them is the point:
+
+- **`tests/wheel.test.mjs`** checks the mathematics on its own terms, against
+  penrose-mosaic's transcribed seeds. 21 tests. This one survives the port and is
+  the oracle link; losing it would be losing the net.
+- **`tests/port-parity.test.mjs`** checks the JavaScript against the TypeScript
+  it came from — every export, four seeds, every rung from −4 to 6 in halves,
+  and that they fail the same way. 265 comparisons, 0 differ. **Scaffolding**: it
+  skips itself once `dist/bootstrap/` is gone, and should be deleted then.
+
+`package.json` here gives the project its own `test` script and an `exports` map,
+so siblings import by name. The parent's `npm test` runs these too, so the port
+cannot rot while it is half done.
+
+One test earned its keep immediately. A spoke's growth does **not** hit φ² at
+once — the quadrille's wheel is not a scalar multiple of itself — it converges,
+and the error falls by **φ⁻² a generation**, the subdominant eigenvalue, reaching
+machine precision by thirty. A single tolerance would have hidden that; asserting
+the rate says what is actually true and would catch a wheel converging to the
+right number the wrong way.
+
+**`src/math/flake.js`, `star.js`, `walk.js` and `patch.js` followed**, bottom
+up, the same way: faithful ports, `@ts-check` with JSDoc, each with its own test
+against penrose-mosaic plus a parity block in `port-parity.test.mjs`. The whole
+of `src/bootstrap/` is now ported except `page.ts`, which is the page and not
+the math.
+
+The oracle each one answers to:
+
+| module | what it is checked against |
+| --- | --- |
+| `wheel.js` | penrose-mosaic's four stored wheels, transcribed |
+| `flake.js` | the P wheel it measures out, and the stride formula |
+| `star.js` | its eight stored star/boat/diamond outlines |
+| `walk.js` | those eight again, plus its **computed** `thickRhomb`/`thinRhomb` |
+| `patch.js` | no stored arrays — overlap, interior holes, and the subset claim |
+
+`discrete-directions/tsconfig.json` is new, and it is the reason the `@ts-check`
+headers mean anything: the parent's `tsconfig.json` has `"include": ["src"]`
+relative to the repo root, so it never reached these files and the headers were
+decoration. The new one is check-only — `noEmit`, `checkJs`, `strict`, no
+`types` — and `npm test` here runs it before the tests. There is no build step
+and never will be; the browser loads these files as they are.
+
+**96 tests here, 853 in the parent, 0 failures, nothing skipped** — so the
+parity blocks are genuinely running against `dist/bootstrap/`, not quietly
+passing because the comparison was unavailable.
+
+Three things came out of the port that were not in the TypeScript:
+
+- **`closes()` is an exact integer predicate.** It asks for `=== 0`, so the real
+  preset fails it by 4e-16 while the walks do close. Every other function in
+  these modules is indifferent to whether the five points are integers. That one
+  is the single place a tolerance belongs, and a test now records both halves.
+- **`reverse()`'s comment was wrong.** It said "reverse the winding", but
+  re-winding an outline is `turn(reverse(walk), 5)` — walking backwards takes
+  each edge *negated*, in reverse order. Reversal alone draws the figure's 180°
+  copy, which on the symmetric `pentaUp` happens to coincide with its y-mirror,
+  which is where the comment came from. Behavior unchanged, comment corrected,
+  and the test now states the identity for any five points.
+- **A dead binding** in `patch.js`'s `sun()`: it destructured the `s` wheel the
+  diamonds used to hang on, before they moved to the inflated D wheel. Dropped.
+
+**Next:** grow `lib/`, point the pages at it, cut `dual.ts` loose, then delete
+`src/bootstrap/` and `port-parity.test.mjs` with it. The Star patch is still
+broken and still has a test asserting so.
+
 ## 6. What this supersedes
 
 Two documents currently say the opposite and need a line each:

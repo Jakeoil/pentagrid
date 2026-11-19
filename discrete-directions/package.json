@@ -1,0 +1,15 @@
+{
+    "name": "discrete-directions",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Wheels, half-step ladders and Fibonacci sums — arbitrary cyclic pentagons with their own star and penta seeds.",
+    "type": "module",
+    "author": "Jeff Coyle",
+    "scripts": {
+        "check": "tsc -p tsconfig.json",
+        "test": "tsc -p tsconfig.json && node --test tests/*.test.mjs"
+    },
+    "exports": {
+        "./*": "./src/*"
+    }
+}

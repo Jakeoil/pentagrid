@@ -1,0 +1,19 @@
+{
+    // Type-checking only, for the JSDoc in `src/math/`. There is no build step
+    // and never will be: this is a JavaScript library and the browser loads the
+    // files as they are. `@ts-check` at the top of each module is what makes
+    // this worth running -- without a tsconfig that reaches these files, those
+    // headers are decoration.
+    "compilerOptions": {
+        "noEmit": true,
+        "allowJs": true,
+        "checkJs": true,
+        "strict": true,
+        "target": "es2022",
+        "module": "es2022",
+        "moduleResolution": "bundler",
+        "skipLibCheck": true,
+        "types": []
+    },
+    "include": ["src"]
+}
