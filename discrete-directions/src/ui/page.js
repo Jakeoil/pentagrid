@@ -16,6 +16,7 @@ import {
 import { pentagon, rhombGroup, rhombus } from "../../lib/tiles.js";
 import { expand, isSeedType, outlineOf } from "../../lib/patch.js";
 import { BUILD_ID } from "./build-id.js";
+import { fitStep } from "./fit.js";
 
 /** @typedef {import("../../lib/wheels.js").Pt} Pt */
 /** @typedef {import("../../lib/wheels.js").Wheel} Wheel */
@@ -89,6 +90,35 @@ const EDGES = ["none", "thin", "thick"];
 let dragging = -1;
 /** The input figure's current scale, so dragging lands where the handles are. */
 let inputScale = 26;
+
+/**
+ * The input figure's viewport: a sticky auto-fit, and the user's own zoom on
+ * top of it.
+ *
+ * It used to refit exactly on every frame — `k = 0.40·min(w,h) / reach` — which
+ * made dragging a point outward run away. `pick()` divides the pointer by
+ * `inputScale`, so a smaller scale maps the same pointer to a LARGER lattice
+ * coordinate, which grows `reach`, which shrinks the scale again. Every
+ * pointermove amplified the one before it and the figure shot away. Jake: *moving
+ * a point toward the edge causes extremely quick zoomout.*
+ *
+ * So the fit is now held between frames and only gives way when the figure
+ * actually reaches the edge, and then by `EDGE_SHRINK` a frame rather than all
+ * at once. That breaks the loop at its root: the pointer-to-lattice mapping is
+ * stable while you drag, which is the only way a drag can feel like dragging.
+ *
+ * `inputFit` of 0 means "refit exactly on the next draw", which is what the
+ * discrete events ask for — a preset, `use`, a step of the ladder. Continuous
+ * dragging never does.
+ */
+let inputFit = 0;
+let inputZoom = 1;
+/** Whether the last draw left the figure past its margin, so it wants easing. */
+let inputOverflow = false;
+let settling = 0;
+const INPUT_ZOOM = { min: 0.1, max: 12 };
+/** Ask for an exact fit on the next draw. */
+const refitInput = () => { inputFit = 0; };
 /**
  * How far the input figure is extrapolated from the five points, in half
  * generations. 0 is the five themselves; the wheel ladder calls that rung 1.
@@ -206,16 +236,27 @@ function drawInput() {
     const shown = pentagon(wheelsAt(points, rungOf(extrapolate)).d, 0);
     const reach = Math.max(1, ...shown.map((v) => Math.hypot(v[0], v[1])),
                            ...points.map((v) => Math.hypot(v[0], v[1])));
-    // Always fit, at every rung, with the paper drawn at the same scale.
+    // Fit at every rung, with the paper drawn at the same scale — it used to
+    // hold a fixed cell size at extrapolate 0 and fit only elsewhere, so
+    // stepping the ladder, and `use` returning to 0, made the figure jump
+    // between two unrelated scales. That was the irregularity on `use`.
     //
-    // It used to hold a fixed cell size at extrapolate 0 and fit only elsewhere,
-    // so stepping the ladder — and `use`, which returns to 0 — made the figure
-    // jump between two unrelated scales. That was the irregularity on `use`.
+    // But the fit is STICKY, not recomputed from scratch: see `inputFit`. An
+    // exact refit is what a preset or a ladder step asks for; a drag gets a
+    // scale that holds still, and gives way slowly when the figure reaches the
+    // edge. `margin` is what "reaches the edge" means.
     const atBase = extrapolate === 0;
-    const k = Math.min((Math.min(w, h) * 0.40) / reach, CELL * 3);
+    const margin = Math.min(w, h) * 0.40;
+    inputFit = fitStep(reach, inputFit, margin, CELL * 3);
+    inputOverflow = reach * inputFit > margin;
+    const k = inputFit * inputZoom;
 
     paper(ctx, w, h, cx, cy, k);
-    inputScale = k;
+    // The mapping `pick()` divides by, frozen for the length of a drag: while
+    // the pointer is down this keeps the value it had when it went down. That
+    // is what opens the feedback loop — see src/ui/fit.js. Easing the drawing
+    // scale was not enough on its own.
+    if (dragging < 0) inputScale = k;
 
     if (!atBase) {
         // The five, as a reference, so the ladder step is visible. Dashed and
@@ -603,6 +644,30 @@ function report(e) {
 
 const redraw = () => { drawInput(); drawFlake(); drawTiling(); };
 
+/**
+ * Keep easing the input's fit after the pointer has let go.
+ *
+ * The easing in `fitStep` happens a frame at a time, and frames here are
+ * redraws, and redraws come from events. So a drag that ends past the margin
+ * would simply stop there, with the figure left bigger than its frame. This
+ * carries it the rest of the way, still a percent at a time — the alternative
+ * was to snap on release, and a jump at the end of every drag is the kind of
+ * thing `use` was complained about for.
+ *
+ * It does nothing where there are no animation frames, which is node: the page
+ * check imports this module and never gets one.
+ */
+function settleInput() {
+    if (settling || dragging >= 0 || !inputOverflow) return;
+    const raf = globalThis.requestAnimationFrame;
+    if (typeof raf !== "function") return;
+    settling = raf(() => {
+        settling = 0;
+        drawInput();
+        settleInput();
+    });
+}
+
 if (inputCanvas) {
     const c = inputCanvas;
     c.addEventListener("pointerdown", (ev) => {
@@ -624,9 +689,30 @@ if (inputCanvas) {
         syncPreset();
         redraw();
     });
-    const drop = () => { if (dragging >= 0) { dragging = -1; redraw(); } };
+    const drop = () => {
+        if (dragging < 0) return;
+        dragging = -1;
+        redraw();
+        settleInput();
+    };
     c.addEventListener("pointerup", drop);
     c.addEventListener("pointercancel", drop);
+
+    // Scroll to zoom, as the output does and with the same feel — but about the
+    // CENTER, not the pointer. The origin is a real thing on this figure: the
+    // spokes run from it and the wheel is measured about it, so it stays put and
+    // there is no pan to go with the zoom. Double-click puts it back and refits.
+    c.addEventListener("wheel", (ev) => {
+        ev.preventDefault();
+        const by = Math.exp(-(ev.deltaY ?? 0) * 0.0015);
+        inputZoom = Math.min(INPUT_ZOOM.max, Math.max(INPUT_ZOOM.min, inputZoom * by));
+        drawInput();
+    }, { passive: false });
+    c.addEventListener("dblclick", () => {
+        inputZoom = 1;
+        refitInput();
+        drawInput();
+    });
 }
 
 const rungOutValue = byId("boot-extrapolate-value");
@@ -640,6 +726,8 @@ function showExtrapolate() {
 const stepExtrapolate = (by) => {
     extrapolate = Math.min(6, Math.max(-4, extrapolate + by));
     showExtrapolate();
+    // A rung is a different figure at a different size, so frame it afresh.
+    refitInput();
     drawInput();
 };
 byId("boot-extrapolate-down")?.addEventListener("click", () => stepExtrapolate(-0.5));
@@ -776,6 +864,7 @@ const useShown = () => {
     const taken = pentagon(wheelsAt(points, rungOf(extrapolate)).d, 0);
     points = taken.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
     extrapolate = 0;
+    refitInput();
     showExtrapolate();
     // Snapping an adopted pentagon that is not on the lattice would wreck it on
     // the first drag, so follow what was actually taken.
@@ -820,8 +909,10 @@ const loadPreset = (name) => {
     const preset = PRESETS[name];
     if (!preset) return;                    // "custom" is a label, not a preset
     points = preset.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
-    // A preset is a fresh start, so the extrapolation goes back to the five.
+    // A preset is a fresh start, so the extrapolation goes back to the five and
+    // the figure is framed afresh.
     extrapolate = 0;
+    refitInput();
     showExtrapolate();
     // Snap follows whether the points are actually on the lattice, not the
     // preset's name -- the box stays the user's to override afterwards.

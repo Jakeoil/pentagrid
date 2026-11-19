@@ -74,6 +74,9 @@
     <div class="rig">
         <div>
             <canvas id="boot-input" width="340" height="340"></canvas>
+            <p class="hint" style="margin:8px 0 0">scroll to zoom,
+            double-click to fit &mdash; dragging a corner past the frame zooms
+            out slowly rather than all at once</p>
 
             <div class="ctl">
                 <div><span class="grp">preset</span>
@@ -252,8 +255,16 @@
     <p class="hint"><b>Snap to the lattice</b> is on for the quadrille and off for
     the real preset &mdash; rounding an irrational pentagon's corners onto the
     paper on the first drag would silently turn it back into a quadrille. The box
-    is yours to override either way. The output pans and zooms: scroll over it,
-    drag it, double-click to fit.</p>
+    is yours to override either way.</p>
+
+    <p><b>Both canvases zoom.</b> The output pans too: scroll over it, drag it,
+    double-click to fit. The input only zooms, about the origin &mdash; the
+    spokes run from there and the wheel is measured about it, so it stays put.
+    Its automatic fit holds still while you drag and gives way only when a
+    corner reaches the frame, a percent a frame. It used to refit exactly on
+    every frame, which fed back through the pointer and made the figure shoot
+    away from the hand dragging it; <code>src/ui/fit.js</code> has the loop
+    written out.</p>
 
     <h3>The ladder, in half steps and below zero</h3>
 
