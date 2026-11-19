@@ -7,6 +7,7 @@
     "author": "Jeff Coyle",
     "scripts": {
         "check": "tsc -p tsconfig.json",
+        "stamp": "node tools/stamp.mjs",
         "test": "tsc -p tsconfig.json && node --test tests/*.test.mjs"
     },
     "exports": {

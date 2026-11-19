@@ -119,6 +119,23 @@ One place, plain JavaScript, no build:
       src/math/       wheels, ladder, walks, substitution -- no DOM, no UI
       src/ui/         pages and canvas
       tests/          node --test, importing src/math/ directly
+      tools/          the stamp, which writes the one generated file
+
+**Built 2026-11-18.** The facade is three entry points plus an all-in-one,
+grouped by what a page asks for rather than mirroring the modules -- mirroring
+would pin nothing:
+
+| entry point | what it is |
+| ---- | ---------- |
+| `lib/wheels.js` | five points, the operator family, the ladder, the pentaflake |
+| `lib/tiles.js` | outlines as walks, the star family, the rhombs |
+| `lib/patch.js` | the substitution and `outlineOf` |
+| `lib/discrete-directions.js` | all three, for a consumer that wants one import |
+
+`tests/lib-surface.test.mjs` pins those names, checks the facade re-exports the
+same function objects rather than copies, checks every statement in `lib/` is an
+import or an export, and checks the entry points reach every module under
+`src/math/`. Unlike the parent's `lib/`, these re-export source and not a build.
 
 What moves in, from `pentagrid/src/bootstrap/` and the wheel half of
 `src/discrete/`:
@@ -232,9 +249,45 @@ Three things came out of the port that were not in the TypeScript:
 - **A dead binding** in `patch.js`'s `sun()`: it destructured the `s` wheel the
   diamonds used to hang on, before they moved to the inflated D wheel. Dropped.
 
-**Next:** grow `lib/`, point the pages at it, cut `dual.ts` loose, then delete
-`src/bootstrap/` and `port-parity.test.mjs` with it. The Star patch is still
-broken and still has a test asserting so.
+### The page, same day
+
+**`lib/` is built and `by-your-bootstraps.html` loads its own JavaScript.**
+`src/bootstrap/page.ts` became `discrete-directions/src/ui/page.js`, importing
+through the facade; the HTML's one script tag now reads `src/ui/page.js`.
+
+Pointing the page at `lib/` *required* porting it. The parent's `tsconfig.json`
+has no `allowJs` and a `rootDir` of `./src`, so a TypeScript page cannot import
+these files at all — the dependency only runs the other way once the page is
+JavaScript too.
+
+**How the port was checked.** "It compiles" and "it does not throw" are both
+weak claims about a page. Instead every canvas call both versions make was
+recorded — each `moveTo`, `fill`, `fillStyle` and `lineWidth`, coordinates to
+six decimals — through the same stub DOM, with the same handlers fired in the
+same order: **1,399,698 operations, identical**. `tools/pagecheck.mjs` agrees
+on the weaker claim too, 80 handler calls and nothing thrown, same as before.
+
+Two notes from the move:
+
+- **`GRID` and `GRID_BOLD` were dead** in `page.ts` — declared, never read, left
+  over from before `GRID_LEVELS`. Not carried over.
+- **The build stamp needed a home.** `discrete-directions/tools/stamp.mjs`
+  writes `src/ui/build-id.js`, the one generated file in the project, and the
+  parent's `npm run stamp` calls it with its own stamp so both report the same
+  id for one build. It resolves paths against itself, so it runs from either
+  root. It is gitignored, as `src/build-id.ts` is, because the Pages workflow
+  runs `npm run build` before it publishes — so a fresh clone has to run `npm
+  run build` (or `npm run stamp` here) once before the page loads or `tsc`
+  passes. Same condition the parent already has for `dist/`.
+
+`src/bootstrap/page.ts` is marked SUPERSEDED and loads nowhere. It is left in
+place so the move stays one commit at a time, and it is the next thing to
+delete. The five math modules beside it stay until `tools/bootstrap.test.mjs`
+and the parity test are retired.
+
+**Next:** cut `dual.ts` loose, then delete `src/bootstrap/` and
+`port-parity.test.mjs` with it. The Star patch is still broken and still has a
+test asserting so.
 
 ## 6. What this supersedes
 

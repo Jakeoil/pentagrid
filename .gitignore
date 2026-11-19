@@ -2,6 +2,7 @@ node_modules/
 dist/
 .DS_Store
 src/build-id.ts
+discrete-directions/src/ui/build-id.js
 multigrids.pdf
 
 # Third-party figure, CC BY-SA. Pages publishes the repo root, so committing

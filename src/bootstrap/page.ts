@@ -1,3 +1,15 @@
+// SUPERSEDED, 2026-11-18 — nothing loads this file.
+//
+// by-your-bootstraps.html now loads `discrete-directions/src/ui/page.js`, which
+// is this page ported to JavaScript and importing its mathematics through
+// `discrete-directions/lib/`. The two were checked against each other by
+// recording every canvas call both make: 1,399,698 operations, identical.
+//
+// It is left here only so the move is one commit at a time, and it is the next
+// thing to delete. Do not edit it — a change here reaches no page. The five
+// math modules beside it are a different matter: `tools/bootstrap.test.mjs` and
+// the port's parity test both still import them.
+
 // by-your-bootstraps: five ordered points in, a Penrose tiling out.
 //
 // The figure on the left is the input — five draggable lattice points and the
