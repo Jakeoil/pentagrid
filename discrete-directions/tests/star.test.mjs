@@ -12,6 +12,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { starPolygon, starTips } from "../src/math/star.js";
+import { pentagon } from "../src/math/walk.js";
 import { PENTA_UP, REAL_PENTA, ladderTo, m10 } from "../src/math/wheel.js";
 
 // ── penrose-mosaic, transcribed: shape-modes.js, class Quadrille ──────────
@@ -150,14 +151,34 @@ test("loc translates the outline and nothing else", () => {
     }
 });
 
-test("no star outline self-intersects, on any of the three seeds", () => {
+test("no tile outline self-intersects, on any of the three seeds", () => {
+    // Tiles are filled even-odd anyway, because it is the rule that stays
+    // correct if a walk is ever changed and costs nothing when it is not. But
+    // the claim to hold onto is this one: as built, every outline is simple, so
+    // the two fill rules agree on every tile this library draws. Pentagons
+    // included -- they are not walks, but they are outlines.
     for (const [name, pts] of [["quadrille", PENTA_UP], ["real", REAL_PENTA],
                                ["lopsided", LOPSIDED]]) {
         const L = ladderTo(pts, 6);
         for (let g = 1; g <= 5; g++)
             for (let t = 0; t < 10; t++)
-                for (const type of ["St5", "St3", "St1"])
-                    assert.equal(selfCrossings(starPolygon(type, L[g], L[g - 1], t)), 0,
-                        `${name} ${type} generation ${g} tenth ${t} crosses itself`);
+                for (const [kind, poly] of [
+                    ["Pe", pentagon(L[g].d, t)],
+                    ["St5", starPolygon("St5", L[g], L[g - 1], t)],
+                    ["St3", starPolygon("St3", L[g], L[g - 1], t)],
+                    ["St1", starPolygon("St1", L[g], L[g - 1], t)],
+                ])
+                    assert.equal(selfCrossings(poly), 0,
+                        `${name} ${kind} generation ${g} tenth ${t} crosses itself`);
     }
+});
+
+test("collinear vertices are not crossings", () => {
+    // The bug the test above was written around: a square with an extra point
+    // in the middle of one side is simple, not self-intersecting. Math.sign
+    // treated the collinear zero as a sign difference and reported 12 broken
+    // stars that were all fine.
+    assert.equal(selfCrossings([[0, 0], [2, 0], [4, 0], [4, 4], [0, 4]]), 0);
+    // and a genuine crossing is still found
+    assert.ok(selfCrossings([[0, 0], [4, 4], [4, 0], [0, 4]]) > 0);
 });

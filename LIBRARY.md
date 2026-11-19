@@ -370,7 +370,8 @@ external library as if it were in another project.* So `dual.html` and its
 script live in `discrete-directions/`, and the one import that crosses the
 boundary is `lib/pentagrid.js` — the entry `createPentagrid` was given for
 exactly this. Nothing else in that project imports the pentagrid, and
-`src/discrete/` now loads nothing at all.
+`src/discrete/` and `src/bootstrap/` are gone — deleted 2026-11-19, once their
+tests had moved.
 
 That makes discrete directions this repo's first consumer of its own `lib/`,
 which is the best test the facade has: it is written as a sibling would write

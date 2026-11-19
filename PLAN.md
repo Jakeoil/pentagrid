@@ -71,7 +71,7 @@ State of play, 2026-09-17.
 | `sunstar.html` | the uniform family: sun, star, 5-fold, deca; rhomb groups colored | `app/sunstar.ts` |
 | `split.html` | grid on one canvas, dual on the other, one γ, one panel | `app/split.ts` |
 | `wiggle.html` | the acceptance region: drag γ in E⊥ and watch the patch hold or break | `app/wiggle.ts` |
-| `discrete-directions/` | penrose-mosaic's integer substitution, its limiting directions, and what a multigrid on them would be (§6, E2). **Its own project since 2026-11-18** — plain JavaScript under `discrete-directions/{lib,src}`, charter in its own `PLAN.md`; it consumes this repo through `lib/pentagrid.js` and nothing else | `discrete-directions/`, and `src/discrete/` + `tools/discrete.test.mjs` until those retire |
+| `discrete-directions/` | penrose-mosaic's integer substitution, its limiting directions, and what a multigrid on them would be (§6, E2). **Its own project since 2026-11-18** — plain JavaScript under `discrete-directions/{lib,src}`, no build, charter in its own `PLAN.md`; it consumes this repo through `lib/pentagrid.js` and `lib/grow.js` and nothing else | `discrete-directions/` |
 
 Every page carries the top nav and the floating reticulum with its presets
 popup (sun, star, deca; decagon, couple, octagon, 1 thick, 2 thick, 1 thin,

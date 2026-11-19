@@ -2,8 +2,9 @@
 //
 // These are the facts penrose-mosaic's docs/wheels.md states; if `src/math/e2.js`
 // has drifted from the mosaic's arithmetic, one of these fails. Ported from
-// pentagrid's `tools/discrete.test.mjs`, which keeps running against the
-// TypeScript until `src/discrete/` goes.
+// pentagrid's `tools/discrete.test.mjs`, which this replaced: `src/discrete/`
+// and that file are gone, and this is now the only thing holding the E2
+// arithmetic to the mosaic's.
 //
 // Everything here is MATH coordinates, y up, which is the convention the
 // limiting angles were derived in -- see the note at the top of e2.js.

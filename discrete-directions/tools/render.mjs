@@ -1,8 +1,10 @@
 // Draw a bootstrap figure to SVG, so it can be looked at.
 //
-//     node tools/render.mjs St5 2 > /tmp/st5.svg
-//     node tools/render.mjs Sun 2 | magick - /tmp/sun.png
-//     node tools/render.mjs Pe5 3 14 '[[-1,-3],[3,-1],[2,3],[-2,3],[-3,-1]]'
+//     node discrete-directions/tools/render.mjs St5 2 > /tmp/st5.svg
+//     node discrete-directions/tools/render.mjs Sun 2 | magick - /tmp/sun.png
+//     node discrete-directions/tools/render.mjs Pe5 3 14 '[[-1,-3],[3,-1],[2,3],[-2,3],[-3,-1]]'
+//
+// `npm run render` works from either repo root.
 //
 // The fourth argument is five ordered points to use instead of the quadrille
 // ones — the whole point of the module is that they need not be symmetric.
@@ -18,8 +20,8 @@
 // self-intersects, so it changes nothing today; it is the rule that stays right
 // if one ever does.
 
-import { PENTA_UP, ladderTo } from "../dist/bootstrap/wheel.js";
-import { expand, outlineOf } from "../dist/bootstrap/patch.js";
+import { PENTA_UP, ladderTo } from "../lib/wheels.js";
+import { expand, outlineOf } from "../lib/patch.js";
 
 const FILL = {
     Pe5: "#0000ff", Pe3: "#ffff00", Pe1: "#e46c0a",

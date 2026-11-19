@@ -1,10 +1,17 @@
 # Working notes — discrete directions
 
-Running record of what we have argued about in this corner and what is still
-unsettled. Same project as the pentagrid, same build and same tests: the code
-is `src/discrete/`, the test is `tools/discrete.test.mjs`, and this directory
-holds the page and these notes. Fenced off, not split off — Jake: *this is all
-part of the pentagrid project, don't overdo it.*
+Running record of what we have argued about here and what is still unsettled.
+
+**Paths in these notes are historical.** They were written while this was a
+corner of the pentagrid, with the code in `src/discrete/` and `src/bootstrap/`
+and the tests in `tools/`. All of it now lives here, in plain JavaScript with no
+build: the mathematics in `src/math/`, the pages in `src/ui/`, the public
+surface in `lib/`, the tests in `tests/`. `PLAN.md` is the charter and its §5
+records the move; this file is the argument that got here, left as it was
+written. The old names map straight across — `src/bootstrap/wheel.ts` is
+`src/math/wheel.js`, `src/discrete/wheels.ts` is `src/math/e2.js`,
+`tools/bootstrap.test.mjs` and `tools/discrete.test.mjs` are the files in
+`tests/`.
 
 The house style is the parent's: American spellings everywhere, in prose,
 identifiers and comments alike.
@@ -20,9 +27,9 @@ the shape of it: *this is step 0, how we got to quadrille and star, and penta.
 It also will be symmetry agnostic… keep in mind that the list is ordered and you
 will be rotating a lot more than mirroring.*
 
-The program is `src/bootstrap/`, the page is `by-your-bootstraps.html`, and
-`tools/bootstrap.test.mjs` checks every claim below against penrose-mosaic,
-which is the reference and is not imported.
+The program is `src/math/` (then `src/bootstrap/`), the page is
+`by-your-bootstraps.html`, and `tests/` checks every claim below against
+penrose-mosaic, which is the reference and is not imported.
 
 ### The ladder in half steps, and below zero
 

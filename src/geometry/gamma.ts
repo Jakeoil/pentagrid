@@ -40,7 +40,7 @@ export interface GammaSetOptions {
     n?: number;
     /**
      * Directions of your own, in place of the evenly spread ones — the
-     * discrete-directions experiment (see `src/discrete/`). Length sets n, and
+     * discrete-directions experiment (see `discrete-directions/`). Length sets n, and
      * `symmetry` no longer applies: these are used as given. Everything else
      * behaves the same; what breaks off the even spread is stated where it is
      * assumed (the regularity criterion, the index, the registration gain).

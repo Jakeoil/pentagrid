@@ -8,6 +8,7 @@
     "scripts": {
         "check": "tsc -p tsconfig.json",
         "stamp": "node tools/stamp.mjs",
+        "render": "node tools/render.mjs",
         "test": "tsc -p tsconfig.json && node --test tests/*.test.mjs"
     },
     "exports": {

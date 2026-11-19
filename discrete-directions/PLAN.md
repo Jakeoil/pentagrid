@@ -177,10 +177,12 @@ Nothing here is urgent and none of it should be done in one sweep.
 2. **Reconcile the superseded documents** (§6) so nothing says two things.
 3. **Port the math to JavaScript**, module by module, keeping
    `tools/bootstrap.test.mjs` green at each step. It is the safety net and it
-   must not go dark during the move.
-4. **Grow `lib/`** and point the pages at it.
+   must not go dark during the move. *(Done — and it never went dark: a parity
+   test compared every export against the TypeScript until the day both went.)*
+4. **Grow `lib/`** and point the pages at it. *(Done.)*
 5. **Cut `dual.ts` loose** — or rather, leave it where it is and stop treating it
-   as part of this project.
+   as part of this project. *(Done, and better: it stayed here and became a
+   consumer of the pentagrid's `lib/`. See the entries below.)*
 6. **Then** the new work: arbitrary cyclic pentagons, functional wheels,
    deflation inward, the workshop pages.
 
@@ -340,9 +342,51 @@ sibling `penrose-flag` has one. Bare in the pentagrid's own pages too.
 checks it against penrose-mosaic and the parity test compares the JavaScript
 against it, so it retires when they do.
 
-**Next:** delete `src/bootstrap/`, `src/discrete/` and `port-parity.test.mjs`
-together, once their oracles have moved. The Star patch is still broken and
-still has a test asserting so.
+### The TypeScript is gone, 2026-11-19
+
+`src/bootstrap/`, `src/discrete/`, `tools/bootstrap.test.mjs`,
+`tools/discrete.test.mjs` and `port-parity.test.mjs` are deleted. Steps 1–5 of
+the staging above are done; what is left is step 6, the new work.
+
+**The gate was coverage, not compilation.** Diffing the old test names against
+the new ones found five tests with no counterpart and one that had quietly
+narrowed — real coverage that would have vanished silently:
+
+| moved | to |
+| --- | --- |
+| the four *adopting a derived pentagon* tests, and the extrapolate round trip | `tests/rebase.test.mjs` |
+| *collinear vertices are not crossings* | `tests/star.test.mjs` |
+| *no tile outline self-intersects* | same, with the PENTAGONS it had lost |
+| *the discrete dual: six rhomb shapes…* | `tests/dual.test.mjs` |
+
+The rest were renames, checked one by one. `rebase.test.mjs` is where the
+two-ladder gap is now pinned: `halfUp` twice is not `inflate`, except on a
+regular pentagon — §2a.
+
+**`tests/dual.test.mjs` is the one test here that needs the pentagrid built**,
+because it takes `collectRhombs` from `lib/grow.js` and `lib/` re-exports
+`../dist/`. It skips itself and says so rather than failing, which was verified
+by moving `dist/geometry/pentagrid.js` aside and watching it skip.
+
+**`tools/render.mjs` moved here too** and imports `../lib/`. It draws any figure
+to SVG, and it is the tool that caught what no numeric test did — the Sun's
+diamonds and the Star patch's boats. Its output was diffed before and after the
+move across four figures: identical. `npm run render` works from either root,
+since the parent's script now delegates here.
+
+**What the parent keeps:** `tools/surface.test.mjs` (its own `lib/`), and in
+`src/` nothing of this project at all. The count went 878 → 790 tests, which is
+89 deleted against 7 added, and the arithmetic of that was checked rather than
+assumed.
+
+**NOTES.md's paths are now historical** and its header says so, with the map
+from the old names to the new. That file is the argument that got here; it is
+left as it was written.
+
+**Next: step 6.** Arbitrary cyclic pentagons with their own star and penta
+seeds, functional wheels rather than tabular, deflation inward from the end of
+the wheel to the core, and the workshop pages. The Star patch is still broken
+and still has a test asserting so.
 
 ## 6. What this supersedes
 
