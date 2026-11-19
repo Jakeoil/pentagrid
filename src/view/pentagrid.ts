@@ -8,7 +8,7 @@ import {
 import type { GridSegment } from "../geometry/pentagrid.js";
 import { scanRegions } from "../geometry/regularity.js";
 import { resolveConcurrency, describeResolution } from "../geometry/resolve.js";
-import { findClusters, CLUSTER_FILL, p1Pentagons as geoP1, P1_FILL, P1_STAR } from "../geometry/clusters.js";
+import { findClusters, CLUSTER_FILL, p1Pentagons as geoP1, P1_FILL, P1_STAR, P1_PATRIOTIC } from "../geometry/clusters.js";
 import { afterimage } from "./afterimage.js";
 import type { ClusterKind, P1Pentagon } from "../geometry/clusters.js";
 import { vertexIndex } from "../geometry/roof.js";
@@ -313,13 +313,25 @@ export interface TileStyle {
     bigRhombsFace: boolean;
     bigRhombsGrid: boolean;
     /**
-     * The P1 palette as its own AFTERIMAGE: the complement, pale, the way the
-     * colors look when you have stared at the pentagons and the faces go off.
-     * Computed rather than listed — see view/afterimage.ts — so it follows the
-     * palette if the palette ever moves. Jake's idea, and his three readings
-     * are what checked the formula.
+     * Which P1 palette the pentagons are painted in.
+     *
+     * - **classic** — penrose-mosaic's own: blue Pe5 and ground, orange Pe1,
+     *   yellow Pe3.
+     * - **afterimage** — the complement, pale, the way the colors look when
+     *   you have stared at the pentagons and the faces go off. COMPUTED rather
+     *   than listed, see `view/afterimage.ts`, so it follows the palette if
+     *   the palette ever moves. Jake's idea, and his three readings are what
+     *   checked the formula.
+     * - **patriotic** — the flag. Jake, 2026-11-19: *"stars, boats, diamond
+     *   white, pe1 is blue, pe3 is red, pe5 is white. U.S flag colors."* A
+     *   table in `geometry/clusters.ts`, keyed by the classic color, since the
+     *   Pe5 and the ground are the same blue and both go white.
+     *
+     * It was `afterimage: boolean` until the third arrived — the same move
+     * `coloredArrows` made when the edge style became a dropdown, and for the
+     * same reason: a two-way switch that grows a third way is an enum.
      */
-    afterimage: boolean;
+    p1Palette: "classic" | "afterimage" | "patriotic";
     /**
      * Outline each face from the tile layer, so the edges can be seen with the
      * `edges` feature off. The edge layer carries the arrows, the arcs and the
@@ -1033,7 +1045,14 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
      * and P1 itself — since they are one palette and swapping half of it would
      * be two tilings in two schemes. See view/afterimage.ts for the formula.
      */
-    const p1Color = (hex: string) => (tileStyle.afterimage ? afterimage(hex) : hex);
+    const p1Color = (hex: string) => {
+        if (tileStyle.p1Palette === "afterimage") return afterimage(hex);
+        // The flag is a lookup rather than a transform, and anything not in it
+        // — a color some later dressing invents — is left alone rather than
+        // guessed at.
+        if (tileStyle.p1Palette === "patriotic") return P1_PATRIOTIC[hex] ?? hex;
+        return hex;
+    };
     const p1Fill = (kind: keyof typeof P1_FILL) => p1Color(P1_FILL[kind]);
     const p1Ground = () => p1Color(P1_STAR);
 
@@ -1333,7 +1352,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
     // handler is what changed it.
     let nextPentaKey = "";
     function nextPentas(): NextPentaSet {
-        const cacheKey = `${tileStyle.offPenrose}|${tileStyle.afterimage}`;
+        const cacheKey = `${tileStyle.offPenrose}|${tileStyle.p1Palette}`;
         if (nextPentaCache && cacheKey === nextPentaKey) return nextPentaCache;
         nextPentaKey = cacheKey;
         const n = model.n;
@@ -5096,28 +5115,31 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     + "pentagons of the deflated tiling, at 1/φ, clipped to the tile they "
                     + "fall in — an inlay in its own right, and the next generation's own "
                     + "rhomb edges are not drawn.");
-                // standard / afterimage: one palette or its complement. A
-                // two-way dropdown rather than a checkbox, as Jake asked —
-                // the state underneath is still the one boolean.
+                // Three palettes, one dropdown. It was a two-way switch over
+                // one boolean until the flag arrived; see `TileStyle`.
                 const after = document.createElement("select");
                 after.className = "line-pick";
-                after.style.width = "86px";
+                after.style.width = "92px";
                 after.title = "classic: the P1 palette — blue ground, orange Pe1, yellow "
                     + "Pe3, and the default. afterimage: its complement, pale — what the "
                     + "colors look like when you have stared at the pentagons and the faces "
-                    + "go off. Computed from the palette, not listed beside it.";
+                    + "go off. Computed from the palette, not listed beside it. patriotic: "
+                    + "the flag — white Pe5 and white ground (the stars, boats and "
+                    + "diamonds), blue Pe1, red Pe3, in Old Glory's own three.";
                 for (const [value, text] of [["classic", "classic"],
-                                             ["afterimage", "afterimage"]] as const) {
+                                             ["afterimage", "afterimage"],
+                                             ["patriotic", "patriotic"]] as const) {
                     const o = document.createElement("option");
                     o.value = value;
                     o.textContent = text;
                     after.appendChild(o);
                 }
-                after.value = tileStyle.afterimage ? "afterimage" : "classic";
+                after.value = tileStyle.p1Palette;
                 after.addEventListener("change", () => {
-                    tileStyle.afterimage = after.value === "afterimage";
+                    tileStyle.p1Palette = after.value as TileStyle["p1Palette"];
                     draw();
                 });
+                panelSyncs.push(() => { after.value = tileStyle.p1Palette; });
                 pLine2.appendChild(after);
 
                 // And the rest, a fold each. They used to be three groups on

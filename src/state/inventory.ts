@@ -57,6 +57,7 @@ const ENUMS: Record<string, readonly string[]> = {
     "tileStyle.pentaShape": ["penta", "innie", "outie"],
     "tileStyle.pentaBoundary": ["circle", "bisector", "bend18", "bend36"],
     "tileStyle.p1Shape": ["pentaplex", "in18", "out18"],
+    "tileStyle.p1Palette": ["classic", "afterimage", "patriotic"],
     "tileStyle.arrowStyle": ["plain", "colored", "dots"],
     "tileStyle.vertexMark": ["dot", "numbers", "pool", "ve"],
     "growth.edgeStyle": ["none", "normal", "bold"],

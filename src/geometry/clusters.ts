@@ -158,6 +158,38 @@ export const P1_FILL: Record<ClusterKind, string> = {
 };
 export const P1_STAR = "#0000ff";
 
+/**
+ * The flag, as a second palette — Jake, 2026-11-19: *"To classic and
+ * after-image, add patriotic. stars, boats, diamond white, pe1 is blue, pe3 is
+ * red, pe5 is white. U.S flag colors."*
+ *
+ * Keyed by the CLASSIC color rather than by the cluster kind, because the two
+ * things that go white — the Pe5 and the ground the pentagons do not cover —
+ * are the same blue in the classic palette, so one table covers both and the
+ * mapping stays a function of a color the way the afterimage is. Jake's own
+ * check, which this is: *"classic blue->white classic orange->blue
+ * classic->yellow->red."*
+ *
+ * **The three are measured off the flag Jake handed over**, not looked up.
+ * The first draft used the official cloth colors — Old Glory Red #B22234 and
+ * Old Glory Blue #3C3B6E — and he said *"You're a bit off"* with a picture.
+ * He was right: those are dye specifications, and a flag on a screen is
+ * brighter and more saturated than dyed bunting. Sampling his 1588×1588 image
+ * by its commonest colors:
+ *
+ *     #fefefe ×159255   the white
+ *     #eb0100 × 26567   the stripes
+ *     #030267 × 12787   the canton
+ *
+ * with the rest of the tally — #ed0202, #ee0102, #020166 — the antialiasing
+ * around those three. So: red #eb0100, blue #030267, and white taken as pure.
+ */
+export const P1_PATRIOTIC: Record<string, string> = {
+    "#0000ff": "#ffffff",      // Pe5, and the star/boat/diamond ground
+    "#e46c0a": "#030267",      // Pe1
+    "#ffff00": "#eb0100",      // Pe3
+};
+
 export interface P1Pentagon {
     x: number; y: number;
     kind: ClusterKind;

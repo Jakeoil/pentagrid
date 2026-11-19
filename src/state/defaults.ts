@@ -51,7 +51,7 @@ export const TILE_DEFAULTS: TileStyle = {
     kitesFace: false, kitesEdge: false, ammann: false, nextPenta: false,
     p1Shape: "pentaplex", p1Face: false, p1Grid: false,
     bigRhombsFace: false, bigRhombsGrid: false,
-    faceEdges: false, afterimage: false,
+    faceEdges: false, p1Palette: "classic",
     boldEdges: false, arrowStyle: "plain", vertexMark: "dot", offPenrose: false,
     // The outlines, one switch per de Bruijn index AS THE MARKS NUMBER IT:
     // 1 to 4 on a Penrose patch, 1 to 5 off it. All off, so the treatment is

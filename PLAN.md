@@ -6757,6 +6757,60 @@ On a Penrose patch J went from 22.5% to 23.2%, which is φ⁻³ to three figures
 
 ---
 
+### 11.14 The flag, as a third P1 palette (Jake, 2026-11-19)
+
+Jake: *"New color scheme in dropdown for pentaplex. To classic and
+after-image, add patriotic. stars, boats, diamond white, pe1 is blue, pe3 is
+red, pe5 is white. U.S flag colors. To double check classic blue->white
+classic orange->blue classic->yellow->red."*
+
+**Keyed by the classic color, not by the cluster kind**, because his two
+statements are the same statement: the Pe5 and the ground the pentagons do not
+cover are *the same blue* in the classic palette, so one table covers both and
+the palette stays a function of a color the way the afterimage is.
+
+| classic | | patriotic | |
+|---|---|---|---|
+| `#0000ff` | Pe5 **and** the star/boat/diamond ground | `#ffffff` | white |
+| `#e46c0a` | Pe1 | `#030267` | the canton |
+| `#ffff00` | Pe3 | `#eb0100` | the stripes |
+
+**The three are measured, not looked up — corrected 2026-11-19.** The first
+draft used the official cloth colors, Old Glory Red `#B22234` and Old Glory
+Blue `#3C3B6E`, and Jake answered with a picture of a flag: *"You're a bit
+off."* He was. Those are dye specifications, and a flag on a screen is brighter
+and more saturated than dyed bunting. Sampling his 1588×1588 image by its
+commonest colors settles it:
+
+```
+#fefefe ×159255   the white
+#eb0100 × 26567   the stripes
+#030267 × 12787   the canton
+```
+
+— the rest of the tally (`#ed0202`, `#ee0102`, `#020166`) being the
+antialiasing around those three.
+
+Measured on the sun, counting the fills a draw actually makes, the three
+palettes paint the same tiles in the same numbers:
+
+```
+classic     #0000ff×506  #e46c0a×63  #ffff00×38
+afterimage  #f1e07b×506  #b6e6ff×63  #d9dbfe×38
+patriotic   #ffffff×506  #3c3b6e×63  #b22234×38
+```
+
+**`afterimage: boolean` became `p1Palette: "classic" | "afterimage" |
+"patriotic"`** — the same move `coloredArrows` made when the edge style became
+a dropdown, and for the same reason: a two-way switch that grows a third way is
+an enum. So `data-afterimage` is gone and `data-p1-palette` replaces it; the
+field count holds at 78 while the booleans go 56 → 55 and the enums 9 → 10. An
+old link or saved setup carrying `data-afterimage` is ignored rather than
+misread, which is §9.5's rule and why it is safe to retire an attribute.
+
+It is one dropdown in the shared panel, so method, split and both sides of
+moiré have it — verified on the three built pages.
+
 ### 11.12 The panel's backing data, made single-source (Jake, 2026-11-15)
 
 Three nits, and the thread through them is the one Jake named: *"the goal of

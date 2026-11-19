@@ -2737,7 +2737,7 @@ test("method's page is one column: the text above the instrument", () => {
     assert.ok(!src.includes("fitStage"), "the ratio is CSS's now, not the page's");
 });
 
-test("the afterimage switch swaps the whole P1 palette at once", () => {
+test("the palette dropdown swaps the whole P1 scheme at once, all three ways", () => {
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: false },
@@ -2757,23 +2757,38 @@ test("the afterimage switch swaps the whole P1 palette at once", () => {
 
     const BLUE = "#0000ff", ORANGE = "#e46c0a", YELLOW = "#ffff00";
     const PALE_YELLOW = "#f1e07b", PALE_BLUE = "#b6e6ff", PALE_PURPLE = "#d9dbfe";
+    // The flag. Jake: "classic blue->white classic orange->blue
+    // classic->yellow->red", which is Pe5 and the ground white, Pe1 blue,
+    // Pe3 red -- in the three colors MEASURED off the flag he handed over
+    // when the official cloth ones came out too dull: "You're a bit off."
+    const WHITE = "#ffffff", FLAG_BLUE = "#030267", FLAG_RED = "#eb0100";
 
-    const plain = run({ pentaFace: true, afterimage: false });
+    const plain = run({ pentaFace: true, p1Palette: "classic" });
     assert.ok(plain.has(BLUE) && plain.has(ORANGE) && plain.has(YELLOW));
 
-    const after = run({ pentaFace: true, afterimage: true });
+    const after = run({ pentaFace: true, p1Palette: "afterimage" });
     for (const c of [BLUE, ORANGE, YELLOW]) {
         assert.ok(!after.has(c), `${c} should be gone under the afterimage`);
     }
     assert.ok(after.has(PALE_YELLOW) && after.has(PALE_BLUE) && after.has(PALE_PURPLE),
               `got ${[...after].join(" ")}`);
 
+    const flag = run({ pentaFace: true, p1Palette: "patriotic" });
+    for (const c of [BLUE, ORANGE, YELLOW, PALE_YELLOW, PALE_BLUE, PALE_PURPLE]) {
+        assert.ok(!flag.has(c), `${c} should be gone under the flag`);
+    }
+    assert.ok(flag.has(WHITE) && flag.has(FLAG_BLUE) && flag.has(FLAG_RED),
+              `got ${[...flag].join(" ")}`);
+
     // One palette: next-penta takes it too, rather than half the page in each
-    // scheme — and its cache has to be cleared, since the pentagons carry it.
-    const next = run({ pentaFace: false, nextPenta: true, afterimage: true });
+    // scheme -- and its cache has to be cleared, since the pentagons carry it.
+    const next = run({ pentaFace: false, nextPenta: true, p1Palette: "afterimage" });
     assert.ok(next.has(PALE_YELLOW) && next.has(PALE_BLUE) && next.has(PALE_PURPLE),
               `next-penta should follow: ${[...next].join(" ")}`);
-    const nextPlain = run({ pentaFace: false, nextPenta: true, afterimage: false });
+    const nextFlag = run({ pentaFace: false, nextPenta: true, p1Palette: "patriotic" });
+    assert.ok(nextFlag.has(WHITE) && nextFlag.has(FLAG_BLUE) && nextFlag.has(FLAG_RED),
+              `next-penta should follow the flag: ${[...nextFlag].join(" ")}`);
+    const nextPlain = run({ pentaFace: false, nextPenta: true, p1Palette: "classic" });
     assert.ok(nextPlain.has(BLUE) && nextPlain.has(ORANGE) && nextPlain.has(YELLOW),
               "and switch back");
 });
@@ -3381,8 +3396,11 @@ test("the P1 palette dropdown says classic, and classic is the default", () => {
     };
     walk(panel);
     const pair = picks.find((p) => p.includes("afterimage"));
-    assert.equal(pair, "classic/afterimage", `the palette dropdown reads ${pair}`);
-    assert.equal(h.getTileStyle().afterimage, false, "classic is not the default");
+    // Three since 2026-11-19, the flag having joined them. Jake: "To classic
+    // and after-image, add patriotic."
+    assert.equal(pair, "classic/afterimage/patriotic",
+                 `the palette dropdown reads ${pair}`);
+    assert.equal(h.getTileStyle().p1Palette, "classic", "classic is not the default");
 });
 
 const HOVERS = ["hoverRegion", "hoverSegment", "hoverCrossing",
@@ -4426,11 +4444,11 @@ test("the pentaplex is a collapsible section, in Jake's order", () => {
     assert.equal(rows.length, 2, `${rows.length} lines of controls, not two`);
     assert.deepEqual(read(rows[0]), ["edge", "face", "pick3", "pick4", "overlay"],
                      `the first line reads ${read(rows[0]).join(", ")}`);
-    assert.deepEqual(read(rows[1]), ["deflation", "pick2"],
+    assert.deepEqual(read(rows[1]), ["deflation", "pick3"],
                      `the second line reads ${read(rows[1]).join(", ")}`);
     // And in order over the whole fold, which is the spec as Jake wrote it.
     assert.deepEqual(read(lines),
-                     ["edge", "face", "pick3", "pick4", "overlay", "deflation", "pick2"],
+                     ["edge", "face", "pick3", "pick4", "overlay", "deflation", "pick3"],
                      `the pentaplex controls read ${read(lines).join(", ")}`);
 });
 
