@@ -3,12 +3,24 @@
 A project about **wheels**, half-step ladders and Fibonacci sums, heading toward
 orthogonal and arbitrary cyclic pentagons with their own star and penta seeds.
 
+**The generation is pentaplex based.** The figures are Penrose's P1 set from
+*Pentaplexity* — pentagon, pentacle, boat, diamond — and they are substituted
+the way penrose-mosaic's `penta()` and `star()` substitute them, deflating by
+φ². That correspondence is not incidental; it is the thing this project
+generalizes. It is not a rhomb construction and not a multigrid one.
+
 It does not use a pentagrid. It builds by **recursion inward** — deflating from
 the end of the wheel to the core — which is the opposite direction from de
 Bruijn's construction and the reason the two have so little to say to each other.
 
-Settled with Jake 2026-11-18. This supersedes two documents that say otherwise;
-see §6.
+**This is the version 2 library.** Not a version 2 of penrose-mosaic the
+program — see Rule 2 — but the second version of the mathematics that program
+implements, written once, as a library, for anything to consume. The features of
+the mosaic worth having here are listed in `WISHLIST.md`.
+
+Settled with Jake 2026-11-18, corrected 2026-11-19: the version-2 framing, the
+pentaplex basis, and what the oracle is an oracle *for*. This supersedes three
+documents that say otherwise, one of them an earlier draft of this one; see §6.
 
 ---
 
@@ -21,14 +33,30 @@ once "a JavaScript project inside penrose-mosaic", and that is withdrawn — see
 Rule 2. For now it stays here, uncoupled, and can be lifted out whole later
 because nothing will reach into it.
 
-**Rule 2 — penrose-mosaic is the oracle, and is not upgraded.** Its `penta()`
-and `star()` do exactly what this project does, and `deca()` composes the two.
-That is what makes it an oracle worth having. But it answers **only for
-symmetric pentagons**, because its wheels are stored tables found by hand.
+**Rule 2 — penrose-mosaic is the working oracle, and is not upgraded.** Its
+`penta()` and `star()` do exactly what this project does, and `deca()` composes
+the two. That is what makes it an oracle worth having.
+
+**It is an oracle in two senses, and the second is the larger one.**
+
+- **For the numbers**, where it answers **only for symmetric pentagons**,
+  because its wheels are stored tables found by hand. That ceiling is real, and
+  it is why the asymmetric work cannot go there.
+- **For the decisions**, where it has no such ceiling. It is a *working program*
+  that has already settled, visibly and in code, what this library will have to
+  settle again: the six figure colors, the pentas-and-stars / mosaic / tree
+  overlays, the rhomb overlay at two sizes, Ammann bars, the fill and stroke
+  modes including the gradient, the isogloss and the dihedral stroke, and a
+  sidebar's worth of behavior besides. Those are
+  not theorems to be rederived. They are answers to look up, and an answer about
+  color is as good on an asymmetric pentagon as on a symmetric one.
+
+`WISHLIST.md` is where the second sense is being written down.
 
 Jake, 2026-11-18: *"discrete directions does everything penrose mosaic does — and
-more."* So penrose-mosaic is left alone by *this* project. No v2, no half
-generations grafted on, no functional wheels retrofitted.
+more."* So penrose-mosaic is left alone by *this* project. No half generations
+grafted on, no functional wheels retrofitted, no arbitrary pentagons. The
+version 2 is a separate library — this one — and not a rewrite of that program.
 
 **That is not a freeze.** It is self-contained and may still be supported and
 developed on its own terms. It is simply not the place the asymmetric and
@@ -183,14 +211,26 @@ Nothing here is urgent and none of it should be done in one sweep.
 5. **Cut `dual.ts` loose** — or rather, leave it where it is and stop treating it
    as part of this project. *(Done, and better: it stayed here and became a
    consumer of the pentagrid's `lib/`. See the entries below.)*
-6. **Then** the new work: arbitrary cyclic pentagons, functional wheels,
-   deflation inward, the workshop pages.
+6. **Then** the new work, which is where this now is. Two tracks, and they do
+   not depend on each other:
+   - **The mathematics.** Arbitrary cyclic pentagons with their own star and
+     penta seeds, functional wheels rather than tabular, deflation inward from
+     the end of the wheel to the core, the workshop pages.
+   - **The features.** What the mosaic already does and this library does not.
+     Collected in `WISHLIST.md` rather than settled here, because the list is
+     Jake's to set and most entries are a look rather than a proof.
 
-Step 3 is the one with a trap in it. `tools/bootstrap.test.mjs` carries
+Step 3 was the one with a trap in it. `tools/bootstrap.test.mjs` carried
 penrose-mosaic's computed arrays as a fixture, and that fixture is what caught
-the rhomb spelling (0 of 40 against 40 of 40) and the Sun's diamonds. It stays,
-unchanged, as the symmetric-case oracle. It simply cannot follow the project into
-the asymmetric regime, and nothing else can either — which is the point of Rule 2.
+the rhomb spelling (0 of 40 against 40 of 40) and the Sun's diamonds. Those
+arrays live in `tests/` here now, unchanged, and are still the symmetric-case
+oracle. They cannot follow the project into the asymmetric regime, and no stored
+table can — which is the point of Rule 2's **first** sense.
+
+Rule 2's second sense has no such ceiling, and that is worth keeping straight.
+The mosaic stops being able to check the numbers the moment the five points stop
+being symmetric. It does not stop being the place to look up what the overlays
+do, how the tree is drawn, or which of six colors a figure is drawn in.
 
 ---
 
@@ -388,9 +428,30 @@ seeds, functional wheels rather than tabular, deflation inward from the end of
 the wheel to the core, and the workshop pages. The Star patch is still broken
 and still has a test asserting so.
 
+### Step 6 framed, 2026-11-19
+
+The document was corrected rather than extended, on three points Jake set out:
+
+1. **This is the version 2 library** — see the header and Rule 2. The earlier
+   "there is no v2" was penrose-mosaic's answer about itself, read too broadly.
+2. **The generation is pentaplex based**, the P1 figures substituted as
+   `penta()` and `star()` substitute them. Stated in the header, where the
+   document previously said only what the project is *not* (a pentagrid).
+3. **The oracle is an oracle for decisions as much as for numbers** — color,
+   the rhomb overlays, Ammann bars, the tree — and that half of it has no
+   symmetric-pentagon ceiling. Rule 2 now says so in two parts.
+
+And **`WISHLIST.md` is opened** as the place those features get listed: a list,
+explicitly not a plan, with each entry pointing at the file in penrose-mosaic
+that already answers it. Writing it found one thing worth having anyway: the
+mosaic's per-child `color` table is not independent data. It is `twist === 0 ?
+Pe3 : Pe1`, agreeing in all fifteen slots with what `expand()` already computes
+here, so that entry became a wanted test rather than a wanted feature.
+
 ## 6. What this supersedes
 
-Two documents currently say the opposite and need a line each:
+Three documents say the opposite and need a line each. One of them is an
+earlier draft of this file, which is the honest way to record a correction:
 
 - **`pentagrid/LIBRARY.md` §5** — *"every project grows its own `lib/` … Peer
   facades, no center"*, and a `lib/` re-exports only its own repo's code. That
@@ -398,5 +459,14 @@ Two documents currently say the opposite and need a line each:
   discrete directions is counted as a project rather than a corner.
 - **`penrose-mosaic/docs/PLANS.md`**, "The pentagrid has gone further: half
   generations" (2026-11-17) — leaves open *"should this program learn half
-  generations?"* and reasons toward a possible v2. **Answered: no.**
-  penrose-mosaic stays as it is, the oracle for symmetric pentagons.
+  generations?"* and reasons toward a possible v2. **Answered: not there.** That
+  program stays as it is, and its own "Answered 2026-11-18" section says so
+  correctly: *"there is no v2 **here**."*
+- **This file, as first written**, on two counts.
+  1. It read that answer as "there is no v2" flat. There is one: it is this
+     library. What is ruled out is a v2 *of that program*, with half
+     generations grafted on.
+  2. It described penrose-mosaic as "the oracle for symmetric pentagons" and
+     left it there — true of its arithmetic, and it undersold everything else.
+     Color, the overlays, Ammann bars and the tree are settled there and
+     unsettled here. Corrected in Rule 2, and listed in `WISHLIST.md`.
