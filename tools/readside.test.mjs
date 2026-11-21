@@ -32,7 +32,7 @@ test("set then get returns what was set, for the tile style", () => {
     assert.equal(got.pentaShape, "innie");
     assert.equal(got.opacity, 0.4);
     // And it MERGES, as its doc says: the fields not named are untouched.
-    assert.equal(got.color, "type", "setTileStyle replaced instead of merging");
+    assert.equal(got.typeFace, true, "setTileStyle replaced instead of merging");
     assert.equal(got.pentaOverlay, true, "the overlay default was lost");
 });
 

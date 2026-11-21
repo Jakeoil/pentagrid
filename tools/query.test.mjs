@@ -28,10 +28,10 @@ const build = (query, extra = {}) => createPentagrid({
 });
 
 test("both spellings work, so a URL can be readable", () => {
-    // ?data-color=bands is the canonical name; ?color=bands is what anyone
+    // ?data-p1-palette=... is the canonical name; ?p1-palette=... is what anyone
     // would actually type.
-    assert.deepEqual(readQuery("?color=bands").tileStyle, { color: "bands" });
-    assert.deepEqual(readQuery("?data-color=bands").tileStyle, { color: "bands" });
+    assert.deepEqual(readQuery("?p1-palette=patriotic").tileStyle, { p1Palette: "patriotic" });
+    assert.deepEqual(readQuery("?data-p1-palette=patriotic").tileStyle, { p1Palette: "patriotic" });
     // A bare parameter is HTML's kind of boolean.
     assert.deepEqual(readQuery("?penta-face").tileStyle, { pentaFace: true });
     assert.deepEqual(readQuery("?penta-face=false").tileStyle, { pentaFace: false });
@@ -43,25 +43,25 @@ test("both spellings work, so a URL can be readable", () => {
 });
 
 test("a value that does not parse is ignored, as everywhere else", () => {
-    const got = readQuery("?color=chartreuse&band=wide&penta-face");
+    const got = readQuery("?p1-palette=chartreuse&band=wide&penta-face");
     assert.deepEqual(got.tileStyle, { pentaFace: true });
-    assert.deepEqual(got.ignored.sort(), ["data-band", "data-color"]);
+    assert.deepEqual(got.ignored.sort(), ["data-band", "data-p1-palette"]);
 });
 
 test("hasQuerySetup sees ours and ignores everyone else's", () => {
     assert.equal(hasQuerySetup(""), false);
     assert.equal(hasQuerySetup("?utm_source=x&fbclid=y"), false);
-    assert.equal(hasQuerySetup("?color=bands"), true);
+    assert.equal(hasQuerySetup("?p1-palette=patriotic"), true);
     assert.equal(hasQuerySetup("?data-penta-face"), true);
 });
 
 test("a query reaches the view, flat fields and slices alike", () => {
-    const h = build("?penrose-tiles&color=bands&band=0.3&penta-face"
+    const h = build("?penrose-tiles&p1-palette=patriotic&band=0.3&penta-face"
                     + "&gamma=2000,2000,2000,2000,2000&gamma-den=10000"
                     + "&gamma-locked=0&scale=72&view-x=1.5&hide=klabels");
     assert.equal(h.getFeatures().penroseTiles, true);
     const t = h.getTileStyle();
-    assert.equal(t.color, "bands");
+    assert.equal(t.p1Palette, "patriotic");
     assert.equal(t.band, 0.3);
     assert.equal(t.pentaFace, true);
     // Over the query's own denominator, 2000/10000 -- which is 6000/30000 over
@@ -79,15 +79,15 @@ test("a link outranks the session, so a shared link is not the recipient's last 
     // The one thing a link must not do.
     const id = "test.query.session";
     forgetSession(id);
-    saveSession(id, { v: 1, tileStyle: { color: "kowalewski", boldEdges: true } });
+    saveSession(id, { v: 1, tileStyle: { p1Palette: "afterimage", boldEdges: true } });
 
     // No query: the session applies.
     const plain = build("", { session: id });
-    assert.equal(plain.getTileStyle().color, "kowalewski", "the session did not apply");
+    assert.equal(plain.getTileStyle().p1Palette, "afterimage", "the session did not apply");
 
     // A query: the session is suppressed for this load, entirely -- not merged.
-    const linked = build("?color=bands", { session: id });
-    assert.equal(linked.getTileStyle().color, "bands", "the link lost to the session");
+    const linked = build("?p1-palette=patriotic", { session: id });
+    assert.equal(linked.getTileStyle().p1Palette, "patriotic", "the link lost to the session");
     assert.equal(linked.getTileStyle().boldEdges, false,
                  "the session leaked in beside the link");
     forgetSession(id);
@@ -95,10 +95,10 @@ test("a link outranks the session, so a shared link is not the recipient's last 
 
 test("a query outranks the container's attributes too", () => {
     const h = createPentagrid({
-        container: host({ "data-color": "groups", "data-bold-edges": "" }),
-        panel: host({}, "p"), query: "?color=bands",
+        container: host({ "data-p1-palette": "afterimage", "data-bold-edges": "" }),
+        panel: host({}, "p"), query: "?p1-palette=patriotic",
     });
-    assert.equal(h.getTileStyle().color, "bands", "the markup beat the link");
+    assert.equal(h.getTileStyle().p1Palette, "patriotic", "the markup beat the link");
     // And what the link is silent about still comes from the markup.
     assert.equal(h.getTileStyle().boldEdges, true,
                  "the link cleared an attribute it never mentioned");
@@ -106,30 +106,30 @@ test("a query outranks the container's attributes too", () => {
 
 test("reset returns to the markup, discarding the link as it does the session", () => {
     const h = createPentagrid({
-        container: host({ "data-color": "groups" }),
-        panel: host({}, "p"), query: "?color=bands&penta-face",
+        container: host({ "data-p1-palette": "afterimage" }),
+        panel: host({}, "p"), query: "?p1-palette=patriotic&penta-face",
     });
-    assert.equal(h.getTileStyle().color, "bands");
+    assert.equal(h.getTileStyle().p1Palette, "patriotic");
     h.reset();
-    assert.equal(h.getTileStyle().color, "groups", "reset kept the link's state");
+    assert.equal(h.getTileStyle().p1Palette, "afterimage", "reset kept the link's state");
     assert.equal(h.getTileStyle().pentaFace, false);
 });
 
 test("link() round-trips: the URL it writes is the URL it reads", () => {
     const h = build("");
     h.markBaseline();
-    h.setTileStyle({ color: "bands", band: 0.35, pentaFace: true,
+    h.setTileStyle({ p1Palette: "patriotic", band: 0.35, pentaFace: true,
                      pentaShape: "innie" });
     h.setFeatures({ penroseTiles: true, penroseEdges: true }, { merge: true });
     h.setView({ scale: 68, x: 0.75, y: -0.25 });
     const url = h.link();
     assert.ok(url.includes("?"), `no query in ${url}`);
-    assert.ok(url.includes("color=bands"), `the link lacks the color: ${url}`);
+    assert.ok(url.includes("p1-palette=patriotic"), `the link lacks the palette: ${url}`);
     assert.ok(url.includes("penta-face"), "the link lacks a boolean");
     assert.ok(!url.includes("data-"), `the link uses the long spelling: ${url}`);
 
     const back = build(url.slice(url.indexOf("?")));
-    assert.equal(back.getTileStyle().color, "bands");
+    assert.equal(back.getTileStyle().p1Palette, "patriotic");
     assert.equal(back.getTileStyle().band, 0.35);
     assert.equal(back.getTileStyle().pentaShape, "innie");
     assert.equal(back.getFeatures().penroseEdges, true);

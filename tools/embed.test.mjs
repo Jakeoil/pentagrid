@@ -56,10 +56,10 @@ test("an untouched page embeds as nothing at all", () => {
 test("the embed carries what changed, and names it readably", () => {
     const h = createPentagrid({ container: host(), panel: host(),
                                 features: { penroseTiles: true } });
-    h.setTileStyle({ color: "bands", band: 0.25, pentaFace: true });
+    h.setTileStyle({ p1Palette: "patriotic", band: 0.25, pentaFace: true });
     h.setFeatures({ penroseTiles: true, penroseEdges: true }, { merge: true });
     const out = h.embed();
-    for (const want of ['data-color="bands"', 'data-band="0.25"',
+    for (const want of ['data-p1-palette="patriotic"', 'data-band="0.25"',
                          "data-penta-face", "data-penrose-edges"]) {
         assert.ok(out.includes(want), `the embed does not carry ${want}:\n${out}`);
     }
@@ -78,7 +78,7 @@ test("the round trip: a fresh instance from the embed draws the same picture", (
     h.markBaseline();
 
     // Move a great deal: both objects, gamma, the view, a hidden layer.
-    h.setTileStyle({ color: "groups", pentaFace: true, pentaShape: "outie",
+    h.setTileStyle({ groupsFace: true, pentaFace: true, pentaShape: "outie",
                      pentaBoundary: "bend36", shading: true, ramp: 0.6,
                      band: 0.3, boldEdges: true });
     h.setFeatures({ penroseTiles: true, penroseEdges: true,

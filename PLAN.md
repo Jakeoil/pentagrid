@@ -6811,6 +6811,90 @@ misread, which is §9.5's rule and why it is safe to retire an attribute.
 It is one dropdown in the shared panel, so method, split and both sides of
 moiré have it — verified on the three built pages.
 
+### 11.15 The systems stack: a fold of faces, not a dropdown (Jake, 2026-11-21)
+
+Jake: *"make dropdown system/kowalewski a fold. give it a face checkmark, and
+a separate opacity box, 0 to 100. remove from dropdown and put in next line
+under system. Do similar with rhomb groups. a face checkmark and a opacity
+box. That leaves thin and thick. do the same with that. checkmark and opacity
+text box, the opacity boxes are scrollable."*
+
+The dropdown is gone and the systems have stopped being alternatives. Each has
+a **face switch and an opacity of its own**, and they paint in order, each over
+the last. Three at a third each is a question the dropdown could not ask:
+**which classifications agree where**.
+
+| | | |
+|---|---|---|
+| `thick/thin` | 2 types, the shapes | every n |
+| `rhomb groups` | 3, Pe5/Pe3/Pe1 | n = 5 |
+| `Kowalewski` | 5, by the rhomb's own axis | n = 5 |
+| `families` | the two ribbons blended | **retired the next day — see below** |
+
+One list, `SYSTEMS`, with an `at` on each, read by both the face pass and the
+fold, so the panel cannot offer a system the drawing does not have.
+
+**`families` lasted a day — RETIRED 2026-11-21.** Jake, seeing it in the fold:
+*"It was called bands... when it was at 100% it looked exactly like the
+families colors."* He was right, and the code says so outright — the band
+pass's composite square is `pairColors` with its alpha swapped to 1:
+
+```js
+pairColors.get(`${r.j},${r.k}`)?.replace(/,0\.55\)$/, ",1)")
+```
+
+At 100% width that square covers the tile, drawn last, so the tile reads as
+the two gridline colors blended: the families coloring exactly. And the band
+row says more besides — at any width below 100 you see the two ribbons
+crossing, which a flat face cannot show at all.
+
+So: *"we don't really need families, just an opacity box for bands."* Done,
+with the two things that had to come with it.
+
+**The band row now exists at every n.** It was built inside the `n === 5`
+block with the Penrose dressings, while the drawing always worked off the
+pentagrid — `pairColors` is built for every n. Measured before the change:
+`n=7: band row MISSING | band=100% paints 1467 fills`. That gap is *why*
+`families` was needed as a face system: it was the only way to the family
+coloring on a heptagrid. With the row where it belongs it is not.
+
+**`bandOpacity` is its own field.** The width says how much of the tile the
+ribbons cover and the opacity how much of the face shows through — two
+questions the one number could not ask apart:
+
+```
+band 100%          15 colors, 1452 fills, alpha 1.00
+band 100% at 50%   15 colors, 1452 fills, alpha 0.50
+band 40%           15 colors, 1452 fills, alpha 1.00
+```
+
+The one thing the face system could do that the bands cannot is sit UNDER a
+dressing — the band pass runs after the faces and before the edges, by Jake's
+own rule about ribbons — and nobody wanted that. Net: 85 fields became 84.
+
+**All four off is a bare tile** — no face at all, the dressings straight onto
+the page — which the dropdown could not say either. Measured:
+
+```
+type only           #e8c170@1.00×297  #7eb8da@1.00×187
+groups only         #eec09b@1.00×192  #e6e68e@1.00×148  #ececec@1.00×74 …
+type + groups 40%   #e8c170@1.00×297  #eec09b@0.40×192  #7eb8da@1.00×187 …
+all four off        (nothing painted)
+```
+
+**`color` the enum became six fields** — `typeFace`/`typeOpacity` and the two
+others — so the inventory derives them and they round-trip as
+`data-type-face`, `data-type-opacity` and the rest. With `bandOpacity`, 78
+fields became 84, the booleans 55 → 58, the enums 10 → 9, the numbers 13 → 17. The enum's fifth
+value, `bands`, went with it: nothing had read it since the bands became the
+band bar's own business, which is one more list that had stopped matching the
+code.
+
+The opacity boxes are `0..100` in the markup and `0..1` underneath, like
+`band` and the ramp, with a wheel handler of their own — *"the opacity boxes
+are scrollable"* — and tabular digits in a fixed width, so 5 becoming 100
+cannot reflow the line and move the box out from under the pointer.
+
 ### 11.12 The panel's backing data, made single-source (Jake, 2026-11-15)
 
 Three nits, and the thread through them is the one Jake named: *"the goal of

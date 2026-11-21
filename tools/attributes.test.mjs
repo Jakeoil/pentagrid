@@ -28,7 +28,7 @@ function host(attrs = {}, w = 800, h = 800) {
 test("the three owners are sorted out, and nothing else is touched", () => {
     const got = readAttributes(host({
         "data-penrose-tiles": "",            // a feature, boolean
-        "data-color": "bands",               // tileStyle, enum
+        "data-p1-palette": "patriotic",      // tileStyle, enum
         "data-band": "0.25",                 // tileStyle, number
         "data-growth-band": "0.75",          // growth, the prefixed collision
         "data-paths": "high",                // growth, enum
@@ -37,7 +37,7 @@ test("the three owners are sorted out, and nothing else is touched", () => {
         "id": "stage",
     }));
     assert.deepEqual(got.features, { penroseTiles: true });
-    assert.deepEqual(got.tileStyle, { color: "bands", band: 0.25 });
+    assert.deepEqual(got.tileStyle, { p1Palette: "patriotic", band: 0.25 });
     assert.deepEqual(got.growth, { band: 0.75, paths: "high" });
     assert.deepEqual(got.ignored, [], "something usable was ignored");
 });
@@ -45,12 +45,12 @@ test("the three owners are sorted out, and nothing else is touched", () => {
 test("an attribute that does not parse is ignored, not guessed", () => {
     // Section 9.5: absent or unusable means the default. Never a guess.
     const got = readAttributes(host({
-        "data-color": "chartreuse",          // not one of its five values
+        "data-p1-palette": "chartreuse",     // not one of its three values
         "data-band": "wide",                 // not a number
         "data-penta-face": "",               // fine
     }));
     assert.deepEqual(got.tileStyle, { pentaFace: true });
-    assert.deepEqual(got.ignored.sort(), ["data-band", "data-color"]);
+    assert.deepEqual(got.ignored.sort(), ["data-band", "data-p1-palette"]);
 });
 
 test("every field in the inventory can be set by its attribute", () => {
@@ -69,16 +69,16 @@ test("every field in the inventory can be set by its attribute", () => {
 
 test("the markup is the last word, over the page's config", () => {
     // Order: the view's defaults, then what the page asked for in code, then
-    // the markup -- because a host writing data-color on the div means it.
+    // the markup -- because a host writing data-p1-palette on the div means it.
     const h = createPentagrid({
-        container: host({ "data-color": "groups", "data-penta-face": "",
+        container: host({ "data-p1-palette": "afterimage", "data-penta-face": "",
                           "data-penrose-edges": "" }),
         panel: host(),
         features: { penroseTiles: true },
-        tileStyle: { color: "bands", band: 0.25 },
+        tileStyle: { p1Palette: "patriotic", band: 0.25 },
     });
     const t = h.getTileStyle(), f = h.getFeatures();
-    assert.equal(t.color, "groups", "the markup lost to the page's config");
+    assert.equal(t.p1Palette, "afterimage", "the markup lost to the page's config");
     assert.equal(t.pentaFace, true);
     assert.equal(t.band, 0.25, "the config was dropped where the markup was silent");
     assert.equal(f.penroseEdges, true, "a feature in the markup was dropped");
@@ -89,13 +89,13 @@ test("the attributes are part of the page's home, so reset returns to them", () 
     // For a widget the markup IS the page's setup, so the baseline is taken
     // after the attributes are read -- section 9.6 with section 9.8.
     const h = createPentagrid({
-        container: host({ "data-color": "kowalewski", "data-bold-edges": "" }),
+        container: host({ "data-p1-palette": "patriotic", "data-bold-edges": "" }),
         panel: host(),
     });
-    assert.equal(h.getTileStyle().color, "kowalewski");
-    h.setTileStyle({ color: "type", boldEdges: false });
+    assert.equal(h.getTileStyle().p1Palette, "patriotic");
+    h.setTileStyle({ p1Palette: "classic", boldEdges: false });
     h.reset();
-    assert.equal(h.getTileStyle().color, "kowalewski",
+    assert.equal(h.getTileStyle().p1Palette, "patriotic",
                  "reset went past the markup to the view's default");
     assert.equal(h.getTileStyle().boldEdges, true);
 });
@@ -121,7 +121,7 @@ test("the growth view takes its own slice, prefix and all", () => {
 test("a container with no attributes behaves exactly as before", () => {
     // The widget must cost the existing pages nothing.
     const bare = createPentagrid({ container: host(), panel: host() });
-    assert.equal(bare.getTileStyle().color, TILE_DEFAULTS.color);
+    assert.equal(bare.getTileStyle().p1Palette, TILE_DEFAULTS.p1Palette);
     assert.deepEqual(bare.getFeatures(), { ...NO_FEATURES });
     const g = createGrowthView({ container: host() });
     assert.deepEqual(g.get(), { ...DEFAULTS });

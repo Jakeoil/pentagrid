@@ -43,7 +43,12 @@ export const NO_FEATURES: Features = {
  * inventory derives from it.
  */
 export const TILE_DEFAULTS: TileStyle = {
-    color: "type", isogloss: false, ramp: 0, opacity: 1, band: 0,
+    // The color SYSTEMS, each its own face with its own opacity — see
+    // `TileStyle`. `type` is on, which is what `color: "type"` used to mean.
+    typeFace: true, typeOpacity: 1,
+    groupsFace: false, groupsOpacity: 1,
+    kowalewskiFace: false, kowalewskiOpacity: 1,
+    isogloss: false, ramp: 0, opacity: 1, band: 0, bandOpacity: 1,
     curves: false, pentaFace: false, pentaEdge: false, pentaShape: "penta",
     pentaOverlay: true,
     pentaBoundary: "circle",

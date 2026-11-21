@@ -137,29 +137,56 @@ function shade(hex: string, t: number): string {
  */
 export interface TileStyle {
     /**
-     * The color SYSTEM: what a bare tile is painted by.
+     * The color SYSTEMS: what a bare tile is painted by, each its own face.
      *
-     * Four classifications, not four palettes: what is being distinguished is
-     * the point, and every palette is assignable.
+     * Classifications, not palettes: what is being distinguished is the point,
+     * and every palette is assignable.
      *
-     * `type` — **2 types**, thick and thin, which are shapes rather than
-     * colors and Penrose-agnostic (off n = 5 they are the shape classes, as
-     * many as there are) · `groups` — **3**, Pe5/Pe3/Pe1 · `kowalewski` —
-     * **5**, by the rhomb's own axis, each color on one thin orientation and
-     * the thick one opposite it (see `kowalewski`) · `bands` — **10**, the
-     * composite of the two PARALLEL colors, drawn as the crossed bands
-     * themselves · `pair`, the same ten as a flat blend ·
-     * `bands` the same two as CROSSED BANDS, exactly as grow.html draws them,
-     * each `band` wide as a fraction of the edge with the composite square
-     * where they cross (at 100% it reads as `pair`, below that as two gridlines
-     * passing through) · `groups` its rhomb group, Pe5/Pe3/Pe1 in sun-star's
-     * palette, bare when it belongs to none or the patch is not Penrose.
+     * - **`type`** — 2 types, thick and thin, which are shapes rather than
+     *   colors and Penrose-agnostic: off n = 5 they are the shape classes, as
+     *   many as there are.
+     * - **`groups`** — 3, Pe5/Pe3/Pe1, each rhomb taking the color of the
+     *   group it belongs to, bare where it belongs to none.
+     * - **`kowalewski`** — 5, by the rhomb's own axis, each color on one thin
+     *   orientation and the thick one opposite it (see `kowalewski`).
+     * - **`pair`** — the two ribbons it belongs to, blended, so at full
+     *   coverage the tiling wears all n family colors at once. The n ≠ 5
+     *   alternative to `groups` and `kowalewski`, neither of which means
+     *   anything off the pentagrid.
      *
-     * The DRESSINGS are separate switches below, so a system and a dressing are
-     * no longer alternatives: they were one dropdown until Jake split them,
-     * which is also how roof.html and grow.html have always had it.
+     * **They STACK.** Jake, 2026-11-21: *"make dropdown system/kowalewski a
+     * fold. give it a face checkmark, and a separate opacity box, 0 to 100...
+     * Do similar with rhomb groups... That leaves thin and thick. do the same
+     * with that."* So each has a face switch and an opacity of its own, and
+     * they are painted in the order above, each over the last — rather than
+     * being alternatives in a dropdown, which is what they were until now.
+     * Three of them at a third each is a question the dropdown could not ask:
+     * which classifications agree where.
+     *
+     * All four off is a bare tile, and the dressings go straight onto the
+     * page. `type` is the one that starts on, which is what the dropdown's
+     * default `type` used to mean.
+     *
+     * (The dropdown had a fifth value, `bands`. Nothing had read it since the
+     * bands became the band bar's own business, so it went with the dropdown.)
      */
-    color: "type" | "pair" | "bands" | "groups" | "kowalewski";
+    typeFace: boolean;
+    typeOpacity: number;
+    groupsFace: boolean;
+    groupsOpacity: number;
+    kowalewskiFace: boolean;
+    kowalewskiOpacity: number;
+    /**
+     * The bands' own opacity, over whatever face is under them.
+     *
+     * `band` says how much of the tile they cover and this how much of it
+     * shows through — two questions the one number could not ask apart. Jake,
+     * 2026-11-21: *"we don't really need families, just an opacity box for
+     * bands."* Which is right: a band at 100% width IS the families coloring,
+     * the composite square being `pairColors` with its alpha swapped to 1, so
+     * the face system went and the box arrived.
+     */
+    bandOpacity: number;
     /**
      * The index-placed dressings, each over whatever system is chosen.
      *
@@ -2733,7 +2760,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return rampColor(base, rampT(sum / r.outlineK.length));
     }
     function resolutionBase(r: Resolution): string | null {
-        if (tileStyle.color === "groups") return NO_GROUP;  // a stack is in no group
+        if (faceOn("groups")) return NO_GROUP;              // a stack is in no group
         // A dressing is placed by the index and a stack has no one index, so a
         // 2k-gon takes the bare face under whichever dressing is on.
         if (tileStyle.curves) return CURVE_FACE;
@@ -2742,15 +2769,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             || tileStyle.kitesFace || tileStyle.kitesEdge
             || tileStyle.p1Face || tileStyle.p1Grid || tileStyle.nextPenta) {
             return NO_GROUP;
-        }
-        if (tileStyle.color === "pair") {
-            let rr = 0, gg = 0, bb = 0;
-            for (const j of r.families) {
-                const [x, y, z] = hexToRgb(COLORS[j % COLORS.length]);
-                rr += x; gg += y; bb += z;
-            }
-            const k = r.families.length;
-            return `rgb(${Math.round(rr / k)},${Math.round(gg / k)},${Math.round(bb / k)})`;
         }
         return r.families.length === 3 ? SINGULAR_HEX : SINGULAR_BIG;
     }
@@ -2860,21 +2878,49 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         return (3 * (a + b)) % 5;
     }
 
-    function tileFill(rhomb: Rhomb): string {
-        if (tileStyle.color === "groups") {
-            const kind = groupOf(rhomb);
-            return kind ? CLUSTER_FILL[kind] : NO_GROUP;
-        }
-        if (tileStyle.color === "pair") {
-            // The two ribbons it belongs to, blended — so at full coverage the
-            // tiling wears all n family colors at once.
-            return pairColors.get(`${rhomb.j},${rhomb.k}`) ?? THICK_FILL;
-        }
-        if (tileStyle.color === "kowalewski" && model.n === 5) {
-            return KOWALEWSKI_FILLS[kowalewski(rhomb.j, rhomb.k)];
-        }
-        return classFill(rhomb.cls);
-    }
+    /**
+     * The color systems, in the order they paint: each over the last.
+     *
+     * One list, read by the face pass and by the panel, so the fold cannot
+     * offer a system the drawing does not have or miss one it does. `at` is
+     * where it applies — `kowalewski` is a pentagrid fact and `pair` is for
+     * the other n, which is what the dropdown used to say by offering
+     * different options at different n.
+     */
+    const SYSTEMS = [
+        {
+            key: "type" as const, label: "thick/thin", at: "any" as const,
+            fill: (r: Rhomb) => classFill(r.cls),
+        },
+        {
+            key: "groups" as const, label: "rhomb groups", at: "five" as const,
+            fill: (r: Rhomb) => {
+                const kind = groupOf(r);
+                return kind ? CLUSTER_FILL[kind] : NO_GROUP;
+            },
+        },
+        {
+            key: "kowalewski" as const, label: "Kowalewski", at: "five" as const,
+            fill: (r: Rhomb) => KOWALEWSKI_FILLS[kowalewski(r.j, r.k)],
+        },
+        // `families` was here, the two ribbons blended — retired 2026-11-21.
+        // Jake: "So we don't really need families, just an opacity box for
+        // bands." Measured: the band composite is `pairColors` with its alpha
+        // swapped to 1, so a band at 100% width IS the families coloring, and
+        // the band row says more besides — at any width below 100 you see the
+        // two ribbons crossing, which a flat face cannot show. The one thing
+        // it could do that bands cannot is sit UNDER a dressing, the band pass
+        // being after the faces and before the edges; nobody wanted that.
+    ];
+    /** Whether a system applies at this n. */
+    const systemHere = (at: "any" | "five" | "other") =>
+        at === "any" || (at === "five" ? model.n === 5 : model.n !== 5);
+    const faceOn = (key: typeof SYSTEMS[number]["key"]) =>
+        tileStyle[`${key}Face` as const] && systemHere(
+            SYSTEMS.find((x) => x.key === key)!.at);
+    /** The systems to paint, in order, with the alpha each wants. */
+    const activeSystems = () => SYSTEMS.filter((sys) => faceOn(sys.key))
+        .map((sys) => ({ ...sys, alpha: tileStyle[`${sys.key}Opacity` as const] }));
 
     /**
      * The P1 tiling on one rhomb: blue, then every pentagon that reaches it
@@ -3900,8 +3946,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                 // The system is the FACE: no faces, no thick/thin ground, and
                 // the dressings go straight onto the page.
                 if (features.penroseTiles) {
-                    tc.fillStyle = ramped(tc, rhomb, sv, tileFill(rhomb));
-                    tc.fill();
+                    // Every system that is on, in order, each at its own
+                    // opacity over the last — so three at a third each is a
+                    // legible question about where they agree, which is the
+                    // thing the dropdown could not ask.
+                    for (const sys of activeSystems()) {
+                        tc.globalAlpha = tileStyle.opacity * sys.alpha;
+                        tc.fillStyle = ramped(tc, rhomb, sv, sys.fill(rhomb));
+                        tc.fill();
+                    }
+                    tc.globalAlpha = tileStyle.opacity;   // back, for the dressings
                 }
                 // Clip to the tile ONCE, here, while the current path is still
                 // the tile. Each dressing used to do its own, which worked for
@@ -4005,7 +4059,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     const sv = rhomb.vertices.map(([vx, vy]) =>
                         mathToScreen(vx, vy, cx, cy)) as [number, number][];
                     tc.save();
-                    tc.globalAlpha = tileStyle.opacity;
+                    tc.globalAlpha = tileStyle.opacity * tileStyle.bandOpacity;
                     drawBands(tc, rhomb, sv, cx, cy);
                     tc.restore();
                 }
@@ -4824,39 +4878,103 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
 
         // ── Penrose: the system, then the dressings over it ───────────
         {
-            const sRow = row(panelFor("system"), "system");
-            const sel = document.createElement("select");
-            sel.className = "line-pick";
-            sel.style.width = "96px";
-            sel.title = "How a bare tile is classified — the palettes are assignable, "
-                + "the distinction is the point. thick/thin: 2 TYPES, shapes rather "
-                + "than colors · rhomb groups: 3, Pe5/Pe3/Pe1 · Kowalewski: 5, by the "
-                + "rhomb's own axis (its diagonal direction), each color on one thin "
-                + "orientation and the thick one opposite it · bands: 10, the composite "
-                + "of the two parallel colors, drawn as the bands themselves, `band` "
-                + "wide. A 2k-gon follows the same choice. The dressings are separate "
-                + "switches, not alternatives.";
-            // No `bands` in the dropdown at any n: it is the band bar's own
-            // business now, and the dropdown is left saying what a BARE tile
-            // is.
-            const systems = model.n === 5
-                ? [["type", "thick/thin"], ["groups", "rhomb groups"],
-                   ["kowalewski", "Kowalewski"]] as const
-                : [["type", "by shape"], ["pair", "families"]] as const;
-            for (const [value, text] of systems) {
-                const opt = document.createElement("option");
-                opt.value = value;
-                opt.textContent = text;
-                sel.appendChild(opt);
+            // The systems, a fold with a line each. Jake, 2026-11-21: "make
+            // dropdown system/kowalewski a fold. give it a face checkmark, and
+            // a separate opacity box, 0 to 100. remove from dropdown and put
+            // in next line under system. Do similar with rhomb groups... That
+            // leaves thin and thick. do the same with that."
+            //
+            // So the dropdown is gone and nothing is exclusive any more: each
+            // system has a face of its own and an opacity of its own, and they
+            // stack in SYSTEMS order. The summary names what is on and at what
+            // strength, the way the dressing folds name their switches.
+            const sRow = row(panelFor("system"), "system", "");
+            for (const kid of Array.from(sRow.children)) {
+                if ((kid as HTMLElement).className === "panel-label") {
+                    sRow.removeChild(kid);
+                }
             }
-            sel.value = tileStyle.color;
-            sel.addEventListener("change", () => {
-                tileStyle.color = sel.value as TileStyle["color"];
-                syncPanel();          // `for groups` applies only to groups
-                draw();
-            });
+            const sFold = document.createElement("details");
+            sFold.className = "row-fold system-fold";
+            const sHead = document.createElement("summary");
+            sFold.appendChild(sHead);
+            const sBody = document.createElement("div");
+            sBody.className = "system-lines";
+            sFold.appendChild(sBody);
+            sRow.appendChild(sFold);
+            sRow.title = "How a bare tile is classified — the palettes are assignable, "
+                + "the distinction is the point. They are not alternatives: each has "
+                + "its own face and its own opacity, and they paint in the order "
+                + "listed, so two at half strength show where the two classifications "
+                + "agree. A 2k-gon follows rhomb groups and families the same way. "
+                + "The dressings are separate switches below.";
 
-            sRow.appendChild(sel);
+            /** 0 to 100 in the box, 0 to 1 underneath. Scrollable. */
+            const percentBox = (
+                parent: HTMLElement, value: number, title: string,
+                onInput: (v: number) => void,
+            ) => {
+                const box = document.createElement("input");
+                box.type = "number";
+                box.className = "pct-box";
+                box.min = "0"; box.max = "100"; box.step = "5";
+                box.value = String(Math.round(value * 100));
+                box.title = title;
+                const set = (pct: number) => {
+                    const c = Math.min(100, Math.max(0, Math.round(pct)));
+                    box.value = String(c);
+                    onInput(c / 100);
+                };
+                box.addEventListener("input", () => set(Number(box.value) || 0));
+                // Jake: "the opacity boxes are scrollable." Not passive, since
+                // the panel must not scroll under the pointer while the box is
+                // taking the gesture.
+                box.addEventListener("wheel", (e) => {
+                    const ev = e as WheelEvent;
+                    ev.preventDefault();
+                    set((Number(box.value) || 0) + (ev.deltaY < 0 ? 5 : -5));
+                }, { passive: false });
+                parent.appendChild(box);
+                return box;
+            };
+
+            for (const sys of SYSTEMS) {
+                if (!systemHere(sys.at)) continue;       // `at`, not a second list
+                const line = document.createElement("div");
+                line.className = "system-line";
+                const nm = document.createElement("span");
+                nm.className = "system-name";
+                nm.textContent = sys.label;
+                line.appendChild(nm);
+                const faceKey = `${sys.key}Face` as const;
+                const opKey = `${sys.key}Opacity` as const;
+                const box = checkbox(line, "face", tileStyle[faceKey], (v) => {
+                    tileStyle[faceKey] = v;
+                    syncPanel();
+                    draw();
+                });
+                box.title = `Paint every tile by ${sys.label}. Stacks with the `
+                    + "others, at the opacity beside it.";
+                const pct = percentBox(line, tileStyle[opKey],
+                    `How strongly ${sys.label} is painted, 0 to 100. Scroll it.`,
+                    (v) => { tileStyle[opKey] = v; syncPanel(); draw(); });
+                sBody.appendChild(line);
+                panelSyncs.push(() => {
+                    box.checked = tileStyle[faceKey];
+                    const want = String(Math.round(tileStyle[opKey] * 100));
+                    if (pct.value !== want) pct.value = want;
+                });
+            }
+
+            const sSync = () => {
+                const on = SYSTEMS.filter((x) => systemHere(x.at) && tileStyle[`${x.key}Face` as const])
+                    .map((x) => `${x.label} ${Math.round(tileStyle[`${x.key}Opacity` as const] * 100)}%`);
+                sHead.textContent = sFold.open || !on.length
+                    ? "system" : `system · ${on.join("  ")}`;
+            };
+            sFold.addEventListener("toggle", sSync);
+            panelSyncs.push(sSync);
+            sSync();
 
             // How the fill is shaded.
             // `height` folds the two things that shade a FACE -- the contour
@@ -4916,6 +5034,82 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             // Two rows, since penta has grown two dropdowns of its own: the
             // pentaplex line is that one decoration end to end — which P1,
             // what its boundary is, and how much of it to draw — and the
+            // Folded rows, used by the bands and by every dressing below.
+            const dressFold = (
+                name: string, parts: () => string[],
+            ): HTMLElement => {
+                const outer = row(panelFor(name), name, "");
+                for (const kid of Array.from(outer.children)) {
+                    if ((kid as HTMLElement).className === "panel-label") {
+                        outer.removeChild(kid);
+                    }
+                }
+                // Shut, these four sit on one line together rather than
+                // taking a row each — Jake: "is it possible to flow the
+                // pentaplex, next rhomb, kites and misc on the same line
+                // when collapsed." Open, the row takes its width back so
+                // its controls lay out. The class is toggled rather than
+                // left to `:has(details[open])`, so it is deterministic
+                // and a test can read it.
+                outer.classList.add("inline-fold");
+                const fold = document.createElement("details");
+                fold.className = "row-fold dress-fold";
+                const head = document.createElement("summary");
+                fold.appendChild(head);
+                const body = document.createElement("div");
+                body.className = "dress-line";
+                fold.appendChild(body);
+                outer.appendChild(fold);
+                const sync = () => {
+                    outer.classList.toggle("fold-open", fold.open);
+                    const on = fold.open ? [] : parts();
+                    head.textContent = on.length ? `${name} · ${on.join(" ")}` : name;
+                };
+                fold.addEventListener("toggle", sync);
+                panelSyncs.push(sync);
+                sync();
+                return body;
+            };
+
+            // ── The bands, at every n ─────────────────────────────
+            //
+            // The ribbons get a fold like the dressings they lie over, and sit
+            // after them. Jake: "move the band (fold it only showing percent
+            // when not zero) after misc."
+            //
+            // OUTSIDE the n = 5 block since 2026-11-21. The drawing always
+            // worked off the pentagrid — `pairColors` is built for every n —
+            // but the control was in with the Penrose dressings, so a
+            // heptagrid drew bands nobody could switch on. That gap is why
+            // `families` existed as a face system: it was the only way to the
+            // family coloring off the pentagrid. With the row here it is not,
+            // and `families` is retired.
+            const bandRow = dressFold("band", () => {
+                if (tileStyle.band <= 0) return [];
+                const w = `${Math.round(tileStyle.band * 100)}%`;
+                return tileStyle.bandOpacity < 1
+                    ? [w, `at ${Math.round(tileStyle.bandOpacity * 100)}%`] : [w];
+            });
+            slider(bandRow, "width",
+                "Width of each gridline's band across the tile, as a fraction of "
+                + "the edge — and the switch for the bands themselves. 0 is none; "
+                + "above it the families2 ribbons lie over every face and under "
+                + "every outline, 100% covering the tile. At 100% the composite "
+                + "square covers the tile and it reads as the two gridline colors "
+                + "blended — which is what the `families` system used to be. A "
+                + "2k-gon takes none: a stack has no one pair of families to color.",
+                { min: 0, max: 1, step: 0.02 }, tileStyle.band,
+                (v) => `${Math.round(v * 100)}%`,
+                (v) => { tileStyle.band = v; syncPanel(); draw(); });
+            slider(bandRow, "opacity",
+                "How strongly the bands are painted, over whatever face is under "
+                + "them. The width says how much of the tile they cover and this "
+                + "says how much of it shows through — the two questions the one "
+                + "number could not ask apart.",
+                { min: 0, max: 1, step: 0.05 }, tileStyle.bandOpacity,
+                (v) => `${Math.round(v * 100)}%`,
+                (v) => { tileStyle.bandOpacity = v; syncPanel(); draw(); });
+
             // penrose face line is every other dressing, in pairs.
             if (model.n === 5) {
                 // One decoration end to end, folded away: seven controls is
@@ -4982,41 +5176,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                  * mostly off, and a shut fold that says nothing about what is
                  * on makes you open all four to find the one you left running.
                  */
-                const dressFold = (
-                    name: string, parts: () => string[],
-                ): HTMLElement => {
-                    const outer = row(panelFor(name), name, "");
-                    for (const kid of Array.from(outer.children)) {
-                        if ((kid as HTMLElement).className === "panel-label") {
-                            outer.removeChild(kid);
-                        }
-                    }
-                    // Shut, these four sit on one line together rather than
-                    // taking a row each — Jake: "is it possible to flow the
-                    // pentaplex, next rhomb, kites and misc on the same line
-                    // when collapsed." Open, the row takes its width back so
-                    // its controls lay out. The class is toggled rather than
-                    // left to `:has(details[open])`, so it is deterministic
-                    // and a test can read it.
-                    outer.classList.add("inline-fold");
-                    const fold = document.createElement("details");
-                    fold.className = "row-fold dress-fold";
-                    const head = document.createElement("summary");
-                    fold.appendChild(head);
-                    const body = document.createElement("div");
-                    body.className = "dress-line";
-                    fold.appendChild(body);
-                    outer.appendChild(fold);
-                    const sync = () => {
-                        outer.classList.toggle("fold-open", fold.open);
-                        const on = fold.open ? [] : parts();
-                        head.textContent = on.length ? `${name} · ${on.join(" ")}` : name;
-                    };
-                    fold.addEventListener("toggle", sync);
-                    panelSyncs.push(sync);
-                    sync();
-                    return body;
-                };
                 /** Which of a set of dressings are on, by their labels. */
                 const onOf = (...pairs: [keyof TileStyle, string][]) =>
                     pairs.filter(([k]) => tileStyle[k]).map(([, label]) => label);
@@ -5161,22 +5320,6 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     + "face — the kite and dart boundaries read through the coloring.");
                 dress(kRow, "kitesFace", "face", "P2 on the rhombs, filled: kites light, a "
                     + "dart in every thick.");
-
-                // The ribbons get a fold like the dressings they lie over,
-                // and sit after them. Jake: "move the band (fold it only
-                // showing percent when not zero) after misc." The percent is
-                // the whole state, so it is the whole summary.
-                const bandRow = dressFold("band",
-                    () => (tileStyle.band > 0 ? [`${Math.round(tileStyle.band * 100)}%`] : []));
-                slider(bandRow, "width",
-                    "Width of each gridline's band across the tile, as a fraction of "
-                    + "the edge — and the switch for the bands themselves. 0 is none; "
-                    + "above it the families2 ribbons lie over every face and under "
-                    + "every outline, 100% covering the tile. A 2k-gon takes none: a "
-                    + "stack has no one pair of families to color.",
-                    { min: 0, max: 1, step: 0.02 }, tileStyle.band,
-                    (v) => `${Math.round(v * 100)}%`,
-                    (v) => { tileStyle.band = v; syncPanel(); draw(); });
 
                 // ── Outlines: one switch per index ───────────────────
                 //

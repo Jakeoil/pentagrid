@@ -207,13 +207,14 @@ test("the growth view resets its own state and the pentagrid under it", () => {
 
     v.set({ grow: 0.3, fold: 0, paths: "high", axis: 3, penta: true,
             edgeStyle: "bold", resolve: true });
-    v.pentagrid.setTileStyle({ color: "groups" });
+    v.pentagrid.setTileStyle({ groupsFace: true, typeFace: false });
     v.reset();
 
     const back = v.get();
     for (const k of ["grow", "fold", "paths", "axis", "penta", "edgeStyle", "resolve"]) {
         assert.equal(back[k], home[k], `growth ${k} came back as ${back[k]}`);
     }
-    assert.equal(v.pentagrid.getTileStyle().color, TILE_DEFAULTS.color,
+    assert.equal(v.pentagrid.getTileStyle().groupsFace, TILE_DEFAULTS.groupsFace,
                  "the pentagrid under the growth view did not reset");
+    assert.equal(v.pentagrid.getTileStyle().typeFace, TILE_DEFAULTS.typeFace);
 });

@@ -266,7 +266,25 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
     padding-top: 8px;
 }
 /* An author `display` rule beats the UA's `[hidden] { display: none }`, so a
-   hidden row has to be told to go. .panel-row has display:flex, and until this
+   hidden row has to be told to go. /* The system fold: a line per color system, each with a face switch and its
+   own opacity. They stack rather than excluding each other, which is why the
+   row is a fold of lines and not a dropdown. */
+.system-lines { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.system-line { display: flex; align-items: center; gap: 6px; }
+.system-name { min-width: 84px; color: #444; }
+/* The opacity box: fixed width and tabular digits, so 5 becoming 100 cannot
+   reflow the line and move the box out from under the pointer. */
+.pct-box {
+    width: 46px; font: 11.5px/1.3 ui-monospace, Menlo, Consolas, monospace;
+    font-variant-numeric: tabular-nums; text-align: right;
+    border: 1px solid #ccc; border-radius: 2px; padding: 0 3px;
+    background: #fff; color: #222; cursor: ns-resize;
+}
+.pct-box:hover { background: #eef7f2; border-color: #7a9; }
+.pct-box:focus-visible { outline: 2px solid #6a8; outline-offset: 1px; }
+.system-fold summary { cursor: pointer; }
+
+.panel-row has display:flex, and until this
    was written exposeRows() moved nothing in a browser at all. */
 .panel-row[hidden], .panel-section[hidden] { display: none; }
 .row-fold { font-size: 12px; }

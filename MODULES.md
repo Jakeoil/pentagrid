@@ -379,7 +379,7 @@ field takes its default — so an older embed meets a newer page without
 rotting. An attribute that is absent is a default too, which is why
 `copy setup` emits only what differs from the page's own baseline.
 
-**78 fields** in all: 55 booleans, 10 enums, 13 numbers.
+**84 fields** in all: 58 booleans, 9 enums, 17 numbers.
 
 ### Features — which layers exist
 
@@ -413,11 +413,17 @@ The Penrose side's dressings: colors, the decorations, the shading.
 
 | attribute / parameter | accepts | default |
 |---|---|---|
-| `data-color` | `type` · `pair` · `bands` · `groups` · `kowalewski` | `type` |
+| `data-type-face` | present / `false` | `true` |
+| `data-type-opacity` | a number | `1` |
+| `data-groups-face` | present / `false` | `false` |
+| `data-groups-opacity` | a number | `1` |
+| `data-kowalewski-face` | present / `false` | `false` |
+| `data-kowalewski-opacity` | a number | `1` |
 | `data-isogloss` | present / `false` | `false` |
 | `data-ramp` | a number | `0` |
 | `data-opacity` | a number | `1` |
 | `data-band` | a number | `0` |
+| `data-band-opacity` | a number | `1` |
 | `data-curves` | present / `false` | `false` |
 | `data-penta-face` | present / `false` | `false` |
 | `data-penta-edge` | present / `false` | `false` |

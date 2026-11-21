@@ -37,12 +37,12 @@ test("the store falls back to memory, and refuses what it cannot parse", () => {
 test("a session is versioned, and a later version is refused not misread", () => {
     forgetSession("k");
     assert.equal(loadSession("k"), null);
-    saveSession("k", { v: 1, tileStyle: { color: "bands" } });
-    assert.deepEqual(loadSession("k").tileStyle, { color: "bands" });
+    saveSession("k", { v: 1, tileStyle: { p1Palette: "patriotic" } });
+    assert.deepEqual(loadSession("k").tileStyle, { p1Palette: "patriotic" });
 
     // A shape from the future: refused outright, so an old page takes its
     // defaults rather than half-reading something it does not understand.
-    storeSet("pentagrid.session.k", JSON.stringify({ v: 2, tileStyle: { color: "x" } }));
+    storeSet("pentagrid.session.k", JSON.stringify({ v: 2, tileStyle: { p1Palette: "x" } }));
     assert.equal(loadSession("k"), null, "a v2 session was read by a v1 reader");
     forgetSession("k");
 });
@@ -60,7 +60,7 @@ test("it is opt-in: a page that does not ask is not remembered", async () => {
     const id = sessionKey({ id: "optout" });
     forgetSession(id);
     const h = createPentagrid({ container: host({}, "optout"), panel: host() });
-    h.setTileStyle({ color: "bands" });
+    h.setTileStyle({ p1Palette: "patriotic" });
     h.redraw();
     await settle();
     assert.equal(loadSession(id), null,
@@ -74,7 +74,7 @@ test("a page that asks comes back as it was left", async () => {
         container: host(), panel: host(), session: id,
         features: { penroseTiles: true },
     });
-    first.setTileStyle({ color: "kowalewski", pentaFace: true, band: 0.3 });
+    first.setTileStyle({ p1Palette: "afterimage", pentaFace: true, band: 0.3 });
     first.setFeatures({ penroseTiles: true, penroseEdges: true }, { merge: true });
     first.gamma.setLocked(-1);
     first.gamma.setValues([0.11, 0.23, 0.31, 0.17, 0.18]);
@@ -89,7 +89,7 @@ test("a page that asks comes back as it was left", async () => {
         features: { penroseTiles: true },
     });
     const t = again.getTileStyle();
-    assert.equal(t.color, "kowalewski", "the style was not remembered");
+    assert.equal(t.p1Palette, "afterimage", "the style was not remembered");
     assert.equal(t.pentaFace, true);
     assert.equal(t.band, 0.3);
     assert.equal(again.getFeatures().penroseEdges, true, "a feature was not remembered");
@@ -104,21 +104,21 @@ test("reset discards the session and returns to the markup", async () => {
     // baseline taken BEFORE the session is read.
     const id = "test.resets";
     forgetSession(id);
-    const attrs = { "data-color": "groups", "data-bold-edges": "" };
+    const attrs = { "data-p1-palette": "afterimage", "data-bold-edges": "" };
     const first = createPentagrid({
         container: host(attrs), panel: host(), session: id,
     });
-    assert.equal(first.getTileStyle().color, "groups", "the markup was not applied");
-    first.setTileStyle({ color: "bands", boldEdges: false });
+    assert.equal(first.getTileStyle().p1Palette, "afterimage", "the markup was not applied");
+    first.setTileStyle({ p1Palette: "patriotic", boldEdges: false });
     first.redraw();
     await settle();
 
     const again = createPentagrid({
         container: host(attrs), panel: host(), session: id,
     });
-    assert.equal(again.getTileStyle().color, "bands", "the session was not restored");
+    assert.equal(again.getTileStyle().p1Palette, "patriotic", "the session was not restored");
     again.reset();
-    assert.equal(again.getTileStyle().color, "groups",
+    assert.equal(again.getTileStyle().p1Palette, "afterimage",
                  "reset went past the markup instead of back to it");
     assert.equal(again.getTileStyle().boldEdges, true);
     forgetSession(id);

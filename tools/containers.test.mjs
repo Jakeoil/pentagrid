@@ -957,7 +957,7 @@ test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", 
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { color: "pair" },
+        tileStyle: { typeFace: true },
     });
     h.gamma.setSum(0, true);            // stacks, so there are 2k-gons to leave bare
 
@@ -971,6 +971,8 @@ test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", 
         return n;
     };
     const pair = fills();                          // one per laid-out tile + one per 2k-gon
+    // `families` the face system was retired 2026-11-21 -- a band at 100% IS
+    // that coloring -- so the face under the ribbons here is thick/thin.
 
     // The band BAR turns them on now, not the dropdown, and they lie OVER the
     // faces rather than replacing them -- so every tile keeps its own fill and
@@ -989,6 +991,11 @@ test("families2 draws each tile as two crossed bands, and leaves 2k-gons bare", 
     h.setTileStyle({ band: 0 });
     assert.equal(fills(), pair, "band 0 should leave the system's own fill and nothing more");
 
+    // And the bands have an opacity of their own, which does not change how
+    // many quads are painted -- only how much of the face shows through.
+    h.setTileStyle({ band: 1, bandOpacity: 0.5 });
+    assert.equal(fills(), bands, "the band opacity changed what is painted");
+
     h.setTileStyle({ band: 1 });
     assert.equal(fills(), bands, "band 1 should paint the same three quads, full width");
 });
@@ -1000,7 +1007,7 @@ test("height shading is wieringa's ramp: one gradient per tile, low corner to hi
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { color: "type", ramp: 1 },
+        tileStyle: { ramp: 1 },
     });
     h.gamma.setGuard(true);                      // a regular patch, so every fill is a tile
 
@@ -1043,7 +1050,7 @@ test("height shading is wieringa's ramp: one gradient per tile, low corner to hi
               `${grads.length} should be about the faces plus three per tile`);
 
     // And off is off: no gradients at all.
-    h.setTileStyle({ color: "type", ramp: 0 });
+    h.setTileStyle({ ramp: 0 });
     grads.length = 0;
     h.redraw();
     assert.equal(grads.length, 0, "shading off should build no gradients");
@@ -1053,7 +1060,7 @@ test("rhomb groups color tiles as sun-star does, and leave the rest bare", () =>
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { color: "groups" },
+        tileStyle: { groupsFace: true, typeFace: false },
     });
     // The sun: a Pe5 at the origin and groups everywhere — a Penrose patch.
     h.gamma.setLocked(-1);
@@ -1199,7 +1206,7 @@ test("tile style is a setting, not a feature flag", () => {
     const h = createPentagrid({
         container: sizedHost(600, 600),
         features: { penroseTiles: true },
-        tileStyle: { color: "pair", isogloss: true, opacity: 0.5 },
+        tileStyle: { pairFace: true, typeFace: false, isogloss: true, opacity: 0.5 },
     });
     assert.equal(typeof h.setTileStyle, "function");
     h.setTileStyle({ ramp: 1 });
@@ -1218,7 +1225,19 @@ test("tile style is a setting, not a feature flag", () => {
         }
     };
     walk(panel);
-    assert.ok(labels.includes("system"), `rows: ${labels.join(", ")}`);
+    // `system` became a fold on 2026-11-21, so its name is the summary rather
+    // than a label span -- the same shape pentaplex and the dressings have.
+    const rowNames = [];
+    const walkRows = (n) => {
+        if (!n.children) return;
+        for (const c of n.children) {
+            if (c.dataset?.row) rowNames.push(c.dataset.row);
+            walkRows(c);
+        }
+    };
+    walkRows(panel);
+    assert.ok(rowNames.includes("system"), `rows: ${rowNames.join(", ")}`);
+    assert.ok(!labels.includes("system"), "the system row took a label span back");
     h2.redraw();
 });
 
@@ -1458,7 +1477,7 @@ test("a singularity is drawn as a P-region, by the tile and edge layers", () => 
         assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, color);
     }
     // and the bands, which are the band BAR now rather than a color
-    h.setTileStyle({ color: "type", band: 0.3 });
+    h.setTileStyle({ band: 0.3 });
     assert.ok(tilesDrawn(h, "penrose-tiles", () => h.redraw()) > 0, "bands");
 });
 
@@ -1696,18 +1715,28 @@ test("the multigrid: createPentagrid at n = 8 builds, the reticulum has sixteen 
     let fills = 0; tiles.ctx.fill = () => { fills++; };
     h.redraw();
     assert.ok(fills > 100, `tiles drawn at n = 8 (${fills})`);
-    // the style dropdown: only the general three
-    let sel = null;
-    const walk = (node) => { if (!node || !node.children) return; for (const c of node.children) { if (c.tagName === "select" && c.className === "line-pick" && c.children.some((o) => o.value === "type")) sel = c; walk(c); } };
+    // The systems: a fold with a line each since 2026-11-21, and off the
+    // pentagrid only the two that mean anything there -- rhomb groups and
+    // Kowalewski are pentagrid facts, and the list says so with its own `at`.
+    const names = [];
+    const walk = (node) => {
+        if (!node || !node.children) return;
+        for (const c of node.children) {
+            if (c.className === "system-name") names.push(c.textContent);
+            walk(c);
+        }
+    };
     walk(panel);
-    assert.ok(sel, "the tile style select exists");
-    // `bands` has left the dropdown at every n -- the band bar is its switch.
-    assert.deepEqual(sel.children.map((o) => o.value), ["type", "pair"]);
+    // `families` was the only other one off the pentagrid, and it is retired:
+    // the band row carries that coloring now, and is here at every n.
+    assert.deepEqual(names, ["thick/thin"],
+                     `the system fold offers ${names.join(", ")}`);
     const rows = panelRows(panel);
     assert.ok(!rows.get("edge style").some((c) => c.label === "arrows"), "no arrows off the pentagrid");
     assert.ok(!rows.has("pentaplex"), "no penta off the pentagrid");
     assert.ok(!rows.has("misc"), "no index-placed dressings off the pentagrid");
     assert.ok(!rows.has("for groups"), "and no rhomb groups to place them on");
+    assert.ok(rows.has("band"), "the bands draw at every n and must be switchable");
     assert.equal(rows.get("ribbons").length, 8, `eight family controls: ${rows.get("ribbons").map((c) => c.label)}`);
 });
 
@@ -2173,7 +2202,7 @@ test("Kowalewski: ten band-pair types to five colors, a thin with its opposite t
     const h = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { color: "kowalewski" },
+        tileStyle: { kowalewskiFace: true, typeFace: false },
     });
     h.gamma.setLocked(-1);
     h.gamma.setValues([0.2, 0.2, 0.2, 0.2, 0.2]);          // the sun
@@ -3460,19 +3489,25 @@ test("scrolling a slider nudges it, on the step and inside the ends", () => {
     const panel = sizedHost(800, 200);
     const h = createPentagrid({ container: sizedHost(800, 800), panel });
     const bars = {};
-    const walk = (el) => {
+    // Keyed by ROW and name: since 2026-11-21 the bands have an opacity of
+    // their own, so `opacity` alone names two different bars.
+    const walk = (el, row = null) => {
         for (const c of el.children ?? []) {
+            const here = c.dataset?.row ?? row;
             if (c.className === "band-setting") {
                 const name = (c.children ?? [])[0]?.textContent;
                 const input = (c.children ?? []).find((x) => x.type === "range");
-                if (name && input) bars[name] = input;
+                if (name && input) bars[`${here}/${name}`] = input;
             }
-            walk(c);
+            walk(c, here);
         }
     };
     walk(panel);
     // the ribbon width lives in the `band` fold and is labeled `width` there
-    bars.band = bars.width;
+    bars.band = bars["band/width"];
+    bars.opacity = bars["Penrose/opacity"] ?? bars["face shade/opacity"]
+        ?? Object.entries(bars).find(([k]) => k.endsWith("/opacity")
+            && !k.startsWith("band/"))?.[1];
     for (const name of ["band", "opacity"]) assert.ok(bars[name], `no ${name} bar`);
 
     const spin = (bar, n, dir) => {
@@ -4470,7 +4505,7 @@ test("the pentaplex inlay clips every pentagon to its tile", () => {
     layer.ctx.clip = () => { clips++; };
     layer.ctx.stroke = () => { strokes++; };
     const run = (style) => {
-        h.setTileStyle({ color: "type", shading: false, band: 0, nextPenta: false,
+        h.setTileStyle({ shading: false, band: 0, nextPenta: false,
                          pentaFace: true, pentaEdge: true, pentaShape: "penta",
                          pentaBoundary: "circle", ...style });
         fills = 0; clips = 0; strokes = 0;
@@ -4485,7 +4520,7 @@ test("the pentaplex inlay clips every pentagon to its tile", () => {
     const fresh = createPentagrid({
         container: sizedHost(800, 800),
         features: { penroseTiles: true },
-        tileStyle: { color: "type", shading: false, band: 0, pentaFace: true },
+        tileStyle: { shading: false, band: 0, pentaFace: true },
     });
     fresh.gamma.setGuard(true);
     const fl = fresh.stack.get("penrose-tiles");
@@ -4549,10 +4584,10 @@ test("for groups is shown whatever the system is", () => {
     const groups = rowNamed("for groups");
     assert.ok(groups, "no for-groups row at all");
 
-    assert.equal(h.getTileStyle().color, "type", "the default system is not thick/thin");
-    for (const color of ["type", "groups", "kowalewski"]) {
-        h.setTileStyle({ color });
-        assert.equal(groups.hidden, false, `for groups hid itself on ${color}`);
+    assert.equal(h.getTileStyle().typeFace, true, "thick/thin is not the default face");
+    for (const sys of ["typeFace", "groupsFace", "kowalewskiFace"]) {
+        h.setTileStyle({ [sys]: true });
+        assert.equal(groups.hidden, false, `for groups hid itself on ${sys}`);
     }
 
     // A host that excludes the row still wins: that is the one mechanism left.
@@ -4631,4 +4666,80 @@ test("the outlines draw between switched-on indexes, and nothing else", () => {
     // And levels two apart share no edge either -- (m, m+2) are opposite
     // corners, not adjacent ones.
     assert.equal(drawn(new Set([1, 3])), 0, "indexes two apart drew an edge");
+});
+
+test("the systems are a fold of faces that stack, not a dropdown of alternatives", () => {
+    // Jake, 2026-11-21: "make dropdown system/kowalewski a fold. give it a
+    // face checkmark, and a separate opacity box, 0 to 100... Do similar with
+    // rhomb groups... That leaves thin and thick. do the same with that. ...
+    // the opacity boxes are scrollable."
+    const panel = sizedHost(800, 200);
+    const h = createPentagrid({
+        container: sizedHost(800, 800), panel,
+        features: { penroseTiles: true },
+    });
+    h.gamma.setLocked(-1);
+    h.gamma.setValues([0.0817, 0.3391, -0.2234, 0.1109, -0.3083]);
+
+    // No dropdown left: the systems were its only contents.
+    let fold = null;
+    const names = [], boxes = [];
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (String(c.className).includes("system-fold")) fold = c;
+            if (String(c.className) === "system-name") names.push(c.textContent);
+            if (String(c.className) === "pct-box") boxes.push(c);
+            walk(c);
+        }
+    };
+    walk(panel);
+    assert.ok(fold, "the system row is not a fold");
+    assert.deepEqual(names, ["thick/thin", "rhomb groups", "Kowalewski"],
+                     `the fold offers ${names.join(", ")}`);
+    assert.equal(boxes.length, 3, "one opacity box per system");
+    for (const b of boxes) {
+        assert.equal(b.min, "0");
+        assert.equal(b.max, "100", "the box is not 0 to 100");
+    }
+
+    // Shut, the summary names what is on and how strongly -- `open` has to be
+    // assigned, since the stub's Proxy reads an untouched property as truthy.
+    fold.open = false;
+    const summary = () => (fold.children ?? [])[0].textContent;
+    h.setTileStyle({});
+    assert.equal(summary(), "system · thick/thin 100%", "thick/thin is not the default face");
+
+    // THEY STACK: two on paint two fills per tile, each at its own alpha.
+    const layer = h.stack.get("penrose-tiles");
+    const paint = () => {
+        const seen = [];
+        layer.ctx.fill = function () { seen.push([String(this.fillStyle), this.globalAlpha]); };
+        h.redraw();
+        return seen;
+    };
+    const one = paint().length;
+    h.setTileStyle({ groupsFace: true, groupsOpacity: 0.4 });
+    assert.equal(summary(), "system · thick/thin 100%  rhomb groups 40%");
+    const two = paint();
+    assert.equal(two.length, 2 * one, "two systems should paint two fills a tile");
+    const alphas = new Set(two.map(([, a]) => a.toFixed(2)));
+    assert.deepEqual([...alphas].sort(), ["0.40", "1.00"],
+                     "each system should paint at its own opacity");
+
+    // And all of them off is a bare tile: no face at all, which the dropdown
+    // could not say.
+    h.setTileStyle({ typeFace: false, groupsFace: false });
+    assert.equal(paint().length, 0, "something is still painting a face");
+    assert.equal(summary(), "system");
+
+    // The boxes take the wheel. Jake: "the opacity boxes are scrollable."
+    h.setTileStyle({ typeFace: true, typeOpacity: 1 });
+    const typeBox = boxes[0];
+    assert.equal(typeBox.value, "100");
+    typeBox.on.wheel[0]({ deltaY: 1, preventDefault() {} });
+    assert.equal(typeBox.value, "95", "a wheel down did not step the box");
+    assert.ok(Math.abs(h.getTileStyle().typeOpacity - 0.95) < 1e-9,
+              "the box did not reach the style");
+    typeBox.on.wheel[0]({ deltaY: -1, preventDefault() {} });
+    assert.equal(typeBox.value, "100");
 });

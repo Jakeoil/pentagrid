@@ -53,7 +53,6 @@ export interface Field {
  * `tools/inventory.test.mjs`, which is what keeps them honest.
  */
 const ENUMS: Record<string, readonly string[]> = {
-    "tileStyle.color": ["type", "pair", "bands", "groups", "kowalewski"],
     "tileStyle.pentaShape": ["penta", "innie", "outie"],
     "tileStyle.pentaBoundary": ["circle", "bisector", "bend18", "bend36"],
     "tileStyle.p1Shape": ["pentaplex", "in18", "out18"],
