@@ -83,11 +83,54 @@ export const REAL_PENTA = (() => {
 })();
 
 /**
- * The two geometries, by name. Any five ordered points would do.
+ * An **asymmetric** lattice seed, Jake 2026-11-21. Positive y is down, as
+ * everywhere in this module.
+ *
+ * The point of having one is that nothing here leans on symmetry. The odd tenths
+ * are *negations* of the even ones, never reflections, so five points with no
+ * symmetry at all go through the wheels, the walks, the substitution and the
+ * rhombs unchanged. Neither of the other two presets can show that: `PENTA_UP`
+ * has a vertical mirror and `REAL_PENTA` has five, so a reflection bug would
+ * hide in both. This one has **no mirror on any axis**, and it still tiles.
+ *
+ *     point      0        1       2       3       4
+ *              (-2,-4)  (3,-3)  (3,2)  (-1,4)  (-5,0)
+ *     bearing   333.4    45.0   123.7   194.0   270.0   clockwise from up
+ *     gap        71.6    78.7    70.3    76.0    63.4   ideal 72
+ *     radius     4.47    4.24    3.61    4.12    5.00
+ *
+ * Lopsided, and squarely inside the range that works: the ten spokes interleave
+ * in strict angular order, and over five generations not one pentagon, star,
+ * boat or diamond outline crosses itself. Its D wheel runs 1.39 longest to
+ * shortest, against the quadrille's 1.20.
+ *
+ * That range is narrower than "any five points", which is worth stating because
+ * the first draft of this constant fell outside it. What a seed must satisfy is
+ * a condition on the **ten spokes**, not on the five points: the five and their
+ * negatives have to interleave, each step forward by more than nothing and less
+ * than a half turn, closing at exactly one full turn. Two ways to fail it are
+ * winding twice round instead of once, and aiming any two spokes the same way —
+ * which happens as soon as two of the five points are parallel or antiparallel.
+ * `tests/wheel.test.mjs` names the condition and checks it.
+ * @type {readonly Pt[]}
+ */
+export const ASYMMETRIC = [
+    [-2, -4],
+    [3, -3],
+    [3, 2],
+    [-1, 4],
+    [-5, 0],
+];
+
+/**
+ * The seeds the page offers, by name. Two symmetric and one not, which is the
+ * point: the asymmetric one is the only one that can show the construction does
+ * not reach for a mirror.
  * @type {Record<string, readonly Pt[]>}
  */
 export const PRESETS = {
     quadrille: PENTA_UP,
+    asymmetric: ASYMMETRIC,
     real: REAL_PENTA,
 };
 

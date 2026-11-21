@@ -14,10 +14,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    PENTA_UP, PRESETS, REAL_PENTA, comb, deflate, eWheel, halfUp, inflate,
-    ladderTo, m10, pWheel, pair, pointsOf, sWheel, stride, tWheel,
+    ASYMMETRIC, PENTA_UP, PRESETS, REAL_PENTA, comb, deflate, eWheel, halfUp,
+    inflate, ladderTo, m10, pWheel, pair, pointsOf, sWheel, stride, tWheel,
     wheelFromPoints, wheelsAt,
 } from "../src/math/wheel.js";
+import { pentagon } from "../src/math/walk.js";
 
 // ── penrose-mosaic, transcribed: wheels.js, index 1 (the seed) ────────────
 const SEEDS = {
@@ -182,6 +183,115 @@ test("the real preset is regular, side 4, centered on the origin", () => {
     for (const p of REAL_PENTA) assert.ok(Math.abs(Math.hypot(p[0], p[1]) - r) < 1e-12);
     assert.deepEqual(PRESETS.real, REAL_PENTA);
     assert.deepEqual(PRESETS.quadrille, PENTA_UP);
+});
+
+// ── the asymmetric preset ──────────────────────────────────────
+
+/** Clockwise from straight up, which is the order the ten tenths run in. */
+const bearing = (p) => (Math.atan2(p[0], -p[1]) * 180 / Math.PI + 360) % 360;
+
+/**
+ * **What a seed has to satisfy**, and the reason it needs a name: it is a
+ * condition on the TEN spokes, not on the five points. The five and their
+ * negatives must interleave, each step forward by more than nothing and less
+ * than a half turn, closing at exactly one full turn.
+ *
+ * Five points can be a perfectly good convex pentagon and still fail it — by
+ * winding twice round rather than once, or by putting two spokes on one line,
+ * which happens as soon as two of the five are parallel or antiparallel.
+ */
+function spokesInOrder(pts) {
+    const w = wheelFromPoints(pts);
+    let total = 0;
+    for (let t = 0; t < 10; t++) {
+        const step = (bearing(w[m10(t + 1)]) - bearing(w[t]) + 360) % 360;
+        if (step <= 1e-9 || step >= 180) return false;
+        total += step;
+    }
+    return Math.abs(total - 360) < 1e-6;
+}
+
+/**
+ * Is the point set carried onto itself by a reflection in ANY axis through the
+ * origin? Written with vectors rather than angles so it is indifferent to which
+ * way y points.
+ */
+function hasMirror(pts) {
+    const key = (a) => a.map(([x, y]) => `${(x + 0).toFixed(6)},${(y + 0).toFixed(6)}`)
+        .sort().join(" ");
+    const here = key(pts);
+    const unit = ([x, y]) => { const r = Math.hypot(x, y); return [x / r, y / r]; };
+    /** Reflect in the line through the origin along the unit vector `u`. */
+    const flip = (u) => pts.map((p) => {
+        const d = 2 * (p[0] * u[0] + p[1] * u[1]);
+        return [d * u[0] - p[0], d * u[1] - p[1]];
+    });
+    // A mirror permutes the five, so its axis bisects some pair -- a point with
+    // itself included, which is the axis through that point. Both bisectors of
+    // each pair, which is the whole candidate list, and it is finite.
+    for (let i = 0; i < 5; i++) for (let j = i; j < 5; j++) {
+        const a = unit(pts[i]), b = unit(pts[j]);
+        for (const v of [[a[0] + b[0], a[1] + b[1]], [a[0] - b[0], a[1] - b[1]]]) {
+            if (Math.hypot(v[0], v[1]) < 1e-9) continue;   // antiparallel: no bisector
+            const u = unit(v);
+            if (key(flip(u)) === here) return true;
+            if (key(flip([-u[1], u[0]])) === here) return true;
+        }
+    }
+    return false;
+}
+
+const signedArea = (poly) => poly.reduce((a, p, i) => {
+    const q = poly[(i + 1) % poly.length];
+    return a + p[0] * q[1] - q[0] * p[1];
+}, 0) / 2;
+
+test("a seed is valid on its ten spokes, not on its five points", () => {
+    for (const pts of [PENTA_UP, REAL_PENTA, SKEW, ASYMMETRIC])
+        assert.ok(spokesInOrder(pts));
+
+    // The two ways to be a fine-looking pentagon and still not be a seed. Both
+    // were met on the way to the preset above, which is why they are here.
+    const twiceRound = [[3, -3], [-2, 2], [-5, 4], [-1, 0], [3, 4]];
+    assert.ok(!spokesInOrder(twiceRound));
+    const bearings = twiceRound.map(bearing);
+    const wrap = twiceRound.reduce((s, _, i) =>
+        s + (bearings[(i + 1) % 5] - bearings[i] + 360) % 360, 0);
+    assert.equal(Math.round(wrap), 720, "round twice, where a pentagon goes once");
+    // so it is wound backwards, and no relabeling of those five points helps,
+    // because points 0 and 1 are antiparallel -- one direction, used twice.
+    assert.ok(signedArea(pentagon(wheelsAt(twiceRound, 1).d, 0)) < 0);
+    const perms = (a) => a.length <= 1 ? [a]
+        : a.flatMap((x, i) => perms([...a.slice(0, i), ...a.slice(i + 1)])
+            .map((r) => [x, ...r]));
+    assert.equal(perms(twiceRound).filter(spokesInOrder).length, 0, "0 of 120");
+});
+
+test("the asymmetric preset has no mirror, and tiles anyway", () => {
+    // The whole claim of the construction, in one seed: the odd tenths are
+    // negations of the even ones, never reflections, so symmetry is never used
+    // and its absence costs nothing. Neither other preset can show this --
+    // a reflection bug would hide in both.
+    assert.ok(hasMirror(PENTA_UP), "the quadrille has a vertical mirror");
+    assert.ok(hasMirror(REAL_PENTA), "the regular pentagon has five");
+    assert.ok(!hasMirror(ASYMMETRIC), "and this one has none");
+
+    assert.ok(PRESETS.asymmetric === ASYMMETRIC);
+    assert.deepEqual(ASYMMETRIC, [[-2, -4], [3, -3], [3, 2], [-1, 4], [-5, 0]]);
+    assert.ok(spokesInOrder(ASYMMETRIC));
+    assert.equal(signedArea(pentagon(wheelsAt(ASYMMETRIC, 1).d, 0)), 43.5);
+
+    // Lopsided, and nowhere near degenerate: gaps 63-79 against an ideal 72,
+    // and a D wheel 1.39 longest to shortest against the quadrille's 1.20.
+    const gaps = ASYMMETRIC.map((p, i) =>
+        (bearing(ASYMMETRIC[(i + 1) % 5]) - bearing(p) + 360) % 360);
+    assert.ok(Math.min(...gaps) > 63 && Math.max(...gaps) < 79);
+    const ratio = (pts) => {
+        const d = wheelsAt(pts, 1).d.map(([x, y]) => Math.hypot(x, y));
+        return Math.max(...d) / Math.min(...d);
+    };
+    assert.equal(ratio(ASYMMETRIC).toFixed(2), "1.39");
+    assert.equal(ratio(PENTA_UP).toFixed(2), "1.20");
 });
 
 test("the real pentagon has one edge length, the quadrille three", () => {

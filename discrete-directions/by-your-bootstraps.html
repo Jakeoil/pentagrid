@@ -82,6 +82,7 @@
                 <div><span class="grp">preset</span>
                     <select id="boot-preset">
                         <option value="quadrille" selected>classic</option>
+                        <option value="asymmetric">asymmetric</option>
                         <option value="real">real</option>
                         <option value="custom">custom</option>
                     </select></div>
@@ -256,6 +257,38 @@
     the real preset &mdash; rounding an irrational pentagon's corners onto the
     paper on the first drag would silently turn it back into a quadrille. The box
     is yours to override either way.</p>
+
+    <h3>The third preset: asymmetric</h3>
+
+    <p>Both presets above are symmetric &mdash; the quadrille has a vertical
+    mirror, the regular pentagon has five &mdash; so neither of them can show the
+    claim this page is really making: that <b>no step here uses a reflection</b>.
+    The odd tenths are <i>negations</i> of the even ones, which needs no mirror
+    axis, so five points with no symmetry at all go through the wheels, the
+    walks, the substitution and the rhombs unchanged. The <b>asymmetric</b>
+    preset is a pentagon with no mirror on any axis:</p>
+
+    <pre>  point        0        1       2       3       4
+              (-2,-4)  (3,-3)  (3,2)  (-1,4)  (-5,0)
+
+  bearing      333.4&deg;   45.0&deg;  123.7&deg;  194.0&deg;  270.0&deg;   clockwise from up
+  gap           71.6&deg;   78.7&deg;   70.3&deg;   76.0&deg;   63.4&deg;   ideal 72&deg;
+  radius         4.47     4.24    3.61    4.12    5.00</pre>
+
+    <p>Visibly lopsided, and it tiles. Over five generations not one pentagon,
+    star, boat or diamond outline crosses itself, and the tiles still meet
+    &mdash; the test that checks this now runs on four seeds, and this is the one
+    that would catch an outline quietly leaning on a symmetry the other three
+    happen to have.</p>
+
+    <p class="hint">Not <i>every</i> five points will do, which is worth knowing
+    before you drag. What a seed has to satisfy is a condition on the <b>ten
+    spokes</b>, not on the five points: the five and their negatives must
+    <i>interleave</i>, each step forward by more than nothing and less than a half
+    turn, closing at exactly one full turn. A perfectly convex-looking pentagon
+    fails it if its five bearings wind twice round instead of once, or if any two
+    of the five are parallel or antiparallel &mdash; that aims two of the ten
+    spokes the same way, and no relabeling of the points can separate them.</p>
 
     <p><b>Both canvases zoom.</b> The output pans too: scroll over it, drag it,
     double-click to fit. The input only zooms, about the origin &mdash; the

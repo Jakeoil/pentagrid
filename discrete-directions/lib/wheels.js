@@ -9,7 +9,7 @@
 
 export {
     // the five points, in and out
-    PENTA_UP, REAL_PENTA, PRESETS, TENTHS, SEED_GENERATION,
+    PENTA_UP, REAL_PENTA, ASYMMETRIC, PRESETS, TENTHS, SEED_GENERATION,
     wheelFromPoints, pointsOf, m10,
     // the operator family
     comb, stride, pair, inflate, deflate, halfUp, halfDown,

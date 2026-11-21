@@ -28,7 +28,8 @@ import * as all from "../lib/discrete-directions.js";
 
 const SURFACE = {
     "wheels.js": [
-        "PENTA_UP", "PRESETS", "REAL_PENTA", "SEED_GENERATION", "TENTHS",
+        "ASYMMETRIC", "PENTA_UP", "PRESETS", "REAL_PENTA", "SEED_GENERATION",
+        "TENTHS",
         "comb", "deflate", "eWheel", "halfDown", "halfUp", "inflate", "ladderTo",
         "m10", "pWheel", "pWheelFromFlake", "pair", "pentaflake", "pointsOf",
         "sWheel", "sharedEdge", "stride", "tWheel", "wheelFromPoints", "wheelsAt",

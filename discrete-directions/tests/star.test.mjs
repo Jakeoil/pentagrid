@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 
 import { starPolygon, starTips } from "../src/math/star.js";
 import { pentagon } from "../src/math/walk.js";
-import { PENTA_UP, REAL_PENTA, ladderTo, m10 } from "../src/math/wheel.js";
+import { ASYMMETRIC, PENTA_UP, REAL_PENTA, ladderTo, m10 } from "../src/math/wheel.js";
 
 // ── penrose-mosaic, transcribed: shape-modes.js, class Quadrille ──────────
 const SHAPES = {
@@ -151,14 +151,17 @@ test("loc translates the outline and nothing else", () => {
     }
 });
 
-test("no tile outline self-intersects, on any of the three seeds", () => {
+test("no tile outline self-intersects, on any of the four seeds", () => {
     // Tiles are filled even-odd anyway, because it is the rule that stays
     // correct if a walk is ever changed and costs nothing when it is not. But
     // the claim to hold onto is this one: as built, every outline is simple, so
     // the two fill rules agree on every tile this library draws. Pentagons
     // included -- they are not walks, but they are outlines.
+    // `asymmetric` is the preset with no mirror on any axis, so it is the one
+    // that would catch an outline leaning on a symmetry the other seeds have.
     for (const [name, pts] of [["quadrille", PENTA_UP], ["real", REAL_PENTA],
-                               ["lopsided", LOPSIDED]]) {
+                               ["lopsided", LOPSIDED],
+                               ["asymmetric", ASYMMETRIC]]) {
         const L = ladderTo(pts, 6);
         for (let g = 1; g <= 5; g++)
             for (let t = 0; t < 10; t++)
