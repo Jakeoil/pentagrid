@@ -173,6 +173,12 @@ would pin nothing:
 | `lib/tiles.js` | outlines as walks, the star family, the rhombs |
 | `lib/patch.js` | the substitution and `outlineOf` |
 | `lib/discrete-directions.js` | all three, for a consumer that wants one import |
+| `lib/pentadiculum.js` | the UI half: the Pentadiculum, the drawing primitives, the numeral |
+
+`lib/pentadiculum.js` is the one entry that needs a DOM, which is why it is
+*not* gathered into the all-in-one -- `import ... from "discrete-directions"`
+has to keep running in node. Its stylesheet is `lib/css/pentadiculum.css`, and
+for the mounts it is not optional.
 
 `tests/lib-surface.test.mjs` pins those names, checks the facade re-exports the
 same function objects rather than copies, checks every statement in `lib/` is an
@@ -447,6 +453,50 @@ that already answers it. Writing it found one thing worth having anyway: the
 mosaic's per-child `color` table is not independent data. It is `twist === 0 ?
 Pe3 : Pe1`, agreeing in all fifteen slots with what `expand()` already computes
 here, so that entry became a wanted test rather than a wanted feature.
+
+### The Pentadiculum, 2026-11-22
+
+The input figure became an instrument with a name. Jake: *the pentagon and its
+group of controls will be named the Pentadiculum, analogous to the pentagrid's
+Reticulum*, and the geometry it presents is **Gaussean Pentadic Geometry** --
+five ordered Gaussian integers and the lattice point they radiate from.
+
+**The origin moves.** And it adds no geometry: `(p, o)` and `(p - o, 0)` are the
+same seed, so what it adds is the one motion the five handles cannot make
+between them, which is sliding the pentagon over the lattice as a block. Jake
+put it first: *the operation of moving the origin is effectively just a
+translation of the five points.*
+
+The motion is **fenced**, exactly. `cross(W[t], W[t+1]) > 0` is affine in the
+origin because the o x o term cancels, and the ten conditions collapse to five
+because `W[t+5] = -W[t]`, so the legal origins are a convex polygon of at most
+five sides -- about `phi^-4` of the pentagon's own area, and for a regular
+pentagon exactly the pentagon one generation down. Two integer origins for the
+classic seed, six for the asymmetric one. `originFence` in `src/math/seed.js`.
+
+**The sweet spot is the centroid.** `P[t] - S[t] = -(-1)^t sum(points)` at every
+tenth, so `P = S` exactly at the barycenter, and there `inflate(D) = T` -- which
+settles the page's own open note, *modes can be unified if the real of d + p ==
+t*. All three rhomb spellings become the same quadrilateral there, an exact
+parallelogram, against a worst kite of 0.277 at the origin. It is always in
+`(1/5)Z^2`, which is why `snap` has a `fifths` setting.
+
+**What is affine and what is not**, measured rather than assumed: the E wheel is
+the only origin-invariant wheel (its comb coefficients sum to zero); pentagons
+and stars move by pure translation; the `classic` and `mixed` rhomb spellings
+skew, and `t` and `inflated` do not. Jake's goal was an affine solution for the
+quadrille rhombs and the honest answer is that `classic` is not one -- hence the
+name, and hence the `centroid` mode beside it.
+
+**Two layers, as `lib/reticulum.js` has it.** `createPentadiculum` is a pure
+view: a canvas, a viewport and the pointer, holding no seed. `mountPentadiculum`
+and `mountFloatingPentadiculum` bind it to a seed and build the controls.
+Nothing is a module-level `let`, which is the whole point -- the moire page
+wants four of them on one page, reading four seeds.
+
+`by-your-bootstraps` was repointed at it and the extraction proven: 4,931
+recorded canvas calls over a scripted drag, preset, ladder, zoom and centroid
+run, identical before and after.
 
 ## 6. What this supersedes
 

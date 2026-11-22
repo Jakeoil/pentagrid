@@ -1,0 +1,105 @@
+/* The Pentadiculum: the five points, the origin, and the controls that move
+   them. `mountPentadiculum` and `mountFloatingPentadiculum` from
+   `lib/pentadiculum.js`.
+
+   STRUCTURE IS INLINE, THE LOOK IS HERE. Each piece positions its own parts in
+   JavaScript; nothing in this file is load-bearing for the geometry, and the
+   bare `createPentadiculum` — which is a canvas and nothing else — needs none
+   of it. But an unstyled mount works and looks like unstyled HTML, so link it:
+
+       <link rel="stylesheet" href="discrete-directions/lib/css/pentadiculum.css">
+
+   It leans on `--rule`, `--ink-faint` and `--ink` where a host page defines
+   them (site.css does) and falls back to its own values where it does not, so
+   it drops onto a page that has never heard of this project. */
+
+.pentadiculum-wrap {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+}
+
+/* The canvas itself. `touch-action: none` is not decoration: without it a
+   touch drag on a handle scrolls the page instead of moving the point. */
+canvas.pentadiculum {
+    border: 1px solid var(--rule, #d8dde6);
+    border-radius: 6px;
+    display: block;
+    touch-action: none;
+    max-width: 100%;
+    height: auto;
+    background: #fbfcfe;
+}
+
+.pentadiculum-read {
+    margin: 0;
+    font-size: 12px;
+    font-family: ui-monospace, Menlo, monospace;
+    color: var(--ink-faint, #6b7280);
+}
+.pentadiculum-read b {
+    font-weight: 600;
+    color: var(--ink, #111418);
+}
+
+.pentadiculum-ctl {
+    font-size: 13px;
+    line-height: 2.1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+.pentadiculum-ctl select,
+.pentadiculum-ctl button {
+    font: inherit;
+    font-size: 12px;
+    padding: 1px 5px;
+}
+.pentadiculum-ctl .grp { color: var(--ink-faint, #6b7280); }
+.pentadiculum-ctl label { white-space: nowrap; }
+
+/* ── the floating panel ──────────────────────────────────────────── */
+
+/* A definite width, because a fixed-position box shrink-to-fits its contents
+   and then the TITLE drives the layout — the same thing that made the
+   Reticulum's panel jump wider on a long preset name. */
+.pentadiculum-panel {
+    position: fixed;
+    z-index: 200;
+    width: 372px;
+    background: #fff;
+    border: 1px solid var(--rule, #ccc);
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+.pentadiculum-panel[hidden] { display: none; }
+
+.pentadiculum-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 5px 5px 5px 11px;
+    cursor: move;
+    user-select: none;
+    touch-action: none;          /* the bar owns the drag, not the page */
+    font-size: 12px;
+    color: #555;
+    background: #f2f2f2;
+    border-bottom: 1px solid #ddd;
+    border-radius: 8px 8px 0 0;
+}
+.pentadiculum-shut {
+    font: inherit;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 5px;
+    color: #666;
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+.pentadiculum-shut:hover { color: #111; }
+
+.pentadiculum-body { padding: 11px; }

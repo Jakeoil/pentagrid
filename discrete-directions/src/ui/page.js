@@ -10,23 +10,26 @@
 // the rule is one way: nothing under `src/math/` knows a canvas exists.
 
 import {
-    PENTA_UP, PRESETS, centroidOf, checkSeed, eWheel, inflate, ladderTo, m10,
-    originFence, pentaflake, sharedEdge, spokesOf,
-    wheelFromPoints, wheelsAt,
+    PENTA_UP, PRESETS, centroidOf, eWheel, inflate, ladderTo, m10,
+    pentaflake, sharedEdge, spokesOf, wheelFromPoints, wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon, rhombGroup, rhombus } from "../../lib/tiles.js";
 import { expand, isSeedType, outlineOf } from "../../lib/patch.js";
 import { BUILD_ID } from "./build-id.js";
-import { fibCell, fitStep } from "./fit.js";
 
 /** @typedef {import("../../lib/wheels.js").Pt} Pt */
 /** @typedef {import("../../lib/wheels.js").Wheel} Wheel */
 /** @typedef {import("../../lib/tiles.js").Spelling} Spelling */
 /** @typedef {import("../../lib/patch.js").Placement} Placement */
 /** @typedef {import("../../lib/patch.js").SeedType} SeedType */
+/** @typedef {import("./pentadiculum.js").Seed} Seed */
+/** @typedef {import("./pentadiculum.js").Snap} Snap */
 
 import { EDGE_INK, HOT, INK, TAU, gridLines, paper, poly } from "./draw.js";
-import { drawNumeral, numHTML, numeralWidth } from "./numerals.js";
+import { numHTML } from "./numerals.js";
+// The input figure itself -- the five points, the origin and the pointer --
+// lives in the Pentadiculum. See the section below.
+import { SNAPS, createPentadiculum, snapForSeed } from "./pentadiculum.js";
 
 /** @type {(id: string) => HTMLElement | null} */
 const byId = (id) => document.getElementById(id);
@@ -64,8 +67,6 @@ let origin = [0, 0];
 /** The five as the wheels want them: positions seen from the origin. */
 const spokes = () => spokesOf({ points, origin });
 
-/** `dragging` is a point index, or this for the origin, or -1 for nothing. */
-const ORIGIN = 5;
 /**
  * Label the five point-to-point vectors with an arrow and their values. They
  * are the AFFINE part of the seed: a difference has the origin cancel out, so
@@ -126,38 +127,6 @@ const FACES = ["none", "transparent", "solid"];
 /** @type {readonly Edge[]} */
 const EDGES = ["none", "thin", "thick"];
 
-let dragging = -1;
-/** The input figure's current scale, so dragging lands where the handles are. */
-let inputScale = 26;
-
-/**
- * The input figure's viewport: a sticky auto-fit, and the user's own zoom on
- * top of it.
- *
- * It used to refit exactly on every frame — `k = 0.40·min(w,h) / reach` — which
- * made dragging a point outward run away. `pick()` divides the pointer by
- * `inputScale`, so a smaller scale maps the same pointer to a LARGER lattice
- * coordinate, which grows `reach`, which shrinks the scale again. Every
- * pointermove amplified the one before it and the figure shot away. Jake: *moving
- * a point toward the edge causes extremely quick zoomout.*
- *
- * So the fit is now held between frames and only gives way when the figure
- * actually reaches the edge, and then by `EDGE_SHRINK` a frame rather than all
- * at once. That breaks the loop at its root: the pointer-to-lattice mapping is
- * stable while you drag, which is the only way a drag can feel like dragging.
- *
- * `inputFit` of 0 means "refit exactly on the next draw", which is what the
- * discrete events ask for — a preset, `use`, a step of the ladder. Continuous
- * dragging never does.
- */
-let inputFit = 0;
-let inputZoom = 1;
-/** Whether the last draw left the figure past its margin, so it wants easing. */
-let inputOverflow = false;
-let settling = 0;
-const INPUT_ZOOM = { min: 0.1, max: 12 };
-/** Ask for an exact fit on the next draw. */
-const refitInput = () => { inputFit = 0; };
 /**
  * How far the input figure is extrapolated from the five points, in half
  * generations. 0 is the five themselves; the wheel ladder calls that rung 1.
@@ -175,17 +144,11 @@ const rungOf = (e) => 1 + e;
  * the centroid by hand. `none` is for the real preset, whose corners are
  * irrational and would be wrecked by rounding — it still quantizes, at 1/256,
  * because a pointer has pixels and a coordinate that reads to sixteen places is
- * not a coordinate anyone can use.
- * @typedef {"units" | "fifths" | "none"} Snap
+ * not a coordinate anyone can use. The rounding itself is the Pentadiculum's --
+ * it owns the pointer -- and this is only which mode the dropdown is on.
  */
 /** @type {Snap} */
 let snap = "units";
-/** @type {readonly Snap[]} */
-const SNAPS = ["units", "fifths", "none"];
-/** One coordinate, snapped. @type {(v: number) => number} */
-const snapped = (v) => snap === "units" ? Math.round(v)
-    : snap === "fifths" ? Math.round(v * 5) / 5
-    : Math.round(v * 256) / 256;
 
 /**
  * How tiles are filled.
@@ -223,238 +186,74 @@ let panFrom = [0, 0];
 /** The last automatic fit, so zoom can be anchored on the pointer. */
 let fit = { k0: 1, mx: 0, my: 0, w: 1, h: 1 };
 
-// ── the input figure ──────────────────────────────────────────────────────
+// ── the input figure: the Pentadiculum ─────────────────────────
+//
+// The figure, its viewport, its handles and the pointer all live in
+// `src/ui/pentadiculum.js` now. What is left here is the BINDING: this page's
+// seed, the view its own controls add to it, and the readouts underneath.
+//
+// Which is the whole reason for the extraction. The instrument is wanted on
+// pages that have never heard of this one -- a moire page showing four seeds
+// side by side is four Pentadicula and no global state -- and that is only
+// possible if none of it is written as a module-level `let` in a page.
 
 const inputCanvas = /** @type {HTMLCanvasElement | null} */ (byId("boot-input"));
 const CELL = 26;
 
+/** The seed, as the component takes it. @type {() => Seed} */
+const seedNow = () => ({ points, origin });
+/**
+ * The view this page's own controls add. Face, edges and the ladder are not the
+ * seed's business -- they are how this page draws it -- so they ride in here
+ * rather than living in the component.
+ * @type {() => import("./pentadiculum.js").View}
+ */
+const viewNow = () => ({ extrapolate, face, edge, vectors: showVectors, snap });
+
+const pd = createPentadiculum({
+    canvas: inputCanvas ?? undefined,
+    cell: CELL,
+    // A drag has made a new seed, and the component has already drawn it. Take
+    // it, keep the preset picker honest, and bring the rest of the page along.
+    onChange: (next) => {
+        points = next.points.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
+        origin = next.origin;
+        syncPreset();
+        readouts(pd.drawn());
+        drawFlake();
+        drawTiling();
+    },
+});
+
+/** Ask for an exact fit on the next draw. */
+const refitInput = () => pd.refit();
+
 function drawInput() {
-    if (!inputCanvas) return;
-    const ctx = inputCanvas.getContext("2d");
-    if (!ctx) return;
-    const w = inputCanvas.width, h = inputCanvas.height;
-    const cx = w / 2, cy = h / 2;
-    const e = eWheel(wheelFromPoints(spokes()));
-
-    // The pentagon at the chosen rung, scaled so it fills the same frame however
-    // far up or down the ladder it sits. At rung 1 this IS the five points.
-    const shown = pentagon(wheelsAt(spokes(), rungOf(extrapolate)).d, 0);
-    const verdict = checkSeed({ points, origin });
-    // The paper is the lattice, so the frame has to hold everything in LATTICE
-    // coordinates: the five where they sit, and the shown figure where the
-    // origin has put it. With the origin at (0,0) these are the same numbers
-    // they always were.
-    const reach = Math.max(1,
-        ...shown.map((v) => Math.hypot(v[0] + origin[0], v[1] + origin[1])),
-        ...points.map((v) => Math.hypot(v[0], v[1])),
-        Math.hypot(origin[0], origin[1]));
-    // Fit at every rung, with the paper drawn at the same scale — it used to
-    // hold a fixed cell size at extrapolate 0 and fit only elsewhere, so
-    // stepping the ladder, and `use` returning to 0, made the figure jump
-    // between two unrelated scales. That was the irregularity on `use`.
-    //
-    // But the fit is STICKY, not recomputed from scratch: see `inputFit`. An
-    // exact refit is what a preset or a ladder step asks for; a drag gets a
-    // scale that holds still, and gives way slowly when the figure reaches the
-    // edge. `margin` is what "reaches the edge" means.
-    const atBase = extrapolate === 0;
-    const margin = Math.min(w, h) * 0.40;
-    inputFit = fitStep(reach, inputFit, margin, CELL * 3);
-    inputOverflow = reach * inputFit > margin;
-    // Fibonacci cell sizes, Jake 2026-11-22. Rounded DOWN from the fit, so a
-    // figure that fitted still fits.
-    const k = fibCell(inputFit * inputZoom);
-
-    // The paper hangs off the ORIGIN, not off the canvas, so its 0,0 axes run
-    // through the origin wherever it has been dragged to. With the origin on
-    // the lattice -- which snap guarantees -- this is the grid it always was.
-    const ox = cx + origin[0] * k, oy = cy + origin[1] * k;
-    paper(ctx, w, h, ox, oy, k);
-    // The mapping `pick()` divides by, frozen for the length of a drag: while
-    // the pointer is down this keeps the value it had when it went down. That
-    // is what opens the feedback loop — see src/ui/fit.js. Easing the drawing
-    // scale was not enough on its own.
-    if (dragging < 0) inputScale = k;
-
-    if (!atBase) {
-        // The five, as a reference, so the ladder step is visible. Dashed and
-        // neutral on purpose: drawn as a faint tint of the fill color it read
-        // as a mysterious orange shadow of the pentagon rather than as a
-        // deliberate guide.
-        ctx.strokeStyle = "rgba(60,70,90,0.35)";
-        ctx.setLineDash([4, 4]);
-        ctx.lineWidth = 1;
-        poly(ctx, points, cx, cy, k);
-        ctx.stroke();
-        ctx.setLineDash([]);
-    }
-    // The input polygon's own style: edges on or off, fill solid, transparent
-    // or none. Separate from the output's — this is the pentagon being fed in,
-    // not the tiling coming out.
-    // The fence: every origin that keeps the ten spokes in order. Drawn first,
-    // under everything, and only where there is a choice to make.
-    if (atBase) {
-        const fence = originFence(points);
-        if (fence.length) {
-            poly(ctx, fence, cx, cy, k);
-            ctx.fillStyle = "rgba(42,59,107,0.07)";
-            ctx.fill();
-            ctx.strokeStyle = "rgba(42,59,107,0.45)";
-            ctx.setLineDash([3, 3]);
-            ctx.lineWidth = 1;
-            ctx.stroke();
-            ctx.setLineDash([]);
-        }
-    }
-
-    poly(ctx, shown, ox, oy, k);
-    if (face !== "none") {
-        ctx.globalAlpha = face === "transparent" ? 0.35 : 1;
-        ctx.fillStyle = HOT;
-        ctx.fill("evenodd");
-        ctx.globalAlpha = 1;
-    }
-    if (edge !== "none") {
-        ctx.strokeStyle = EDGE_INK;
-        ctx.lineWidth = edge === "thick" ? 3 : 1.6;
-        ctx.stroke();
-    }
-
-    // spokes to each corner, so the ordering is visible
-    ctx.strokeStyle = "rgba(230,57,70,0.35)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (const p of shown) { ctx.moveTo(ox, oy); ctx.lineTo(ox + p[0] * k, oy + p[1] * k); }
-    ctx.stroke();
-
-    // The affine vectors: 0->1, 1->2, ... 4->0, along the pentagon's own edges,
-    // clockwise, each labeled with the difference it is.
-    //
-    // Jake asked for these rather than for the wheel vectors out of the origin,
-    // and AFFINE is the right word for them: a difference of two points has the
-    // origin cancel out of it, so these five numbers are exactly what does not
-    // change when the origin is dragged. Everything the origin does move is the
-    // five spokes; everything it leaves alone is here.
-    //
-    // Clockwise comes free. The seed is valid when consecutive spokes turn the
-    // same way, and with y down the page that turn reads clockwise on screen —
-    // so index order is already the direction the arrows want to point.
-    if (showVectors) {
-        ctx.font = "600 10px ui-monospace, Menlo, monospace";
-        ctx.textBaseline = "middle";
-        ctx.lineWidth = 1.2;
-        ctx.strokeStyle = "rgba(42,59,107,0.8)";
-        const mid = shown.reduce((a, p) => [a[0] + p[0] / 5, a[1] + p[1] / 5], [0, 0]);
-        shown.forEach((from, i) => {
-            const to = shown[(i + 1) % shown.length];
-            const ax = ox + from[0] * k, ay = oy + from[1] * k;
-            const bx = ox + to[0] * k, by = oy + to[1] * k;
-            const len = Math.hypot(bx - ax, by - ay);
-            if (len < 10) return;
-            const ux = (bx - ax) / len, uy = (by - ay) / len;
-            ctx.beginPath();
-            ctx.moveTo(ax, ay);
-            ctx.lineTo(bx, by);
-            // the arrowhead at the HEAD, pulled back off the corner handle
-            const hx = bx - ux * 9, hy = by - uy * 9;
-            const a = 8, b = 3.6;
-            ctx.moveTo(hx, hy);
-            ctx.lineTo(hx - a * ux + b * uy, hy - a * uy - b * ux);
-            ctx.moveTo(hx, hy);
-            ctx.lineTo(hx - a * ux - b * uy, hy - a * uy + b * ux);
-            ctx.stroke();
-            // The value, outside the edge: the normal that points away from the
-            // figure's middle, so a label never lands on top of the pentagon.
-            const mx = (ax + bx) / 2, my = (ay + by) / 2;
-            const cxm = ox + mid[0] * k, cym = oy + mid[1] * k;
-            let nx = -uy, ny = ux;
-            if (nx * (mx - cxm) + ny * (my - cym) < 0) { nx = -nx; ny = -ny; }
-            const dx = to[0] - from[0], dy = to[1] - from[1];
-            const lx = mx + nx * 14, ly = my + ny * 14;
-            ctx.textAlign = "left";
-            drawNumeral(ctx, dx, lx - numeralWidth(ctx, dx) / 2, ly - 6);
-            drawNumeral(ctx, dy, lx - numeralWidth(ctx, dy) / 2, ly + 6);
-        });
-        ctx.textAlign = "center";
-    }
-
-    // Handles only at rung 1: that is the rung the points live on, and dragging
-    // a derived pentagon would have nothing to write back to.
-    ctx.font = "600 11px ui-monospace, Menlo, monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    // Numbered and draggable only at extrapolate 0, where the five actually
-    // live. An extrapolated pentagon is a view of them, not a thing to edit --
-    // `use` is what turns one into the five, and then it numbers and drags like
-    // any other.
-    shown.forEach((p, i) => {
-        const x = ox + p[0] * k, y = oy + p[1] * k;
-        if (atBase) {
-            ctx.fillStyle = i === dragging ? INK : HOT;
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, TAU);
-            ctx.fill();
-            ctx.fillStyle = "#fff";
-            ctx.fillText(String(i), x, y + 0.5);
-        } else {
-            ctx.fillStyle = HOT;
-            ctx.beginPath();
-            ctx.arc(x, y, 3, 0, TAU);
-            ctx.fill();
-        }
-    });
-
-    // The origin. A handle at the base rung, where moving it means something,
-    // and the small dot it has always been otherwise. Hollow when the seed it
-    // makes is unusable, so the figure says so before it falls apart.
-    ctx.beginPath();
-    ctx.arc(ox, oy, atBase ? 6.5 : 3, 0, TAU);
-    if (verdict.ok) { ctx.fillStyle = dragging === ORIGIN ? HOT : INK; ctx.fill(); }
-    else {
-        ctx.fillStyle = "#fff";
-        ctx.fill();
-        ctx.strokeStyle = HOT;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-    }
-
-    report(e);
-
-    const rungOut = byId("boot-rung-read");
-    if (rungOut) {
-        const d = wheelsAt(spokes(), rungOf(extrapolate)).d;
-        rungOut.innerHTML = `<b>extrapolate ${extrapolate > 0 ? "+" : ""}${extrapolate}`
-            + ` &middot; wheel generation ${rungOf(extrapolate)}</b>`
-            + `<span>${d.slice(0, 3).map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`
-            + (atBaseRung() ? "" : "<b>the five, for reference</b>"
-                + `<span>${points.map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`)
-            + `<b>origin (${numHTML(origin[0])}, ${numHTML(origin[1])})`
-                + ` &middot; centroid (${numHTML(centroid()[0])}, ${numHTML(centroid()[1])})</b>`
-            + `<span>${verdict.ok ? "the ten spokes are in order"
-                : `&#9888; ${verdict.why}`}</span>`;
-    }
+    readouts(pd.sync(seedNow(), viewNow()));
 }
 
 /**
- * Coordinates under the pointer, snapped as `snap` says. It goes to `none` with
- * the real preset: rounding an irrational pentagon's corners onto the paper on
- * the first drag would silently turn it back into a quadrille, which is the
- * kind of thing that goes unnoticed for a week.
- *
- * The canvas is passed in rather than read off the module: these handlers are
- * only ever registered inside a guard that has already found it.
- *
- * @param {HTMLCanvasElement} c
- * @param {{ clientX: number, clientY: number }} ev
- * @returns {Pt}
+ * The two readouts under the rig: the wheel table, and the rung line with the
+ * origin, the centroid and the seed's verdict.
+ * @param {import("./pentadiculum.js").Drawn} drawn
  */
-function pick(c, ev) {
-    const r = c.getBoundingClientRect();
-    const sx = c.width / r.width, sy = c.height / r.height;
-    const x = ((ev.clientX - r.left) * sx - c.width / 2) / inputScale;
-    const y = ((ev.clientY - r.top) * sy - c.height / 2) / inputScale;
-    return [snapped(x), snapped(y)];
+function readouts(drawn) {
+    report(eWheel(wheelFromPoints(spokes())));
+
+    const rungOut = byId("boot-rung-read");
+    if (!rungOut) return;
+    const d = wheelsAt(spokes(), rungOf(extrapolate)).d;
+    rungOut.innerHTML = `<b>extrapolate ${extrapolate > 0 ? "+" : ""}${extrapolate}`
+        + ` &middot; wheel generation ${rungOf(extrapolate)}</b>`
+        + `<span>${d.slice(0, 3).map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`
+        + (atBaseRung() ? "" : "<b>the five, for reference</b>"
+            + `<span>${points.map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`)
+        + `<b>origin (${numHTML(origin[0])}, ${numHTML(origin[1])})`
+            + ` &middot; centroid (${numHTML(centroid()[0])}, ${numHTML(centroid()[1])})</b>`
+        + `<span>${drawn.verdict.ok ? "the ten spokes are in order"
+            : `&#9888; ${drawn.verdict.why}`}</span>`;
 }
+
 
 // ── step 1: the pentaflake ────────────────────────────────────────────────
 
@@ -747,83 +546,6 @@ function report(e) {
 
 const redraw = () => { drawInput(); drawFlake(); drawTiling(); };
 
-/**
- * Keep easing the input's fit after the pointer has let go.
- *
- * The easing in `fitStep` happens a frame at a time, and frames here are
- * redraws, and redraws come from events. So a drag that ends past the margin
- * would simply stop there, with the figure left bigger than its frame. This
- * carries it the rest of the way, still a percent at a time — the alternative
- * was to snap on release, and a jump at the end of every drag is the kind of
- * thing `use` was complained about for.
- *
- * It does nothing where there are no animation frames, which is node: the page
- * check imports this module and never gets one.
- */
-function settleInput() {
-    if (settling || dragging >= 0 || !inputOverflow) return;
-    const raf = globalThis.requestAnimationFrame;
-    if (typeof raf !== "function") return;
-    settling = raf(() => {
-        settling = 0;
-        drawInput();
-        settleInput();
-    });
-}
-
-if (inputCanvas) {
-    const c = inputCanvas;
-    c.addEventListener("pointerdown", (ev) => {
-        if (!atBaseRung()) return;       // only the five themselves are editable
-        const at = pick(c, ev);
-        let best = -1, bestD = 2.5;
-        points.forEach((p, i) => {
-            const dd = Math.hypot(p[0] - at[0], p[1] - at[1]);
-            if (dd < bestD) { bestD = dd; best = i; }
-        });
-        // The origin wins a tie: a pentagon dragged in small can bury it, and
-        // then there would be no way to get it back.
-        const dOrigin = Math.hypot(origin[0] - at[0], origin[1] - at[1]);
-        if (dOrigin <= bestD) { bestD = dOrigin; best = ORIGIN; }
-        dragging = best;
-        if (best >= 0) { c.setPointerCapture(ev.pointerId); redraw(); }
-    });
-    c.addEventListener("pointermove", (ev) => {
-        if (dragging < 0) return;
-        const at = pick(c, ev);
-        const was = dragging === ORIGIN ? origin : points[dragging];
-        if (at[0] === was[0] && at[1] === was[1]) return;
-        if (dragging === ORIGIN) origin = at;
-        else points = points.map((p, i) => (i === dragging ? at : p));
-        syncPreset();
-        redraw();
-    });
-    const drop = () => {
-        if (dragging < 0) return;
-        dragging = -1;
-        redraw();
-        settleInput();
-    };
-    c.addEventListener("pointerup", drop);
-    c.addEventListener("pointercancel", drop);
-
-    // Scroll to zoom, as the output does and with the same feel — but about the
-    // CENTER, not the pointer. The origin is a real thing on this figure: the
-    // spokes run from it and the wheel is measured about it, so it stays put and
-    // there is no pan to go with the zoom. Double-click puts it back and refits.
-    c.addEventListener("wheel", (ev) => {
-        ev.preventDefault();
-        const by = Math.exp(-(ev.deltaY ?? 0) * 0.0015);
-        inputZoom = Math.min(INPUT_ZOOM.max, Math.max(INPUT_ZOOM.min, inputZoom * by));
-        drawInput();
-    }, { passive: false });
-    c.addEventListener("dblclick", () => {
-        inputZoom = 1;
-        refitInput();
-        drawInput();
-    });
-}
-
 const rungOutValue = byId("boot-extrapolate-value");
 /** Show the current extrapolation, signed, so +0.5 and -0.5 read differently. */
 function showExtrapolate() {
@@ -1016,15 +738,16 @@ function syncPreset() {
  * this worth doing automatically rather than leaving to the control.
  */
 function setSnapFromPoints() {
-    const all = [...points, origin].flat();
-    snap = all.every((v) => Number.isInteger(v)) ? "units"
-        : all.every((v) => Number.isInteger(v * 5)) ? "fifths"
-        : "none";
+    snap = snapForSeed(seedNow());
     if (snapPick) snapPick.value = snap;
 }
 if (snapPick) snapPick.addEventListener("change", () => {
     const v = /** @type {Snap} */ (snapPick.value);
     if (SNAPS.includes(v)) snap = v;
+    // Pushed through to the component, which is what owns the pointer: the
+    // view only reaches it on a `sync`, so without this the next drag would
+    // still be snapping the way the last draw was told to.
+    drawInput();
 });
 
 const presetPick = /** @type {HTMLSelectElement | null} */ (byId("boot-preset"));

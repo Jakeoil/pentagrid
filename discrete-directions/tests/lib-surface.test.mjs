@@ -25,6 +25,7 @@ import * as tiles from "../lib/tiles.js";
 import * as patch from "../lib/patch.js";
 import * as e2 from "../lib/e2.js";
 import * as all from "../lib/discrete-directions.js";
+import * as pentadiculum from "../lib/pentadiculum.js";
 
 const SURFACE = {
     "wheels.js": [
@@ -43,6 +44,17 @@ const SURFACE = {
         "starPolygon", "starTips", "turn", "vertices",
     ],
     "patch.js": ["SEED_TYPES", "WALK_OF", "expand", "isSeedType", "outlineOf"],
+    // The UI half: the Pentadiculum, the drawing primitives it is built on, and
+    // Jake's numeral. It is the one entry that needs a DOM, which is why it is
+    // not in the all-in-one -- see the test below.
+    "pentadiculum.js": [
+        "EDGE_INK", "EDGE_SHRINK", "FIB_CELLS", "GRID_LEVELS", "HOT", "INK",
+        "PD_ORIGIN", "SNAPS", "TAU", "TONE",
+        "compact", "createPentadiculum", "drawNumeral", "fibCell", "fitStep",
+        "gridLines", "mountFloatingPentadiculum", "mountPentadiculum",
+        "numHTML", "numeralWidth", "paper", "poly", "ptHTML", "snapForSeed",
+        "snapped",
+    ],
     "e2.js": [
         "PHI", "QUADRILLE", "SEED_GENERATION", "WHEELS", "deflate",
         "discreteDirections", "frameOperator", "generation", "halfStep",
@@ -66,10 +78,11 @@ test("each entry point exports exactly its stated surface", () => {
     assert.deepEqual(names(tiles), [...SURFACE["tiles.js"]].sort());
     assert.deepEqual(names(patch), [...SURFACE["patch.js"]].sort());
     assert.deepEqual(names(e2), [...SURFACE["e2.js"]].sort());
+    assert.deepEqual(names(pentadiculum), [...SURFACE["pentadiculum.js"]].sort());
 });
 
 test("every entry point has a golden surface, and every golden surface an entry", () => {
-    const entries = readdirSync(`${HERE}lib`).filter((f) => f.endsWith(".js")).sort();
+    const entries = entryFiles().sort();
     assert.deepEqual(entries, [...Object.keys(SURFACE), "discrete-directions.js"].sort(),
         "an entry was added or removed without its golden list");
 });
@@ -99,6 +112,17 @@ test("e2 is left out of the all-in-one because it would collide", () => {
     assert.equal(e2.SEED_GENERATION, 1);
 });
 
+test("the UI entry is left out of the all-in-one, because it needs a DOM", () => {
+    // `lib/discrete-directions.js` is the one import for a consumer who wants
+    // the mathematics, and the mathematics runs in node. Gathering the
+    // Pentadiculum into it would make `import ... from "discrete-directions"`
+    // reach for `document`, which is the sort of thing that is discovered in a
+    // test runner. It is imported by name instead.
+    const gathered = new Set(GATHERED.flatMap((f) => SURFACE[f]));
+    for (const n of SURFACE["pentadiculum.js"])
+        assert.ok(!gathered.has(n), `${n} is in the all-in-one after all`);
+});
+
 test("the facade is the same function, not a copy of it", async () => {
     const wheel = await import("../src/math/wheel.js");
     const walk = await import("../src/math/walk.js");
@@ -108,13 +132,24 @@ test("the facade is the same function, not a copy of it", async () => {
     assert.equal(tiles.rhombus, walk.rhombus);
     assert.equal(patch.expand, patchSrc.expand);
     assert.equal(all.expand, patchSrc.expand);
+    const pdSrc = await import("../src/ui/pentadiculum.js");
+    assert.equal(pentadiculum.createPentadiculum, pdSrc.createPentadiculum);
+});
+
+/** The entry points: `lib/css/` sits beside them and is not one. */
+const entryFiles = () => readdirSync(`${HERE}lib`).filter((f) => f.endsWith(".js"));
+
+test("the stylesheet the mounts need ships beside the entry it belongs to", () => {
+    // `lib/pentadiculum.js` says the CSS is not optional, so it has to be here
+    // to link. The bare `createPentadiculum` needs none of it.
+    assert.ok(readdirSync(`${HERE}lib/css`).includes("pentadiculum.css"));
 });
 
 test("lib/ re-exports and nothing else", () => {
     // No logic in a facade: every statement is an import, an export or a
     // comment. If a default or a convenience is ever wanted here, it should be
     // a deliberate change to this test too.
-    for (const file of readdirSync(`${HERE}lib`)) {
+    for (const file of entryFiles()) {
         const body = readFileSync(`${HERE}lib/${file}`, "utf8")
             .replace(/\/\*[\s\S]*?\*\//g, "")       // block comments and JSDoc
             .replace(/^\s*\/\/.*$/gm, "")           // line comments
@@ -127,7 +162,7 @@ test("lib/ re-exports and nothing else", () => {
     }
 });
 
-test("the three entry points cover every module under src/math/", () => {
+test("the math entry points cover every module under src/math/", () => {
     // A module nobody can reach through `lib/` is either private on purpose or
     // forgotten. There is nothing private here yet, so the count should match.
     const modules = readdirSync(`${HERE}src/math`).filter((f) => f.endsWith(".js"));
@@ -135,7 +170,7 @@ test("the three entry points cover every module under src/math/", () => {
         ["e2.js", "flake.js", "patch.js", "seed.js", "star.js", "walk.js",
          "wheel.js"]);
     const sources = new Set();
-    for (const file of readdirSync(`${HERE}lib`)) {
+    for (const file of entryFiles()) {
         if (file === "discrete-directions.js") continue;
         for (const m of readFileSync(`${HERE}lib/${file}`, "utf8").matchAll(/\.\.\/src\/math\/([\w.]+)/g))
             sources.add(m[1]);
