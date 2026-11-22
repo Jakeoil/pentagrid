@@ -12,7 +12,8 @@
 // knows lives in the closure `createPentadiculum` returns. Two on one page
 // share the drawing primitives and nothing else.
 //
-// THE GEOMETRY IT PRESENTS — Gaussean Pentadic Geometry, Jake's name for it:
+// THE GEOMETRY IT PRESENTS — Gaussean Pentadic Geometry, Jake's name for it,
+// written up in `GEOMETRY.md`:
 // five ordered Gaussian integers and the lattice point they radiate from. The
 // seed is `(points, origin)` and the wheels are built on the differences, so
 // `(p, o)` and `(p − o, 0)` are the same seed; the origin adds no geometry, it

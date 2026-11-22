@@ -1,6 +1,10 @@
 // @ts-check
 // The seed: five ordered points AND the origin their spokes are measured from.
 //
+// The geometry this file implements is written up in `GEOMETRY.md` -- Gaussean
+// Pentadic Geometry, Jake's name for it. What is here is the arithmetic and the
+// reasons for it; what is there is the object, with every number measured.
+//
 // `wheel.js` takes five VECTORS. A seed is five POSITIONS plus the point they
 // radiate from, and the subtraction between the two lives here:
 //

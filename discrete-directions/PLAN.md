@@ -22,6 +22,12 @@ Settled with Jake 2026-11-18, corrected 2026-11-19: the version-2 framing, the
 pentaplex basis, and what the oracle is an oracle *for*. This supersedes three
 documents that say otherwise, one of them an earlier draft of this one; see §6.
 
+**The four documents.** This is the charter — what is being built and in what
+order. `GEOMETRY.md` is the **object**: Gaussean Pentadic Geometry, what a seed
+is, when five points are one, what the origin may do and what that costs.
+`NOTES.md` is the argument that got here, left as it was written. `WISHLIST.md`
+is what penrose-mosaic has that this does not.
+
 ---
 
 ## 1. The three rules
