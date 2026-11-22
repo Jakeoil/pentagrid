@@ -28,11 +28,14 @@ import * as all from "../lib/discrete-directions.js";
 
 const SURFACE = {
     "wheels.js": [
-        "ASYMMETRIC", "PENTA_UP", "PRESETS", "REAL_PENTA", "SEED_GENERATION",
-        "TENTHS",
-        "comb", "deflate", "eWheel", "halfDown", "halfUp", "inflate", "ladderTo",
-        "m10", "pWheel", "pWheelFromFlake", "pair", "pentaflake", "pointsOf",
-        "sWheel", "sharedEdge", "stride", "tWheel", "wheelFromPoints", "wheelsAt",
+        "ASYMMETRIC", "PENTA_UP", "PRESETS", "REAL_PENTA", "SEEDS",
+        "SEED_GENERATION", "TENTHS",
+        "centered", "centroidOf", "checkSeed", "comb", "deflate", "eWheel",
+        "halfDown", "halfUp", "inflate",
+        "ladderTo", "m10", "nearestOrigin", "originFence", "pWheel",
+        "pWheelFromFlake", "pair", "pentaflake", "pointsOf", "sWheel", "seedOf",
+        "sharedEdge", "spokesOf", "stride", "tWheel", "wheelFromPoints",
+        "wheelOf", "wheelsAt", "wheelsOf",
     ],
     "tiles.js": [
         "BOAT", "DIAMOND", "PENTA", "STAR", "THICK", "THIN", "anchorFor", "closes",
@@ -129,7 +132,8 @@ test("the three entry points cover every module under src/math/", () => {
     // forgotten. There is nothing private here yet, so the count should match.
     const modules = readdirSync(`${HERE}src/math`).filter((f) => f.endsWith(".js"));
     assert.deepEqual(modules.sort(),
-        ["e2.js", "flake.js", "patch.js", "star.js", "walk.js", "wheel.js"]);
+        ["e2.js", "flake.js", "patch.js", "seed.js", "star.js", "walk.js",
+         "wheel.js"]);
     const sources = new Set();
     for (const file of readdirSync(`${HERE}lib`)) {
         if (file === "discrete-directions.js") continue;

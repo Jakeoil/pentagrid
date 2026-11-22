@@ -7,6 +7,11 @@
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="stylesheet" href="../site.css">
     <style>
+        /* Jake's compact numeral: the sign is a color, not a character, and the
+           amber cell counts the zeros the decimal point cannot reach. */
+        .num { font-variant-numeric: tabular-nums; color: #111418; }
+        .num.neg { color: #c62828; }
+        .num .amber { color: #c77c00; font-style: normal; }
         /* One measure for the whole page. The rig sets the width; site.css caps
            prose at 68ch, which left it pinned to the left edge of a page this
            wide. Centering the measure puts it under the middle of the rig
@@ -91,7 +96,14 @@
                     <span class="step" id="boot-extrapolate-value">0</span>
                     <button id="boot-extrapolate-up" title="half a generation up">+</button>
                     <button id="boot-use" title="adopt this pentagon as the five">use</button></div>
-                <div><label><input type="checkbox" id="boot-snap" checked> snap</label>
+                <div><span class="grp">snap</span>
+                    <select id="boot-snap" title="what a dragged handle lands on">
+                        <option value="units" selected>units</option>
+                        <option value="fifths">&#8533;</option>
+                        <option value="none">none</option>
+                    </select>
+                    <label><input type="checkbox" id="boot-vectors" title="the five point-to-point vectors, clockwise, with their values"> vectors</label>
+                    <button id="boot-centroid" title="put the origin on the centroid of the five, where the rhombs close as parallelograms">centroid</button>
                     <button id="boot-reset">reset</button></div>
                 <div><span class="grp">face</span>
                     <select id="boot-face">
@@ -130,6 +142,8 @@
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-2"> 2</label>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-3"> 3</label>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-4"> 4</label></div>
+                <div><span class="grp">grid</span>
+                    <label><input type="checkbox" id="boot-grid-over" title="draw the lattice over the tiles as well as under them"> on top</label></div>
                 <div><span class="grp">gen</span>
                     <button id="boot-gen-down">&minus;</button>
                     <span class="step" id="boot-gen-value">2</span>
@@ -152,7 +166,8 @@
                     </select></div>
                 <div><span class="grp">rhomb wheels</span>
                     <select id="boot-spelling">
-                        <option value="mixed" selected>D+P then T</option>
+                        <option value="classic" selected>classic (D+P then T)</option>
+                        <option value="centroid">centroid</option>
                         <option value="t">T throughout</option>
                         <option value="inflated">D+P throughout</option>
                     </select></div>
@@ -253,10 +268,13 @@
     in one number: the real pentagon has <b>one</b> edge length, the quadrille
     three.</p>
 
-    <p class="hint"><b>Snap to the lattice</b> is on for the quadrille and off for
-    the real preset &mdash; rounding an irrational pentagon's corners onto the
-    paper on the first drag would silently turn it back into a quadrille. The box
-    is yours to override either way.</p>
+    <p class="hint"><b>Snap</b> is <code>units</code> for the quadrille and
+    <code>none</code> for the real preset &mdash; rounding an irrational
+    pentagon's corners onto the paper on the first drag would silently turn it
+    back into a quadrille. The third setting, <code>&#8533;</code>, is the grid
+    the <b>centroid</b> lives on: the sweet spot is always in
+    (1/5)&#8484;&sup2;, so fifths are what you need to drag the origin onto it
+    by hand. The dropdown follows the figure and is yours to override.</p>
 
     <h3>The third preset: asymmetric</h3>
 

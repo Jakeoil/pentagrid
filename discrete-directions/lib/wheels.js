@@ -19,6 +19,18 @@ export {
     wheelsAt, ladderTo,
 } from "../src/math/wheel.js";
 
+// ── the seed: five points AND the origin their spokes are measured from ──
+//
+// `wheel.js` takes five VECTORS; a seed is five POSITIONS plus the point they
+// radiate from, and moving that point reshapes the wheel. `originFence` is
+// where it is allowed to go, exactly -- a convex pentagon, about a seventh of
+// the pentagon's area, and on a REGULAR pentagon exactly the pentagon one
+// generation down.
+export {
+    seedOf, spokesOf, wheelOf, wheelsOf, SEEDS,
+    checkSeed, originFence, nearestOrigin, centroidOf, centered,
+} from "../src/math/seed.js";
+
 export { pentaflake, pWheelFromFlake, sharedEdge } from "../src/math/flake.js";
 
 /** @typedef {import("../src/math/wheel.js").Pt} Pt */

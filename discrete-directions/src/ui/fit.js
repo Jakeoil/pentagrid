@@ -54,3 +54,40 @@ export function fitStep(reach, held, margin, cap) {
     if (reach * held > margin) return Math.max(exact, held * EDGE_SHRINK);
     return held;                                   // it fits: leave it alone
 }
+
+/**
+ * The cell sizes the input figure is allowed to use, in pixels.
+ *
+ * Jake, 2026-11-22: in the spirit of the thing, the grid jumps by Fibonacci —
+ * 8×8, then 13×13, then 21×21. Which is not only decorative. The wheels' x
+ * components ARE the Fibonacci numbers at every rung, so a figure stepped one
+ * rung up at one cell size down lands on the same pixels; and a continuous fit
+ * meant the paper's own squares were never twice a readable size.
+ *
+ * The ladder runs BOTH ways. Jake, same day: *make sure grid-size keeps up with
+ * display. I saw (didn't see rather) points outside the canvas.* The first
+ * version stopped at 1 pixel, and a cell can legitimately need to be smaller
+ * than that — at extrapolate +6 the classic pentagon reaches 1091 lattice units
+ * and wants 0.293 px/unit. Floored at 1 it was drawn three times too large and
+ * the whole figure left the canvas. So the reciprocals are cells too: 1/2, 1/3,
+ * 1/5, 1/8, where the paper is far too fine to draw and the number is purely a
+ * scale.
+ */
+export const FIB_CELLS = [
+    1 / 233, 1 / 144, 1 / 89, 1 / 55, 1 / 34, 1 / 21, 1 / 13, 1 / 8, 1 / 5,
+    1 / 3, 1 / 2, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233,
+];
+
+/**
+ * The largest Fibonacci cell that is no bigger than `k`. Rounding DOWN rather
+ * than to nearest is what keeps a fitted figure inside its frame — and below
+ * the ladder's own bottom the ladder gives way rather than the frame, so
+ * `fibCell(k) <= k` holds for every k and the display always wins.
+ * @param {number} k
+ * @returns {number}
+ */
+export function fibCell(k) {
+    let out = FIB_CELLS[0];
+    for (const f of FIB_CELLS) if (f <= k) out = f;
+    return Math.min(out, k);
+}

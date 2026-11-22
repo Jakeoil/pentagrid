@@ -124,3 +124,55 @@ test("it never shrinks past the exact fit", () => {
     for (let i = 0; i < 500; i++) scale = fitStep(200, scale, MARGIN, CAP);
     assert.ok(Math.abs(scale - exact) < 1e-9, `settled at ${scale}, not ${exact}`);
 });
+
+// ── the Fibonacci cell ladder ─────────────────────────────────────────────
+//
+// Jake, 2026-11-22: *although I want fib values for grid-size, make sure
+// grid-size keeps up with display. I saw (didn't see rather) points outside the
+// canvas.* The ladder stopped at 1 pixel, and the extrapolated pentagon wants
+// less than that: at rung +6 the classic seed reaches 1091 lattice units, so a
+// 340px canvas needs 0.29 px/unit and got 1. Three times too large, and the
+// figure was off the sheet with nothing on screen to say why.
+
+import { FIB_CELLS, fibCell } from "../src/ui/fit.js";
+import { PENTA_UP, PRESETS, wheelsAt } from "../lib/wheels.js";
+import { pentagon } from "../lib/tiles.js";
+
+test("the cell is never larger than the fit it was rounded from", () => {
+    // The whole guarantee. Rounding to nearest, or flooring the ladder, breaks
+    // it -- and a cell larger than the fit is a figure off the canvas.
+    for (let e = -4; e <= 4; e += 0.0625) {
+        const k = 10 ** e;
+        assert.ok(fibCell(k) <= k, `fibCell(${k}) = ${fibCell(k)} > ${k}`);
+        assert.ok(fibCell(k) > 0, `fibCell(${k}) is not positive`);
+    }
+});
+
+test("and it is the largest cell on the ladder that fits", () => {
+    for (const f of FIB_CELLS) {
+        assert.equal(fibCell(f), f, `${f} should be its own cell`);
+        // just under a rung takes the rung below
+        const below = FIB_CELLS.filter((g) => g < f).at(-1);
+        if (below !== undefined) assert.equal(fibCell(f * 0.999), below);
+    }
+    // consecutive cells are Fibonacci: each is the sum of the two before it
+    const whole = FIB_CELLS.filter((f) => f >= 1);
+    for (let i = 2; i < whole.length; i++)
+        assert.equal(whole[i], whole[i - 1] + whole[i - 2], `at ${whole[i]}`);
+});
+
+test("every rung of the ladder stays on the canvas", () => {
+    // The bug as the page meets it: fit the figure, quantize the cell, and ask
+    // whether the corners are still inside. `margin` is 40% of a 340px canvas,
+    // and the half-canvas is 170.
+    const CANVAS = 340, MARGIN = CANVAS * 0.40, CAP = 78;
+    for (const [name, pts] of [["classic", PENTA_UP], ...Object.entries(PRESETS)]) {
+        for (let e = -4; e <= 6; e += 0.5) {
+            const shown = pentagon(wheelsAt(pts, 1 + e).d, 0);
+            const reach = Math.max(1, ...shown.map((v) => Math.hypot(v[0], v[1])));
+            const k = fibCell(fitStep(reach, 0, MARGIN, CAP));
+            assert.ok(reach * k <= CANVAS / 2,
+                `${name} at rung ${1 + e}: reaches ${(reach * k).toFixed(0)}px of ${CANVAS / 2}`);
+        }
+    }
+});

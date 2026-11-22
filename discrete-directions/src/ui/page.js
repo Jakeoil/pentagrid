@@ -10,13 +10,14 @@
 // the rule is one way: nothing under `src/math/` knows a canvas exists.
 
 import {
-    PENTA_UP, PRESETS, eWheel, inflate, ladderTo, m10, pentaflake, sharedEdge,
+    PENTA_UP, PRESETS, centroidOf, checkSeed, eWheel, inflate, ladderTo, m10,
+    originFence, pentaflake, sharedEdge, spokesOf,
     wheelFromPoints, wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon, rhombGroup, rhombus } from "../../lib/tiles.js";
 import { expand, isSeedType, outlineOf } from "../../lib/patch.js";
 import { BUILD_ID } from "./build-id.js";
-import { fitStep } from "./fit.js";
+import { fibCell, fitStep } from "./fit.js";
 
 /** @typedef {import("../../lib/wheels.js").Pt} Pt */
 /** @typedef {import("../../lib/wheels.js").Wheel} Wheel */
@@ -24,9 +25,9 @@ import { fitStep } from "./fit.js";
 /** @typedef {import("../../lib/patch.js").Placement} Placement */
 /** @typedef {import("../../lib/patch.js").SeedType} SeedType */
 
-const INK = "#2a3b6b";
-const HOT = "#e63946";
-const TAU = 2 * Math.PI;
+import { EDGE_INK, HOT, INK, TAU, gridLines, paper, poly } from "./draw.js";
+import { drawNumeral, numHTML, numeralWidth } from "./numerals.js";
+
 /** @type {(id: string) => HTMLElement | null} */
 const byId = (id) => document.getElementById(id);
 
@@ -41,11 +42,42 @@ const FILL = {
     Pe5: BLUE, Pe3: YELLOW, Pe1: ORANGE,
     St5: BLUE, St3: BLUE, St1: BLUE,
 };
-/** Edges are black and the same weight everywhere, input and output alike. */
-const EDGE_INK = "#111418";
 
 /** @type {Pt[]} */
 let points = PENTA_UP.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
+
+/**
+ * The point the five are measured FROM. Moving it is exactly translating the
+ * five the other way — `{points, origin}` says nothing the five spokes do not —
+ * so it adds no geometry. What it adds is the one motion the five handles
+ * cannot make between them: sliding the pentagon over the lattice as a block.
+ *
+ * Which turns out to be sharply fenced. See `src/math/seed.js`: of all the
+ * places the origin can sit, only a small pentagon's worth keep the ten spokes
+ * in order, and on the integer lattice that is two positions for the classic
+ * seed and six for the asymmetric one. `originFence` draws it so the limit is
+ * visible rather than discovered by the figure falling apart.
+ * @type {Pt}
+ */
+let origin = [0, 0];
+
+/** The five as the wheels want them: positions seen from the origin. */
+const spokes = () => spokesOf({ points, origin });
+
+/** `dragging` is a point index, or this for the origin, or -1 for nothing. */
+const ORIGIN = 5;
+/**
+ * Label the five point-to-point vectors with an arrow and their values. They
+ * are the AFFINE part of the seed: a difference has the origin cancel out, so
+ * these five are what dragging the origin leaves alone.
+ */
+let showVectors = false;
+
+/** The sweet spot: the origin at which all three rhomb spellings coincide. */
+const centroid = () => centroidOf(points);
+/** The spokes the RHOMBS are measured on. See the `centroid` spelling. */
+const rhombSpokes = () => spelling === "centroid"
+    ? spokesOf({ points, origin: centroid() }) : spokes();
 /** @type {SeedType} */
 let seed = "Sun";
 /** The patch's angle, as penrose-mosaic splits it: fifths plus an up/down bit. */
@@ -55,8 +87,15 @@ let isDown = false;
 let heads = true;
 const seedTenth = () => m10(fifths * 2 + (isDown ? 5 : 0));
 let gen = 2;
-/** @type {Spelling} */
-let spelling = "mixed";
+/**
+ * How the rhombs are built. The three `Spelling`s walk the quadrilateral in
+ * different wheels; `centroid` is not a spelling at all but an ORIGIN — it
+ * measures the rhombs from the seed's centroid, where all three spellings
+ * coincide and every one of them closes as an exact parallelogram.
+ * @typedef {Spelling | "centroid"} RhombMode
+ */
+/** @type {RhombMode} */
+let spelling = "classic";
 /** @type {"none" | "little" | "big"} */
 let rhombSize = "none";
 
@@ -126,8 +165,27 @@ const refitInput = () => { inputFit = 0; };
 let extrapolate = 0;
 /** @type {(e: number) => number} */
 const rungOf = (e) => 1 + e;
-/** Snap the input's handles to the lattice. Off for the real preset. */
-let snapToLattice = true;
+/**
+ * What the input's handles snap to.
+ *
+ * It was a checkbox, and the centroid is what made it a dropdown: the sweet
+ * spot lands in (1/5)Z^2 and never on an integer unless the five happen to sum
+ * to a multiple of five, so "on the lattice or nowhere" could not express it.
+ * With `fifths` the origin can be dragged ALONG the fence and landed exactly on
+ * the centroid by hand. `none` is for the real preset, whose corners are
+ * irrational and would be wrecked by rounding — it still quantizes, at 1/256,
+ * because a pointer has pixels and a coordinate that reads to sixteen places is
+ * not a coordinate anyone can use.
+ * @typedef {"units" | "fifths" | "none"} Snap
+ */
+/** @type {Snap} */
+let snap = "units";
+/** @type {readonly Snap[]} */
+const SNAPS = ["units", "fifths", "none"];
+/** One coordinate, snapped. @type {(v: number) => number} */
+const snapped = (v) => snap === "units" ? Math.round(v)
+    : snap === "fifths" ? Math.round(v * 5) / 5
+    : Math.round(v * 256) / 256;
 
 /**
  * How tiles are filled.
@@ -150,73 +208,20 @@ let snapToLattice = true;
  * generation still frames the figure sensibly and the viewport rides along.
  */
 const view = { zoom: 1, panX: 0, panY: 0 };
+/**
+ * Draw the output's lattice OVER the tiles as well as under them.
+ *
+ * Under the tiles the paper is decoration; over them it is a measurement — it
+ * is how you see which tile corners land on lattice points and which do not,
+ * which is the whole question the discrete geometry asks. Kept to a veil so the
+ * tiling still reads as the figure.
+ */
+let gridOver = false;
 let panning = false;
 /** @type {[number, number]} */
 let panFrom = [0, 0];
 /** The last automatic fit, so zoom can be anchored on the pointer. */
 let fit = { k0: 1, mx: 0, my: 0, w: 1, h: 1 };
-
-/**
- * Square graph paper, emphasized every 4th line, then every 20th (5x4), then
- * every 100th (20x5) — and the 100s include the axes through 0, so the origin
- * always reads.
- *
- * Each level is drawn over the last, so a line that is a multiple of 20 gets the
- * 20 color and a multiple of 100 the 100 color. The emphases stay subtle: the
- * grid is there to be counted on, not looked at.
- *
- * @type {readonly (readonly [number, string])[]}
- */
-const GRID_LEVELS = [
-    [1, "#dce7f6"],
-    [4, "#c2d6ef"],
-    [20, "#9dbde4"],
-    [100, "#6f9bd4"],
-];
-
-/**
- * @param {CanvasRenderingContext2D} ctx
- * @param {number} w
- * @param {number} h
- * @param {number} cx
- * @param {number} cy
- * @param {number} cell
- */
-function paper(ctx, w, h, cx, cy, cell) {
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#fbfcfe";
-    ctx.fillRect(0, 0, w, h);
-    ctx.lineWidth = 1;
-    for (const [step, color] of GRID_LEVELS) {
-        const gap = cell * step;
-        if (gap < 4) continue;                  // too fine to read: leave it out
-        ctx.strokeStyle = color;
-        ctx.beginPath();
-        // Anchored on the origin rather than on the canvas edge, so the emphasis
-        // lands on multiples of the step and not wherever the pan happens to be.
-        const firstX = cx - Math.ceil(cx / gap) * gap;
-        const firstY = cy - Math.ceil(cy / gap) * gap;
-        for (let x = firstX; x < w; x += gap) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); }
-        for (let y = firstY; y < h; y += gap) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); }
-        ctx.stroke();
-    }
-}
-
-/**
- * @param {CanvasRenderingContext2D} ctx
- * @param {readonly Pt[]} pts
- * @param {number} cx
- * @param {number} cy
- * @param {number} k
- */
-const poly = (ctx, pts, cx, cy, k) => {
-    ctx.beginPath();
-    pts.forEach((p, i) => {
-        const x = cx + p[0] * k, y = cy + p[1] * k;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.closePath();
-};
 
 // ── the input figure ──────────────────────────────────────────────────────
 
@@ -229,13 +234,20 @@ function drawInput() {
     if (!ctx) return;
     const w = inputCanvas.width, h = inputCanvas.height;
     const cx = w / 2, cy = h / 2;
-    const e = eWheel(wheelFromPoints(points));
+    const e = eWheel(wheelFromPoints(spokes()));
 
     // The pentagon at the chosen rung, scaled so it fills the same frame however
     // far up or down the ladder it sits. At rung 1 this IS the five points.
-    const shown = pentagon(wheelsAt(points, rungOf(extrapolate)).d, 0);
-    const reach = Math.max(1, ...shown.map((v) => Math.hypot(v[0], v[1])),
-                           ...points.map((v) => Math.hypot(v[0], v[1])));
+    const shown = pentagon(wheelsAt(spokes(), rungOf(extrapolate)).d, 0);
+    const verdict = checkSeed({ points, origin });
+    // The paper is the lattice, so the frame has to hold everything in LATTICE
+    // coordinates: the five where they sit, and the shown figure where the
+    // origin has put it. With the origin at (0,0) these are the same numbers
+    // they always were.
+    const reach = Math.max(1,
+        ...shown.map((v) => Math.hypot(v[0] + origin[0], v[1] + origin[1])),
+        ...points.map((v) => Math.hypot(v[0], v[1])),
+        Math.hypot(origin[0], origin[1]));
     // Fit at every rung, with the paper drawn at the same scale — it used to
     // hold a fixed cell size at extrapolate 0 and fit only elsewhere, so
     // stepping the ladder, and `use` returning to 0, made the figure jump
@@ -249,9 +261,15 @@ function drawInput() {
     const margin = Math.min(w, h) * 0.40;
     inputFit = fitStep(reach, inputFit, margin, CELL * 3);
     inputOverflow = reach * inputFit > margin;
-    const k = inputFit * inputZoom;
+    // Fibonacci cell sizes, Jake 2026-11-22. Rounded DOWN from the fit, so a
+    // figure that fitted still fits.
+    const k = fibCell(inputFit * inputZoom);
 
-    paper(ctx, w, h, cx, cy, k);
+    // The paper hangs off the ORIGIN, not off the canvas, so its 0,0 axes run
+    // through the origin wherever it has been dragged to. With the origin on
+    // the lattice -- which snap guarantees -- this is the grid it always was.
+    const ox = cx + origin[0] * k, oy = cy + origin[1] * k;
+    paper(ctx, w, h, ox, oy, k);
     // The mapping `pick()` divides by, frozen for the length of a drag: while
     // the pointer is down this keeps the value it had when it went down. That
     // is what opens the feedback loop — see src/ui/fit.js. Easing the drawing
@@ -273,7 +291,23 @@ function drawInput() {
     // The input polygon's own style: edges on or off, fill solid, transparent
     // or none. Separate from the output's — this is the pentagon being fed in,
     // not the tiling coming out.
-    poly(ctx, shown, cx, cy, k);
+    // The fence: every origin that keeps the ten spokes in order. Drawn first,
+    // under everything, and only where there is a choice to make.
+    if (atBase) {
+        const fence = originFence(points);
+        if (fence.length) {
+            poly(ctx, fence, cx, cy, k);
+            ctx.fillStyle = "rgba(42,59,107,0.07)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(42,59,107,0.45)";
+            ctx.setLineDash([3, 3]);
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    }
+
+    poly(ctx, shown, ox, oy, k);
     if (face !== "none") {
         ctx.globalAlpha = face === "transparent" ? 0.35 : 1;
         ctx.fillStyle = HOT;
@@ -290,8 +324,59 @@ function drawInput() {
     ctx.strokeStyle = "rgba(230,57,70,0.35)";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (const p of shown) { ctx.moveTo(cx, cy); ctx.lineTo(cx + p[0] * k, cy + p[1] * k); }
+    for (const p of shown) { ctx.moveTo(ox, oy); ctx.lineTo(ox + p[0] * k, oy + p[1] * k); }
     ctx.stroke();
+
+    // The affine vectors: 0->1, 1->2, ... 4->0, along the pentagon's own edges,
+    // clockwise, each labeled with the difference it is.
+    //
+    // Jake asked for these rather than for the wheel vectors out of the origin,
+    // and AFFINE is the right word for them: a difference of two points has the
+    // origin cancel out of it, so these five numbers are exactly what does not
+    // change when the origin is dragged. Everything the origin does move is the
+    // five spokes; everything it leaves alone is here.
+    //
+    // Clockwise comes free. The seed is valid when consecutive spokes turn the
+    // same way, and with y down the page that turn reads clockwise on screen —
+    // so index order is already the direction the arrows want to point.
+    if (showVectors) {
+        ctx.font = "600 10px ui-monospace, Menlo, monospace";
+        ctx.textBaseline = "middle";
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = "rgba(42,59,107,0.8)";
+        const mid = shown.reduce((a, p) => [a[0] + p[0] / 5, a[1] + p[1] / 5], [0, 0]);
+        shown.forEach((from, i) => {
+            const to = shown[(i + 1) % shown.length];
+            const ax = ox + from[0] * k, ay = oy + from[1] * k;
+            const bx = ox + to[0] * k, by = oy + to[1] * k;
+            const len = Math.hypot(bx - ax, by - ay);
+            if (len < 10) return;
+            const ux = (bx - ax) / len, uy = (by - ay) / len;
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(bx, by);
+            // the arrowhead at the HEAD, pulled back off the corner handle
+            const hx = bx - ux * 9, hy = by - uy * 9;
+            const a = 8, b = 3.6;
+            ctx.moveTo(hx, hy);
+            ctx.lineTo(hx - a * ux + b * uy, hy - a * uy - b * ux);
+            ctx.moveTo(hx, hy);
+            ctx.lineTo(hx - a * ux - b * uy, hy - a * uy + b * ux);
+            ctx.stroke();
+            // The value, outside the edge: the normal that points away from the
+            // figure's middle, so a label never lands on top of the pentagon.
+            const mx = (ax + bx) / 2, my = (ay + by) / 2;
+            const cxm = ox + mid[0] * k, cym = oy + mid[1] * k;
+            let nx = -uy, ny = ux;
+            if (nx * (mx - cxm) + ny * (my - cym) < 0) { nx = -nx; ny = -ny; }
+            const dx = to[0] - from[0], dy = to[1] - from[1];
+            const lx = mx + nx * 14, ly = my + ny * 14;
+            ctx.textAlign = "left";
+            drawNumeral(ctx, dx, lx - numeralWidth(ctx, dx) / 2, ly - 6);
+            drawNumeral(ctx, dy, lx - numeralWidth(ctx, dy) / 2, ly + 6);
+        });
+        ctx.textAlign = "center";
+    }
 
     // Handles only at rung 1: that is the rung the points live on, and dragging
     // a derived pentagon would have nothing to write back to.
@@ -303,7 +388,7 @@ function drawInput() {
     // `use` is what turns one into the five, and then it numbers and drags like
     // any other.
     shown.forEach((p, i) => {
-        const x = cx + p[0] * k, y = cy + p[1] * k;
+        const x = ox + p[0] * k, y = oy + p[1] * k;
         if (atBase) {
             ctx.fillStyle = i === dragging ? INK : HOT;
             ctx.beginPath();
@@ -319,30 +404,42 @@ function drawInput() {
         }
     });
 
-    // the origin
-    ctx.fillStyle = INK;
+    // The origin. A handle at the base rung, where moving it means something,
+    // and the small dot it has always been otherwise. Hollow when the seed it
+    // makes is unusable, so the figure says so before it falls apart.
     ctx.beginPath();
-    ctx.arc(cx, cy, 3, 0, TAU);
-    ctx.fill();
+    ctx.arc(ox, oy, atBase ? 6.5 : 3, 0, TAU);
+    if (verdict.ok) { ctx.fillStyle = dragging === ORIGIN ? HOT : INK; ctx.fill(); }
+    else {
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+        ctx.strokeStyle = HOT;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
 
     report(e);
 
     const rungOut = byId("boot-rung-read");
     if (rungOut) {
-        const d = wheelsAt(points, rungOf(extrapolate)).d;
+        const d = wheelsAt(spokes(), rungOf(extrapolate)).d;
         rungOut.innerHTML = `<b>extrapolate ${extrapolate > 0 ? "+" : ""}${extrapolate}`
             + ` &middot; wheel generation ${rungOf(extrapolate)}</b>`
-            + `<span>${d.slice(0, 3).map((v) => `(${num(v[0])}, ${num(v[1])})`).join("  ")}</span>`
+            + `<span>${d.slice(0, 3).map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`
             + (atBaseRung() ? "" : "<b>the five, for reference</b>"
-                + `<span>${points.map((v) => `(${num(v[0])}, ${num(v[1])})`).join("  ")}</span>`);
+                + `<span>${points.map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`)
+            + `<b>origin (${numHTML(origin[0])}, ${numHTML(origin[1])})`
+                + ` &middot; centroid (${numHTML(centroid()[0])}, ${numHTML(centroid()[1])})</b>`
+            + `<span>${verdict.ok ? "the ten spokes are in order"
+                : `&#9888; ${verdict.why}`}</span>`;
     }
 }
 
 /**
- * Coordinates under the pointer, snapped to the lattice when `snapToLattice` is
- * on. It goes off with the real preset: rounding an irrational pentagon's
- * corners onto the paper on the first drag would silently turn it back into a
- * quadrille, which is the kind of thing that goes unnoticed for a week.
+ * Coordinates under the pointer, snapped as `snap` says. It goes to `none` with
+ * the real preset: rounding an irrational pentagon's corners onto the paper on
+ * the first drag would silently turn it back into a quadrille, which is the
+ * kind of thing that goes unnoticed for a week.
  *
  * The canvas is passed in rather than read off the module: these handlers are
  * only ever registered inside a guard that has already found it.
@@ -356,8 +453,7 @@ function pick(c, ev) {
     const sx = c.width / r.width, sy = c.height / r.height;
     const x = ((ev.clientX - r.left) * sx - c.width / 2) / inputScale;
     const y = ((ev.clientY - r.top) * sy - c.height / 2) / inputScale;
-    return snapToLattice ? [Math.round(x), Math.round(y)]
-                         : [Math.round(x * 256) / 256, Math.round(y * 256) / 256];
+    return [snapped(x), snapped(y)];
 }
 
 // ── step 1: the pentaflake ────────────────────────────────────────────────
@@ -374,7 +470,7 @@ function drawFlake() {
     if (!ctx) return;
     const w = flakeCanvas.width, h = flakeCanvas.height;
 
-    const leaves = pentaflake(points);
+    const leaves = pentaflake(spokes());
     /** @type {Pt} */
     let lo = [Infinity, Infinity];
     /** @type {Pt} */
@@ -406,7 +502,7 @@ function drawFlake() {
     ctx.lineWidth = 2.5;
     ctx.beginPath();
     for (let i = 0; i < 5; i++) {
-        const [a, b] = sharedEdge(points, i);
+        const [a, b] = sharedEdge(spokes(), i);
         ctx.moveTo(cx + a[0] * k, cy + a[1] * k);
         ctx.lineTo(cx + b[0] * k, cy + b[1] * k);
     }
@@ -429,7 +525,7 @@ function drawFlake() {
     ctx.textBaseline = "middle";
 
     // the five corners of the middle, numbered 1..5 as Jake numbers them
-    points.forEach((pt, i) => {
+    spokes().forEach((pt, i) => {
         const x = cx + pt[0] * k, y = cy + pt[1] * k;
         ctx.fillStyle = HOT;
         ctx.beginPath();
@@ -472,7 +568,7 @@ function drawTiling() {
     if (!ctx) return;
     const w = outCanvas.width, h = outCanvas.height;
 
-    const ladder = ladderTo(points, Math.min(gen, MAX_GEN) + 1);
+    const ladder = ladderTo(spokes(), Math.min(gen, MAX_GEN) + 1);
     /** @type {Placement[]} */
     let tiles = [];
     let drawnGen = gen;
@@ -552,14 +648,15 @@ function drawTiling() {
         const hosts = big
             ? expand(seed, seedTenth(), [0, 0], drawnGen, ladder, heads, 1)
             : tiles;
-        const { d, t } = wheelsAt(points, big ? 1 : 0);
+        const { d, t } = wheelsAt(rhombSpokes(), big ? 1 : 0);
         hostCount = hosts.length;
         const inflated = inflate(d);
         const wide = Math.max(0.7, k * 0.05);
         for (const tile of hosts) {
             if (tile.type !== "Pe5" && tile.type !== "Pe3" && tile.type !== "Pe1") continue;
             for (const { spec, turn } of rhombGroup(tile.type, tile.tenth)) {
-                const quad = rhombus(spec, t, inflated, turn, spelling)
+                const quad = rhombus(spec, t, inflated, turn,
+                        spelling === "centroid" ? "classic" : spelling)
                     .map((p) => /** @type {Pt} */ ([p[0] + tile.loc[0], p[1] + tile.loc[1]]));
                 if (rhombFace !== "none") {
                     // Colored by rhomb GROUP, which is to say by the pentagon
@@ -594,11 +691,16 @@ function drawTiling() {
         }
     }
 
+    // Last of all, so it is over everything: the same lattice the paper drew,
+    // at the same scale and the same origin, as a veil.
+    if (gridOver) gridLines(ctx, w, h, cx, cy, k, 0.75);
+
     note(`${tiles.length} tiles · generation ${drawnGen}`
         + (drawnGen === gen ? "" : ` (${gen} asked, capped at ${TILE_LIMIT} tiles)`)
         + ` · ${seed}`
         + (rhombSize === "none" ? "" : ` · ${rhombSize} rhombs on ${hostCount}`)
-        + (view.zoom === 1 ? "" : ` · ${view.zoom.toFixed(1)}×`));
+        + (view.zoom === 1 ? "" : ` · ${view.zoom.toFixed(1)}×`)
+        + (gridOver ? " · grid on top" : ""));
 }
 
 /** @type {(s: string) => void} */
@@ -616,11 +718,11 @@ const num = (v) => Number.isInteger(v) ? String(v) : v.toFixed(3);
 
 /** @type {(w: Wheel, n?: number) => string} */
 const fmtW = (w, n = 3) =>
-    w.slice(0, n).map((p) => `(${num(p[0])}, ${num(p[1])})`).join("  ");
+    w.slice(0, n).map((p) => `(${numHTML(p[0])}, ${numHTML(p[1])})`).join("  ");
 
 /** @param {Wheel} e */
 function report(e) {
-    const set = wheelsAt(points, 1);
+    const set = wheelsAt(spokes(), 1);
     /** @type {[string, string][]} */
     const rows = [
         ["D — the five points", fmtW(set.d)],
@@ -635,8 +737,9 @@ function report(e) {
 
     const lens = byId("boot-lengths");
     if (lens) {
-        const uniq = [...new Set(e.map((p) => Math.hypot(p[0], p[1]).toFixed(4)))].sort();
-        lens.textContent = `tile edges: ${uniq.join(", ")}`;
+        const uniq = [...new Set(e.map((p) => Math.hypot(p[0], p[1])))]
+            .sort((a, b) => a - b);
+        lens.innerHTML = `tile edges: ${uniq.map(numHTML).join(", ")}`;
     }
 }
 
@@ -678,14 +781,20 @@ if (inputCanvas) {
             const dd = Math.hypot(p[0] - at[0], p[1] - at[1]);
             if (dd < bestD) { bestD = dd; best = i; }
         });
+        // The origin wins a tie: a pentagon dragged in small can bury it, and
+        // then there would be no way to get it back.
+        const dOrigin = Math.hypot(origin[0] - at[0], origin[1] - at[1]);
+        if (dOrigin <= bestD) { bestD = dOrigin; best = ORIGIN; }
         dragging = best;
         if (best >= 0) { c.setPointerCapture(ev.pointerId); redraw(); }
     });
     c.addEventListener("pointermove", (ev) => {
         if (dragging < 0) return;
         const at = pick(c, ev);
-        if (at[0] === points[dragging][0] && at[1] === points[dragging][1]) return;
-        points = points.map((p, i) => (i === dragging ? at : p));
+        const was = dragging === ORIGIN ? origin : points[dragging];
+        if (at[0] === was[0] && at[1] === was[1]) return;
+        if (dragging === ORIGIN) origin = at;
+        else points = points.map((p, i) => (i === dragging ? at : p));
         syncPreset();
         redraw();
     });
@@ -861,8 +970,11 @@ for (const [id, v] of UP_DOWN)
  * rather than composing half steps.
  */
 const useShown = () => {
-    const taken = pentagon(wheelsAt(points, rungOf(extrapolate)).d, 0);
-    points = taken.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
+    const taken = pentagon(wheelsAt(spokes(), rungOf(extrapolate)).d, 0);
+    // `taken` is in spoke coordinates, so put it back on the paper where it is
+    // being shown -- adopting it must not teleport the figure to the origin.
+    points = taken.map((p) =>
+        /** @type {Pt} */ ([p[0] + origin[0], p[1] + origin[1]]));
     extrapolate = 0;
     refitInput();
     showExtrapolate();
@@ -876,7 +988,7 @@ const useShown = () => {
 const useBtn = byId("boot-use");
 if (useBtn) useBtn.addEventListener("click", useShown);
 
-const snapBox = /** @type {HTMLInputElement | null} */ (byId("boot-snap"));
+const snapPick = /** @type {HTMLSelectElement | null} */ (byId("boot-snap"));
 /**
  * Keep the preset picker honest. Once the five have been dragged or adopted they
  * are usually no longer either preset, and leaving the old name selected meant
@@ -884,23 +996,35 @@ const snapBox = /** @type {HTMLInputElement | null} */ (byId("boot-snap"));
  */
 function syncPreset() {
     if (!presetPick) return;
+    // Compared on the SPOKES, not the points: a preset is five vectors, and a
+    // pentagon slid away from the origin is no longer that preset even though
+    // its five corners still trace the same shape.
+    const now = spokes();
     /** @type {(a: readonly Pt[]) => boolean} */
     const same = (a) =>
-        a.length === points.length
-        && a.every((v, i) => Math.abs(v[0] - points[i][0]) < 1e-9
-                          && Math.abs(v[1] - points[i][1]) < 1e-9);
+        a.length === now.length
+        && a.every((v, i) => Math.abs(v[0] - now[i][0]) < 1e-9
+                          && Math.abs(v[1] - now[i][1]) < 1e-9);
     for (const [name, preset] of Object.entries(PRESETS))
         if (same(preset)) { presetPick.value = name; return; }
     presetPick.value = "custom";
 }
 
-/** Snapping is only safe where the five are already integers. */
+/**
+ * Follow the figure: snap to whatever the points are already on. Anything
+ * coarser than they are would wreck them on the first drag, which is what makes
+ * this worth doing automatically rather than leaving to the control.
+ */
 function setSnapFromPoints() {
-    snapToLattice = points.every((p) => Number.isInteger(p[0]) && Number.isInteger(p[1]));
-    if (snapBox) snapBox.checked = snapToLattice;
+    const all = [...points, origin].flat();
+    snap = all.every((v) => Number.isInteger(v)) ? "units"
+        : all.every((v) => Number.isInteger(v * 5)) ? "fifths"
+        : "none";
+    if (snapPick) snapPick.value = snap;
 }
-if (snapBox) snapBox.addEventListener("change", () => {
-    snapToLattice = snapBox.checked;
+if (snapPick) snapPick.addEventListener("change", () => {
+    const v = /** @type {Snap} */ (snapPick.value);
+    if (SNAPS.includes(v)) snap = v;
 });
 
 const presetPick = /** @type {HTMLSelectElement | null} */ (byId("boot-preset"));
@@ -909,6 +1033,9 @@ const loadPreset = (name) => {
     const preset = PRESETS[name];
     if (!preset) return;                    // "custom" is a label, not a preset
     points = preset.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
+    // A preset is five vectors from the origin, so loading one puts the origin
+    // back where those vectors are measured from.
+    origin = [0, 0];
     // A preset is a fresh start, so the extrapolation goes back to the five and
     // the figure is framed afresh.
     extrapolate = 0;
@@ -960,8 +1087,8 @@ for (const size of RHOMB_SIZES) {
     });
 }
 
-/** @type {readonly Spelling[]} */
-const SPELLINGS = ["mixed", "t", "inflated"];
+/** @type {readonly RhombMode[]} */
+const SPELLINGS = ["classic", "centroid", "t", "inflated"];
 const rhombFacePick = /** @type {HTMLSelectElement | null} */ (byId("boot-rhomb-face"));
 if (rhombFacePick) rhombFacePick.addEventListener("change", () => {
     const v = /** @type {Face} */ (rhombFacePick.value);
@@ -978,9 +1105,37 @@ if (rhombEdgePick) rhombEdgePick.addEventListener("change", () => {
 
 const spellPick = /** @type {HTMLSelectElement | null} */ (byId("boot-spelling"));
 if (spellPick) spellPick.addEventListener("change", () => {
-    const v = /** @type {Spelling} */ (spellPick.value);
+    const v = /** @type {RhombMode} */ (spellPick.value);
     if (SPELLINGS.includes(v)) spelling = v;
     drawTiling();
+});
+
+const gridOverBox = /** @type {HTMLInputElement | null} */ (byId("boot-grid-over"));
+if (gridOverBox) gridOverBox.addEventListener("change", () => {
+    gridOver = gridOverBox.checked;
+    drawTiling();
+});
+
+const vectorBox = /** @type {HTMLInputElement | null} */ (byId("boot-vectors"));
+if (vectorBox) vectorBox.addEventListener("change", () => {
+    showVectors = vectorBox.checked;
+    drawInput();
+});
+
+/**
+ * Put the origin on the centroid of the five, which is the one place the three
+ * rhomb spellings agree and all of them close as exact parallelograms. It is a
+ * fifth of a lattice unit, never an integer unless the five happen to sum to a
+ * multiple of five — so snap drops to `fifths` with it, which is exactly the
+ * grid the centroid lives on and leaves the origin draggable from there.
+ */
+const centroidBtn = byId("boot-centroid");
+if (centroidBtn) centroidBtn.addEventListener("click", () => {
+    origin = centroid();
+    setSnapFromPoints();
+    refitInput();
+    syncPreset();
+    redraw();
 });
 
 const resetBtn = byId("boot-reset");

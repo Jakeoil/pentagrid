@@ -225,7 +225,8 @@ export const THIN = { steps: [3, 7, 8] };
 /**
  * Which wheel each step is taken in.
  *
- * **`mixed` is the real geometry and the default.** Checked against
+ * **`classic` is penrose-mosaic's, and the default.** Jake named it that on
+ * 2026-11-22, to leave room for the one below it. Checked against
  * penrose-mosaic's own computed `thickRhomb`/`thinRhomb` arrays — not against a
  * picture — it reproduces all ten tenths at both generations, differing only in
  * winding on the five that `shapeWheel` builds by reflection.
@@ -237,7 +238,7 @@ export const THIN = { steps: [3, 7, 8] };
  * parallelograms do not tile with them at all. The two tidy spellings match
  * penrose-mosaic at 0 of 40 shapes, the mixture at all 40.
  *
- * @typedef {"mixed" | "t" | "inflated"} Spelling
+ * @typedef {"classic" | "t" | "inflated"} Spelling
  */
 
 /**
@@ -251,12 +252,12 @@ export const THIN = { steps: [3, 7, 8] };
  * @param {Spelling} [spelling]
  * @returns {Pt[]}
  */
-export function rhombus(spec, t, inflated, n, spelling = "mixed") {
+export function rhombus(spec, t, inflated, n, spelling = "classic") {
     /** @type {(i: number) => Wheel} */
     const wheelFor = (i) =>
         spelling === "t" ? t
         : spelling === "inflated" ? inflated
-        : i === 0 ? inflated : t;          // mixed: D+P opens, T runs
+        : i === 0 ? inflated : t;          // classic: D+P opens, T runs
     /** @type {Pt[]} */
     const out = [[0, 0]];
     spec.steps.forEach((k, i) => {

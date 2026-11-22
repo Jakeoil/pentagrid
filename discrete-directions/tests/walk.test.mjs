@@ -340,9 +340,9 @@ test("it is equilateral only where the wheel's spokes happen to agree", () => {
 test("penrose-mosaic's spelling mixes the two, and is not even a parallelogram", () => {
     const { d, t } = wheelsAt(PENTA_UP, 1);
     const inflated = inflate(d);
-    const sides = sidesOf(rhombus(THICK, t, inflated, 0, "mixed"));
+    const sides = sidesOf(rhombus(THICK, t, inflated, 0, "classic"));
     assert.deepEqual(sides.map((v) => Number(v.toFixed(3))), [8.602, 9.434, 9.434, 8.602]);
-    const [e0, , e2] = edgesOf(rhombus(THICK, t, inflated, 0, "mixed"));
+    const [e0, , e2] = edgesOf(rhombus(THICK, t, inflated, 0, "classic"));
     assert.notDeepEqual([e0[0] + e2[0], e0[1] + e2[1]], [0, 0]);
     // adjacent pairs equal instead: a kite
     assert.ok(Math.abs(sides[0] - sides[3]) < 1e-9);
@@ -355,7 +355,7 @@ test("mixed is the default spelling", () => {
     for (let n = 0; n < 10; n++)
         for (const spec of [THICK, THIN])
             assert.equal(key(rhombus(spec, t, inflated, n)),
-                key(rhombus(spec, t, inflated, n, "mixed")));
+                key(rhombus(spec, t, inflated, n, "classic")));
 });
 
 test("the rhombs are penrose-mosaic's, at every tenth and both generations", () => {
@@ -367,7 +367,7 @@ test("the rhombs are penrose-mosaic's, at every tenth and both generations", () 
         const inflated = inflate(w.d);
         for (let t = 0; t < 10; t++)
             for (const [name, spec] of [["thickRhomb", THICK], ["thinRhomb", THIN]]) {
-                const mine = rhombus(spec, w.t, inflated, t, "mixed");
+                const mine = rhombus(spec, w.t, inflated, t, "classic");
                 assert.ok(sameLoop(mine, MOSAIC_RHOMBS[name][g][t]),
                     `${name}[${g}] tenth ${t}: ${key(mine)} against ${key(MOSAIC_RHOMBS[name][g][t])}`);
             }
