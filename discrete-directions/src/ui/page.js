@@ -10,7 +10,7 @@
 // the rule is one way: nothing under `src/math/` knows a canvas exists.
 
 import {
-    PENTA_UP, PRESETS, centroidOf, eWheel, inflate, ladderTo, m10,
+    PENTA_UP, PRESETS, centroidOf, eWheel, inflate, integralCentroid, ladderTo, m10,
     pentaflake, sharedEdge, spokesOf, wheelFromPoints, wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon, rhombGroup, rhombus } from "../../lib/tiles.js";
@@ -32,7 +32,7 @@ import {
 import { numHTML } from "./numerals.js";
 // The input figure itself -- the five points, the origin and the pointer --
 // lives in the Pentadiculum. See the section below.
-import { PD_ORIGIN, SNAPS, createPentadiculum, snapForSeed } from "./pentadiculum.js";
+import { PD_ORIGIN, createPentadiculum, setBox, snapForSeed } from "./pentadiculum.js";
 
 /** @type {(id: string) => HTMLElement | null} */
 const byId = (id) => document.getElementById(id);
@@ -78,16 +78,21 @@ const spokes = () => spokesOf({ points, origin });
 let showVectors = false;
 
 /**
- * The fifths ruled across each unit square on the INPUT figure. On by default,
- * because a fifth is where the center lands; Jake, 2026-11-24: *the fine grid
- * should be turned off and on easily.* Close in on one corner they are a
- * thicket, and the unit lattice is what a corner is being read against.
+ * The `fine` box: the fifths ruled across each unit square on the INPUT figure.
+ *
+ * This is the SETTING, not the answer. Jake, 2026-11-24: *fine off by default,
+ * unchecked if possible, checked (grayed) if centroid is not on a unit. Must be
+ * checked and active if user is moving centroid or moving a handle causes
+ * centroid to move.* The Pentadiculum forces the grid on in those cases and
+ * reports it back in `drawn.boxes.fine`, so what lives here is only what the
+ * user last asked for -- remembered, so that when the center comes back to a
+ * unit the box returns to the state they left it in rather than to a default.
  *
  * The output canvas has its own `5 space` box, `gridFifths`, because the two
  * figures are at different scales and wanting it on one is no reason to have it
  * on the other.
  */
-let inputFifths = true;
+let inputFifths = false;
 
 /** The sweet spot: the origin at which all three rhomb spellings coincide. */
 const centroid = () => centroidOf(points);
@@ -179,8 +184,8 @@ const rungOf = (e) => 1 + e;
  * preset, whose corners are irrational and would be wrecked by rounding; it
  * still quantizes, at 1/256, because a pointer has pixels and a coordinate that
  * reads to sixteen places is not a coordinate anyone can use. The rounding
- * itself is the Pentadiculum's -- it owns the pointer -- and this is only which
- * mode the dropdown is on.
+ * itself is the Pentadiculum's -- it owns the pointer -- and this is only
+ * whether the `snap` box is ticked.
  */
 /** @type {Snap} */
 let snap = "units";
@@ -318,6 +323,7 @@ function drawInput() {
  * @param {import("./pentadiculum.js").Drawn} drawn
  */
 function readouts(drawn) {
+    syncBoxes(drawn);
     report(eWheel(wheelFromPoints(spokes())));
 
     const rungOut = byId("boot-rung-read");
@@ -815,7 +821,6 @@ const useShown = () => {
 const useBtn = byId("boot-use");
 if (useBtn) useBtn.addEventListener("click", useShown);
 
-const snapPick = /** @type {HTMLSelectElement | null} */ (byId("boot-snap"));
 /**
  * Keep the preset picker honest. Once the five have been dragged or adopted they
  * are usually no longer either preset, and leaving the old name selected meant
@@ -841,19 +846,95 @@ function syncPreset() {
  * Follow the figure: snap to whatever the points are already on. Anything
  * coarser than they are would wreck them on the first drag, which is what makes
  * this worth doing automatically rather than leaving to the control.
+ *
+ * The box itself is set by `syncBoxes` off the next draw, so there is one place
+ * that decides what it reads.
  */
 function setSnapFromPoints() {
     snap = snapForSeed(seedNow());
-    if (snapPick) snapPick.value = snap;
 }
-if (snapPick) snapPick.addEventListener("change", () => {
-    const v = /** @type {Snap} */ (snapPick.value);
-    if (SNAPS.includes(v)) snap = v;
+
+// ── the grid, centroid and display boxes ──────────────────────────────
+//
+// Six checkboxes in three sections, to Jake's spec of 2026-11-24. Four of them
+// are set from the figure on every draw rather than from a variable here --
+// `syncBoxes`, below, and `gridBoxes` in the component, which is what decides.
+
+const snapBox = /** @type {HTMLInputElement | null} */ (byId("boot-snap"));
+if (snapBox) snapBox.addEventListener("change", () => {
+    snap = snapBox.checked ? "units" : "none";
     // Pushed through to the component, which is what owns the pointer: the
     // view only reaches it on a `sync`, so without this the next drag would
     // still be snapping the way the last draw was told to.
     drawInput();
 });
+
+const fineBox = /** @type {HTMLInputElement | null} */ (byId("boot-fine"));
+if (fineBox) fineBox.addEventListener("change", () => {
+    inputFifths = fineBox.checked;
+    drawInput();
+});
+
+/**
+ * `centroid actual`: put the center on the centroid of the five, which is the
+ * one place the three rhomb spellings agree and all of them close as exact
+ * parallelograms. It is a fifth of a lattice unit, never an integer unless the
+ * five sum to a multiple of five -- and `units` snap already moves the center
+ * in fifths, so the figure stays on its snap and the center stays draggable
+ * from there. The center draws as a bullseye once it is on it.
+ *
+ * The box grays itself once the center is there, which is both the readout and
+ * the no-op: there is no "move the center OFF the centroid", because there is
+ * nowhere in particular for that to mean.
+ */
+const actualBox = /** @type {HTMLInputElement | null} */ (byId("boot-actual"));
+if (actualBox) actualBox.addEventListener("change", () => {
+    origin = centroid();
+    setSnapFromPoints();
+    refitInput();
+    syncPreset();
+    redraw();
+});
+
+/**
+ * `centroid closest`: the centroid rounded to the nearest whole unit.
+ *
+ * The other half of the choice §8 forces on an odd pentad. `actual` buys exact
+ * parallelograms and pays with a non-integral origin, which takes every derived
+ * wheel off the lattice; this buys integral spokes and pays with an origin up
+ * to (1/2, 1/2) off the centroid. On an EVEN pentad the two are the same point,
+ * both boxes gray out together, and there was nothing to choose.
+ *
+ * It also turns `fine` off -- Jake: *Fine checkbox will be reset* -- because
+ * getting the center back onto a unit is the entire point of pressing it, and
+ * the fifths have nothing left to say once it is.
+ */
+const closestBox = /** @type {HTMLInputElement | null} */ (byId("boot-closest"));
+if (closestBox) closestBox.addEventListener("change", () => {
+    origin = integralCentroid(points);
+    inputFifths = false;
+    setSnapFromPoints();
+    refitInput();
+    syncPreset();
+    redraw();
+});
+
+/**
+ * Set the six boxes from the draw that just happened.
+ *
+ * Four of them are facts about the figure, not settings: whether the center is
+ * on the centroid, on the nearest unit to it, and whether the fine grid is
+ * being forced on because the center is off a unit or on its way off one. The
+ * component works all of that out in `gridBoxes` and hands it back with the
+ * draw, so the row cannot disagree with the canvas above it.
+ * @param {import("./pentadiculum.js").Drawn} drawn
+ */
+function syncBoxes(drawn) {
+    if (snapBox) setBox(snapBox, drawn.boxes.snap);
+    if (fineBox) setBox(fineBox, drawn.boxes.fine);
+    if (actualBox) setBox(actualBox, drawn.boxes.actual);
+    if (closestBox) setBox(closestBox, drawn.boxes.closest);
+}
 
 const presetPick = /** @type {HTMLSelectElement | null} */ (byId("boot-preset"));
 /** @type {(name: string) => void} */
@@ -954,29 +1035,6 @@ const vectorBox = /** @type {HTMLInputElement | null} */ (byId("boot-vectors"));
 if (vectorBox) vectorBox.addEventListener("change", () => {
     showVectors = vectorBox.checked;
     drawInput();
-});
-
-const fifthsBox = /** @type {HTMLInputElement | null} */ (byId("boot-input-fifths"));
-if (fifthsBox) fifthsBox.addEventListener("change", () => {
-    inputFifths = fifthsBox.checked;
-    drawInput();
-});
-
-/**
- * Put the origin on the centroid of the five, which is the one place the three
- * rhomb spellings agree and all of them close as exact parallelograms. It is a
- * fifth of a lattice unit, never an integer unless the five happen to sum to a
- * multiple of five -- and `units` snap already moves the center in fifths, so
- * the figure stays on its snap and the center stays draggable from there. The
- * center draws as a bullseye once it is on it.
- */
-const centroidBtn = byId("boot-centroid");
-if (centroidBtn) centroidBtn.addEventListener("click", () => {
-    origin = centroid();
-    setSnapFromPoints();
-    refitInput();
-    syncPreset();
-    redraw();
 });
 
 const resetBtn = byId("boot-reset");

@@ -208,6 +208,36 @@ export function centroidOf(points) {
 export const centered = (seed) => ({ points: seed.points, origin: centroidOf(seed.points) });
 
 /**
+ * The centroid rounded to the nearest lattice point: the best **integral**
+ * stand-in for the sweet spot, and what the `closest` box on the page assigns.
+ *
+ * The centroid of five lattice points is in (1/5)Z² and an integer only when
+ * the five sum to a multiple of five -- an EVEN pentad, `GEOMETRY.md` §8 -- so
+ * for everything else the two are different points and you have to choose:
+ *
+ *  - the centroid itself is where the rhomb spellings agree and every rhomb
+ *    closes as an exact parallelogram (§5). It costs a non-integral origin, so
+ *    the spokes stop being Gaussian integers and the whole derived figure comes
+ *    off the unit lattice onto the fifths.
+ *  - this point keeps the origin integral, so the spokes stay integers and
+ *    every wheel above stays on the lattice. It costs the exactness: the origin
+ *    is up to (1/2, 1/2) off the centroid, and §5's offset is that much.
+ *
+ * On an even pentad there is nothing to choose and this IS the centroid, which
+ * is the cleanest way to see what evenness buys.
+ *
+ * @param {readonly Pt[]} points
+ * @returns {Pt}
+ */
+export function integralCentroid(points) {
+    const c = centroidOf(points);
+    // `+ 0` is not noise: `Math.round(-0.4)` is NEGATIVE zero, which is a
+    // lattice point that formats as "-0" in a readout and fails a deep-equal
+    // against 0. -0 + 0 is +0, and the sign is gone.
+    return [Math.round(c[0]) + 0, Math.round(c[1]) + 0];
+}
+
+/**
  * **The fence.** Every origin that keeps the ten spokes in order, as a convex
  * polygon, exactly — see this file's header for why it is a polygon at all.
  *

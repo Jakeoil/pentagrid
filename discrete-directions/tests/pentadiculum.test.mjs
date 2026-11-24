@@ -14,14 +14,15 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    PD_ORIGIN, SNAPS, createPentadiculum, mountFloatingPentadiculum,
-    mountPentadiculum, snapForSeed, snapStep, snapped,
+    PD_ORIGIN, SNAPS, centerMoves, createPentadiculum, gridBoxes,
+    mountFloatingPentadiculum, mountPentadiculum, setBox, snapForSeed,
+    snapStep, snapped,
 } from "../lib/pentadiculum.js";
 import {
     EDGE_INK, GRID_FIFTHS, GRID_LEVELS, GRID_OVER, GRID_OVER_ALPHA,
     GRID_OVER_FIFTHS,
 } from "../lib/pentadiculum.js";
-import { PENTA_UP, centroidOf } from "../lib/wheels.js";
+import { EVEN_PENTAD, PENTA_UP, centroidOf, integralCentroid } from "../lib/wheels.js";
 
 // ── the stub ──────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ function element(tag = "div") {
     const handlers = {};
     const node = {
         tagName: tag.toUpperCase(), className: "", id: "", value: "", checked: false,
+        disabled: false,
         textContent: "", innerHTML: "", type: "", style: {}, children: [],
         width: SIZE, height: SIZE, offsetLeft: 0, offsetTop: 0,
         appendChild(c) { node.children.push(c); return c; },
@@ -274,8 +276,10 @@ test("the inline mount builds its own canvas and controls", () => {
     assert.equal(host.children.length, 1, "one wrapper");
     const kinds = m.element.all().map((c) => c.tagName).sort();
     assert.ok(kinds.includes("CANVAS"), kinds.join(" "));
-    assert.ok(kinds.filter((k) => k === "SELECT").length === 2, "preset and snap");
-    assert.ok(kinds.filter((k) => k === "BUTTON").length === 2, "centroid and origin");
+    assert.ok(kinds.filter((k) => k === "SELECT").length === 1, "preset");
+    assert.ok(kinds.filter((k) => k === "BUTTON").length === 1, "origin");
+    // snap, fine, actual, closest, vectors -- three sections of checkboxes
+    assert.equal(kinds.filter((k) => k === "INPUT").length, 5, kinds.join(" "));
     assert.equal(seen.length, 1, "it draws and announces once on mount");
     assert.deepEqual(m.seed().origin, [0, 0]);
 
@@ -288,28 +292,66 @@ test("the inline mount builds its own canvas and controls", () => {
     assert.ok(m.pentadiculum.drawn().cell > 0, `cell is ${m.pentadiculum.drawn().cell}`);
 });
 
-test("the mount's centroid button lands on the sweet spot, and says so", () => {
+test("the mount's centroid actual box lands on the sweet spot, and says so", () => {
     const doc = stubDocument();
     const m = mountPentadiculum(element(), { document: doc });
     const buttons = m.element.all().filter((c) => c.tagName === "BUTTON");
-    const centroid = buttons.find((b) => b.textContent === "centroid");
+    const boxes = m.element.all().filter((c) => c.tagName === "INPUT");
+    const [snapBox, fineBox, actual, closest] = boxes;
     const read = m.element.all().find((c) => c.className === "pentadiculum-read");
     assert.equal(m.pentadiculum.drawn().sweet, false, "not before");
     assert.doesNotMatch(read.innerHTML, /sweet spot/);
+    // the classic seed starts at the origin, which IS the nearest unit to its
+    // centroid (0, 0.2) -- so `closest` is where it already is, and grayed
+    assert.equal(actual.disabled, false, "actual is the one to press");
+    assert.equal(closest.checked, true, "and closest is already satisfied");
+    assert.equal(closest.disabled, true);
 
-    centroid.fire("click");
+    actual.checked = true;
+    actual.fire("change");
     assert.deepEqual(m.seed().origin, centroidOf(SEED.points));
     assert.deepEqual(m.seed().origin, [0, 0.2], "the classic seed's centroid");
     assert.equal(m.pentadiculum.drawn().sweet, true, "and it is reported");
     assert.match(read.innerHTML, /on the sweet spot/);
+    // now it is actual that is grayed, and closest that is the way back
+    assert.equal(actual.checked, true);
+    assert.equal(actual.disabled, true, "nowhere for a second press to go");
+    assert.equal(closest.checked, false);
+    assert.equal(closest.disabled, false);
     // the figure is still ON its snap, because the center moves in fifths
-    const snapPick = m.element.all().filter((c) => c.tagName === "SELECT")[1];
-    assert.equal(snapPick.value, "units");
+    assert.equal(snapBox.checked, true);
     assert.equal(m.pentadiculum.view().snap, "units");
+    // and the fifths are forced up, because 0.2 is not a place the unit
+    // lattice can describe
+    assert.equal(fineBox.checked, true, "the fine grid came up by itself");
+    assert.equal(fineBox.disabled, true, "and cannot be turned off from there");
     // and `origin` puts it back
     buttons.find((b) => b.textContent === "origin").fire("click");
     assert.deepEqual(m.seed().origin, [0, 0]);
     assert.equal(m.pentadiculum.drawn().sweet, false);
+    assert.equal(fineBox.checked, false, "and the fifths go back down");
+    assert.equal(fineBox.disabled, false);
+});
+
+test("the mount's closest box puts the center on the nearest unit", () => {
+    const m = mountPentadiculum(element(), { document: stubDocument() });
+    const boxes = m.element.all().filter((c) => c.tagName === "INPUT");
+    const [, fineBox, actual, closest] = boxes;
+
+    // go to the centroid first, which is where closest has something to do
+    actual.checked = true;
+    actual.fire("change");
+    assert.deepEqual(m.seed().origin, [0, 0.2]);
+    assert.equal(fineBox.checked, true);
+
+    closest.checked = true;
+    closest.fire("change");
+    assert.deepEqual(m.seed().origin, [0, 0], "rounded to the lattice");
+    assert.equal(m.pentadiculum.drawn().sweet, false, "no longer exact");
+    // Jake: *Fine checkbox will be reset.*
+    assert.equal(fineBox.checked, false);
+    assert.equal(fineBox.disabled, false);
+    assert.equal(m.pentadiculum.view().fifths, false, "the setting too, not just the box");
 });
 
 test("the mount's preset picker loads a preset, origin and all", () => {
@@ -527,7 +569,9 @@ test("the center drags in fifths and a corner drags in whole units", () => {
 test("the input's paper divides each unit square into fifths, under the unit lines", () => {
     const canvas = canvasStub();
     const pd = createPentadiculum({ canvas, document: stubDocument() });
-    const { cell } = pd.sync(copy(SEED));
+    // Asked for: `fine` is off by default now, and this seed's center is on a
+    // unit, so nothing is forcing the fifths up.
+    const { cell } = pd.sync(copy(SEED), { fifths: true });
     assert.ok(cell / 5 >= 4, `a fifth is ${(cell / 5).toFixed(1)}px, too fine to draw`);
 
     const strokes = canvas.log.filter((l) => l.startsWith("strokeStyle="));
@@ -798,4 +842,126 @@ test("the over grid is not black, and its weight is in the width", () => {
     // under the figure, on white paper, color carries it all and nothing is thick
     for (const [step, , w] of GRID_FIFTHS)
         assert.equal(w, 1, `the pale level ${step} is drawn thick`);
+});
+
+
+// ── the six boxes ─────────────────────────────────────────────────────────
+//
+// Jake's spec, 2026-11-24: three sections, `grid [] snap [] fine`,
+// `centroid [] actual [] closest` and `display [] vectors`, with a box that
+// cannot be unchecked drawn as a grayed check and one that cannot be checked as
+// a grayed box. `gridBoxes` is the whole rule, so it is tested without a DOM.
+
+test("centerMoves: the two ways a drag takes the center with it", () => {
+    // nothing held
+    assert.equal(centerMoves(-1, PD_ORIGIN), false);
+    // the center itself, which snaps at a fifth
+    assert.equal(centerMoves(PD_ORIGIN, PD_ORIGIN), true);
+    assert.equal(centerMoves(PD_ORIGIN, -1), true, "held is held, floater or not");
+    assert.equal(centerMoves(PD_ORIGIN, 2), true);
+    // a corner, with the center floating -- the default, and the center
+    // follows at a fifth of the step
+    assert.equal(centerMoves(3, PD_ORIGIN), true);
+    // a corner, with another CORNER floating: the center stays put
+    assert.equal(centerMoves(3, 1), false);
+    assert.equal(centerMoves(3, 3), false, "dragging the floater retargets");
+    assert.equal(centerMoves(3, -1), false);
+});
+
+test("the grid boxes: snap is never locked, fine is locked when it is forced", () => {
+    const seed = { points: PENTA_UP, origin: [0, 0] };
+    // the center is on a unit and nothing is moving: fine is the user's
+    let b = gridBoxes(seed, { snap: "units", fine: false, moving: false });
+    assert.deepEqual(b.snap, { on: true, locked: false });
+    assert.deepEqual(b.fine, { on: false, locked: false });
+    b = gridBoxes(seed, { snap: "units", fine: true, moving: false });
+    assert.deepEqual(b.fine, { on: true, locked: false }, "on, and still theirs");
+
+    // `none` for the real preset, and still never locked -- Jake: *except for
+    // real preset, can be checked*
+    b = gridBoxes(seed, { snap: "none", fine: false, moving: false });
+    assert.deepEqual(b.snap, { on: false, locked: false });
+
+    // a drag that moves the center forces the fifths up and locks them there
+    b = gridBoxes(seed, { snap: "units", fine: false, moving: true });
+    assert.deepEqual(b.fine, { on: true, locked: true });
+
+    // and so does a center that is already off a unit, moving or not
+    b = gridBoxes({ points: PENTA_UP, origin: [0, 0.2] },
+        { snap: "units", fine: false, moving: false });
+    assert.deepEqual(b.fine, { on: true, locked: true },
+        "only the fifths can say where 0.2 is");
+});
+
+test("the centroid boxes read the figure, and lock where there is nothing to do", () => {
+    const points = PENTA_UP;
+    const mid = centroidOf(points);
+    assert.deepEqual(mid, [0, 0.2], "the classic seed is odd: its centroid is a fifth");
+
+    // at the origin: `closest` is satisfied, `actual` is the move to make
+    let b = gridBoxes({ points, origin: [0, 0] });
+    assert.deepEqual(b.actual, { on: false, locked: false });
+    assert.deepEqual(b.closest, { on: true, locked: true });
+
+    // at the centroid: the other way about
+    b = gridBoxes({ points, origin: mid });
+    assert.deepEqual(b.actual, { on: true, locked: true });
+    assert.deepEqual(b.closest, { on: false, locked: false });
+
+    // somewhere else entirely: both are offers
+    b = gridBoxes({ points, origin: [1, -2] });
+    assert.deepEqual(b.actual, { on: false, locked: false });
+    assert.deepEqual(b.closest, { on: false, locked: false });
+});
+
+test("on an EVEN pentad both centroid boxes are the same box", () => {
+    // GEOMETRY.md §8: an even pentad's five spokes sum to zero, so its centroid
+    // is a lattice point and there is no choice to make between the exact
+    // center and an integral one. Both boxes checked at once is what that looks
+    // like on the page.
+    const points = EVEN_PENTAD;
+    assert.deepEqual(centroidOf(points), [0, 0]);
+    assert.deepEqual(integralCentroid(points), centroidOf(points));
+
+    const b = gridBoxes({ points, origin: [0, 0] }, { fine: false });
+    assert.deepEqual(b.actual, { on: true, locked: true });
+    assert.deepEqual(b.closest, { on: true, locked: true });
+    // and the fine grid has nothing to do either, because the center is on a unit
+    assert.deepEqual(b.fine, { on: false, locked: false });
+
+    // which the classic seed cannot manage at the same time
+    const odd = gridBoxes({ points: PENTA_UP, origin: centroidOf(PENTA_UP) });
+    assert.equal(odd.actual.on && odd.closest.on, false);
+});
+
+test("setBox puts a box on a checkbox, grayed and all", () => {
+    const input = element("input");
+    setBox(input, { on: true, locked: true });
+    assert.equal(input.checked, true);
+    assert.equal(input.disabled, true, "a check you cannot uncheck is grayed");
+    setBox(input, { on: false, locked: true });
+    assert.equal(input.checked, false);
+    assert.equal(input.disabled, true, "and so is a box you cannot check");
+    setBox(input, { on: false, locked: false });
+    assert.equal(input.disabled, false);
+});
+
+test("the draw reports its boxes, so the row cannot disagree with the canvas", () => {
+    const canvas = canvasStub();
+    const pd = createPentadiculum({ canvas, document: stubDocument() });
+    const drawn = pd.sync({ points: PENTA_UP.map((p) => [...p]), origin: [0, 0] });
+    assert.deepEqual(drawn.boxes.closest, { on: true, locked: true });
+    assert.deepEqual(drawn.boxes.fine, { on: false, locked: false });
+    // and the PAPER follows the box, not the setting: drag the center and the
+    // fifths come up although `fifths` was never switched on
+    assert.ok(!canvas.log.includes("strokeStyle=#edf2fa"), "no fifths at rest");
+    const { cell } = drawn;
+    canvas.fire("pointerdown", client([0, 0], cell));
+    canvas.log.length = 0;
+    canvas.fire("pointermove", { clientX: SIZE / 2 + cell * 0.4, clientY: SIZE / 2 });
+    assert.ok(canvas.log.includes("strokeStyle=#edf2fa"),
+        "the fifths come up under a center drag");
+    assert.deepEqual(pd.drawn().boxes.fine, { on: true, locked: true });
+    canvas.fire("pointerup", {});
+    assert.equal(pd.view().fifths, false, "and the SETTING was never touched");
 });

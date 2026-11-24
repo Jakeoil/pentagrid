@@ -58,6 +58,9 @@ canvas.pentadiculum {
 }
 .pentadiculum-ctl .grp { color: var(--ink-faint, #6b7280); }
 .pentadiculum-ctl label { white-space: nowrap; }
+/* A locked box says so twice: the browser grays the box (and any check in it),
+   and the word beside it fades to match. */
+.pentadiculum-ctl label:has(input:disabled) { color: var(--ink-faint, #6b7280); }
 
 /* ── the floating panel ──────────────────────────────────────────── */
 

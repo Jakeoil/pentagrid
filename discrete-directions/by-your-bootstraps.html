@@ -36,6 +36,9 @@
         .ctl .step { font-family: ui-monospace, Menlo, monospace; min-width: 3.2em;
                      display: inline-block; text-align: center; }
         .ctl .grp { color: var(--ink-faint); }
+        /* A locked box says so twice: the browser grays the box (and any check
+           in it), and the word beside it fades to match. */
+        .ctl label:has(input:disabled) { color: var(--ink-faint); }
         .ctl hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
         /* A fold: settings that are set once and then in the way. Closed by
            default, native <details>, so it needs no script to work. */
@@ -101,21 +104,21 @@
                         <option value="even">even</option>
                         <option value="real">real</option>
                         <option value="custom">custom</option>
-                    </select></div>
+                    </select>
+                    <button id="boot-reset" title="load the chosen preset again">reset</button></div>
                 <div><span class="grp">extrapolate</span>
                     <button id="boot-extrapolate-down" title="half a generation down">&minus;</button>
                     <span class="step" id="boot-extrapolate-value">0</span>
                     <button id="boot-extrapolate-up" title="half a generation up">+</button>
                     <button id="boot-use" title="adopt this pentagon as the five">use</button></div>
-                <div><span class="grp">snap</span>
-                    <select id="boot-snap" title="what a dragged handle lands on">
-                        <option value="units" selected>units</option>
-                        <option value="none">none</option>
-                    </select>
-                    <label><input type="checkbox" id="boot-vectors" title="the five point-to-point vectors, clockwise, with their values"> vectors</label>
-                    <label><input type="checkbox" id="boot-input-fifths" checked title="rule each unit square into fifths, the grid the center lands on"> 5 space</label>
-                    <button id="boot-centroid" title="put the origin on the centroid of the five, where the rhombs close as parallelograms">centroid</button>
-                    <button id="boot-reset">reset</button></div>
+                <div><span class="grp">grid</span>
+                    <label><input type="checkbox" id="boot-snap" checked title="a dragged corner lands on a whole unit, the center on a fifth"> snap</label>
+                    <label><input type="checkbox" id="boot-fine" title="rule each unit square into fifths, the grid the center lands on"> fine</label></div>
+                <div><span class="grp">centroid</span>
+                    <label><input type="checkbox" id="boot-actual" title="put the center on the centroid itself, where every rhomb closes as an exact parallelogram"> actual</label>
+                    <label><input type="checkbox" id="boot-closest" title="put the center on the nearest whole unit to the centroid, which keeps the spokes integral"> closest</label></div>
+                <div><span class="grp">display</span>
+                    <label><input type="checkbox" id="boot-vectors" title="the five point-to-point vectors, clockwise, with their values"> vectors</label></div>
                 <details class="fold">
                     <summary>settings</summary>
                     <div><span class="grp">face</span>
@@ -295,24 +298,60 @@
     in one number: the real pentagon has <b>one</b> edge length, the quadrille
     three.</p>
 
-    <p class="hint"><b>Snap</b> is <code>units</code> for the quadrille and
-    <code>none</code> for the real preset &mdash; rounding an irrational
-    pentagon's corners onto the paper on the first drag would silently turn it
-    back into a quadrille. Under <code>units</code> each handle lands on the
-    grid it belongs to: the five corners on <b>whole units</b>, because they are
-    Gaussian integers and that is the definition, and the <b>center on
-    fifths</b>, because the sweet spot is always in (1/5)&#8484;&sup2; and a
-    whole-unit center could never reach it. That is what the five lighter lines
-    across each unit square are &mdash; the center's own grid, drawn under the
-    unit lines rather than over them, since the corners sit on the unit
-    vertices. The dropdown follows the figure and is yours to override.</p>
+    <p class="hint"><b>Snap</b> is on for the quadrille and off for the real
+    preset &mdash; rounding an irrational pentagon's corners onto the paper on
+    the first drag would silently turn it back into a quadrille. The box follows
+    the figure and is yours to override either way. With it on, each handle
+    lands on the grid it belongs to: the five corners on <b>whole units</b>,
+    because they are Gaussian integers and that is the definition, and the
+    <b>center on fifths</b>, because the sweet spot is always in
+    (1/5)&#8484;&sup2; and a whole-unit center could never reach it. One
+    setting, two grids, because the two handles are not the same kind of
+    thing.</p>
+
+    <p class="hint"><b>Fine</b> is the center's grid made visible: the five
+    lighter lines across each unit square, drawn under the unit lines rather
+    than over them, since the corners sit on the unit vertices. It is off by
+    default, because close in on a corner it is a thicket over the only grid
+    that corner can land on. But it <b>comes up by itself, grayed</b>, whenever
+    the center is somewhere the unit lattice cannot describe &mdash; off a whole
+    unit, or being dragged off one &mdash; and goes back down, to whatever you
+    last set it to, when the center returns to a unit. A grayed check means
+    there is nothing for a click to do.</p>
 
     <p class="hint">When the center reaches the centroid it becomes a
     <b>bullseye</b>: a white pupil inside the dot, and <i>on the sweet spot</i>
     in the readout. Nothing about the outline announces it, and it is the state
     where P&nbsp;=&nbsp;S, <code>inflate(D) = T</code> and all three rhomb
-    spellings close as one exact parallelogram. The <b>centroid</b> button goes
-    there in one press; the fifths grid is how you get there by hand.</p>
+    spellings close as one exact parallelogram.</p>
+
+    <h3>Two centers, and you have to choose</h3>
+
+    <p>The <code>centroid</code> row is that choice, as two boxes. Each one is
+    half question and half instruction: it reads <b>checked and grayed</b> when
+    the center is already there, and clicking it when it is not takes the center
+    there in one press.</p>
+
+    <ul>
+        <li><b>actual</b> is the centroid itself &mdash; &sect;5's sweet spot,
+        where every rhomb closes as an exact parallelogram. It is in
+        (1/5)&#8484;&sup2;, so it costs you an origin that is not a lattice
+        point: the spokes stop being Gaussian integers and every wheel derived
+        from them comes off the unit lattice onto the fifths. That is the whole
+        of &sect;9's complaint about the classic rhombs.</li>
+        <li><b>closest</b> is that point rounded to the nearest whole unit. The
+        spokes stay integers and every wheel above stays on the lattice, and you
+        pay for it in exactness: the center is up to (&frac12;,&nbsp;&frac12;)
+        off the centroid, and &sect;5's parallelograms are off by that much. It
+        turns <b>fine</b> back off on the way, since getting the center onto a
+        unit is the point of pressing it.</li>
+    </ul>
+
+    <p>On an <b>even</b> pentad there is nothing to choose: the five sum to a
+    multiple of five, the centroid is already a lattice point, and
+    <i>both boxes come up grayed and checked at once</i>. That is the quickest
+    test on the page for whether a seed is even &mdash; load the
+    <code>even</code> preset and look at the row.</p>
 
     <p class="hint"><b>The floater</b> is one handle driven by the others.
     Double-click a handle to assign it, double-click it again to release it.
@@ -323,7 +362,7 @@
     <p class="hint">By default <b>the center floats</b>, so a corner drag
     carries the origin with it: pull a point by &delta; and the origin follows
     by &delta;/5, keeping its relationship to the figure instead of being left
-    behind by it. Press <b>centroid</b> first and the held value is zero, and
+    behind by it. Check <b>centroid actual</b> first and the held value is zero, and
     then <i>no drag can leave the sweet spot</i> &mdash; P&nbsp;=&nbsp;S,
     <code>inflate(D) = T</code>, all three rhomb spellings one exact
     parallelogram, however you reshape the pentagon. Choose one of the five
@@ -387,8 +426,8 @@
     point (0,&nbsp;0) rather than a fifth. The quadrille's is (0,&nbsp;&#8533;),
     which is why putting it on the sweet spot takes the whole figure off the
     lattice, and why scaling the quadrille by five to fix that makes everything
-    five times larger. This one needs no scaling: press <code>centroid</code>
-    and nothing has to move at all.</p>
+    five times larger. This one needs no scaling: both <code>centroid</code>
+    boxes come up checked and nothing has to move at all.</p>
 
     <p>And the property <b>survives the ladder</b>. The sum lives in one Fourier
     mode of the wheel, and a generation multiplies that mode by &minus;1, so a
@@ -412,9 +451,8 @@
     it is a choice rather than always on, because the output's lattice is where
     the <i>tiles</i> live and a tile corner is either on a lattice point or it
     is not &mdash; the fifths are the center's business, not theirs. The input
-    has a <b>5 space</b> box of its own, next to <code>vectors</code>, and it
-    starts on: close in on one corner the fifths become a thicket, and what a
-    corner is being read against is the unit lattice. <b>On top</b>
+    has its own, called <b>fine</b>, under <code>grid</code> &mdash; and that
+    one manages itself, as above. <b>On top</b>
     draws that lattice over the tiles instead of only under them, which is the
     only way to see whether a corner landed on a lattice point, and it has a
     palette of its own. The pale blues are made to be read through on white

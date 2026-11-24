@@ -9,11 +9,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    HANDLE_ORIGIN, SEEDS, centered, centroidOf, checkSeed, moveHandle,
+    HANDLE_ORIGIN, SEEDS, centered, centroidOf, checkSeed, integralCentroid,
+    moveHandle,
     nearestOrigin, originFence, seedOf, spokeSum, spokesOf, wheelOf, wheelsOf,
 } from "../src/math/seed.js";
 import {
-    ASYMMETRIC, PENTA_UP, REAL_PENTA, deflate, inflate, m10, pWheel, sWheel,
+    ASYMMETRIC, EVEN_PENTAD, PENTA_UP, REAL_PENTA, deflate, inflate, m10,
+    pWheel, sWheel,
     tWheel, wheelFromPoints, wheelsAt,
 } from "../src/math/wheel.js";
 import { THICK, THIN, pentagon, rhombus } from "../src/math/walk.js";
@@ -301,6 +303,27 @@ test("the centroid is the sweet spot, and it is always in fifths", () => {
     // the regular pentagon is already centered, which is why it never skewed
     const r = centroidOf(REAL_PENTA);
     assert.ok(Math.hypot(r[0], r[1]) < 1e-12);
+});
+
+test("integralCentroid is the centroid rounded, and is the centroid when even", () => {
+    // The `closest` box on the page: an integral origin, so the spokes stay
+    // Gaussian integers and every wheel above stays on the lattice -- at the
+    // cost of not being the exact center any more.
+    assert.deepEqual(integralCentroid(PENTA_UP), [0, 0], "from (0, 0.2)");
+    assert.deepEqual(integralCentroid(ASYMMETRIC), [0, 0], "from (-0.4, -0.2)");
+
+    // An EVEN pentad has nothing to round: its five sum to a multiple of five,
+    // so the centroid is already a lattice point and the two agree exactly.
+    // GEOMETRY.md §8.
+    assert.deepEqual(centroidOf(EVEN_PENTAD), [0, 0]);
+    assert.deepEqual(integralCentroid(EVEN_PENTAD), centroidOf(EVEN_PENTAD));
+
+    // and it never moves further than half a unit, in either coordinate
+    for (const pentad of [PENTA_UP, ASYMMETRIC, EVEN_PENTAD]) {
+        const c = centroidOf(pentad), i = integralCentroid(pentad);
+        assert.ok(Math.abs(c[0] - i[0]) <= 0.5 && Math.abs(c[1] - i[1]) <= 0.5,
+            `(${c}) rounded to (${i})`);
+    }
 });
 
 test("at the centroid all three spellings are one exact parallelogram", () => {

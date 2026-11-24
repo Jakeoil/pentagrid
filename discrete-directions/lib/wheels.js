@@ -31,7 +31,7 @@ export {
 // at a target. The reticulum's locked gamma, for this geometry.
 export {
     seedOf, spokesOf, wheelOf, wheelsOf, SEEDS,
-    checkSeed, originFence, nearestOrigin, centroidOf, centered,
+    checkSeed, originFence, nearestOrigin, centroidOf, centered, integralCentroid,
     HANDLE_ORIGIN, spokeSum, moveHandle,
 } from "../src/math/seed.js";
 

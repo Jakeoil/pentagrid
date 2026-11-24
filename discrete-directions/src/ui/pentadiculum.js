@@ -43,7 +43,7 @@
 
 import {
     HANDLE_ORIGIN, PENTA_UP, PRESETS, centroidOf, checkSeed, moveHandle,
-    originFence, spokeSum, spokesOf, wheelsAt,
+    integralCentroid, originFence, spokeSum, spokesOf, wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon } from "../../lib/tiles.js";
 import { EDGE_INK, GRID_FIFTHS, GRID_LEVELS, HOT, INK, TAU, paper, poly } from "./draw.js";
@@ -123,6 +123,94 @@ export function snapForSeed(seed) {
  */
 export const PD_ORIGIN = HANDLE_ORIGIN;
 
+/**
+ * One checkbox: whether it reads checked, and whether it is the user's to
+ * change.
+ *
+ * `locked` is drawn by the browser's own `disabled`, which grays an empty box
+ * and grays a check inside a full one. Jake, 2026-11-24: *if check can't be
+ * unchecked show a grayed out check. If box can't be checked, show a grayed out
+ * box.* So a locked box is its own no-op as well as its own explanation -- a
+ * disabled input fires no event, and clicking a state the figure is already in
+ * does nothing, because there is nothing for it to do.
+ * @typedef {{ on: boolean, locked: boolean }} Box
+ */
+
+/**
+ * The boxes of the `grid` and `centroid` sections, worked out from the figure.
+ *
+ * Only `snap` and `fine` are settings at all. `actual` and `closest` are
+ * *questions about the seed* that happen to be answerable by clicking them, so
+ * they are never stored anywhere: the figure is the state, and the boxes read
+ * it back.
+ * @typedef {{ snap: Box, fine: Box, actual: Box, closest: Box }} GridBoxes
+ */
+
+/** Is a point a whole lattice unit? @type {(p: Pt) => boolean} */
+const onUnit = (p) => Number.isInteger(p[0]) && Number.isInteger(p[1]);
+
+/** The same point, give or take the float. @type {(a: Pt, b: Pt) => boolean} */
+const samePt = (a, b) => Math.abs(a[0] - b[0]) < 1e-9 && Math.abs(a[1] - b[1]) < 1e-9;
+
+/**
+ * Does the handle now held drag the CENTER along with it?
+ *
+ * Two ways, and they are the two the fifths have to be visible for. The center
+ * itself is held -- it snaps at a fifth, so a drag of it lands between the unit
+ * lines nine times in ten. Or a corner is held while the center is the floater,
+ * which is the default: the floater keeps the spoke sum, so the center follows
+ * a corner at a fifth of its step (`moveHandle`, `src/math/seed.js`).
+ *
+ * A corner held while some other CORNER floats moves neither, and the fifths
+ * stay out of the way.
+ * @type {(dragging: number, floater: number) => boolean}
+ */
+export const centerMoves = (dragging, floater) =>
+    dragging !== -1 && (dragging === PD_ORIGIN || floater === PD_ORIGIN);
+
+/**
+ * Put a box's state on a real checkbox: checked, and grayed when it is locked.
+ *
+ * `disabled` is the whole mechanism -- it grays the box, grays a check inside
+ * it, and stops the event -- so there is no "can I click this" branch anywhere
+ * in either mount's handlers.
+ * @type {(input: HTMLInputElement, box: Box) => void}
+ */
+export const setBox = (input, box) => {
+    input.checked = box.on;
+    input.disabled = box.locked;
+};
+
+/**
+ * The four boxes, from the seed and the two settings.
+ *
+ * Pure, and exported, because both mounts draw the same row and a rule about
+ * when a box grays is not a thing to write twice.
+ *
+ * @param {Seed} seed
+ * @param {{ snap?: Snap, fine?: boolean, moving?: boolean }} state the two
+ *   settings as the page holds them, and whether a drag is moving the center
+ * @returns {GridBoxes}
+ */
+export function gridBoxes(seed, state = {}) {
+    const atCentroid = samePt(seed.origin, centroidOf(seed.points));
+    const atIntegral = samePt(seed.origin, integralCentroid(seed.points));
+    // The fifths are FORCED wherever only the fifths can say where the center
+    // is: off a unit, or on its way off one. The box then reads checked and
+    // grayed, because turning them off there would be turning off the only
+    // grid the center is on.
+    const forced = !onUnit(seed.origin) || state.moving === true;
+    return {
+        // Never locked. `real` comes up unchecked because `snapForSeed` reads
+        // the figure, not because the box is unavailable -- Jake: *except for
+        // real preset, can be checked.*
+        snap: { on: state.snap !== "none", locked: false },
+        fine: { on: forced || state.fine === true, locked: forced },
+        actual: { on: atCentroid, locked: atCentroid },
+        closest: { on: atIntegral, locked: atIntegral },
+    };
+}
+
 /** @typedef {"none" | "transparent" | "solid"} Face */
 /** @typedef {"none" | "thin" | "thick"} Edge */
 
@@ -141,7 +229,9 @@ export const PD_ORIGIN = HANDLE_ORIGIN;
  * @property {boolean} [fence] the legal origins, at the base rung
  * @property {boolean} [spokes] origin-to-corner rays
  * @property {Snap} [snap]
- * @property {boolean} [fifths] rule each unit square into fifths as well
+ * @property {boolean} [fifths] rule each unit square into fifths as well --
+ *   the `fine` box, and only its SETTING: the grid is forced on regardless
+ *   whenever the center is off a unit. See `gridBoxes`.
  * @property {number} [floater] which handle is driven by the others: a point
  *   index, `PD_ORIGIN`, or -1 for none. See `moveHandle` in `src/math/seed.js`.
  */
@@ -160,11 +250,13 @@ export const PD_ORIGIN = HANDLE_ORIGIN;
 const VIEW = {
     extrapolate: 0, face: "transparent", edge: "thin",
     vectors: false, fence: true, spokes: true, snap: "units",
-    // The fifths are ON by default -- they are the grid the CENTER lands on --
-    // but Jake, 2026-11-24: *the fine grid should be turned off and on easily.*
-    // Close up they are a thicket, and the unit lattice is what you are reading
-    // when you place a corner.
-    fifths: true,
+    // The fifths are OFF by default. Jake, 2026-11-24: *fine off by default,
+    // unchecked if possible, checked (grayed) if centroid is not on a unit.*
+    // Which is the better rule than always-on, because it makes the fine grid
+    // MEAN something: it is up exactly when the center is somewhere the unit
+    // lattice cannot describe. Close up, with the center on a unit, the fifths
+    // were only ever a thicket over the grid you were reading.
+    fifths: false,
     // The origin floats by default, so it keeps its offset from the centroid
     // instead of being left behind by a corner drag. Jake asked for this one.
     floater: PD_ORIGIN,
@@ -180,6 +272,8 @@ const VIEW = {
  * @property {readonly Pt[]} fence the legal origins, empty off the base rung
  * @property {boolean} sweet is the center on the sweet spot -- the centroid,
  *   where `GEOMETRY.md` §5 happens
+ * @property {GridBoxes} boxes the grid and centroid boxes, so a page's control
+ *   row can be set from the same draw that moved the figure
  */
 
 /**
@@ -337,7 +431,7 @@ export function createPentadiculum(options = {}) {
     /** @type {Drawn} */
     let last = {
         cell: opts.cell, verdict: { ok: true, why: "" },
-        shown: [], fence: [], sweet: false,
+        shown: [], fence: [], sweet: false, boxes: gridBoxes(seed, view),
     };
 
     /**
@@ -360,6 +454,10 @@ export function createPentadiculum(options = {}) {
         // Jake asked for it to be said: *indicate when center is in sweet spot.*
         const mid = centroidOf(seed.points);
         const sweet = Math.hypot(seed.origin[0] - mid[0], seed.origin[1] - mid[1]) < 1e-9;
+        const boxes = gridBoxes(seed, {
+            snap: view.snap, fine: view.fifths,
+            moving: centerMoves(dragging, view.floater),
+        });
 
         const shown = pentagon(wheelsAt(spk, 1 + view.extrapolate).d, 0);
         const verdict = checkSeed(seed);
@@ -407,7 +505,11 @@ export function createPentadiculum(options = {}) {
         // lines are drawn over them and stay the ones the corners sit on, and
         // the fifths drop out of their own accord below a cell of 20px, where a
         // fifth would be the 4px `gridLines` refuses to draw.
-        paper(ctx, w, h, ox, oy, k, view.fifths ? GRID_FIFTHS : GRID_LEVELS);
+        //
+        // Which it is comes from the BOXES, not straight from `view.fifths`:
+        // the fine grid is forced on while the center is off a unit or on its
+        // way off one, and the control row grays itself from the same answer.
+        paper(ctx, w, h, ox, oy, k, boxes.fine.on ? GRID_FIFTHS : GRID_LEVELS);
 
         if (!base) {
             // The five, as a reference, so the ladder step is visible. Dashed
@@ -545,7 +647,7 @@ export function createPentadiculum(options = {}) {
         ctx.globalAlpha = 1;
         if (base && view.floater === PD_ORIGIN) ring(ox, oy, 10);
 
-        last = { cell: k, verdict, shown, fence, sweet };
+        last = { cell: k, verdict, shown, fence, sweet, boxes };
         return last;
     }
 
@@ -859,6 +961,9 @@ export function mountPentadiculum(host, options = {}) {
     /** Draw, update the readout, and tell the page. */
     function announce() {
         const drawn = pd.sync(seed, view);
+        // The row is read off the same draw that moved the figure, so a box
+        // can never disagree with the canvas beside it.
+        applyBoxes?.(drawn.boxes);
         read.innerHTML = `<b>origin</b> (${drawn.verdict.ok ? "" : "&#9888; "}`
             + `${fmt(seed.origin[0])}, ${fmt(seed.origin[1])})`
             + ` &middot; <b>centroid</b> (${fmt(centroidOf(seed.points)[0])},`
@@ -879,14 +984,17 @@ export function mountPentadiculum(host, options = {}) {
     /** @type {(next: Seed, refit?: boolean) => void} */
     const put = (next, refit = true) => {
         seed = next;
+        // Snap follows the FIGURE, not the box: anything coarser than the five
+        // already are would wreck them on the first drag. `announce` puts the
+        // answer back on the box.
         view = { ...view, snap: snapForSeed(seed) };
-        if (snapPick) snapPick.value = /** @type {string} */ (view.snap);
         if (refit) pd.refit();
         announce();
     };
 
-    /** @type {HTMLSelectElement | null} */
-    let snapPick = null;
+    /** Set the control row from a draw; null until there is a row to set.
+     *  @type {((boxes: GridBoxes) => void) | null} */
+    let applyBoxes = null;
     if (opts.controls !== false) {
         const row = el("div", "pentadiculum-ctl");
 
@@ -906,59 +1014,82 @@ export function mountPentadiculum(host, options = {}) {
         });
         row.append(el("span", "grp", "preset"), presetPick);
 
-        snapPick = /** @type {HTMLSelectElement} */ (el("select", "pentadiculum-snap"));
-        for (const name of SNAPS) {
-            const o = /** @type {HTMLOptionElement} */ (doc.createElement("option"));
-            o.value = name;
-            o.textContent = name;
-            snapPick.appendChild(o);
-        }
-        snapPick.value = /** @type {string} */ (view.snap);
-        snapPick.addEventListener("change", () => {
-            const v = /** @type {Snap} */ (snapPick?.value);
-            if (SNAPS.includes(v)) view = { ...view, snap: v };
-        });
-        row.append(el("span", "grp", "snap"), snapPick);
-
-        const vectors = /** @type {HTMLInputElement} */ (el("input"));
-        vectors.type = "checkbox";
-        vectors.checked = view.vectors === true;
-        vectors.addEventListener("change", () => {
-            view = { ...view, vectors: vectors.checked };
-            announce();
-        });
-        const vlabel = el("label");
-        vlabel.append(vectors, doc.createTextNode(" vectors"));
-        row.appendChild(vlabel);
-
-        // The fifths, off and on. They are the grid the CENTER lands on and a
-        // thicket when you are close in on a corner, so they get a switch of
-        // their own rather than a rule about when to draw them.
-        const fifths = /** @type {HTMLInputElement} */ (el("input"));
-        fifths.type = "checkbox";
-        fifths.checked = view.fifths !== false;
-        fifths.addEventListener("change", () => {
-            view = { ...view, fifths: fifths.checked };
-            announce();
-        });
-        const flabel = el("label");
-        flabel.append(fifths, doc.createTextNode(" 5 space"));
-        row.appendChild(flabel);
-
-        // The centroid: the one origin where all three rhomb spellings agree
-        // and each closes as an exact parallelogram. It is in fifths, which is
-        // the grid the center snaps to anyway, so pressing this leaves the
-        // figure on its snap and the center draggable from there.
-        const centroid = el("button", "", "centroid");
-        centroid.addEventListener("click", () =>
-            put({ points: seed.points, origin: centroidOf(seed.points) }));
-        row.appendChild(centroid);
-
         const home = el("button", "", "origin");
         home.addEventListener("click", () => put({ points: seed.points, origin: [0, 0] }));
         row.appendChild(home);
 
-        wrap.append(read, row);
+        /** Each checkbox's label, so a section can append the pair.
+         *  @type {Map<HTMLInputElement, HTMLElement>} */
+        const labels = new Map();
+        /** @type {(input: HTMLInputElement) => HTMLElement} */
+        const labelOf = (input) => /** @type {HTMLElement} */ (labels.get(input));
+        /**
+         * A checkbox with its label, ready to append.
+         * @type {(text: string, onToggle: () => void) => HTMLInputElement}
+         */
+        const check = (text, onToggle) => {
+            const input = /** @type {HTMLInputElement} */ (el("input"));
+            input.type = "checkbox";
+            input.addEventListener("change", onToggle);
+            const lab = el("label");
+            lab.append(input, doc.createTextNode(` ${text}`));
+            labels.set(input, lab);
+            return input;
+        };
+
+        // ── grid: what a drag lands on, and which grid you see it land on ──
+        //
+        // Two boxes, not the old two-item menu, because they are two questions
+        // and the menu could only answer one of them.
+        const gridRow = el("div", "pentadiculum-ctl");
+        const snapBox = check("snap", () => {
+            view = { ...view, snap: snapBox.checked ? "units" : "none" };
+            announce();
+        });
+        const fineBox = check("fine", () => {
+            view = { ...view, fifths: fineBox.checked };
+            announce();
+        });
+        gridRow.append(el("span", "grp", "grid"), labelOf(snapBox), labelOf(fineBox));
+
+        // ── centroid: the two origins worth having, as two questions ──
+        //
+        // `actual` is the centroid itself -- the one origin where all three
+        // rhomb spellings agree and each rhomb closes as an exact
+        // parallelogram. `closest` is that point rounded to a lattice unit,
+        // which keeps the spokes integral instead. On an EVEN pentad they are
+        // the same point and both boxes come up checked, which is the quickest
+        // way to see that a seed is even.
+        const centroidRow = el("div", "pentadiculum-ctl");
+        const actualBox = check("actual", () =>
+            put({ points: seed.points, origin: centroidOf(seed.points) }));
+        const closestBox = check("closest", () => {
+            // Jake, 2026-11-24: *Fine checkbox will be reset.* The whole point
+            // of this box is to get the center back onto a unit, where the
+            // fifths have nothing left to say.
+            view = { ...view, fifths: false };
+            put({ points: seed.points, origin: integralCentroid(seed.points) });
+        });
+        centroidRow.append(el("span", "grp", "centroid"),
+            labelOf(actualBox), labelOf(closestBox));
+
+        // ── display ──
+        const displayRow = el("div", "pentadiculum-ctl");
+        const vectors = check("vectors", () => {
+            view = { ...view, vectors: vectors.checked };
+            announce();
+        });
+        displayRow.append(el("span", "grp", "display"), labelOf(vectors));
+
+        applyBoxes = (boxes) => {
+            setBox(snapBox, boxes.snap);
+            setBox(fineBox, boxes.fine);
+            setBox(actualBox, boxes.actual);
+            setBox(closestBox, boxes.closest);
+            vectors.checked = view.vectors === true;
+        };
+
+        wrap.append(read, row, gridRow, centroidRow, displayRow);
     } else {
         wrap.appendChild(read);
     }

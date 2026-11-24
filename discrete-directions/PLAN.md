@@ -505,6 +505,64 @@ wants four of them on one page, reading four seeds.
 recorded canvas calls over a scripted drag, preset, ladder, zoom and centroid
 run, identical before and after.
 
+### Six boxes in three sections, 2026-11-24
+
+Jake wrote the control row as a spec, and it is a better row than the one it
+replaces because it turns two *settings* into four *questions about the figure*:
+
+```
+grid      [x] snap   [ ] fine
+centroid  [ ] actual [ ] closest
+display   [ ] vectors
+```
+
+The `units`/`none` dropdown becomes **snap**, which is the same thing with one
+fewer click and no false suggestion that there is a third mode coming. It is
+never grayed: `real` arrives unchecked because `snapForSeed` reads the figure,
+not because the box is unavailable — Jake: *except for real preset, can be
+checked.*
+
+**fine** is the old `5 space`, now **off by default and self-managing**. It
+comes up checked and grayed whenever the center is somewhere the unit lattice
+cannot describe — off a whole unit, or being dragged off one, which is any
+center drag and any corner drag while the center floats — and drops back to
+whatever the user last set when the center returns to a unit. So the fifths now
+*mean* something: they are up exactly when they are the only grid the center is
+on. `centerMoves(dragging, floater)` is the two-case rule and it is exported and
+tested, because "the center follows a corner at a fifth of its step" is the
+floater's arithmetic, not a drawing detail.
+
+**actual** and **closest** replace the `centroid` button with the choice §8
+forces on an odd pentad, as two boxes:
+
+| box | origin | buys | costs |
+| --- | --- | --- | --- |
+| `actual` | the centroid, in (1/5)Z² | §5 exactly: every rhomb an exact parallelogram | a non-integral origin, so every derived wheel comes off the lattice |
+| `closest` | that point rounded to a unit | integral spokes, every wheel on the lattice | up to (½, ½) off the centroid, and §5 off by that much |
+
+On an **even** pentad the two are the same point and both boxes come up checked
+and grayed at once, which is the fastest test on the page for evenness —
+`integralCentroid(points) == centroidOf(points)` iff the five sum to a multiple
+of five. `integralCentroid` is new in `src/math/seed.js`, and it adds `+ 0` to
+each rounded coordinate on purpose: `Math.round(-0.4)` is **negative zero**,
+which is a lattice point that formats as `-0` in a readout.
+
+The graying is the whole mechanism, and Jake named it: *if check can't be
+unchecked show a grayed out check. If box can't be checked, show a grayed out
+box.* Native `disabled` does all three jobs — it grays an empty box, grays a
+check inside a full one, and fires no event — so there is no "can I click this"
+branch in either mount's handlers, and a locked box is its own no-op.
+
+The rule lives in one pure function, `gridBoxes(seed, { snap, fine, moving })`,
+which the **view** calls on every draw and hands back as `drawn.boxes`. Both the
+page and the inline mount set their row from that, so a box cannot disagree with
+the canvas beside it — and the paper itself is drawn from `boxes.fine.on` rather
+than from `view.fifths`, which is what makes the forced-on case one fact instead
+of two that have to be kept in step.
+
+The standalone mount got the same three sections, so `reset` moved up beside
+`preset` on the page and `display [] vectors` has a line of its own.
+
 ### The handle target, in pixels, 2026-11-24
 
 Jake, editing handles close up: *allow panning and zooming on pentadiculum

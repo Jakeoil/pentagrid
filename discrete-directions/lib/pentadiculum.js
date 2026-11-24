@@ -30,6 +30,10 @@
 export {
     createPentadiculum, mountPentadiculum, mountFloatingPentadiculum,
     SNAPS, snapped, snapStep, snapForSeed, PD_ORIGIN,
+    // The control row's own arithmetic: which of the six boxes read checked and
+    // which are grayed, given the figure. A host page building its own row gets
+    // the same answers the mounts do -- `gridBoxes` decides, `setBox` applies.
+    gridBoxes, setBox, centerMoves,
 } from "../src/ui/pentadiculum.js";
 
 // ── the drawing primitives it is built on, for a page drawing beside it ──
