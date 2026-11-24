@@ -64,9 +64,17 @@ canvas.pentadiculum {
 
 /* ── the floating panel ──────────────────────────────────────────── */
 
+/* The Reticulum's panel, matched by hand. `lib/css/panel.css` in the parent is
+   the original and this is a deliberate copy of its values: the behavior is
+   duplicated in `mountFloatingPentadiculum` (see the note there on why it
+   cannot be imported), and the look is duplicated here so the two panels read
+   as one site WITHOUT this project depending on a stylesheet it does not
+   own. Everything here still falls back to its own values. */
+
 /* A definite width, because a fixed-position box shrink-to-fits its contents
    and then the TITLE drives the layout — the same thing that made the
-   Reticulum's panel jump wider on a long preset name. */
+   Reticulum's panel jump wider on a long preset name. The mount sets this
+   inline from its stored width; this is the value before it does. */
 .pentadiculum-panel {
     position: fixed;
     z-index: 200;
@@ -93,16 +101,46 @@ canvas.pentadiculum {
     border-bottom: 1px solid #ddd;
     border-radius: 8px 8px 0 0;
 }
+/* min-width: 0 so a long seed name is elided rather than pushing the bar wider
+   than the panel it is in. */
+.pentadiculum-bar > * { min-width: 0; }
+
+.pentadiculum-title {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+/* The page's own control, left of fold and close. Nothing in it, nothing
+   there. */
+.pentadiculum-extras { display: flex; gap: 4px; align-items: center; }
+.pentadiculum-extras:empty { display: none; }
+
+.pentadiculum-fold,
 .pentadiculum-shut {
     font: inherit;
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1;
-    padding: 0 5px;
-    color: #666;
+    padding: 2px 5px;
+    color: #888;
     background: none;
     border: 0;
     cursor: pointer;
 }
-.pentadiculum-shut:hover { color: #111; }
+.pentadiculum-fold:hover,
+.pentadiculum-shut:hover { color: #222; }
+.pentadiculum-shut { font-size: 14px; }
 
 .pentadiculum-body { padding: 11px; }
+
+/* The resize grip: bottom-right corner, a small diagonal. */
+.pentadiculum-grip {
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 16px; height: 16px;
+    cursor: nwse-resize;
+    touch-action: none;
+    background: linear-gradient(135deg, transparent 0 50%, #bbb 50% 60%,
+                transparent 60% 75%, #bbb 75% 85%, transparent 85%);
+    border-bottom-right-radius: 8px;
+}

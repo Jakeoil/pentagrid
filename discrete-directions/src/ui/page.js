@@ -10,7 +10,8 @@
 // the rule is one way: nothing under `src/math/` knows a canvas exists.
 
 import {
-    PENTA_UP, PRESETS, centroidOf, eWheel, inflate, integralCentroid, ladderTo, m10,
+    PENTA_UP, PRESETS, centroidOf, eWheel, inflate, integralCentroid, ladderTo,
+    m10, presetName,
     pentaflake, sharedEdge, spokesOf, wheelFromPoints, wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon, rhombGroup, rhombus } from "../../lib/tiles.js";
@@ -32,7 +33,9 @@ import {
 import { numHTML } from "./numerals.js";
 // The input figure itself -- the five points, the origin and the pointer --
 // lives in the Pentadiculum. See the section below.
-import { PD_ORIGIN, createPentadiculum, setBox, snapForSeed } from "./pentadiculum.js";
+import {
+    PD_ORIGIN, createPentadiculum, mountFloatingPentadiculum, setBox, snapForSeed,
+} from "./pentadiculum.js";
 
 /** @type {(id: string) => HTMLElement | null} */
 const byId = (id) => document.getElementById(id);
@@ -825,21 +828,16 @@ if (useBtn) useBtn.addEventListener("click", useShown);
  * Keep the preset picker honest. Once the five have been dragged or adopted they
  * are usually no longer either preset, and leaving the old name selected meant
  * having to toggle away and back to reload one.
+ *
+ * `presetName` is the comparison, in `src/math/seed.js`, because the floating
+ * panel's title bar needs the same answer and a seed's own name is the seed's
+ * business.
  */
 function syncPreset() {
-    if (!presetPick) return;
-    // Compared on the SPOKES, not the points: a preset is five vectors, and a
-    // pentagon slid away from the origin is no longer that preset even though
-    // its five corners still trace the same shape.
-    const now = spokes();
-    /** @type {(a: readonly Pt[]) => boolean} */
-    const same = (a) =>
-        a.length === now.length
-        && a.every((v, i) => Math.abs(v[0] - now[i][0]) < 1e-9
-                          && Math.abs(v[1] - now[i][1]) < 1e-9);
-    for (const [name, preset] of Object.entries(PRESETS))
-        if (same(preset)) { presetPick.value = name; return; }
-    presetPick.value = "custom";
+    if (presetPick) presetPick.value = presetName(seedNow());
+    // The panel's title bar names the seed too, and a preset loaded from this
+    // page is a seed the panel has not heard about yet.
+    pushSeed();
 }
 
 /**
@@ -1041,7 +1039,160 @@ const resetBtn = byId("boot-reset");
 if (resetBtn) resetBtn.addEventListener("click", () =>
     loadPreset(presetPick?.value ?? "quadrille"));
 
+// ── the seed, floating ────────────────────────────────────────────────────
+//
+// Jake, 2026-11-24: *what is the plan you have to make the Pentadiculum float?
+// Kind of like the reticulum I guess, on the right of the diagram? Preset name
+// in the header.* An ALTERNATIVE and not a replacement: pressing `seed` folds
+// this page's own seed column away, gives the output the whole width, and the
+// instrument comes back as a panel over the output's top-right corner. Pressing
+// it again, or closing the panel, puts the column back. The panel remembers
+// that it was open, so it is a preference rather than a mode.
+//
+// The panel is a COMPLETE instrument -- its own preset, ladder, grid, centroid
+// and display rows -- because the column it replaces had all of those. What it
+// does not carry is the input figure's `face` and `edges`, which are this page's
+// business rather than the seed's; they keep whatever they were set to and the
+// fold that sets them comes back with the column.
+
+/** The panel's width, needed before it exists to place it by its right edge. */
+const SEED_PANEL_W = 372;
+
+/** @type {ReturnType<typeof mountFloatingPentadiculum> | null} */
+let seedFloat = null;
+const rigEl = byId("boot-rig");
+
+/** Are these the same seed? The guard that keeps the page and the panel from
+ *  telling each other about a move neither of them made.
+ *  @type {(a: Seed, b: Seed) => boolean} */
+const sameSeed = (a, b) =>
+    a.points.length === b.points.length
+    && a.points.every((p, i) => Math.abs(p[0] - b.points[i][0]) < 1e-12
+                             && Math.abs(p[1] - b.points[i][1]) < 1e-12)
+    && Math.abs(a.origin[0] - b.origin[0]) < 1e-12
+    && Math.abs(a.origin[1] - b.origin[1]) < 1e-12;
+
+/**
+ * Where the panel opens: the OUTPUT's top-right corner, inset, rather than the
+ * viewport's.
+ *
+ * Jake's choice, and the right one -- the panel is `position: fixed`, so the
+ * viewport's corner is wherever you have scrolled to, while the output is the
+ * thing the panel is meant to sit beside. Measured when it opens, which is when
+ * you are looking at the output. A remembered place wins over this.
+ * @returns {[number, number]}
+ */
+function seedFloatAt() {
+    const r = outCanvas?.getBoundingClientRect?.();
+    // Its own width, once it has one: the grip may have made it wider than the
+    // default, and the panel is being placed by its RIGHT edge.
+    const w = seedFloat?.width() ?? SEED_PANEL_W;
+    if (!r || !r.width) return [24, 24];
+    return [Math.max(12, r.right - w - 14), Math.max(12, r.top + 14)];
+}
+
+/** Hand the panel the seed the page is holding, if it is not already on it. */
+function pushSeed() {
+    if (!seedFloat || !seedFloat.isOpen()) return;
+    if (sameSeed(seedFloat.seed(), seedNow())) { seedFloat.rename(); return; }
+    seedFloat.set(seedNow());
+}
+
+/**
+ * Two places for one instrument: the left column, or a floating panel.
+ *
+ * Jake, 2026-11-24: *I either want to see it in the left column, or floating.
+ * The output column should remain on the left.* So this is a toggle between two
+ * states and not a second copy of anything -- when it floats, the seed column
+ * is gone from the grid entirely and the output starts at the left margin,
+ * which is what `1fr` instead of `auto 1fr` is for.
+ *
+ * The button that drives it lives directly ABOVE the instrument, because that
+ * is where you look for it. It was under the output, which is not: *I see no
+ * way to make it float.*
+ * @type {(on: boolean) => void}
+ */
+function floatSeed(on) {
+    // The fold comes FIRST, and this is the whole reason the order matters: the
+    // panel is placed against the output's right edge, and dropping the seed
+    // column moves that edge. `getBoundingClientRect` below forces the layout,
+    // so the measurement is of the page as it will be, not as it was.
+    rigEl?.classList.toggle("solo", on);
+    if (seedBtn) {
+        seedBtn.innerHTML = on ? "&#9656;&nbsp;pentadiculum" : "&#9662;&nbsp;pentadiculum";
+        seedBtn.title = on
+            ? "put the seed instrument back in the left column"
+            : "float the seed instrument over the output";
+    }
+    if (!on) {
+        seedFloat?.hide();
+        drawInput();
+        drawTiling();
+        return;
+    }
+    if (seedFloat) {
+        seedFloat.update({ face: seedFace, edge: seedEdge, extrapolate });
+        seedFloat.set(seedNow());
+        seedFloat.show(true);
+    } else {
+        seedFloat = mountFloatingPentadiculum({
+            id: "boot-float",
+            title: "pentadiculum",
+            width: SEED_PANEL_W,
+            at: seedFloatAt(),
+            seed: seedNow(),
+            // Face and edges ride along; snap, fine and vectors are the
+            // panel's own from here, which is what its row is for.
+            view: { face: seedFace, edge: seedEdge, extrapolate },
+            // A drag in the panel is a drag on the seed. The guard matters:
+            // without it the push below would come straight back as a change
+            // and the two would redraw each other.
+            onChange: (next) => {
+                if (sameSeed(next, seedNow())) return;
+                points = next.points.map((q) => /** @type {Pt} */ ([q[0], q[1]]));
+                origin = next.origin;
+                setSnapFromPoints();
+                syncPreset();
+                redraw();
+            },
+            // The panel's ladder is the page's `extrapolate`: the rung readout
+            // under the rig names it, and `use` adopts from it.
+            onLadder: (n) => {
+                extrapolate = n;
+                showExtrapolate();
+                refitInput();
+                drawInput();
+            },
+            onClose: () => floatSeed(false),
+        });
+    }
+    // The output's width changed, so its fit has -- and the folded-away input
+    // canvas still feeds the readouts under the rig, so it is drawn either way.
+    drawInput();
+    drawTiling();
+}
+
+// One button for two states, above the instrument, with the fold marker the
+// `settings` fold already uses on this page: open is the column, folded is the
+// panel.
+//
+// `boot-float`, and NOT `boot-seed`: that id was already the patch picker's, so
+// `byId("boot-seed")` handed this the `<select>` and the button was never wired
+// at all. Jake: *seed button does nothing.* It was two bugs wearing one coat --
+// a cached module, and this.
+const seedBtn = byId("boot-float");
+if (seedBtn) seedBtn.addEventListener("click", () =>
+    floatSeed(!(seedFloat?.isOpen() ?? false)));
+
 if (genOut) genOut.textContent = String(gen);
 showExtrapolate();
 redraw();
+
+// The build stamp goes ON THE PAGE, in the top nav, as well as to the console.
+// Jake, 2026-11-24: *the whole idea is to write it on the page so we can
+// eliminate this argument from day one.* A console line settles "am I looking
+// at a stale script?" only for whoever has the console open, and the answer was
+// a cached module both times it came up.
+const buildTag = byId("boot-build");
+if (buildTag) buildTag.textContent = `build ${BUILD_ID}`;
 console.log(`by-your-bootstraps — build id ${BUILD_ID}`);

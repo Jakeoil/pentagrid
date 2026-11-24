@@ -505,6 +505,157 @@ wants four of them on one page, reading four seeds.
 recorded canvas calls over a scripted drag, preset, ladder, zoom and centroid
 run, identical before and after.
 
+### The Pentadiculum floats, 2026-11-24
+
+Jake: *what is the plan you have to make the Pentadiculum float? Kind of like
+the reticulum I guess, on the right of the diagram? Preset name in the header.*
+Then: *alternative, not replacement. output's top-right. do all four steps.*
+
+`mountFloatingPentadiculum` had been built and tested for a week with **zero
+callers**. Four steps turned it into a thing the page uses.
+
+**1. `presetName(seed)`,** in `src/math/seed.js`. The page was doing this inline
+in `syncPreset`, comparing spokes against `PRESETS` with a fallback to
+`"custom"`. The panel's bar needs the same answer, and a seed's own name is the
+seed's business. `presetLabel(name)` in the UI layer is the other half: the
+`quadrille` is **classic** everywhere a person reads it, and the preset picker
+and the bar now go through one function rather than two copies of a ternary.
+
+**2. The panel grew up.** It had a drag and a close button. It now has the
+clamp, the fold, the remembered place, the grip, `barExtras` and `resetPlace` —
+which is to say, everything `createFloatingPanel` has had in the parent repo all
+along.
+
+It is **deliberately duplicated**, and the reason is worth writing down because
+it looks like laziness and is the opposite. `src/ui/floating.ts` does all of
+this, better, and `site.css` already `@import`s `lib/css/panel.css`, so the look
+is on the page for free. But that file compiles to `dist/`, `dist/` is
+gitignored and built in CI, and this project's own `tsconfig.json` says *there is
+no build step and never will be: the browser loads the files as they are.*
+Importing it would give a plain-JS page that works on the deployed site and
+404s on a fresh clone. So the behavior is copied into
+`mountFloatingPentadiculum` and the values are copied into
+`lib/css/pentadiculum.css`, which keeps this project droppable onto a page that
+has never heard of it — the rule `lib/css/pentadiculum.css` already states about
+`--rule` and `--ink-faint`.
+
+Three things fell out of writing it:
+
+- **A TDZ throw.** `mountPentadiculum` announces once while it is being
+  constructed, so the wrapper that renames the bar reached `mounted` before it
+  was bound and the panel never appeared at all. A `ready` flag, and the page's
+  own `onChange` still gets that first call.
+- **The grip sizes the CANVAS**, not just the box. A wider panel holding the
+  same 340px figure would be a wider panel and nothing else.
+- **Every `localStorage` access is guarded.** It throws outright in a private
+  window and is absent in Node — and a panel that cannot remember where it was
+  is a panel in its default position, not a broken page. Which is also how the
+  tests reach it: they install a Map-backed stub on `globalThis`.
+
+**3. Wired to the page, behind a `seed` button** under the output. It folds the
+seed column away (`.rig.solo`), gives the output the whole width, and opens the
+panel at the **output's** top-right corner rather than the viewport's — Jake's
+call, and the right one: the panel is `position: fixed`, so the viewport's
+corner is wherever you have scrolled to, while the output is the thing the panel
+is meant to sit beside. A remembered place wins over it.
+
+The page and the panel hold **one** seed, and whichever moved it tells the
+other. The guard is `sameSeed`: without it the push would come straight back as
+a change and the two would redraw each other forever.
+
+The panel had to become a **complete** instrument for this to be an alternative
+rather than a subset, so `mountPentadiculum` gained the **ladder** row —
+`ladder [−] 0 [+] [use]`, half generations, bounded at +6 and −4 as the page's
+always was, with `onLadder` telling the page so the rung readout follows.
+`view.extrapolate` was always the instrument's, and off the base rung the
+corners stop being handles, which is the Pentadiculum's rule and not a page's.
+What stays the page's is `face` and `edges`, which are how *this page* draws the
+seed; they ride along one-way and the fold that sets them comes back with the
+column.
+
+**4. Tests.** The panel was one test deep — its drag — and the panel is a state
+machine: the bar's naming folded and unfolded, the grip against both clamps, the
+remembered place across two mounts and a third with another id, `resetPlace` as
+the rescue, the viewport clamp from both edges, `barExtras` as an empty slot,
+`onClose`, and the ladder with `use` keeping the adopted figure where it was
+drawn rather than teleporting it to the origin.
+
+One real find on the way: **the page never linked
+`lib/css/pentadiculum.css`**, which it now needs for the panel. Harmless for the
+inline canvas, and checked rather than assumed — `paper()` fills the canvas with
+`#fbfcfe`, the exact value the stylesheet sets, and `.rig canvas` already
+supplied the border, the radius and `touch-action: none`.
+
+### The build stamp goes on the page, 2026-11-24
+
+Jake, twice in one session, looking at a stale script: *can't find 20:37:45 on
+page*, then *the whole idea is to write it on the page so we can eliminate this
+argument from day one.*
+
+It was `console.log` only, which settles "am I looking at what you just built?"
+for whoever has the console open and for nobody else. Both times the answer was
+a cached module, and both times it cost a round trip to establish. It is now a
+`.build-tag` span at the right-hand end of the top nav, `build HH:MM:SS`, set
+from the same `BUILD_ID` the console line uses. The console line stays; this is
+the one you can point at.
+
+The parent repo already had the convention -- `src/app/narrative.ts` puts
+`build <id>` in its nav -- and this page was the one that did not.
+
+### `id="boot-seed"` was already taken, 2026-11-24
+
+Jake: *seed button does nothing.*
+
+It really did nothing, and not for the reason I first gave. The float toggle was
+given `id="boot-seed"`, which **the patch picker has held since the page was
+written**. `document.getElementById` returns the first match in document order,
+the `<select>` comes first, so `seedBtn.addEventListener("click", ...)` attached
+the handler to the patch dropdown and the button was never wired at all.
+
+Nothing caught it, and it is worth saying exactly why nothing could:
+
+- `tsc` has no opinion about HTML.
+- `tools/pagecheck.mjs` **cannot** catch it. Its stub mints a fresh element for
+  every id it is asked for, which is what lets a page initialize headless -- and
+  it is the same property that makes a duplicate id invisible.
+
+So `tests/page-ids.test.mjs` now reads the HTML as text and checks two things:
+no id is used twice, and every `byId("...")` in the script names an id that
+exists. Not the other direction -- an id with no `byId` is ordinary, since CSS
+and `aria` use plenty. The guard was checked by putting the bug back: it fails
+with `duplicate ids -- boot-seed x2`.
+
+I had also told Jake the symptom was a stale cached module. That was true and it
+was half the story: the server was serving the new build, and the button would
+still have done nothing.
+
+### One toggle, above the instrument, 2026-11-24
+
+Jake: *I see no way to make it float. ... I either want to see it in the left
+column, or floating. The output controls should be on the left of the output.*
+And: *text "scroll to zoom.." should be eliminated.*
+
+Three corrections to the first cut, all of them mine to have got right:
+
+1. **The control was under the output**, which is not where you look for a
+   control that moves the thing on the left. It is now one button directly above
+   the rig, using the `▾`/`▸` fold marker the `settings` fold already uses on
+   this page: open is the column, folded is the panel.
+2. **The whole left column was being hidden**, and the output's own controls --
+   patch, gen, penta face, rhombs, the lot -- are the second half of that
+   column. So only `#boot-seed-inline` folds away now: the input canvas and the
+   seed's own controls. The column stays at `auto` width and the output's
+   controls stay beside the output.
+3. **The hint paragraph is gone for good**, not just while floating. Its content
+   -- scroll to zoom, drag to pan, double-click to fit, double-click a handle for
+   the floater -- moved into the lead-in above the rig, where it is true of both
+   canvases and does not sit inside a thing that can fold away.
+
+The **fold happens before the measurement**: the panel is placed against the
+output's right edge, folding the column moves that edge, and
+`getBoundingClientRect` forces the layout, so the measurement is of the page as
+it will be rather than as it was.
+
 ### Six boxes in three sections, 2026-11-24
 
 Jake wrote the control row as a spec, and it is a better row than the one it

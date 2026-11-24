@@ -35,6 +35,7 @@ const SURFACE = {
         "centered", "centroidOf", "checkSeed", "comb", "deflate", "eWheel",
         "halfDown", "halfUp", "inflate", "integralCentroid",
         "ladderTo", "m10", "moveHandle", "nearestOrigin", "originFence",
+        "presetName",
         "pWheel", "pWheelFromFlake", "pair", "pentaflake", "pointsOf", "sWheel",
         "seedOf", "sharedEdge", "spokeSum", "spokesOf", "stride", "tWheel",
         "wheelFromPoints", "wheelOf", "wheelsAt", "wheelsOf",
@@ -55,7 +56,8 @@ const SURFACE = {
         "centerMoves", "compact", "createPentadiculum", "drawNumeral", "fibCell",
         "fitStep", "gridBoxes", "gridLines", "mountFloatingPentadiculum",
         "mountPentadiculum",
-        "numHTML", "numeralWidth", "paper", "poly", "ptHTML", "setBox",
+        "numHTML", "numeralWidth", "paper", "poly", "presetLabel", "ptHTML",
+        "setBox",
         "snapForSeed", "snapStep", "snapped",
     ],
     "e2.js": [

@@ -114,6 +114,32 @@ export const SEEDS = Object.fromEntries(
     Object.entries(PRESETS).map(([name, pts]) => [name, seedOf(pts)]));
 
 /**
+ * Which preset this seed is, or `"custom"`.
+ *
+ * Compared on the **spokes**, not the points. A preset is five vectors from an
+ * origin, so a pentagon slid away from its origin is no longer that preset even
+ * though its five corners still trace the same shape -- and the five corners
+ * alone cannot tell you where it is being measured from, which is the whole
+ * subject of this file.
+ *
+ * Used twice over: the page's preset picker stays honest without the user
+ * having to toggle away and back to reload one, and the floating panel's title
+ * bar names the seed, so folding the panel to its bar loses nothing.
+ *
+ * @param {Seed} seed
+ * @returns {string} a key of `PRESETS`, or `"custom"`
+ */
+export function presetName(seed) {
+    const now = spokesOf(seed);
+    for (const [name, preset] of Object.entries(PRESETS))
+        if (preset.length === now.length
+            && preset.every((v, i) => Math.abs(v[0] - now[i][0]) < 1e-9
+                                   && Math.abs(v[1] - now[i][1]) < 1e-9))
+            return name;
+    return "custom";
+}
+
+/**
  * Is this seed usable, and if not, why not?
  *
  * The condition is on the TEN spokes, not on the five points: the five and

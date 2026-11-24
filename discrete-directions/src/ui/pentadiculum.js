@@ -43,7 +43,7 @@
 
 import {
     HANDLE_ORIGIN, PENTA_UP, PRESETS, centroidOf, checkSeed, moveHandle,
-    integralCentroid, originFence, spokeSum, spokesOf, wheelsAt,
+    integralCentroid, originFence, presetName, spokeSum, spokesOf, wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon } from "../../lib/tiles.js";
 import { EDGE_INK, GRID_FIFTHS, GRID_LEVELS, HOT, INK, TAU, paper, poly } from "./draw.js";
@@ -169,6 +169,16 @@ export const centerMoves = (dragging, floater) =>
     dragging !== -1 && (dragging === PD_ORIGIN || floater === PD_ORIGIN);
 
 /**
+ * What Jake calls a preset, which is not always its key: the `quadrille` is
+ * **classic** everywhere a person reads it, and has been since the first
+ * version of this page. `presetName` in `src/math/seed.js` answers which preset
+ * a seed IS; this is what to call it, and the preset picker and the floating
+ * panel's title bar both go through here so they cannot disagree.
+ * @type {(name: string) => string}
+ */
+export const presetLabel = (name) => (name === "quadrille" ? "classic" : name);
+
+/**
  * Put a box's state on a real checkbox: checked, and grayed when it is locked.
  *
  * `disabled` is the whole mechanism -- it grays the box, grays a check inside
@@ -288,6 +298,16 @@ const VIEW = {
  * @property {(view: { zoom: number, floater: number }) => void} [onView]
  * @property {Document} [document]
  */
+
+/**
+ * How far the ladder row will climb and fall, in half generations.
+ *
+ * The same bounds the page has always used. Up is further than down because
+ * inflation grows by phi^2 and the frame keeps up, while deflation shrinks
+ * toward a figure whose corners are a pixel apart.
+ */
+const LADDER_UP = 6;
+const LADDER_DOWN = -4;
 
 /** The largest cell the fit will use, as a multiple of `cell`. */
 const CAP_CELLS = 3;
@@ -902,6 +922,10 @@ export function createPentadiculum(options = {}) {
  * @property {(seed: Seed) => void} [onChange] called for every change, from a
  *   drag, a preset, the centroid button or `use`
  * @property {boolean} [controls] false mounts the canvas alone
+ * @property {() => void} [onClose] the floating panel's close button was
+ *   pressed. The panel hides itself either way.
+ * @property {(extrapolate: number) => void} [onLadder] the ladder row moved, or
+ *   `use` adopted a rung. The page's own rung readout needs to follow.
  * @property {Document} [document]
  */
 
@@ -1002,7 +1026,7 @@ export function mountPentadiculum(host, options = {}) {
         for (const name of Object.keys(PRESETS)) {
             const o = /** @type {HTMLOptionElement} */ (doc.createElement("option"));
             o.value = name;
-            o.textContent = name === "quadrille" ? "classic" : name;
+            o.textContent = presetLabel(name);
             presetPick.appendChild(o);
         }
         presetPick.addEventListener("change", () => {
@@ -1017,6 +1041,53 @@ export function mountPentadiculum(host, options = {}) {
         const home = el("button", "", "origin");
         home.addEventListener("click", () => put({ points: seed.points, origin: [0, 0] }));
         row.appendChild(home);
+
+        // ── ladder: half a generation at a time, and `use` to adopt one ──
+        //
+        // Jake calls this `extrapolate` on the page and it is the same number:
+        // half generations, 0 being the five themselves. It belongs to the
+        // instrument rather than to a page, because off the base rung the
+        // corners stop being handles -- which is the Pentadiculum's own rule,
+        // not the page's.
+        const ladderRow = el("div", "pentadiculum-ctl");
+        const rungOut = el("span", "step", "0");
+        /** @type {(by: number) => void} */
+        const step = (by) => {
+            const next = Math.min(LADDER_UP, Math.max(LADDER_DOWN,
+                (view.extrapolate ?? 0) + by));
+            view = { ...view, extrapolate: next };
+            rungOut.textContent = next > 0 ? `+${next}` : String(next);
+            // A rung is a different figure at a different size, so frame it
+            // afresh rather than leaving it half out of the frame.
+            pd.refit();
+            announce();
+            opts.onLadder?.(next);
+        };
+        const down = el("button", "", "\u2212");
+        down.title = "half a generation down";
+        down.addEventListener("click", () => step(-0.5));
+        const up = el("button", "", "+");
+        up.title = "half a generation up";
+        up.addEventListener("click", () => step(0.5));
+
+        // `use`: adopt the figure being shown as the five. It is in SPOKE
+        // coordinates, so it goes back on the paper where it was being drawn --
+        // adopting a rung must not teleport the figure to the origin.
+        const use = el("button", "", "use");
+        use.title = "adopt this pentagon as the five";
+        use.addEventListener("click", () => {
+            const taken = pentagon(
+                wheelsAt(spokesOf(seed), 1 + (view.extrapolate ?? 0)).d, 0);
+            view = { ...view, extrapolate: 0 };
+            rungOut.textContent = "0";
+            put({
+                points: taken.map((q) => /** @type {Pt} */ (
+                    [q[0] + seed.origin[0], q[1] + seed.origin[1]])),
+                origin: seed.origin,
+            });
+            opts.onLadder?.(0);
+        });
+        ladderRow.append(el("span", "grp", "ladder"), down, rungOut, up, use);
 
         /** Each checkbox's label, so a section can append the pair.
          *  @type {Map<HTMLInputElement, HTMLElement>} */
@@ -1089,7 +1160,7 @@ export function mountPentadiculum(host, options = {}) {
             vectors.checked = view.vectors === true;
         };
 
-        wrap.append(read, row, gridRow, centroidRow, displayRow);
+        wrap.append(read, row, ladderRow, gridRow, centroidRow, displayRow);
     } else {
         wrap.appendChild(read);
     }
@@ -1112,6 +1183,69 @@ export function mountPentadiculum(host, options = {}) {
     };
 }
 
+// ── the floating panel ────────────────────────────────────────────────────
+//
+// The Reticulum's panel, grown here rather than imported. `createFloatingPanel`
+// in `src/ui/floating.ts` does all of this already and better, and this project
+// cannot have it: that file compiles to `dist/`, `dist/` is gitignored and built
+// in CI, and `tsconfig.json` here says *there is no build step and never will
+// be: the browser loads the files as they are*. Importing it would give a
+// plain-JS page that works on the deployed site and 404s on a fresh clone.
+//
+// So the behavior is duplicated on purpose, and the LOOK is matched on purpose
+// too -- `lib/css/pentadiculum.css` holds its own copy of `lib/css/panel.css`'s
+// values so the two read as one site while this project stays droppable onto a
+// page that has never heard of it.
+
+/**
+ * Where a panel sits, how wide it is, and whether it is folded.
+ * @typedef {{ x: number, y: number, w: number, collapsed: boolean }} Placed
+ */
+
+/** Narrowest and widest the grip will take a panel, in CSS pixels. */
+const PANEL_MIN = 300;
+const PANEL_MAX = 900;
+/** The body's padding, both sides, from the stylesheet. */
+const PANEL_PAD = 22;
+/** How much of the title bar has to stay on screen to be grabbable again. */
+const BAR_SHOW = 56;
+/** The panel's own default width, which is the Reticulum's. */
+const PANEL_W = 372;
+
+/** @type {(id: string) => string} */
+const storeKey = (id) => `pentadiculum:panel:${id}`;
+
+/**
+ * The stored place, or null.
+ *
+ * Every access is guarded: `localStorage` throws outright in a private window
+ * and is absent in Node, and a panel that cannot remember where it was is a
+ * panel in its default position, not a broken page.
+ * @type {(id: string) => Placed | null}
+ */
+function readPlace(id) {
+    try {
+        const raw = globalThis.localStorage?.getItem(storeKey(id));
+        if (!raw) return null;
+        const p = JSON.parse(raw);
+        if (typeof p?.x !== "number" || typeof p?.y !== "number") return null;
+        return { x: p.x, y: p.y, w: typeof p.w === "number" ? p.w : PANEL_W,
+                 collapsed: p.collapsed === true };
+    } catch { return null; }
+}
+
+/** @type {(id: string, p: Placed) => void} */
+function writePlace(id, p) {
+    try { globalThis.localStorage?.setItem(storeKey(id), JSON.stringify(p)); }
+    catch { /* nothing to do about it, and nothing to say */ }
+}
+
+/** @type {(id: string) => void} */
+function forgetPlace(id) {
+    try { globalThis.localStorage?.removeItem(storeKey(id)); }
+    catch { /* as above */ }
+}
+
 /**
  * The same instrument, in a panel that floats over the page and can be dragged
  * by its title bar — the Reticulum's trick, and for the same reason: on a page
@@ -1120,67 +1254,250 @@ export function mountPentadiculum(host, options = {}) {
  *
  * It appends its panel to `document.body` itself.
  *
- * @param {MountOptions & { title?: string, at?: [number, number] }} [options]
+ * The bar names the SEED, not just the panel: `pentadiculum — even`, from
+ * `presetName`, with the origin added when the panel is folded. Folding it to a
+ * bar should not cost you the two things you were reading.
+ *
+ * @param {MountOptions & {
+ *   title?: string, at?: [number, number], id?: string, width?: number,
+ * }} [options] `id` keys the stored position, so two panels on one page keep
+ *   their own places
  */
 export function mountFloatingPentadiculum(options = {}) {
     const doc = options.document ?? globalThis.document;
+    const id = options.id ?? "pentadiculum";
+    const title = options.title ?? "pentadiculum";
+
     const panel = doc.createElement("div");
     panel.className = "pentadiculum-panel";
     const bar = doc.createElement("div");
     bar.className = "pentadiculum-bar";
-    bar.textContent = options.title ?? "pentadiculum";
+
+    const titleEl = doc.createElement("span");
+    titleEl.className = "pentadiculum-title";
+    bar.appendChild(titleEl);
+
+    // A slot for a control that belongs to the PANEL rather than to the
+    // instrument inside it -- the Reticulum's `restore` being the case it was
+    // added for there. Empty and invisible until a page puts something in it.
+    const extras = doc.createElement("span");
+    extras.className = "pentadiculum-extras";
+    bar.appendChild(extras);
+
+    const fold = doc.createElement("button");
+    fold.className = "pentadiculum-fold";
+    fold.title = "fold to the bar";
+    bar.appendChild(fold);
+
     const shut = doc.createElement("button");
     shut.className = "pentadiculum-shut";
     shut.textContent = "×";
+    shut.title = "close";
     bar.appendChild(shut);
+
     panel.appendChild(bar);
     const body = doc.createElement("div");
     body.className = "pentadiculum-body";
     panel.appendChild(body);
 
+    // The resize grip, bottom right. It sizes the CANVAS, not just the box: a
+    // wider panel with the same 340px figure in it would be a wider panel and
+    // nothing else.
+    const grip = doc.createElement("div");
+    grip.className = "pentadiculum-grip";
+    grip.title = "drag to resize";
+    panel.appendChild(grip);
+
     /** Where the panel sits. Kept here rather than read back off the element:
      *  `offsetLeft` forces a layout on every pointermove, and it is the wrong
-     *  number the moment a stylesheet transforms the panel. @type {[number, number]} */
-    let place = [...(options.at ?? [24, 24])];
-    const put = () => {
-        panel.style.left = `${place[0]}px`;
-        panel.style.top = `${place[1]}px`;
+     *  number the moment a stylesheet transforms the panel. @type {Placed} */
+    let place = readPlace(id) ?? {
+        x: options.at?.[0] ?? 24, y: options.at?.[1] ?? 24,
+        w: options.width ?? PANEL_W, collapsed: false,
     };
-    put();
 
-    const mounted = mountPentadiculum(body, options);
+    /**
+     * Keep it reachable. A panel dragged mostly off the right edge, or a window
+     * that has since been made narrow, must still leave enough bar to grab --
+     * otherwise the only way to move it is the thing that is out of reach.
+     */
+    function clamp() {
+        const vw = globalThis.innerWidth || 1200;
+        const vh = globalThis.innerHeight || 800;
+        place.w = Math.min(PANEL_MAX, Math.max(PANEL_MIN, place.w));
+        place.x = Math.min(Math.max(BAR_SHOW - place.w, place.x), Math.max(0, vw - BAR_SHOW));
+        place.y = Math.min(Math.max(0, place.y), Math.max(0, vh - 28));
+    }
+
+    const put = () => {
+        panel.style.left = `${place.x}px`;
+        panel.style.top = `${place.y}px`;
+        panel.style.width = `${place.w}px`;
+        body.style.display = place.collapsed ? "none" : "";
+        grip.style.display = place.collapsed ? "none" : "";
+        fold.textContent = place.collapsed ? "▸" : "▾";
+        fold.title = place.collapsed ? "unfold" : "fold to the bar";
+    };
+
+    // `mountPentadiculum` announces once while it is being built, so the
+    // wrapper below would reach `mounted` before it is bound -- a TDZ throw,
+    // and the panel would never appear at all. The page's own `onChange` still
+    // gets that first call, which is what it has always got; only the bar waits
+    // for the instrument to exist, and is written once below.
+    let ready = false;
+    const mounted = mountPentadiculum(body, {
+        ...options,
+        // The bar names the seed, so it has to hear about every change the
+        // instrument makes -- and then pass it on, because the page asked
+        // first.
+        onChange: (seed) => { if (ready) name(); options.onChange?.(seed); },
+    });
+    ready = true;
+
+    /** @type {(v: number) => string} */
+    const num = (v) => Number.isInteger(v) ? String(v) : v.toFixed(3).replace(/0+$/, "");
+
+    /** Write the bar: the panel's name, the seed's name, and when folded, the
+     *  two numbers the readout would have been showing. */
+    function name() {
+        const seed = mounted.seed();
+        let text = `${title} — ${presetLabel(presetName(seed))}`;
+        if (place.collapsed) {
+            text += `  (${num(seed.origin[0])}, ${num(seed.origin[1])})`;
+            if (mounted.pentadiculum.drawn().sweet) text += " · sweet";
+        }
+        titleEl.textContent = text;
+    }
+
+    clamp();
+    put();
     doc.body.appendChild(panel);
 
+    /** Fit the canvas to the panel, and redraw at the new size. */
+    function sizeCanvas() {
+        const canvas = mounted.pentadiculum.canvas;
+        const side = Math.round(Math.max(PANEL_MIN, place.w) - PANEL_PAD);
+        if (!canvas || canvas.width === side) return;
+        canvas.width = side;
+        canvas.height = side;
+        mounted.refit();
+    }
+    sizeCanvas();
+    name();
+
     // Dragged by the bar, and by the bar only: inside the body the pointer
-    // belongs to the figure, where a drag means moving a point.
+    // belongs to the figure, where a drag means moving a point. The buttons are
+    // in the bar, so a press on one of them is not a drag either.
     let from = /** @type {[number, number] | null} */ (null);
     bar.addEventListener("pointerdown", (ev) => {
-        if (ev.target === shut) return;
-        from = [ev.clientX - place[0], ev.clientY - place[1]];
+        if (ev.target === shut || ev.target === fold) return;
+        from = [ev.clientX - place.x, ev.clientY - place.y];
         if (typeof bar.setPointerCapture === "function") bar.setPointerCapture(ev.pointerId);
     });
     bar.addEventListener("pointermove", (ev) => {
         if (!from) return;
-        place = [ev.clientX - from[0], ev.clientY - from[1]];
+        place.x = ev.clientX - from[0];
+        place.y = ev.clientY - from[1];
+        clamp();
         put();
     });
-    const letGo = () => { from = null; };
+    const letGo = () => {
+        if (!from) return;
+        from = null;
+        writePlace(id, place);
+    };
     bar.addEventListener("pointerup", letGo);
     bar.addEventListener("pointercancel", letGo);
 
+    // The grip. Width only: the figure is square and the body's height follows
+    // it, so a separate height would only ever add whitespace.
+    let grabbedAt = /** @type {number | null} */ (null);
+    grip.addEventListener("pointerdown", (ev) => {
+        grabbedAt = ev.clientX - place.w;
+        if (typeof grip.setPointerCapture === "function") grip.setPointerCapture(ev.pointerId);
+        ev.preventDefault?.();
+    });
+    grip.addEventListener("pointermove", (ev) => {
+        if (grabbedAt === null) return;
+        place.w = ev.clientX - grabbedAt;
+        clamp();
+        put();
+        sizeCanvas();
+    });
+    const dropGrip = () => {
+        if (grabbedAt === null) return;
+        grabbedAt = null;
+        writePlace(id, place);
+    };
+    grip.addEventListener("pointerup", dropGrip);
+    grip.addEventListener("pointercancel", dropGrip);
+
     /** @type {(on: boolean) => void} */
-    const show = (on) => { panel.style.display = on ? "" : "none"; };
-    shut.addEventListener("click", () => show(false));
+    const show = (on) => {
+        panel.hidden = !on;
+        if (on) { clamp(); put(); }
+    };
+
+    /** @type {(on: boolean) => void} */
+    const collapse = (on) => {
+        place.collapsed = on;
+        put();
+        name();
+        writePlace(id, place);
+        if (!on) mounted.refit();
+    };
+    fold.addEventListener("click", () => collapse(!place.collapsed));
+    shut.addEventListener("click", () => { show(false); options.onClose?.(); });
+
+    // A window made smaller can leave a panel outside it, and the panel is the
+    // only way to move the panel. So the clamp runs again when the viewport
+    // changes, not only when something is dragged.
+    const onResize = () => { clamp(); put(); };
+    globalThis.addEventListener?.("resize", onResize);
 
     return {
         ...mounted,
         panel,
+        /** The slot in the bar, left of fold and close, for the page's own control. */
+        barExtras: extras,
         /** Where it sits, and how to move it from code. */
-        at: () => /** @type {[number, number]} */ ([...place]),
+        at: () => /** @type {[number, number]} */ ([place.x, place.y]),
         /** @type {(x: number, y: number) => void} */
-        moveTo(x, y) { place = [x, y]; put(); },
+        moveTo(x, y) { place.x = x; place.y = y; clamp(); put(); writePlace(id, place); },
+        width: () => place.w,
         show,
-        toggle: () => show(panel.style.display === "none"),
-        destroy() { mounted.destroy(); panel.remove?.(); },
+        hide: () => show(false),
+        toggle: () => { show(panel.hidden !== false); },
+        isOpen: () => panel.hidden === false,
+        collapse,
+        isCollapsed: () => place.collapsed,
+        /**
+         * Put it back where it started, open and unfolded, and forget the
+         * stored place.
+         *
+         * A panel dragged somewhere unhelpful -- behind another one, or into a
+         * corner of a window that is now a different size -- cannot be
+         * recovered by anything on the panel itself, because the way to reach
+         * it is the thing that is lost. So the rescue comes from outside.
+         */
+        resetPlace() {
+            forgetPlace(id);
+            place = {
+                x: options.at?.[0] ?? 24, y: options.at?.[1] ?? 24,
+                w: options.width ?? PANEL_W, collapsed: false,
+            };
+            clamp();
+            put();
+            sizeCanvas();
+            name();
+            show(true);
+        },
+        /** Name the bar again: for a page that changed the seed from outside. */
+        rename: name,
+        destroy() {
+            globalThis.removeEventListener?.("resize", onResize);
+            mounted.destroy();
+            panel.remove?.();
+        },
     };
 }

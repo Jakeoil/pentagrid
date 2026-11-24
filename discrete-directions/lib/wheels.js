@@ -32,6 +32,7 @@ export {
 export {
     seedOf, spokesOf, wheelOf, wheelsOf, SEEDS,
     checkSeed, originFence, nearestOrigin, centroidOf, centered, integralCentroid,
+    presetName,
     HANDLE_ORIGIN, spokeSum, moveHandle,
 } from "../src/math/seed.js";
 

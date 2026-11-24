@@ -277,7 +277,8 @@ test("the inline mount builds its own canvas and controls", () => {
     const kinds = m.element.all().map((c) => c.tagName).sort();
     assert.ok(kinds.includes("CANVAS"), kinds.join(" "));
     assert.ok(kinds.filter((k) => k === "SELECT").length === 1, "preset");
-    assert.ok(kinds.filter((k) => k === "BUTTON").length === 1, "origin");
+    // origin, and the ladder's minus, plus and use
+    assert.equal(kinds.filter((k) => k === "BUTTON").length, 4, kinds.join(" "));
     // snap, fine, actual, closest, vectors -- three sections of checkboxes
     assert.equal(kinds.filter((k) => k === "INPUT").length, 5, kinds.join(" "));
     assert.equal(seen.length, 1, "it draws and announces once on mount");
@@ -370,13 +371,35 @@ test("the mount's preset picker loads a preset, origin and all", () => {
     assert.equal(m.pentadiculum.view().snap, "none");
 });
 
+/** The floating panel's parts, by the order it builds them. */
+function panelParts(m) {
+    const bar = m.panel.children[0];
+    const [title, extras, fold, shut] = bar.children;
+    return { bar, title, extras, fold, shut,
+             body: m.panel.children[1], grip: m.panel.children[2] };
+}
+
+/** A localStorage that lives in the test, so the panel can be asked to
+ *  remember without a browser. Returns a restore function. */
+function withStorage(seed = {}) {
+    const store = new Map(Object.entries(seed));
+    const before = globalThis.localStorage;
+    globalThis.localStorage = {
+        getItem: (k) => (store.has(k) ? store.get(k) : null),
+        setItem: (k, v) => { store.set(k, String(v)); },
+        removeItem: (k) => { store.delete(k); },
+    };
+    return { store, restore: () => { globalThis.localStorage = before; } };
+}
+
 test("the floating mount is a panel on the body, dragged by its bar", () => {
     const doc = stubDocument();
     const m = mountFloatingPentadiculum({ document: doc, title: "seed", at: [40, 60] });
     assert.equal(doc.body.children.length, 1);
     assert.equal(m.panel.style.left, "40px");
+    assert.equal(m.panel.style.width, "372px", "the Reticulum's width");
 
-    const bar = m.panel.children[0];
+    const { bar, fold, shut } = panelParts(m);
     bar.fire("pointerdown", { clientX: 50, clientY: 70, target: bar });
     bar.fire("pointermove", { clientX: 90, clientY: 130 });
     assert.equal(m.panel.style.left, "80px", "it followed the pointer");
@@ -384,13 +407,152 @@ test("the floating mount is a panel on the body, dragged by its bar", () => {
     bar.fire("pointerup", {});
     bar.fire("pointermove", { clientX: 200, clientY: 200 });
     assert.equal(m.panel.style.left, "80px", "and stopped when it was let go");
+    assert.deepEqual(m.at(), [80, 120]);
+
+    // a press on a BUTTON in the bar is not a drag
+    bar.fire("pointerdown", { clientX: 300, clientY: 70, target: fold });
+    bar.fire("pointermove", { clientX: 400, clientY: 200 });
+    assert.equal(m.panel.style.left, "80px", "the fold button is not a handle");
 
     // the shut button hides it rather than destroying it
-    m.panel.children[0].children[0].fire("click");
-    assert.equal(m.panel.style.display, "none");
+    shut.fire("click");
+    assert.equal(m.panel.hidden, true);
+    assert.equal(m.isOpen(), false);
     m.toggle();
-    assert.equal(m.panel.style.display, "");
+    assert.equal(m.panel.hidden, false);
+    assert.equal(m.isOpen(), true);
 });
+
+test("the panel's bar names the SEED, and says more when it is folded", () => {
+    // Jake, 2026-11-24: *preset name in the header.* Folding the panel to its
+    // bar should not cost you the two things the readout was telling you.
+    const doc = stubDocument();
+    const m = mountFloatingPentadiculum({ document: doc, title: "pentadiculum" });
+    const { title, fold, body, grip } = panelParts(m);
+    assert.match(title.textContent, /^pentadiculum — classic$/);
+
+    // move it off the preset and the bar says so
+    m.set({ points: [[3, 2], [0, 2], [-3, 2], [-2, -3], [2, -3]], origin: [0, 0] });
+    assert.match(title.textContent, /— even$/, title.textContent);
+    m.set({ points: [[4, 1], [0, 2], [-3, 2], [-2, -3], [2, -3]], origin: [0, 0] });
+    assert.match(title.textContent, /— custom$/, title.textContent);
+
+    // folded, it carries the origin too, and the sweet spot when it is on it
+    m.set({ points: PENTA_UP.map((p) => [...p]), origin: [0, 0] });
+    m.collapse(true);
+    assert.equal(m.isCollapsed(), true);
+    assert.equal(body.style.display, "none", "the body folds away");
+    assert.equal(grip.style.display, "none", "and so does the grip");
+    assert.match(title.textContent, /classic\s+\(0, 0\)$/, title.textContent);
+    assert.doesNotMatch(title.textContent, /sweet/);
+
+    m.set({ points: PENTA_UP.map((p) => [...p]), origin: centroidOf(PENTA_UP) });
+    assert.match(title.textContent, /\(0, 0\.2\) · sweet$/, title.textContent);
+
+    // and the fold button is the way back
+    fold.fire("click");
+    assert.equal(m.isCollapsed(), false);
+    assert.equal(body.style.display, "");
+    assert.doesNotMatch(title.textContent, /sweet/, "unfolded, the readout says it");
+});
+
+test("the grip resizes the canvas, not just the box", () => {
+    const doc = stubDocument();
+    const m = mountFloatingPentadiculum({ document: doc });
+    const { grip } = panelParts(m);
+    const canvas = m.pentadiculum.canvas;
+    const was = canvas.width;
+
+    grip.fire("pointerdown", { clientX: 372 });
+    grip.fire("pointermove", { clientX: 500 });
+    assert.equal(m.width(), 500);
+    assert.equal(m.panel.style.width, "500px");
+    assert.ok(canvas.width > was, `the figure grew with it: ${was} -> ${canvas.width}`);
+    assert.equal(canvas.width, canvas.height, "and stayed square");
+    grip.fire("pointerup", {});
+
+    // and it will not go narrower than a control row can be read at
+    grip.fire("pointerdown", { clientX: 500 });
+    grip.fire("pointermove", { clientX: 40 });
+    assert.equal(m.width(), 300, "clamped to the minimum");
+    grip.fire("pointerup", {});
+});
+
+test("the panel remembers where it was, and resetPlace is the rescue", () => {
+    const { store, restore } = withStorage();
+    try {
+        const one = mountFloatingPentadiculum({
+            document: stubDocument(), id: "rig", at: [24, 24],
+        });
+        const { bar } = panelParts(one);
+        bar.fire("pointerdown", { clientX: 30, clientY: 30, target: bar });
+        bar.fire("pointermove", { clientX: 230, clientY: 180 });
+        bar.fire("pointerup", {});
+        assert.deepEqual(one.at(), [224, 174]);
+        assert.ok(store.has("pentadiculum:panel:rig"), [...store.keys()].join());
+
+        // a second panel with the same id comes up where the first was left
+        const two = mountFloatingPentadiculum({
+            document: stubDocument(), id: "rig", at: [24, 24],
+        });
+        assert.deepEqual(two.at(), [224, 174], "it remembered");
+
+        // and one with another id does not
+        const other = mountFloatingPentadiculum({
+            document: stubDocument(), id: "moire", at: [24, 24],
+        });
+        assert.deepEqual(other.at(), [24, 24], "a different panel, a different place");
+
+        // the rescue: back to the default, open, unfolded, and forgotten
+        two.collapse(true);
+        two.hide();
+        two.resetPlace();
+        assert.deepEqual(two.at(), [24, 24]);
+        assert.equal(two.isCollapsed(), false);
+        assert.equal(two.isOpen(), true);
+        assert.equal(store.has("pentadiculum:panel:rig"), false, "and forgotten");
+    } finally { restore(); }
+});
+
+test("the panel keeps enough bar on screen to be grabbed again", () => {
+    // A panel dragged off the edge, or a window since made narrow, cannot be
+    // recovered by anything ON the panel -- so the clamp runs on every move.
+    const m = mountFloatingPentadiculum({ document: stubDocument(), at: [24, 24] });
+    const { bar } = panelParts(m);
+    bar.fire("pointerdown", { clientX: 30, clientY: 30, target: bar });
+    bar.fire("pointermove", { clientX: 9000, clientY: 9000 });
+    const [x, y] = m.at();
+    // the viewport is the 1200x800 fallback, since Node has no window
+    assert.ok(x <= 1200 - 56, `x is ${x}`);
+    assert.ok(y <= 800 - 28, `y is ${y}`);
+
+    bar.fire("pointermove", { clientX: -9000, clientY: -9000 });
+    const [x2, y2] = m.at();
+    assert.ok(x2 + m.width() >= 56, `x is ${x2} at width ${m.width()}`);
+    assert.ok(y2 >= 0, `y is ${y2}`);
+});
+
+test("the panel's barExtras is a slot, empty until a page fills it", () => {
+    const doc = stubDocument();
+    const m = mountFloatingPentadiculum({ document: doc });
+    const { extras } = panelParts(m);
+    assert.equal(extras.className, "pentadiculum-extras");
+    assert.equal(extras.children.length, 0, "nothing in it, nothing there");
+    const btn = doc.createElement("button");
+    m.barExtras.appendChild(btn);
+    assert.equal(extras.children.length, 1);
+});
+
+test("closing the panel tells the page, so a reopen button can come back", () => {
+    let closed = 0;
+    const m = mountFloatingPentadiculum({
+        document: stubDocument(), onClose: () => { closed++; },
+    });
+    panelParts(m).shut.fire("click");
+    assert.equal(closed, 1);
+    assert.equal(m.isOpen(), false, "and it hid itself either way");
+});
+
 
 // ── the floater ───────────────────────────────────────────────────────────
 //
@@ -964,4 +1126,74 @@ test("the draw reports its boxes, so the row cannot disagree with the canvas", (
     assert.deepEqual(pd.drawn().boxes.fine, { on: true, locked: true });
     canvas.fire("pointerup", {});
     assert.equal(pd.view().fifths, false, "and the SETTING was never touched");
+});
+
+test("the mount's ladder row walks half generations, and use adopts one", () => {
+    // The floating panel has to be a working alternative to the page's own
+    // column, and the column had the ladder. `view.extrapolate` was always the
+    // instrument's, so the controls for it belong here too.
+    const rungs = [];
+    const m = mountPentadiculum(element(), {
+        document: stubDocument(), onLadder: (n) => rungs.push(n),
+    });
+    const buttons = m.element.all().filter((c) => c.tagName === "BUTTON");
+    const down = buttons.find((b) => b.textContent === "−");
+    const up = buttons.find((b) => b.textContent === "+");
+    const use = buttons.find((b) => b.textContent === "use");
+    const rung = m.element.all().find((c) => c.className === "step");
+    assert.equal(rung.textContent, "0");
+
+    up.fire("click");
+    assert.equal(m.pentadiculum.view().extrapolate, 0.5, "half a generation");
+    assert.equal(rung.textContent, "+0.5", "signed, so +0.5 and -0.5 differ");
+    down.fire("click");
+    down.fire("click");
+    assert.equal(m.pentadiculum.view().extrapolate, -0.5);
+    assert.equal(rung.textContent, "-0.5");
+    assert.deepEqual(rungs, [0.5, 0, -0.5], "and the page was told each time");
+
+    // bounded at both ends
+    for (let i = 0; i < 20; i++) down.fire("click");
+    assert.equal(m.pentadiculum.view().extrapolate, -4, "as far down as it goes");
+    for (let i = 0; i < 30; i++) up.fire("click");
+    assert.equal(m.pentadiculum.view().extrapolate, 6, "and as far up");
+
+    // `use` adopts the shown figure and comes back to the base rung
+    const was = copy(m.seed()).points;
+    up.fire("click");                           // nothing: already at the top
+    use.fire("click");
+    assert.equal(m.pentadiculum.view().extrapolate, 0, "back to the five");
+    assert.equal(rung.textContent, "0");
+    assert.notDeepEqual(m.seed().points, was, "and the five are the rung's");
+    assert.equal(rungs.at(-1), 0);
+});
+
+test("use keeps the adopted figure where it was drawn, not at the origin", () => {
+    // In spoke coordinates the rung is measured from the origin, so adopting it
+    // without putting it back would teleport the pentagon.
+    const m = mountPentadiculum(element(), { document: stubDocument() });
+    m.set({ points: PENTA_UP.map((p) => [p[0] + 3, p[1] - 2]), origin: [3, -2] });
+    const buttons = m.element.all().filter((c) => c.tagName === "BUTTON");
+    buttons.find((b) => b.textContent === "+").fire("click");
+    buttons.find((b) => b.textContent === "use").fire("click");
+    assert.deepEqual(m.seed().origin, [3, -2], "the origin did not move");
+    const mid = centroidOf(m.seed().points);
+    assert.ok(Math.hypot(mid[0] - 3, mid[1] - (-2)) < 1.5,
+        `the five stayed around the origin: centroid (${mid})`);
+});
+
+test("every canvas carries the class its stylesheet styles, adopted or made", () => {
+    // `lib/css/pentadiculum.css` styles `canvas.pentadiculum`, and the page
+    // that hosts a mount has to link it -- `touch-action: none` lives there,
+    // and without it a touch drag on a handle scrolls the page instead of
+    // moving the point.
+    const made = createPentadiculum({ document: stubDocument() });
+    assert.equal(made.canvas.className, "pentadiculum");
+
+    // and an adopted canvas KEEPS its page's classes, with this one added:
+    // `#boot-input` is styled by the page it lives in as well.
+    const mine = canvasStub();
+    mine.className = "mine";
+    const adopted = createPentadiculum({ canvas: mine, document: stubDocument() });
+    assert.equal(adopted.canvas.className, "mine pentadiculum");
 });

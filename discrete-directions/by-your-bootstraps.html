@@ -6,6 +6,10 @@
     <title>By your bootstraps</title>
     <link rel="icon" type="image/svg+xml" href="../favicon.svg">
     <link rel="stylesheet" href="../site.css">
+    <!-- The Pentadiculum's own look, for the floating panel the `seed` button
+         opens. Structure is inline, the look is here, and an unstyled mount
+         works and looks like unstyled HTML. -->
+    <link rel="stylesheet" href="lib/css/pentadiculum.css">
     <style>
         /* Jake's compact numeral: the sign is a color, not a character, and the
            amber cell counts the zeros the decimal point cannot reach. */
@@ -26,8 +30,20 @@
         .log { border-top: 1px solid var(--rule); padding-top: 12px;
                margin: 0 0 26px; display: grid; gap: 4px; }
         .rig { display: grid; grid-template-columns: 1fr 2fr; gap: 20px;
-               align-items: start; margin: 18px 0 20px; }
+               align-items: start; margin: 8px 0 20px; }
         @media (max-width: 760px) { .rig { grid-template-columns: 1fr; } }
+        /* Floating hides the SEED half of the left column -- the canvas and its
+           own controls. The column itself stays, because the output's controls
+           are the rest of it. Jake, 2026-11-24: *the output controls should be
+           on the left of the output.* With the canvas gone the column needs
+           only its controls' width, so `auto` rather than `1fr`. */
+        .rig.solo { grid-template-columns: auto 1fr; }
+        .rig.solo #boot-seed-inline { display: none; }
+        /* The toggle sits directly above the instrument, which is where you
+           look for it -- it was under the output, which is not. */
+        .seedbar { margin: 18px 0 0; }
+        .seedbar button { font: inherit; font-size: 12px; padding: 3px 9px;
+                          white-space: nowrap; }
         .rig canvas { border: 1px solid var(--rule); border-radius: 6px;
                       display: block; touch-action: none; width: 100%; height: auto; }
         .ctl { font-size: 13px; line-height: 2.1; margin: 10px 0 0; }
@@ -59,6 +75,13 @@
         table.ops { border-collapse: collapse; font-size: 13px; margin: 14px 0; }
         table.ops td, table.ops th { border-bottom: 1px solid var(--rule); padding: 5px 14px 5px 0; text-align: left; }
         table.ops code { font-size: 12px; }
+        /* The build stamp, ON THE PAGE. Jake, 2026-11-24: *the whole idea is to
+           write it on the page so we can eliminate this argument from day one.*
+           It was in the console only, which settles "am I looking at a stale
+           script?" only for whoever has the console open. The console line
+           stays; this is the one you can point at. */
+        .build-tag { font-family: ui-monospace, Menlo, monospace; font-size: 11px;
+                     color: var(--ink-faint); padding-left: 18px; }
     </style>
 </head>
 <body>
@@ -67,6 +90,7 @@
     <a href="../" draggable="false">Home</a>
     <a href="./" draggable="false">Discrete directions</a>
     <a href="by-your-bootstraps.html" draggable="false" aria-current="page">By your bootstraps</a>
+    <span class="build-tag" id="boot-build"></span>
 </nav>
 <div class="wrap">
     <h1>By your bootstraps</h1>
@@ -82,19 +106,20 @@
 
 
     <p class="hint">Left: the five points, draggable, with the controls that make
-    them and the patch. Right: the tiling they generate. <b>Extrapolate</b> walks
-    the pentagon up and down the wheel ladder in half generations &mdash; 0 is the
-    five themselves &mdash; and <b>use</b> adopts whatever is shown as the new
-    five. Everything below is how it works.</p>
+    them and the patch. Right: the tiling they generate. Scroll either canvas to
+    zoom, drag the paper to pan, double-click the paper to put both back and fit,
+    and double-click a <b>handle</b> to make it the floater. <b>Extrapolate</b>
+    walks the pentagon up and down the wheel ladder in half generations &mdash; 0
+    is the five themselves &mdash; and <b>use</b> adopts whatever is shown as the
+    new five. Everything below is how it works.</p>
 
-    <div class="rig">
-        <div>
+    <p class="seedbar"><button id="boot-float"
+        title="float the seed instrument over the output">&#9662;&nbsp;pentadiculum</button></p>
+
+    <div class="rig" id="boot-rig">
+        <div id="boot-seed-col">
+            <div id="boot-seed-inline">
             <canvas id="boot-input" width="340" height="340"></canvas>
-            <p class="hint" style="margin:8px 0 0">scroll to zoom smoothly,
-            <b>drag the paper to pan</b>, double-click the paper to put both
-            back and fit, double-click a <b>handle</b> to make it the floater
-            &mdash; dragging a corner past the frame zooms out slowly rather
-            than all at once</p>
 
             <div class="ctl">
                 <div><span class="grp">preset</span>
@@ -137,6 +162,7 @@
             </div>
 
             <hr>
+            </div>
 
             <div class="ctl">
                 <div><span class="grp">patch</span>
@@ -477,6 +503,37 @@
     <b>tiling</b>, where the fills are how you tell a Pe5 from a Pe3, so it
     starts solid. Wanting one of them see-through was never an argument about
     the other.</p>
+
+    <p><b>The seed is in one place or the other.</b> The
+    <code>&#9662;&nbsp;pentadiculum</code> button above the rig is the toggle:
+    the instrument is either in the left column, where it starts, or
+    <b>floating</b> as a panel at the output's top-right corner. When it floats,
+    the input canvas and its own controls go with it and the
+    <b>output's</b> controls stay where they are, on the left of the output.
+    Drag the panel by its bar, fold it to just the bar with
+    <span style="color:#888">&#9662;</span>, resize it from the grip in its
+    bottom-right corner, and close it with
+    <span style="color:#888">&times;</span> &mdash; closing it is the same as
+    pressing the toggle, and puts it back in the column.</p>
+
+    <p>The panel is a <b>complete instrument</b>, with its own preset, ladder,
+    grid, centroid and display rows, and there is only ever one seed: whichever
+    of the two you are using drives it. Where you leave the panel, how wide you
+    made it and whether you folded it are remembered between visits. The one
+    thing it does not carry is the input figure's <code>face</code> and
+    <code>edges</code>, which are how <i>this page</i> draws the seed rather
+    than anything about the seed; they keep whatever you last set, and the
+    <code>settings</code> fold that sets them comes back with the column.</p>
+
+    <p class="hint">The bar <b>names the seed</b>, not the panel:
+    <code>pentadiculum &mdash; even</code>, or <code>&mdash; custom</code> once
+    you have dragged it off a preset. Folded, it adds the origin and
+    <i>sweet</i> when the center is on the sweet spot, so folding it to a bar
+    costs you nothing you were reading. The one thing the panel does not carry
+    is the input figure's <code>face</code> and <code>edges</code> &mdash; those
+    are how <i>this page</i> draws the seed rather than anything about the seed,
+    they keep whatever you last set, and the <code>settings</code> fold that
+    sets them comes back with the column.</p>
 
     <p><b>Both canvases zoom and both pan</b>, and smoothly: the cell is
     whatever the fit and the wheel make it, with no ladder of allowed sizes.
