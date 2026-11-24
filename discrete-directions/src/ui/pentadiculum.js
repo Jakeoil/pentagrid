@@ -146,9 +146,19 @@ export const PD_ORIGIN = HANDLE_ORIGIN;
  *   index, `PD_ORIGIN`, or -1 for none. See `moveHandle` in `src/math/seed.js`.
  */
 
-/** @type {Required<View>} */
+/**
+ * What a Pentadiculum looks like before anybody says otherwise.
+ *
+ * The face is TRANSPARENT. Jake, 2026-11-24, splitting the input figure's
+ * face and edge controls off from the output's: *default it to thin and
+ * transparent.* The instrument's job is to show you five points **on a
+ * lattice** -- the fifths, the unit lines, the fence and the sweet spot all run
+ * underneath the figure, and a solid fill hides every one of them. A tiling
+ * wants solid fills; this is not a tiling.
+ * @type {Required<View>}
+ */
 const VIEW = {
-    extrapolate: 0, face: "solid", edge: "thin",
+    extrapolate: 0, face: "transparent", edge: "thin",
     vectors: false, fence: true, spokes: true, snap: "units",
     // The fifths are ON by default -- they are the grid the CENTER lands on --
     // but Jake, 2026-11-24: *the fine grid should be turned off and on easily.*
@@ -187,6 +197,22 @@ const VIEW = {
 
 /** The largest cell the fit will use, as a multiple of `cell`. */
 const CAP_CELLS = 3;
+
+/**
+ * How big a handle is drawn, in PIXELS, and therefore how big its target is.
+ *
+ * One pair of numbers for both jobs on purpose. The hit test used to be 2.5
+ * LATTICE UNITS, which is a different size on every seed and at every zoom:
+ * most of the `even` pentad at rest, and the whole canvas once you had zoomed
+ * in to place a corner. So every press landed on a handle, the paper could
+ * never be panned, and a press meant to miss did not. Jake, 2026-11-24: *it
+ * seems to grab handles when the mouse is still on the grid. Make the target
+ * within the handles.*
+ */
+const HANDLE_R = 8;          // a numbered corner
+const ORIGIN_R = 6.5;        // the center, when it is a handle
+/** How solid a handle is while it is being dragged. See `shown.forEach`. */
+const HELD_ALPHA = 0.4;
 
 /**
  * @param {Document} doc
@@ -462,12 +488,20 @@ export function createPentadiculum(options = {}) {
         shown.forEach((p, i) => {
             const x = ox + p[0] * k, y = oy + p[1] * k;
             if (base) {
-                ctx.fillStyle = i === dragging ? INK : HOT;
+                // A HELD handle goes translucent, so the lattice it is being
+                // placed on reads straight through the thing in the way of it.
+                // Jake, 2026-11-24: *make handle transparent during movement so
+                // user can see grid underneath.* The dashed floater ring stays
+                // solid -- it is around the handle, not over the paper.
+                const held = i === dragging;
+                ctx.globalAlpha = held ? HELD_ALPHA : 1;
+                ctx.fillStyle = held ? INK : HOT;
                 ctx.beginPath();
-                ctx.arc(x, y, 8, 0, TAU);
+                ctx.arc(x, y, HANDLE_R, 0, TAU);
                 ctx.fill();
                 ctx.fillStyle = "#fff";
                 ctx.fillText(String(i), x, y + 0.5);
+                ctx.globalAlpha = 1;
                 if (view.floater === i) ring(x, y, 11.5);
             } else {
                 ctx.fillStyle = HOT;
@@ -484,8 +518,9 @@ export function createPentadiculum(options = {}) {
         // size it already uses off the base rung, where it is not a handle
         // either. A refusal you can see before you pull on it.
         const originHandle = base && !pinned();
+        if (dragging === PD_ORIGIN) ctx.globalAlpha = HELD_ALPHA;
         ctx.beginPath();
-        ctx.arc(ox, oy, originHandle ? 6.5 : 3, 0, TAU);
+        ctx.arc(ox, oy, originHandle ? ORIGIN_R : 3, 0, TAU);
         if (verdict.ok) {
             ctx.fillStyle = dragging === PD_ORIGIN ? HOT : INK;
             ctx.fill();
@@ -507,6 +542,7 @@ export function createPentadiculum(options = {}) {
             ctx.fillStyle = "#fff";
             ctx.fill();
         }
+        ctx.globalAlpha = 1;
         if (base && view.floater === PD_ORIGIN) ring(ox, oy, 10);
 
         last = { cell: k, verdict, shown, fence, sweet };
@@ -602,19 +638,25 @@ export function createPentadiculum(options = {}) {
     /**
      * Which handle is at these coordinates, or -1. Split out because the
      * double-click needs the same answer the drag does.
+     *
+     * Measured in PIXELS against the radius each handle is actually drawn at,
+     * so the target IS the handle you can see -- see `HANDLE_R`. Scored as a
+     * fraction of that radius rather than as a raw distance, so a press at the
+     * very edge of a corner does not beat one dead center on the origin.
      * @param {Pt} where
      * @returns {number}
      */
     function grab(where) {
-        let best = -1, bestD = 2.5;
+        let best = -1, bestScore = Infinity;
         seed.points.forEach((p, i) => {
-            const d = Math.hypot(p[0] - where[0], p[1] - where[1]);
-            if (d < bestD) { bestD = d; best = i; }
+            const d = Math.hypot(p[0] - where[0], p[1] - where[1]) * scale / HANDLE_R;
+            if (d <= 1 && d < bestScore) { bestScore = d; best = i; }
         });
         // The origin wins a tie: a pentagon dragged in small can bury it, and
         // then there would be no way to get it back.
-        const dOrigin = Math.hypot(seed.origin[0] - where[0], seed.origin[1] - where[1]);
-        if (dOrigin <= bestD) best = PD_ORIGIN;
+        const dOrigin = Math.hypot(seed.origin[0] - where[0], seed.origin[1] - where[1])
+            * scale / ORIGIN_R;
+        if (dOrigin <= 1 && dOrigin <= bestScore) best = PD_ORIGIN;
         return best;
     }
 

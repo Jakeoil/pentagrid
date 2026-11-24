@@ -37,6 +37,14 @@
                      display: inline-block; text-align: center; }
         .ctl .grp { color: var(--ink-faint); }
         .ctl hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
+        /* A fold: settings that are set once and then in the way. Closed by
+           default, native <details>, so it needs no script to work. */
+        .ctl .fold > div { white-space: nowrap; }
+        .ctl .fold > summary { color: var(--ink-faint); cursor: pointer;
+                               list-style: none; display: inline-block; }
+        .ctl .fold > summary::-webkit-details-marker { display: none; }
+        .ctl .fold > summary::before { content: "\25B8\00A0"; }
+        .ctl .fold[open] > summary::before { content: "\25BE\00A0"; }
         .pair { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin: 18px 0 8px; }
         .pair figure { margin: 0; }
         .pair canvas { border: 1px solid var(--rule); border-radius: 6px; display: block; touch-action: none; }
@@ -108,18 +116,21 @@
                     <label><input type="checkbox" id="boot-input-fifths" checked title="rule each unit square into fifths, the grid the center lands on"> 5 space</label>
                     <button id="boot-centroid" title="put the origin on the centroid of the five, where the rhombs close as parallelograms">centroid</button>
                     <button id="boot-reset">reset</button></div>
-                <div><span class="grp">face</span>
-                    <select id="boot-face">
-                        <option value="solid" selected>solid</option>
-                        <option value="transparent">transparent</option>
-                        <option value="none">none</option>
-                    </select></div>
-                <div><span class="grp">edges</span>
-                    <select id="boot-edge">
-                        <option value="thin" selected>thin</option>
-                        <option value="thick">thick</option>
-                        <option value="none">none</option>
-                    </select></div>
+                <details class="fold">
+                    <summary>settings</summary>
+                    <div><span class="grp">face</span>
+                        <select id="boot-face" title="the input figure's own fill; the output has its own">
+                            <option value="transparent" selected>transparent</option>
+                            <option value="solid">solid</option>
+                            <option value="none">none</option>
+                        </select></div>
+                    <div><span class="grp">edges</span>
+                        <select id="boot-edge" title="the input figure's own outline; the output has its own">
+                            <option value="thin" selected>thin</option>
+                            <option value="thick">thick</option>
+                            <option value="none">none</option>
+                        </select></div>
+                </details>
             </div>
 
             <hr>
@@ -152,6 +163,18 @@
                     <button id="boot-gen-down">&minus;</button>
                     <span class="step" id="boot-gen-value">2</span>
                     <button id="boot-gen-up">+</button></div>
+                <div><span class="grp">penta face</span>
+                    <select id="boot-tile-face">
+                        <option value="solid" selected>solid</option>
+                        <option value="transparent">transparent</option>
+                        <option value="none">none</option>
+                    </select></div>
+                <div><span class="grp">penta edges</span>
+                    <select id="boot-tile-edge">
+                        <option value="thin" selected>thin</option>
+                        <option value="thick">thick</option>
+                        <option value="none">none</option>
+                    </select></div>
                 <div><span class="grp">rhombs</span>
                     <label><input type="radio" name="boot-rhombs" id="boot-rhomb-none" checked> none</label>
                     <label><input type="radio" name="boot-rhombs" id="boot-rhomb-little"> little</label>
@@ -403,13 +426,35 @@
     <b>thicker stroke</b> rather than a darker one, and the fifths stay the
     faintest thing on the sheet.</p>
 
+    <p><b>Each canvas styles itself.</b> The input figure's <code>face</code>
+    and <code>edges</code> govern the input figure and nothing else; they are
+    folded away under <code>settings</code>, since they are set once and then
+    in the way of the handles. The output has its own pair,
+    <code>penta face</code> and <code>penta edges</code>, between
+    <code>gen</code> and <code>rhombs</code>. One pair used to govern
+    both, on the reasoning that a pentagon is a face like any other — but the
+    two figures are doing different jobs. The input is a thing you are
+    <b>placing on a lattice</b>, so it starts <b>transparent</b> and the fifths,
+    the unit lines and the fence read straight through it. The output is a
+    <b>tiling</b>, where the fills are how you tell a Pe5 from a Pe3, so it
+    starts solid. Wanting one of them see-through was never an argument about
+    the other.</p>
+
     <p><b>Both canvases zoom and both pan</b>, and smoothly: the cell is
     whatever the fit and the wheel make it, with no ladder of allowed sizes.
     Scroll over either one to zoom; drag where there is <i>nothing to grab</i>
     to pan. On the input that means anywhere off the six handles &mdash; drag a
     handle and you move the seed, drag the paper and you move the view &mdash;
     and a double-click on empty paper puts the zoom, the pan and the fit all
-    back at once, while a double-click on a handle assigns the floater. The pan
+    back at once, while a double-click on a handle assigns the floater.
+    <b>The target is the dot you can see</b>, measured in pixels against the
+    radius it is drawn at. It used to be two and a half <i>lattice units</i>,
+    which is a different size on every seed and at every zoom: most of the
+    <code>even</code> pentad at rest, and the whole canvas once you had zoomed
+    in to place a corner, so every press landed on a handle and the paper could
+    not be panned at all. A handle you are holding goes <b>translucent</b>, so
+    the lattice point you are placing it on is not hidden by the thing you are
+    placing. The pan
     is kept in <b>lattice units</b> rather than pixels, so zooming in after
     panning keeps what you panned to in the middle instead of throwing it off
     the edge. The zoom is about the middle of the canvas and not the pointer,

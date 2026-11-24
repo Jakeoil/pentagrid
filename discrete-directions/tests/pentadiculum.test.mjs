@@ -545,6 +545,92 @@ test("the input's paper divides each unit square into fifths, under the unit lin
     assert.ok(!tiny.log.includes("strokeStyle=#edf2fa"), "drawn at a cell nobody can read");
 });
 
+test("the target is the handle you can see, not a patch of grid around it", () => {
+    // Jake, 2026-11-24: *it seems to grab handles when the mouse is still on
+    // the grid. Make the target within the handles.* The hit test used to be
+    // 2.5 LATTICE UNITS, so on a small seed, or at any real zoom, every press
+    // landed on a handle -- which is also why the paper could not be panned.
+    const pd = createPentadiculum({ canvas: canvasStub(), document: stubDocument() });
+    const { cell } = pd.sync(copy(SEED));
+    assert.ok(cell * 0.5 > 8, `half a unit is ${cell / 2}px, not clear of a handle`);
+
+    // half a unit off point 0 at (0,-3): inside the old radius, outside the dot
+    pd.canvas.fire("pointerdown", client([0, -2.5], cell));
+    pd.canvas.fire("pointermove", client([1, -2.5], cell));
+    pd.canvas.fire("pointerup", {});
+    assert.deepEqual(pd.seed().points, SEED.points, "the handle was not grabbed");
+    assert.deepEqual(pd.pan().map((v) => Math.round(v * 1e9) / 1e9), [1, 0],
+        "it panned instead, which is the same bug seen from the other side");
+
+    // and ON the handle it still grabs: the dot itself is the target
+    pd.reset();
+    pd.sync(copy(SEED));
+    pd.canvas.fire("pointerdown", client(SEED.points[0], cell));
+    pd.canvas.fire("pointermove", client([1, -4], cell));
+    pd.canvas.fire("pointerup", {});
+    assert.deepEqual(pd.seed().points[0], [1, -4]);
+});
+
+test("zooming in does not swallow the paper: the target stays the same size", () => {
+    // The old radius grew with the zoom, so the closer you looked the less of
+    // the canvas was pannable. In pixels it is the same dot at every scale.
+    const pd = createPentadiculum({ canvas: canvasStub(), document: stubDocument() });
+    pd.sync(copy(SEED));
+    for (let i = 0; i < 6; i++) pd.canvas.fire("wheel", { deltaY: -120, preventDefault() {} });
+    assert.ok(pd.zoom() > 2, `zoom ${pd.zoom()}`);
+    const cell = pd.drawn().cell;
+
+    // a quarter of a unit off point 0 is now a long way in pixels
+    pd.canvas.fire("pointerdown", client([0.25, -3], cell));
+    pd.canvas.fire("pointermove", client([0.5, -3], cell));
+    pd.canvas.fire("pointerup", {});
+    assert.deepEqual(pd.seed().points, SEED.points, "zoomed in, a near miss is a miss");
+    assert.ok(pd.pan()[0] > 0, "and the paper moved");
+});
+
+test("a held handle goes translucent, so the lattice reads under it", () => {
+    // Jake, 2026-11-24: *make handle transparent during movement so user can
+    // see grid underneath.*
+    const canvas = canvasStub();
+    const pd = createPentadiculum({ canvas, document: stubDocument() });
+    const { cell } = pd.sync(copy(SEED));
+    assert.ok(!canvas.log.includes("globalAlpha=0.4"), "nothing is held yet");
+
+    canvas.log.length = 0;
+    pd.canvas.fire("pointerdown", client(SEED.points[0], cell));
+    assert.ok(canvas.log.includes("globalAlpha=0.4"), "the grabbed handle is translucent");
+
+    canvas.log.length = 0;
+    pd.canvas.fire("pointerup", {});
+    assert.ok(!canvas.log.includes("globalAlpha=0.4"), "and solid again once let go");
+
+    // the center too, when it is the one being dragged
+    const other = canvasStub();
+    const two = createPentadiculum({ canvas: other, document: stubDocument() });
+    const k = two.sync(copy(SEED)).cell;
+    other.log.length = 0;
+    two.canvas.fire("pointerdown", client([0, 0], k));
+    assert.ok(other.log.includes("globalAlpha=0.4"), "the center is translucent too");
+});
+
+test("a Pentadiculum starts transparent, so the paper reads through it", () => {
+    // Jake, 2026-11-24, splitting the input figure's face and edge controls off
+    // from the output's: *default it to thin and transparent.* The lattice, the
+    // fifths, the fence and the sweet spot all live UNDER the figure.
+    const canvas = canvasStub();
+    const pd = createPentadiculum({ canvas, document: stubDocument() });
+    pd.sync(copy(SEED));
+    assert.equal(pd.view().face, "transparent");
+    assert.equal(pd.view().edge, "thin");
+    assert.ok(canvas.log.some((l) => l.startsWith("globalAlpha=") && l !== "globalAlpha=1"),
+        "something was drawn at less than full opacity");
+    // and solid is still a setting, not a thing it has lost
+    const solid = canvasStub();
+    const two = createPentadiculum({ canvas: solid, document: stubDocument() });
+    two.sync(copy(SEED), { face: "solid" });
+    assert.equal(two.view().face, "solid");
+});
+
 test("the fifths can be switched off, and the unit lattice stays", () => {
     // Jake, 2026-11-24: *the fine grid should be turned off and on easily.*
     const canvas = canvasStub();

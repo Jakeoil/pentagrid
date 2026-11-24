@@ -505,6 +505,48 @@ wants four of them on one page, reading four seeds.
 recorded canvas calls over a scripted drag, preset, ladder, zoom and centroid
 run, identical before and after.
 
+### The handle target, in pixels, 2026-11-24
+
+Jake, editing handles close up: *allow panning and zooming on pentadiculum
+screen between handle moving. When moving handles, it seems to grab handles when
+the mouse is still on the grid. Make the target within the handles. Make handle
+transparent during movement so user can see grid underneath.*
+
+The first two were one bug. `grab` tested **2.5 lattice units**, which is a
+different size on every seed and at every zoom — most of the `even` pentad at
+rest, and the whole canvas once zoomed in. So every press found a handle, which
+both grabbed when it should have missed and left no press over for the pan. It
+is now measured in **pixels** against `HANDLE_R` / `ORIGIN_R`, the radii the
+handles are actually drawn at, scored as a fraction of the radius so a press at
+the rim of a corner does not beat one dead center on the origin.
+
+And a held handle draws at `HELD_ALPHA`, so the lattice point it is being placed
+on reads through it. The dashed floater ring stays solid — it is around the
+handle, not over the paper.
+
+### Each canvas styles itself, 2026-11-24
+
+Jake: *put separate functionality for faces and edges in output. … functionality
+in penticulum will only affect penticulum. default it to thin and transparent.*
+
+One pair of `face`/`edges` controls governed both canvases, on the reasoning
+that the input pentagon is a face like any other. The reasoning was wrong: the
+input figure is a thing you are **placing on a lattice**, so the paper has to
+read through it, and the output is a **tiling**, where the fills are how you
+tell a Pe5 from a Pe3. `page.js` now carries `seedFace`/`seedEdge` and
+`tileFace`/`tileEdge`, and each pair redraws its own canvas only — `redraw()`
+in those handlers would have kept them coupled by the back door.
+
+The input figure and `VIEW` in the Pentadiculum both default to **transparent**
+and thin; the output keeps solid and thin, which is what the page has always
+looked like. Its new `penta face` and `penta edges` dropdowns sit between `gen`
+and `rhombs`.
+
+Jake, after: *in pentadiculum, add setting fold and put face and edges in it.*
+The input's pair now lives in a closed `settings` fold — a native `<details>`,
+no script — at the foot of the input controls. They are set once and then in
+the way of the handles, which is the whole case for folding them.
+
 ### The `even` preset, and a pan, 2026-11-24
 
 §8's find shipped as a preset: **even**, (3,2) (0,2) (−3,2) (−2,−3) (2,−3),

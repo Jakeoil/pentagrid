@@ -118,25 +118,43 @@ let rhombSize = "none";
 /**
  * How a face is drawn — a face being one tile's polygon, pentagon or star.
  *
- * One pair of controls, on the input panel, governs BOTH canvases: the input
- * pentagon is a face like any other, and having two sets that could disagree was
- * the kind of thing nobody would keep in step. `face: "none"` is what used to be
- * a separate "show pentas" checkbox.
+ * `face: "none"` is what used to be a separate "show pentas" checkbox.
+ *
+ * ONE PAIR OF CONTROLS USED TO GOVERN BOTH CANVASES, on the reasoning that the
+ * input pentagon is a face like any other and two sets that could disagree
+ * would not be kept in step. Jake, 2026-11-24: *put separate functionality for
+ * faces and edges in output. […] functionality in penticulum will only affect
+ * penticulum.* He is right, and the reason is that the two figures are doing
+ * different jobs. The input figure is a thing you are **placing on a lattice**,
+ * so you want the paper to read through it; the output is a **tiling**, where
+ * the fills are how you tell a Pe5 from a Pe3. Wanting one transparent is no
+ * argument at all for the other.
  *
  * @typedef {"none" | "transparent" | "solid"} Face
  */
 /** @typedef {"none" | "thin" | "thick"} Edge */
+
+// The input figure's own. Transparent by default now that it is nobody else's
+// business: the fifths, the unit lines and the fence all run underneath it.
 /** @type {Face} */
-let face = "solid";
+let seedFace = "transparent";
 /** @type {Edge} */
-let edge = "thin";
+let seedEdge = "thin";
+
+// The output's pentas and stars. Solid, which is what the page has always
+// looked like and what a tiling wants.
+/** @type {Face} */
+let tileFace = "solid";
+/** @type {Edge} */
+let tileEdge = "thin";
+
 /** The rhomb overlay's own face and edge, same vocabulary. @type {Face} */
 let rhombFace = "none";
 /** @type {Edge} */
 let rhombEdge = "thin";
 /** @type {(k: number) => number} */
 const edgeWidth = (k) =>
-    edge === "thick" ? Math.max(1.4, k * 0.12) : Math.max(0.4, k * 0.06);
+    tileEdge === "thick" ? Math.max(1.4, k * 0.12) : Math.max(0.4, k * 0.06);
 /** @type {readonly Face[]} */
 const FACES = ["none", "transparent", "solid"];
 /** @type {readonly Edge[]} */
@@ -240,7 +258,8 @@ const seedNow = () => ({ points, origin });
  * @type {() => import("./pentadiculum.js").View}
  */
 const viewNow = () =>
-    ({ extrapolate, face, edge, vectors: showVectors, snap, fifths: inputFifths });
+    ({ extrapolate, face: seedFace, edge: seedEdge,
+        vectors: showVectors, snap, fifths: inputFifths });
 
 const pd = createPentadiculum({
     canvas: inputCanvas ?? undefined,
@@ -482,16 +501,16 @@ function drawTiling() {
 
     ctx.lineJoin = "round";
     ctx.lineWidth = edgeWidth(k);
-    for (const o of (face === "none" && edge === "none") ? [] : outlines) {
+    for (const o of (tileFace === "none" && tileEdge === "none") ? [] : outlines) {
         const color = FILL[o.type] ?? "#999";
         poly(ctx, o.pts, cx, cy, k);
-        if (face !== "none") {
-            ctx.globalAlpha = face === "transparent" ? 0.42 : 1;
+        if (tileFace !== "none") {
+            ctx.globalAlpha = tileFace === "transparent" ? 0.42 : 1;
             ctx.fillStyle = color;
             ctx.fill("evenodd");          // NOT nonzero -- see Face
             ctx.globalAlpha = 1;
         }
-        if (edge !== "none") {
+        if (tileEdge !== "none") {
             ctx.strokeStyle = EDGE_INK;
             ctx.stroke();
         }
@@ -709,20 +728,37 @@ if (outCanvas) {
 const fitBtn = byId("boot-fit");
 if (fitBtn) fitBtn.addEventListener("click", resetView);
 
-// ── face and edge style, which govern both canvases ───────────────────────
+// ── face and edge style: one pair per canvas ────────────────────────────────
+//
+// Each pair redraws ITS OWN canvas and nothing else, which is the point of the
+// split -- `redraw()` here would have kept the two coupled by the back door.
 
 const facePick = /** @type {HTMLSelectElement | null} */ (byId("boot-face"));
 if (facePick) facePick.addEventListener("change", () => {
     const v = /** @type {Face} */ (facePick.value);
-    if (FACES.includes(v)) face = v;
-    redraw();
+    if (FACES.includes(v)) seedFace = v;
+    drawInput();
 });
 
 const edgePick = /** @type {HTMLSelectElement | null} */ (byId("boot-edge"));
 if (edgePick) edgePick.addEventListener("change", () => {
     const v = /** @type {Edge} */ (edgePick.value);
-    if (EDGES.includes(v)) edge = v;
-    redraw();
+    if (EDGES.includes(v)) seedEdge = v;
+    drawInput();
+});
+
+const tileFacePick = /** @type {HTMLSelectElement | null} */ (byId("boot-tile-face"));
+if (tileFacePick) tileFacePick.addEventListener("change", () => {
+    const v = /** @type {Face} */ (tileFacePick.value);
+    if (FACES.includes(v)) tileFace = v;
+    drawTiling();
+});
+
+const tileEdgePick = /** @type {HTMLSelectElement | null} */ (byId("boot-tile-edge"));
+if (tileEdgePick) tileEdgePick.addEventListener("change", () => {
+    const v = /** @type {Edge} */ (tileEdgePick.value);
+    if (EDGES.includes(v)) tileEdge = v;
+    drawTiling();
 });
 
 // heads/tails has no control: it decides a rhomb's ridges from its valleys, and
