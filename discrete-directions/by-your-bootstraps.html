@@ -46,9 +46,13 @@
                           white-space: nowrap; }
         .rig canvas { border: 1px solid var(--rule); border-radius: 6px;
                       display: block; touch-action: none; width: 100%; height: auto; }
-        .ctl { font-size: 13px; line-height: 2.1; margin: 10px 0 0; }
-        .ctl > div { white-space: nowrap; }
-        .ctl select, .ctl button { font: inherit; font-size: 12px; padding: 1px 5px; }
+        /* The Reticulum's metrics: 11px type, 2px by 7px of padding, 4px
+           between. `line-height: 2.1` was padding out a line box the controls
+           had already sized, at about 10px a row. */
+        .ctl { font-size: 12px; line-height: 1.6; margin: 8px 0 0; }
+        .ctl > div { white-space: nowrap; display: flex; align-items: center;
+                     gap: 4px; flex-wrap: wrap; }
+        .ctl select, .ctl button { font: inherit; font-size: 11px; padding: 2px 7px; }
         .ctl .step { font-family: ui-monospace, Menlo, monospace; min-width: 3.2em;
                      display: inline-block; text-align: center; }
         .ctl .grp { color: var(--ink-faint); }
@@ -56,9 +60,11 @@
            in it), and the word beside it fades to match. */
         .ctl label:has(input:disabled) { color: var(--ink-faint); }
         .ctl hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
+
         /* A fold: settings that are set once and then in the way. Closed by
            default, native <details>, so it needs no script to work. */
-        .ctl .fold > div { white-space: nowrap; }
+        .ctl .fold > div { white-space: nowrap; display: flex;
+                           align-items: center; gap: 4px; }
         .ctl .fold > summary { color: var(--ink-faint); cursor: pointer;
                                list-style: none; display: inline-block; }
         .ctl .fold > summary::-webkit-details-marker { display: none; }
@@ -123,13 +129,10 @@
 
             <div class="ctl">
                 <div><span class="grp">preset</span>
-                    <select id="boot-preset">
-                        <option value="quadrille" selected>classic</option>
-                        <option value="asymmetric">asymmetric</option>
-                        <option value="even">even</option>
-                        <option value="real">real</option>
-                        <option value="custom">custom</option>
-                    </select>
+                    <!-- Built from PRESETS by the script, one button per
+                         choice, as the Reticulum does it. `custom` is not a
+                         choice any more: it is no button being current. -->
+                    <span id="boot-presets" class="pentadiculum-presets"></span>
                     <button id="boot-reset" title="load the chosen preset again">reset</button></div>
                 <div><span class="grp">extrapolate</span>
                     <button id="boot-extrapolate-down" title="half a generation down">&minus;</button>
@@ -324,6 +327,14 @@
     in one number: the real pentagon has <b>one</b> edge length, the quadrille
     three.</p>
 
+    <p class="hint">The <b>presets</b> are a button each rather than a dropdown
+    &mdash; the choices are visible, switching is one press, and
+    <code>custom</code> stops having to be a fake entry in the list: it is
+    simply <i>no button pressed in</i>. The button pressed in is the preset the
+    five currently <b>are</b>, compared on the spokes, so sliding a pentagon away
+    from its origin releases it. <code>reset</code> reloads whichever one you
+    last chose.</p>
+
     <p class="hint"><b>Snap</b> is on for the quadrille and off for the real
     preset &mdash; rounding an irrational pentagon's corners onto the paper on
     the first drag would silently turn it back into a quadrille. The box follows
@@ -516,14 +527,14 @@
     <span style="color:#888">&times;</span> &mdash; closing it is the same as
     pressing the toggle, and puts it back in the column.</p>
 
-    <p>The panel is a <b>complete instrument</b>, with its own preset, ladder,
-    grid, centroid and display rows, and there is only ever one seed: whichever
-    of the two you are using drives it. Where you leave the panel, how wide you
-    made it and whether you folded it are remembered between visits. The one
-    thing it does not carry is the input figure's <code>face</code> and
-    <code>edges</code>, which are how <i>this page</i> draws the seed rather
-    than anything about the seed; they keep whatever you last set, and the
-    <code>settings</code> fold that sets them comes back with the column.</p>
+    <p>The panel is a <b>complete instrument</b> &mdash; the same preset,
+    extrapolate, grid, centroid and display rows, and the same
+    <code>settings</code> fold for <code>face</code> and <code>edges</code>
+    &mdash; under the same names, so flipping between the two is not a
+    translation. There is only ever one seed and one set of settings: whichever
+    row you touched is the one that is right, and the other follows. Where you
+    leave the panel, how wide you made it and whether you folded it are
+    remembered between visits.</p>
 
     <p class="hint">The bar <b>names the seed</b>, not the panel:
     <code>pentadiculum &mdash; even</code>, or <code>&mdash; custom</code> once

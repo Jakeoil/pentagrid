@@ -276,11 +276,13 @@ test("the inline mount builds its own canvas and controls", () => {
     assert.equal(host.children.length, 1, "one wrapper");
     const kinds = m.element.all().map((c) => c.tagName).sort();
     assert.ok(kinds.includes("CANVAS"), kinds.join(" "));
-    assert.ok(kinds.filter((k) => k === "SELECT").length === 1, "preset");
-    // origin, and the ladder's minus, plus and use
-    assert.equal(kinds.filter((k) => k === "BUTTON").length, 4, kinds.join(" "));
+    // face and edges, in the settings fold -- the preset is BUTTONS now
+    assert.equal(kinds.filter((k) => k === "SELECT").length, 2, kinds.join(" "));
+    // four presets, reset, and extrapolate's minus, plus and use
+    assert.equal(kinds.filter((k) => k === "BUTTON").length, 8, kinds.join(" "));
     // snap, fine, actual, closest, vectors -- three sections of checkboxes
     assert.equal(kinds.filter((k) => k === "INPUT").length, 5, kinds.join(" "));
+    assert.equal(kinds.filter((k) => k === "DETAILS").length, 1, "the settings fold");
     assert.equal(seen.length, 1, "it draws and announces once on mount");
     assert.deepEqual(m.seed().origin, [0, 0]);
 
@@ -326,12 +328,15 @@ test("the mount's centroid actual box lands on the sweet spot, and says so", () 
     // lattice can describe
     assert.equal(fineBox.checked, true, "the fine grid came up by itself");
     assert.equal(fineBox.disabled, true, "and cannot be turned off from there");
-    // and `origin` puts it back
-    buttons.find((b) => b.textContent === "origin").fire("click");
+    // and `reset` puts it back -- the page's name for this button, and it
+    // reloads the chosen preset, which lands at the origin
+    buttons.find((b) => b.textContent === "reset").fire("click");
     assert.deepEqual(m.seed().origin, [0, 0]);
     assert.equal(m.pentadiculum.drawn().sweet, false);
     assert.equal(fineBox.checked, false, "and the fifths go back down");
     assert.equal(fineBox.disabled, false);
+    assert.equal(buttons.some((b) => b.textContent === "origin"), false,
+        "`origin` is gone: it was `reset` under another name");
 });
 
 test("the mount's closest box puts the center on the nearest unit", () => {
@@ -355,20 +360,45 @@ test("the mount's closest box puts the center on the nearest unit", () => {
     assert.equal(m.pentadiculum.view().fifths, false, "the setting too, not just the box");
 });
 
-test("the mount's preset picker loads a preset, origin and all", () => {
+test("the presets are a row of buttons, and the current one is marked", () => {
+    // Jake, 2026-11-24: *preset on pentadiculum can behave like reticulum:
+    // button with choices under.* One per choice, built from PRESETS, and
+    // `custom` is not a choice -- it is no button being current.
     const m = mountPentadiculum(element(), { document: stubDocument() });
-    const presetPick = m.element.all().filter((c) => c.tagName === "SELECT")[0];
-    const names = presetPick.children.map((o) => o.value);
-    assert.deepEqual(names, ["quadrille", "asymmetric", "even", "real"]);
-    // the label, not the key: Jake calls the quadrille "classic"
-    assert.equal(presetPick.children[0].textContent, "classic");
+    const presets = m.element.all().filter((c) => c.className?.startsWith?.("pd-preset"));
+    assert.deepEqual(presets.map((b) => b.textContent),
+        ["classic", "asymmetric", "even", "real"],
+        "the labels, not the keys: Jake calls the quadrille classic");
+
+    // the classic seed is what it starts on, so that button is pressed in
+    assert.equal(presets[0].className, "pd-preset on");
+    assert.equal(presets[3].className, "pd-preset");
 
     m.set({ points: SEED.points, origin: [0, 1] });
-    presetPick.value = "real";
-    presetPick.fire("change");
+    presets[3].fire("click");                       // real
     assert.deepEqual(m.seed().origin, [0, 0], "a preset is five vectors FROM the origin");
     // and snap comes off, because the real pentagon is irrational
     assert.equal(m.pentadiculum.view().snap, "none");
+    assert.equal(presets[3].className, "pd-preset on", "and the mark moved");
+    assert.equal(presets[0].className, "pd-preset");
+
+    // dragged off a preset: no button is current, which is what `custom` was
+    m.set({ points: [[4, 1], [0, 2], [-3, 2], [-2, -3], [2, -3]], origin: [0, 0] });
+    assert.deepEqual(presets.filter((b) => b.className.includes("on")), []);
+});
+
+test("reset reloads the preset last chosen, not the one the seed is nearest", () => {
+    const m = mountPentadiculum(element(), { document: stubDocument() });
+    const presets = m.element.all().filter((c) => c.className?.startsWith?.("pd-preset"));
+    const reset = m.element.all().find((c) => c.textContent === "reset");
+
+    presets[2].fire("click");                       // even
+    assert.deepEqual(m.seed().points.map((p) => [...p]), EVEN_PENTAD.map((p) => [...p]));
+    // drag it somewhere, then reset: it comes back to `even`, not to classic
+    m.set({ points: [[4, 1], [0, 2], [-3, 2], [-2, -3], [2, -3]], origin: [1, 1] });
+    reset.fire("click");
+    assert.deepEqual(m.seed().points.map((p) => [...p]), EVEN_PENTAD.map((p) => [...p]));
+    assert.deepEqual(m.seed().origin, [0, 0]);
 });
 
 /** The floating panel's parts, by the order it builds them. */
@@ -1128,13 +1158,15 @@ test("the draw reports its boxes, so the row cannot disagree with the canvas", (
     assert.equal(pd.view().fifths, false, "and the SETTING was never touched");
 });
 
-test("the mount's ladder row walks half generations, and use adopts one", () => {
+test("the extrapolate row walks half generations, and use adopts one", () => {
     // The floating panel has to be a working alternative to the page's own
-    // column, and the column had the ladder. `view.extrapolate` was always the
-    // instrument's, so the controls for it belong here too.
+    // column, and the column had this row. `view.extrapolate` was always the
+    // instrument's, so the controls for it belong here too -- under the page's
+    // name for it, because the two rows have to read alike.
     const rungs = [];
     const m = mountPentadiculum(element(), {
-        document: stubDocument(), onLadder: (n) => rungs.push(n),
+        document: stubDocument(),
+        onViewChange: (v) => rungs.push(v.extrapolate),
     });
     const buttons = m.element.all().filter((c) => c.tagName === "BUTTON");
     const down = buttons.find((b) => b.textContent === "−");
@@ -1151,6 +1183,9 @@ test("the mount's ladder row walks half generations, and use adopts one", () => 
     assert.equal(m.pentadiculum.view().extrapolate, -0.5);
     assert.equal(rung.textContent, "-0.5");
     assert.deepEqual(rungs, [0.5, 0, -0.5], "and the page was told each time");
+    assert.equal(m.element.all().some((c) => c.textContent === "extrapolate"), true,
+        "the group is called what the page calls it");
+    assert.equal(m.element.all().some((c) => c.textContent === "ladder"), false);
 
     // bounded at both ends
     for (let i = 0; i < 20; i++) down.fire("click");
@@ -1196,4 +1231,70 @@ test("every canvas carries the class its stylesheet styles, adopted or made", ()
     mine.className = "mine";
     const adopted = createPentadiculum({ canvas: mine, document: stubDocument() });
     assert.equal(adopted.canvas.className, "mine pentadiculum");
+});
+
+
+test("the panel's settings fold carries face and edges", () => {
+    // Jake, 2026-11-24: *settings and its unfold missing.* They were the page's
+    // alone, so the floating panel could not reach them and was less than the
+    // column it replaces.
+    const m = mountPentadiculum(element(), { document: stubDocument() });
+    const fold = m.element.all().find((c) => c.tagName === "DETAILS");
+    assert.ok(fold, "there is a fold");
+    assert.equal(fold.className, "fold");
+    assert.equal(fold.children[0].tagName, "SUMMARY");
+    assert.equal(fold.children[0].textContent, "settings");
+
+    const picks = m.element.all().filter((c) => c.tagName === "SELECT");
+    assert.equal(picks.length, 2, "face and edges, and nothing else is a select");
+    assert.deepEqual(picks[0].children.map((o) => o.value),
+        ["transparent", "solid", "none"]);
+    assert.deepEqual(picks[1].children.map((o) => o.value), ["thin", "thick", "none"]);
+    // they come up on the view's values, not on the first option
+    assert.equal(picks[0].value, "transparent");
+    assert.equal(picks[1].value, "thin");
+
+    picks[0].value = "solid";
+    picks[0].fire("change");
+    assert.equal(m.pentadiculum.view().face, "solid");
+    picks[1].value = "none";
+    picks[1].fire("change");
+    assert.equal(m.pentadiculum.view().edge, "none");
+});
+
+test("every control in the row tells the page what it changed", () => {
+    // Jake, 2026-11-24: *floating settings don't match with anchored when I
+    // flip back and forth.* They were two sets of variables. One callback now
+    // covers the whole row, so a page that keeps these settings of its own can
+    // take the panel's answer instead of holding a second opinion.
+    const seen = [];
+    const m = mountPentadiculum(element(), {
+        document: stubDocument(), onViewChange: (v) => seen.push(v),
+    });
+    assert.deepEqual(seen, [], "and nothing before the instrument exists");
+
+    const boxes = m.element.all().filter((c) => c.tagName === "INPUT");
+    const [snapBox, fineBox, , , vectors] = boxes;
+    snapBox.checked = false;
+    snapBox.fire("change");
+    assert.equal(seen.at(-1).snap, "none");
+    fineBox.checked = true;
+    fineBox.fire("change");
+    assert.equal(seen.at(-1).fifths, true);
+    vectors.checked = true;
+    vectors.fire("change");
+    assert.equal(seen.at(-1).vectors, true);
+
+    const picks = m.element.all().filter((c) => c.tagName === "SELECT");
+    picks[0].value = "none";
+    picks[0].fire("change");
+    assert.equal(seen.at(-1).face, "none");
+
+    // and a drag reports too, because the fifths may have been forced on
+    const canvas = m.pentadiculum.canvas;
+    const { cell } = m.pentadiculum.drawn();
+    canvas.fire("pointerdown", { clientX: 170, clientY: 170 });
+    canvas.fire("pointermove", { clientX: 170 + cell * 0.4, clientY: 170 });
+    canvas.fire("pointerup", {});
+    assert.ok(seen.length > 4);
 });

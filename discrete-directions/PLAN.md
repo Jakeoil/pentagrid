@@ -602,6 +602,54 @@ the one you can point at.
 The parent repo already had the convention -- `src/app/narrative.ts` puts
 `build <id>` in its nav -- and this page was the one that did not.
 
+### One set of settings, and the Reticulum's metrics, 2026-11-24
+
+Jake, after flipping the instrument back and forth: *floating settings don't
+match with anchored. Some names like reset/origin, extrapolate/ladder, settings
+and its unfold missing. Follow more efficient height: spacing and button height,
+used by reticulum. Preset on pentadiculum can behave like reticulum: button with
+choices under.*
+
+Four things, and the first one was the real defect.
+
+**The two rows held two sets of variables.** The page kept `snap`,
+`inputFifths`, `showVectors`, `seedFace`, `seedEdge` and `extrapolate`; the
+panel kept its own `view` with the same six. Whichever you touched, the other
+still believed what it believed, so flipping the instrument from the column to
+the panel and back reverted everything. `onLadder` -- which reported exactly one
+of the six, the one I happened to notice -- is gone, replaced by
+`onViewChange(view)` fired from `announce`, which every control in the row goes
+through. The page's `adoptView` takes the panel's answer as its own and
+`drawInput` puts it back on the column's controls. There is now one set of
+settings with two views onto it, which is what there should have been.
+
+Guarded on a `ready` flag, because `announce` runs once during construction and
+a page being told its view changed before it has been handed the instrument is
+being told about a change that did not happen.
+
+**The names disagreed.** `ladder` is the page's `extrapolate`, and is now called
+that. `origin` was the page's `reset` doing one fewer thing -- every preset here
+loads at the origin, so reloading the chosen preset gets you there and also
+gets you the preset back; `origin` is gone and `reset` is the name. The
+`settings` fold for `face` and `edges` was the page's alone, on the reasoning
+that a face is how a page draws a thing rather than anything about the thing.
+True, and it made the panel less than the column it replaces, so face and edges
+are the instrument's now and the page follows them through `onViewChange`.
+
+**The presets are a row of buttons**, the Reticulum's way, in both rows. Four
+reasons it is better than the dropdown, in the order they matter: the choices
+are visible rather than behind a click; switching is one press instead of two;
+`custom` stops needing to be a fake entry in a list of real presets, because it
+is just *no button pressed in*; and the list is built from `PRESETS`, so the
+page cannot offer a preset the library does not have. `pd-preset` and not
+`preset`, because `button.preset` in `site.css` is the Reticulum's and the
+Reticulum's panel is dark -- the metrics are borrowed and the colors are not.
+
+**The spacing follows `button.preset`:** 11px type, 2px by 7px of padding, 4px
+between, `line-height` from 2.1 down to 1.6. The old line-height was padding out
+a line box the controls had already sized, at roughly 10px a row -- across six
+rows and two of them, which is why a six-row panel looked like a form.
+
 ### `id="boot-seed"` was already taken, 2026-11-24
 
 Jake: *seed button does nothing.*

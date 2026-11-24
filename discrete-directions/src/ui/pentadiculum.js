@@ -924,8 +924,11 @@ export function createPentadiculum(options = {}) {
  * @property {boolean} [controls] false mounts the canvas alone
  * @property {() => void} [onClose] the floating panel's close button was
  *   pressed. The panel hides itself either way.
- * @property {(extrapolate: number) => void} [onLadder] the ladder row moved, or
- *   `use` adopted a rung. The page's own rung readout needs to follow.
+ * @property {(view: View) => void} [onViewChange] a control in the row changed
+ *   the view: snap, fine, vectors, extrapolate, face or edges. A page that
+ *   keeps any of those of its own has to follow, or the two disagree the moment
+ *   you put the instrument back. Jake, 2026-11-24: *floating settings don't
+ *   match with anchored when I flip back and forth.*
  * @property {Document} [document]
  */
 
@@ -988,6 +991,11 @@ export function mountPentadiculum(host, options = {}) {
         // The row is read off the same draw that moved the figure, so a box
         // can never disagree with the canvas beside it.
         applyBoxes?.(drawn.boxes);
+        // And the page hears the whole view, not just the seed. Every control
+        // in the row goes through here, so one callback covers all of them --
+        // which is why there is no longer an `onLadder` for the one that
+        // happened to be noticed first.
+        if (ready) opts.onViewChange?.({ ...view });
         read.innerHTML = `<b>origin</b> (${drawn.verdict.ok ? "" : "&#9888; "}`
             + `${fmt(seed.origin[0])}, ${fmt(seed.origin[1])})`
             + ` &middot; <b>centroid</b> (${fmt(centroidOf(seed.points)[0])},`
@@ -1019,40 +1027,82 @@ export function mountPentadiculum(host, options = {}) {
     /** Set the control row from a draw; null until there is a row to set.
      *  @type {((boxes: GridBoxes) => void) | null} */
     let applyBoxes = null;
+    /**
+     * Has the mount finished building?
+     *
+     * `announce` runs once during construction, and a page being told its view
+     * changed before it has been handed the instrument is a page being told
+     * about a change that did not happen. The seed's first `onChange` still
+     * fires, because that one is the page's own seed coming back.
+     */
+    let ready = false;
     if (opts.controls !== false) {
         const row = el("div", "pentadiculum-ctl");
 
-        const presetPick = /** @type {HTMLSelectElement} */ (el("select", "pentadiculum-preset"));
-        for (const name of Object.keys(PRESETS)) {
-            const o = /** @type {HTMLOptionElement} */ (doc.createElement("option"));
-            o.value = name;
-            o.textContent = presetLabel(name);
-            presetPick.appendChild(o);
-        }
-        presetPick.addEventListener("change", () => {
-            const preset = PRESETS[presetPick.value];
+        // ── preset: a ROW OF BUTTONS, the Reticulum's way ──
+        //
+        // Jake, 2026-11-24: *preset on pentadiculum can behave like reticulum:
+        // button with choices under.* `button.preset` in `site.css` is the
+        // original -- 11px, 2px by 7px of padding, one per choice -- and it is
+        // better than the dropdown for four reasons it is worth naming: the
+        // choices are visible rather than hidden behind a click, switching is
+        // one press instead of two, `custom` stops needing to be a fake choice
+        // in the list (it is just *no button is current*), and the list comes
+        // from `PRESETS` so it cannot fall out of step with the presets.
+        //
+        // `pd-preset` and not `preset`: `button.preset` in `site.css` is the
+        // Reticulum's, and the Reticulum's panel is dark. This is light paper,
+        // so the metrics are borrowed and the colors are not.
+        const presetRow = el("span", "pentadiculum-presets");
+        /** @type {Map<string, HTMLElement>} */
+        const presetBtns = new Map();
+        /** The last preset actually chosen, which is what `reset` reloads. */
+        let chosen = presetName(seed) === "custom" ? "quadrille" : presetName(seed);
+        /** @type {(name: string) => void} */
+        const loadPreset = (name) => {
+            const preset = PRESETS[name];
             if (!preset) return;
+            chosen = name;
             // A preset is five vectors FROM the origin, so loading one puts the
             // origin back where those vectors are measured from.
             put({ points: preset.map((p) => /** @type {Pt} */ ([p[0], p[1]])), origin: [0, 0] });
-        });
-        row.append(el("span", "grp", "preset"), presetPick);
+        };
+        for (const name of Object.keys(PRESETS)) {
+            const b = el("button", "pd-preset", presetLabel(name));
+            b.title = `load the ${presetLabel(name)} pentagon`;
+            b.addEventListener("click", () => loadPreset(name));
+            presetBtns.set(name, b);
+            presetRow.appendChild(b);
+        }
+        /** Mark whichever button the seed currently IS, or none of them. */
+        const markPreset = () => {
+            const now = presetName(seed);
+            for (const [name, b] of presetBtns)
+                b.className = name === now ? "pd-preset on" : "pd-preset";
+        };
 
-        const home = el("button", "", "origin");
-        home.addEventListener("click", () => put({ points: seed.points, origin: [0, 0] }));
-        row.appendChild(home);
+        // `reset` and not `origin`. Jake, 2026-11-24, on the two instruments
+        // disagreeing: *some names like reset/origin, extrapolate/ladder.* The
+        // page has always called this `reset` and it reloads the chosen preset,
+        // which for every preset here also puts the origin back at (0, 0) --
+        // so the old `origin` button was this one under another name and one
+        // fewer thing it did.
+        const reset = el("button", "", "reset");
+        reset.title = "load the chosen preset again";
+        reset.addEventListener("click", () => loadPreset(chosen));
+        row.append(el("span", "grp", "preset"), presetRow, reset);
 
-        // ── ladder: half a generation at a time, and `use` to adopt one ──
+        // ── extrapolate: half a generation at a time, and `use` to adopt one ──
         //
-        // Jake calls this `extrapolate` on the page and it is the same number:
-        // half generations, 0 being the five themselves. It belongs to the
-        // instrument rather than to a page, because off the base rung the
-        // corners stop being handles -- which is the Pentadiculum's own rule,
-        // not the page's.
+        // `extrapolate`, not `ladder`: it is the page's name for the same
+        // number and the two rows have to read alike. Half generations, 0 being
+        // the five themselves. It belongs to the instrument rather than to a
+        // page, because off the base rung the corners stop being handles --
+        // which is the Pentadiculum's own rule, not the page's.
         const ladderRow = el("div", "pentadiculum-ctl");
         const rungOut = el("span", "step", "0");
         /** @type {(by: number) => void} */
-        const step = (by) => {
+        const stepRung = (by) => {
             const next = Math.min(LADDER_UP, Math.max(LADDER_DOWN,
                 (view.extrapolate ?? 0) + by));
             view = { ...view, extrapolate: next };
@@ -1061,14 +1111,13 @@ export function mountPentadiculum(host, options = {}) {
             // afresh rather than leaving it half out of the frame.
             pd.refit();
             announce();
-            opts.onLadder?.(next);
         };
-        const down = el("button", "", "\u2212");
+        const down = el("button", "", "−");
         down.title = "half a generation down";
-        down.addEventListener("click", () => step(-0.5));
+        down.addEventListener("click", () => stepRung(-0.5));
         const up = el("button", "", "+");
         up.title = "half a generation up";
-        up.addEventListener("click", () => step(0.5));
+        up.addEventListener("click", () => stepRung(0.5));
 
         // `use`: adopt the figure being shown as the five. It is in SPOKE
         // coordinates, so it goes back on the paper where it was being drawn --
@@ -1085,9 +1134,8 @@ export function mountPentadiculum(host, options = {}) {
                     [q[0] + seed.origin[0], q[1] + seed.origin[1]])),
                 origin: seed.origin,
             });
-            opts.onLadder?.(0);
         });
-        ladderRow.append(el("span", "grp", "ladder"), down, rungOut, up, use);
+        ladderRow.append(el("span", "grp", "extrapolate"), down, rungOut, up, use);
 
         /** Each checkbox's label, so a section can append the pair.
          *  @type {Map<HTMLInputElement, HTMLElement>} */
@@ -1152,21 +1200,60 @@ export function mountPentadiculum(host, options = {}) {
         });
         displayRow.append(el("span", "grp", "display"), labelOf(vectors));
 
+        // ── settings: the figure's own face and edges, folded away ──
+        //
+        // Jake, 2026-11-24: *settings and its unfold missing.* They were the
+        // page's, on the reasoning that a face is how a page draws a thing
+        // rather than anything about the thing -- and then the panel could not
+        // reach them, which made the instrument less than the column it
+        // replaces. They are the instrument's now, and the page follows through
+        // `onViewChange`. A native `<details>`, closed, no script: they are set
+        // once and then in the way of the handles.
+        const fold = el("details", "fold");
+        const sum = el("summary", "", "settings");
+        fold.appendChild(sum);
+        /** @type {(label: string, values: readonly string[], now: string,
+         *          set: (v: string) => void) => void} */
+        const picker = (label, values, now, set) => {
+            const line = el("div");
+            const pick = /** @type {HTMLSelectElement} */ (el("select"));
+            for (const v of values) {
+                const o = /** @type {HTMLOptionElement} */ (doc.createElement("option"));
+                o.value = v;
+                o.textContent = v;
+                pick.appendChild(o);
+            }
+            pick.value = now;
+            pick.addEventListener("change", () => { set(pick.value); announce(); });
+            line.append(el("span", "grp", label), pick);
+            fold.appendChild(line);
+        };
+        picker("face", ["transparent", "solid", "none"],
+            /** @type {string} */ (view.face ?? VIEW.face),
+            (v) => { view = { ...view, face: /** @type {Face} */ (v) }; });
+        picker("edges", ["thin", "thick", "none"],
+            /** @type {string} */ (view.edge ?? VIEW.edge),
+            (v) => { view = { ...view, edge: /** @type {Edge} */ (v) }; });
+
         applyBoxes = (boxes) => {
             setBox(snapBox, boxes.snap);
             setBox(fineBox, boxes.fine);
             setBox(actualBox, boxes.actual);
             setBox(closestBox, boxes.closest);
             vectors.checked = view.vectors === true;
+            rungOut.textContent = (view.extrapolate ?? 0) > 0
+                ? `+${view.extrapolate}` : String(view.extrapolate ?? 0);
+            markPreset();
         };
 
-        wrap.append(read, row, ladderRow, gridRow, centroidRow, displayRow);
+        wrap.append(read, row, ladderRow, gridRow, centroidRow, displayRow, fold);
     } else {
         wrap.appendChild(read);
     }
 
     host.appendChild(wrap);
     announce();
+    ready = true;
 
     return {
         element: wrap,

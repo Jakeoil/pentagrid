@@ -15,7 +15,7 @@
 
 .pentadiculum-wrap {
     display: grid;
-    gap: 8px;
+    gap: 5px;
     justify-items: start;
 }
 
@@ -42,20 +42,75 @@ canvas.pentadiculum {
     color: var(--ink, #111418);
 }
 
+/* Six rows of controls, so the row height is the panel's height. Jake,
+   2026-11-24: *follow more efficient height: spacing and button height, used by
+   reticulum.* The Reticulum's metrics are 11px type and 2px by 7px of padding
+   (`button.preset` in `site.css`), with 4px between. `line-height: 2.1` was
+   costing roughly 10px a row for nothing: the controls set their own height and
+   the line box was only padding it out. */
 .pentadiculum-ctl {
-    font-size: 13px;
-    line-height: 2.1;
+    font-size: 12px;
+    line-height: 1.6;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
+    margin-bottom: 1px;
 }
 .pentadiculum-ctl select,
 .pentadiculum-ctl button {
     font: inherit;
-    font-size: 12px;
-    padding: 1px 5px;
+    font-size: 11px;
+    padding: 2px 7px;
 }
+.pentadiculum-ctl .step { font-family: ui-monospace, Menlo, monospace;
+                          min-width: 3.2em; display: inline-block;
+                          text-align: center; }
+
+/* The preset row: one button per choice, the Reticulum's way. Its metrics,
+   not its colors -- `button.preset` is for a dark panel and this is paper. The
+   current one is pressed in rather than highlighted, because a preset you are
+   already on is a state and not an alarm. */
+.pd-preset {
+    font: inherit;
+    font-size: 11px;
+    padding: 2px 7px;
+    color: var(--ink, #111418);
+    background: #f4f6fa;
+    border: 1px solid var(--rule, #d8dde6);
+    border-radius: 3px;
+    cursor: pointer;
+}
+.pd-preset:hover { background: #e9eef7; border-color: #9dbde4; }
+.pd-preset.on {
+    background: #e3ebf8;
+    border-color: #6f9bd4;
+    box-shadow: inset 0 1px 2px rgba(42, 59, 107, 0.18);
+}
+.pentadiculum-presets { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+
+/* The face and edges fold, matching the page's own `settings` fold. */
+.pentadiculum-wrap .fold > summary {
+    font-size: 12px;
+    color: var(--ink-faint, #6b7280);
+    cursor: pointer;
+    list-style: none;
+    display: inline-block;
+    line-height: 1.9;
+}
+.pentadiculum-wrap .fold > summary::-webkit-details-marker { display: none; }
+.pentadiculum-wrap .fold > summary::before { content: "\25B8\00A0"; }
+.pentadiculum-wrap .fold[open] > summary::before { content: "\25BE\00A0"; }
+.pentadiculum-wrap .fold > div {
+    font-size: 12px;
+    line-height: 1.6;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.pentadiculum-wrap .fold select { font: inherit; font-size: 11px; padding: 2px 7px; }
+.pentadiculum-wrap .fold .grp { color: var(--ink-faint, #6b7280); }
 .pentadiculum-ctl .grp { color: var(--ink-faint, #6b7280); }
 .pentadiculum-ctl label { white-space: nowrap; }
 /* A locked box says so twice: the browser grays the box (and any check in it),

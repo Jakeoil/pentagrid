@@ -34,7 +34,8 @@ import { numHTML } from "./numerals.js";
 // The input figure itself -- the five points, the origin and the pointer --
 // lives in the Pentadiculum. See the section below.
 import {
-    PD_ORIGIN, createPentadiculum, mountFloatingPentadiculum, setBox, snapForSeed,
+    PD_ORIGIN, createPentadiculum, mountFloatingPentadiculum, presetLabel,
+    setBox, snapForSeed,
 } from "./pentadiculum.js";
 
 /** @type {(id: string) => HTMLElement | null} */
@@ -834,7 +835,9 @@ if (useBtn) useBtn.addEventListener("click", useShown);
  * business.
  */
 function syncPreset() {
-    if (presetPick) presetPick.value = presetName(seedNow());
+    const now = presetName(seedNow());
+    for (const [name, b] of presetBtns)
+        b.className = name === now ? "pd-preset on" : "pd-preset";
     // The panel's title bar names the seed too, and a preset loaded from this
     // page is a seed the panel has not heard about yet.
     pushSeed();
@@ -934,11 +937,36 @@ function syncBoxes(drawn) {
     if (closestBox) setBox(closestBox, drawn.boxes.closest);
 }
 
-const presetPick = /** @type {HTMLSelectElement | null} */ (byId("boot-preset"));
+// ── the presets, as a row of buttons ─────────────────────────────────────
+//
+// Jake, 2026-11-24: *preset on pentadiculum can behave like reticulum: button
+// with choices under.* One button per choice, built from `PRESETS` so the page
+// cannot list a preset the library does not have -- which the hand-written
+// `<option>` list could and did, since it also carried a `custom` that was
+// never a preset at all. `custom` is now the absence of a current button.
+
+/** The last preset actually chosen, which is what `reset` reloads. */
+let chosen = "quadrille";
+/** @type {Map<string, HTMLButtonElement>} */
+const presetBtns = new Map();
+const presetHost = byId("boot-presets");
+if (presetHost) {
+    for (const name of Object.keys(PRESETS)) {
+        const b = document.createElement("button");
+        b.className = "pd-preset";
+        b.textContent = presetLabel(name);
+        b.title = `load the ${presetLabel(name)} pentagon`;
+        b.addEventListener("click", () => loadPreset(name));
+        presetBtns.set(name, b);
+        presetHost.appendChild(b);
+    }
+}
+
 /** @type {(name: string) => void} */
 const loadPreset = (name) => {
     const preset = PRESETS[name];
-    if (!preset) return;                    // "custom" is a label, not a preset
+    if (!preset) return;
+    chosen = name;
     points = preset.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
     // A preset is five vectors from the origin, so loading one puts the origin
     // back where those vectors are measured from.
@@ -953,7 +981,6 @@ const loadPreset = (name) => {
     setSnapFromPoints();
     redraw();
 };
-if (presetPick) presetPick.addEventListener("change", () => loadPreset(presetPick.value));
 
 const genOut = byId("boot-gen-value");
 /**
@@ -1036,8 +1063,7 @@ if (vectorBox) vectorBox.addEventListener("change", () => {
 });
 
 const resetBtn = byId("boot-reset");
-if (resetBtn) resetBtn.addEventListener("click", () =>
-    loadPreset(presetPick?.value ?? "quadrille"));
+if (resetBtn) resetBtn.addEventListener("click", () => loadPreset(chosen));
 
 // ── the seed, floating ────────────────────────────────────────────────────
 //
@@ -1091,6 +1117,34 @@ function seedFloatAt() {
     return [Math.max(12, r.right - w - 14), Math.max(12, r.top + 14)];
 }
 
+/**
+ * Take the panel's settings as the page's own.
+ *
+ * The page and the panel show the same six settings, and whichever row you
+ * touched is the one that is right. `drawInput` then puts them back on the
+ * column's controls, so flipping the instrument from one place to the other
+ * carries everything with it.
+ * @param {import("./pentadiculum.js").View} v
+ */
+function adoptView(v) {
+    if (v.snap) snap = v.snap;
+    if (typeof v.fifths === "boolean") inputFifths = v.fifths;
+    if (typeof v.vectors === "boolean") showVectors = v.vectors;
+    if (v.face) seedFace = v.face;
+    if (v.edge) seedEdge = v.edge;
+    if (typeof v.extrapolate === "number" && v.extrapolate !== extrapolate) {
+        extrapolate = v.extrapolate;
+        showExtrapolate();
+        // A rung is a different figure at a different size.
+        refitInput();
+    }
+    // The column's own controls are set from the draw, so this is also what
+    // puts the checkboxes and the two dropdowns where the panel left them.
+    if (facePick) facePick.value = seedFace;
+    if (edgePick) edgePick.value = seedEdge;
+    drawInput();
+}
+
 /** Hand the panel the seed the page is holding, if it is not already on it. */
 function pushSeed() {
     if (!seedFloat || !seedFloat.isOpen()) return;
@@ -1131,7 +1185,7 @@ function floatSeed(on) {
         return;
     }
     if (seedFloat) {
-        seedFloat.update({ face: seedFace, edge: seedEdge, extrapolate });
+        seedFloat.update(viewNow());
         seedFloat.set(seedNow());
         seedFloat.show(true);
     } else {
@@ -1141,9 +1195,9 @@ function floatSeed(on) {
             width: SEED_PANEL_W,
             at: seedFloatAt(),
             seed: seedNow(),
-            // Face and edges ride along; snap, fine and vectors are the
-            // panel's own from here, which is what its row is for.
-            view: { face: seedFace, edge: seedEdge, extrapolate },
+            // The page's whole view, so the panel opens showing exactly what
+            // the column was showing.
+            view: viewNow(),
             // A drag in the panel is a drag on the seed. The guard matters:
             // without it the push below would come straight back as a change
             // and the two would redraw each other.
@@ -1155,14 +1209,13 @@ function floatSeed(on) {
                 syncPreset();
                 redraw();
             },
-            // The panel's ladder is the page's `extrapolate`: the rung readout
-            // under the rig names it, and `use` adopts from it.
-            onLadder: (n) => {
-                extrapolate = n;
-                showExtrapolate();
-                refitInput();
-                drawInput();
-            },
+            // Every setting in the panel's row is one this page also keeps,
+            // so the page takes the panel's answer rather than holding a second
+            // opinion. Jake, 2026-11-24: *floating settings don't match with
+            // anchored when I flip back and forth.* They were two sets of
+            // variables; now there is one, and the panel's row is a view onto
+            // it exactly as the column's row is.
+            onViewChange: (v) => adoptView(v),
             onClose: () => floatSeed(false),
         });
     }
