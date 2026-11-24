@@ -311,3 +311,122 @@ export function nearestOrigin(points, want) {
     }
     return best;
 }
+
+// ── the floater: one handle driven by the others ──────────────────────────
+//
+// Jake, 2026-11-23: *I would like to be able to assign a floater point by
+// double clicking it. By default, the center is a floater. But you will be able
+// to fix the center by choosing another point as the floater. Analogous to the
+// sums/gamma system in the reticulum.*
+//
+// The analogy is exact, and it is worth laying the two side by side:
+//
+//     reticulum                          pentadiculum
+//     five offsets γⱼ                    six handles: five points and the origin
+//     Σγ, a target you can retarget      Σ spokes, likewise
+//     the LOCKED index                   the FLOATER
+//     clicked on its γⱼ label            double-clicked on its handle
+//     the dependent axis refuses a push  the floater is not pushed; it follows
+//     locked = −1, the total floats      floater = −1, every handle is free
+//
+// `relock` in `src/geometry/gamma.ts` is the model this mirrors: the dependent
+// value is re-derived from the rest after every move, and the view only reports
+// intent. Same split here — this function is the whole of the rule, and nothing
+// in the UI recomputes any of it.
+
+/**
+ * The handle that is the origin rather than one of the five. A floater is a
+ * point index 0–4, this for the origin, or −1 for nothing.
+ */
+export const HANDLE_ORIGIN = 5;
+
+/**
+ * **Σ spokes**, the quantity a floater holds:
+ *
+ *     Σ(pₖ − o) = Σp − 5o = 5·(centroid − origin)
+ *
+ * So holding it fixed holds the origin's offset from the centroid — the origin
+ * keeps its relationship to the figure instead of being left behind by it. At
+ * zero the origin IS the centroid, and everything in `centroidOf` applies: P =
+ * S, `inflate(D) = T`, all three rhomb spellings one exact parallelogram. Hold
+ * zero and a drag can no longer leave that.
+ *
+ * @param {Seed} seed
+ * @returns {Pt}
+ */
+export function spokeSum(seed) {
+    const s = spokesOf(seed);
+    return [s.reduce((a, v) => a + v[0], 0), s.reduce((a, v) => a + v[1], 0)];
+}
+
+/**
+ * Float dust from the one division by five. 1/5 is not a dyadic rational, so
+ * `(Σp − target) / 5` lands a few ulps off a coordinate that ought to read
+ * 0.2 — and the center snaps in fifths precisely because these values are
+ * fifths. This is not a snap: nothing is moved to a grid it was not on, only
+ * the twelfth decimal of a number that was already there is swept up.
+ * @type {(v: number) => number}
+ */
+const dust = (v) => Math.round(v * 1e12) / 1e12;
+
+/**
+ * Move one handle and let the floater absorb it, so that `spokeSum` stays at
+ * `target`. The whole rule, in one place.
+ *
+ * Three cases, and each one is solving for a single unknown:
+ *
+ *  - **Nothing floats** (`floater < 0`), or the hand is ON the floater: a plain
+ *    move. Dragging the floater is how the target is RETARGETED — the
+ *    reticulum's sum strip, not its locked dial — so the caller re-reads
+ *    `spokeSum` afterwards. Without this the origin could never be placed at
+ *    all once it was floating, and the fence would stop meaning anything.
+ *  - **The origin floats**: `o = (Σp − target) / 5`. Drag a point by δ and the
+ *    origin follows by δ/5; the dragged spoke changes by 4δ/5 and the other
+ *    four by −δ/5 each.
+ *  - **A point floats**: Σp must stay at `target + 5o`, so that point takes
+ *    whatever is left over. Drag another by δ and it answers with −δ, which
+ *    pins the centroid and lets the pentagon flex about it. The origin is then
+ *    NOT A HANDLE — Jake's *fix the center by choosing another point* — and is
+ *    returned untouched if something asks to move it anyway. Absorbing an
+ *    origin drag would cost the floating point five units per unit of origin,
+ *    and a handle that flings another handle five times as far is not a handle
+ *    anyone can use.
+ *
+ * @param {Seed} seed
+ * @param {number} handle 0–4 for a point, `HANDLE_ORIGIN` for the origin
+ * @param {Pt} to where that handle has been dragged
+ * @param {number} floater which handle follows, or −1 for none
+ * @param {Pt} target the spoke sum to hold
+ * @returns {Seed} a new seed; the one given back unchanged where the move is
+ *     refused
+ */
+export function moveHandle(seed, handle, to, floater = -1, target = [0, 0]) {
+    /** @type {(i: number, v: Pt) => Pt[]} */
+    const set = (i, v) => seed.points.map((p, k) =>
+        /** @type {Pt} */ (k === i ? v : [p[0], p[1]]));
+
+    if (floater < 0 || handle === floater)
+        return handle === HANDLE_ORIGIN
+            ? { points: seed.points.map((p) => /** @type {Pt} */ ([p[0], p[1]])), origin: to }
+            : { points: set(handle, to), origin: [seed.origin[0], seed.origin[1]] };
+
+    if (floater === HANDLE_ORIGIN) {
+        if (handle === HANDLE_ORIGIN) return seed;     // unreachable: it floats
+        const points = set(handle, to);
+        const sx = points.reduce((a, p) => a + p[0], 0);
+        const sy = points.reduce((a, p) => a + p[1], 0);
+        return { points, origin: [dust((sx - target[0]) / 5), dust((sy - target[1]) / 5)] };
+    }
+
+    if (handle === HANDLE_ORIGIN) return seed;         // the center is fixed
+    const points = set(handle, to);
+    // Σp has to come to `target + 5o`, and the floating point is the one term
+    // free to make it so.
+    const rest = points.reduce((a, p, k) => k === floater
+        ? a : /** @type {Pt} */ ([a[0] + p[0], a[1] + p[1]]), /** @type {Pt} */ ([0, 0]));
+    points[floater] = [
+        dust(target[0] + 5 * seed.origin[0] - rest[0]),
+        dust(target[1] + 5 * seed.origin[1] - rest[1]),
+    ];
+    return { points, origin: [seed.origin[0], seed.origin[1]] };
+}

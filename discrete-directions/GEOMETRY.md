@@ -21,8 +21,10 @@ Every number quoted here was measured, not derived on paper and hoped for.
 - [3. The fence](#3-the-fence)
 - [4. The perturbation law](#4-the-perturbation-law)
 - [5. The centroid](#5-the-centroid)
-- [6. What is affine, and what is not](#6-what-is-affine-and-what-is-not)
-- [7. Open](#7-open)
+- [6. The floater](#6-the-floater)
+- [7. What is affine, and what is not](#7-what-is-affine-and-what-is-not)
+- [8. The three modes](#8-the-three-modes)
+- [9. Open](#9-open)
 
 ---
 
@@ -55,7 +57,8 @@ What it adds is a **handle**: the one motion the five corner handles cannot make
 between them, which is sliding the pentagon over the lattice as a block. With
 snap on, that is the question of *which lattice point the pentagon is centered
 on* — and the answer turns out to matter a great deal, which is what §3 and §5
-are about.
+are about. §6 is what happens when that handle is handed to one of the five
+instead.
 
 Three seeds are kept as presets. Their centroids are §5's subject:
 
@@ -63,7 +66,13 @@ Three seeds are kept as presets. Their centroids are §5's subject:
 | --- | --- | --- | --- |
 | `classic` (quadrille) | (0,−3) (3,−1) (2,3) (−2,3) (−3,−1) | (0, ⅕) | (0, 1) |
 | `asymmetric` | (−2,−4) (3,−3) (3,2) (−1,4) (−5,0) | (−⅖, −⅕) | (−2, −1) |
+| `even` | (3,2) (0,2) (−3,2) (−2,−3) (2,−3) | **(0, 0)** | (0, 0) |
 | `real` | the regular pentagon, edge 4 | (0, 0) | (0, 0) |
+
+`even` is §8's find and the only lattice seed of the four whose centroid is
+already a lattice point — its five sum to zero, which is what that means. It
+was searched for rather than drawn, and it settles twelve times closer to
+Penrose than the quadrille at a fifth of the size.
 
 `real` is in **R²** rather than **Z²** and is kept as the control: it is what the
 discrete seeds are *not*, and the place to check whether a claim is about
@@ -80,7 +89,9 @@ there —
     thin  acute  ->  180 - 2 x 71.137740  =  37.724519     (not 36)
 
 — while `real`'s rhombs are 72° and 36° at every generation, with nothing to
-converge.
+converge. Those two are the tenths at which the quadrille's rhomb is genuinely
+equilateral, and there are only two of ten; §9 has the other four shapes it
+settles into.
 
 Code: `src/math/seed.js` (`seedOf`, `spokesOf`, `wheelOf`), `src/math/wheel.js`
 (`wheelFromPoints`, the operator family). Nothing under `src/math/` knows a
@@ -156,6 +167,7 @@ therefore has **at most five sides, always**.
 | --- | --- | --- | --- | --- | --- | --- |
 | `classic` | 5 | 3.7614 | 26 | 0.14467 | **2** | 88 |
 | `asymmetric` | 5 | 6.2761 | 43.5 | 0.14428 | **6** | 155 |
+| `even` | **4** | 2.5714 | 25 | **0.10286** | **2** | 58 |
 | `real` | 5 | 4.0162 | 27.5276 | **0.14590** | 5 | 102 |
 
 φ⁻⁴ = 0.14590 — the area ratio of **one deflation**. On the regular pentagon
@@ -165,10 +177,23 @@ quadrille it is a different pentagon of nearly the same area, which is the
 discrete geometry answering for itself again rather than approximating the real
 one.
 
+**But it is not a law, and `even` is what showed that.** Its fence is a
+four-sided **kite** — (0, −1), (6/7, −1/7), (0, 2), (−6/7, −1/7) — because one of
+the five half planes is slack rather than binding, and its ratio is 0.10286, a
+third short of φ⁻⁴ rather than two parts in a thousand off it. "At most five
+sides" above means **at most**; a test here asserted *exactly* five until a
+fourth seed was asked. What the three near-φ⁻⁴ rows have in common is being
+round at generation 0, which `even` is not — see §8: it is lopsided where the
+quadrille is even, and even where the quadrille is lopsided, and only one of the
+two survives the ladder.
+
 The integer counts are the practical fact: **two** places the classic seed's
-origin may sit, six for the asymmetric one. The ⅕ counts are why `snap` has a
-fifths setting — on that grid there is room to maneuver, and §5 is where you are
-maneuvering to.
+origin may sit, six for the asymmetric one. The ⅕ counts are why the center
+snaps to a fifth and the five corners do not — on that grid there is room to
+maneuver, and §5 is where you are maneuvering to. Jake, 2026-11-23: *in snap
+mode only the centroid need snap at 1/5. [...] moving centroid moves 1/5, moving
+points moves 5/5.* There is no fifths *mode*: the two handles are different
+kinds of thing and each lands on its own grid under one setting.
 
 ### Its edges mean something
 
@@ -282,17 +307,99 @@ sweet spot is in Q at least.* It is, and the useful form of that is
 
 > **scale a seed by five and its sweet spot is a lattice point.**
 
-Which is what it would take to make these rhombs fit the grid, and is the first
-place to look in §7.
+Which is what it would take to make these rhombs fit the grid. Jake did it on
+2026-11-23, and what the 5× seed buys and what it does not is §9's first item.
+
+**It is indicated.** Nothing about the figure's outline says any of the above
+has happened, so the center draws as a bullseye — a white pupil inside the dot —
+and the readout says *on the sweet spot*. The `centroid` button goes there in one
+press; the fifths ruled across each unit square are how you get there by hand.
 
 Code: `centroidOf` and `centered` in `src/math/seed.js`; the `centroid` button
-and the `centroid` rhomb mode in the UI, with `snap` following down to fifths
+and the `centroid` rhomb mode in the UI, with the center snapping in fifths
 because the sweet spot is never an integer unless the five happen to sum to a
-multiple of five. Held by three tests in `tests/seed.test.mjs`.
+multiple of five. Held by three tests in `tests/seed.test.mjs`, and `Drawn.sweet`
+reports it to whatever is drawing.
 
 ---
 
-## 6. What is affine, and what is not
+## 6. The floater
+
+Jake, 2026-11-23: *I would like to be able to assign a floater point by double
+clicking it. By default, the center is a floater. But you will be able to fix
+the center by choosing another point as the floater. Analogous to the sums/gamma
+system in the reticulum.*
+
+The analogy is exact, and it is the reason this section is short: the pentagrid
+already has this machinery, and it transfers without adjustment.
+
+| reticulum | pentadiculum |
+| --- | --- |
+| five offsets γⱼ | six handles: the five points and the origin |
+| Σγ, a target you can retarget | Σ spokes, likewise |
+| the **locked** index | the **floater** |
+| clicked on its γⱼ label | double-clicked on its handle |
+| the dependent axis refuses a push | the floater is not pushed; it follows |
+| `locked = −1`, the total floats | `floater = −1`, every handle is free |
+
+### The invariant is Σ spokes, and it is five times the offset to the centroid
+
+    Σ(pₖ − o)  =  Σp − 5o  =  5·(centroid − origin)
+
+This is the only quantity the origin and the five determine *jointly* — §1's
+statement that the origin adds a handle rather than geometry is exactly the
+statement that it has one job, and this is the thing that measures it. Holding
+it fixed holds the origin's **offset from the centroid**, so the origin keeps
+its relationship to the figure instead of being left behind by a corner drag.
+
+Zero is the sweet spot of §5. So:
+
+> with the center floating and the held value zero, **no drag can leave the
+> sweet spot** — P = S, `inflate(D) = T`, all three rhomb spellings one exact
+> parallelogram, however the pentagon is reshaped.
+
+Which is §5 turned from a place you can reach into a place you can stay. Press
+`centroid` once and it is armed; the test walks four corner drags and checks P =
+S and `inflate(D) = T` at every tenth after each one.
+
+### The three cases are each one unknown
+
+- **The center floats** (the default): `o = (Σp − target) / 5`. Drag a point by
+  δ and the origin follows by δ/5; the dragged spoke moves 4δ/5 and the other
+  four −δ/5 each. Measured, not asserted.
+- **A point floats**: Σp must stay at `target + 5o`, so that point takes the
+  remainder — drag another by δ and it answers with −δ. The **centroid is
+  pinned** and the pentagon flexes about it. The origin is then not a handle at
+  all, which is Jake's *fix the center*: absorbing an origin drag would cost the
+  floating point five units per unit of origin, and a handle that flings another
+  handle five times as far is not a handle anyone can use. It draws at the size
+  it already uses off the base rung, where it is not a handle either.
+- **Nothing floats**: the plain move, exactly as before any of this.
+
+Dragging the floater itself is a plain move too, and that is how the target is
+**retargeted** — the reticulum's sum strip, not its locked dial. Without it the
+origin could never be placed once it was floating, and the fence of §3 would
+stop meaning anything.
+
+A driven handle is never snapped, because it is determined rather than chosen.
+With the five on units and the target zero it lands on a **fifth**, which is the
+second reason that snap setting exists (§5 is the first). The one division by
+five is also the only inexactness in the rule, and it is swept at the twelfth
+decimal so a readout does not show 0.20000000000000004.
+
+The constraint does not protect the seed: a driven handle can be pushed until
+the ten spokes go out of order, and then `checkSeed` says which two points did
+it. That is the same bargain as §9's note about the fence — seeing the illegal
+state has been worth more than being unable to reach it.
+
+Code: `spokeSum` and `moveHandle` in `src/math/seed.js`, which is the whole
+rule; `src/ui/pentadiculum.js` only reports the gesture, exactly as
+`src/ui/dials.ts` never computes a locked γ. Seven tests in
+`tests/seed.test.mjs`, five more for the gesture in `tests/pentadiculum.test.mjs`.
+
+---
+
+## 7. What is affine, and what is not
 
 Jake's finding, from the page, before any of this was computed: *my findings are
 that pentagons and stars are affine, that is, not relying on choice of the
@@ -335,20 +442,278 @@ collapse at the centroid).
 
 ---
 
-## 7. Open
+## 8. The three modes
 
-**Make the quadrille rhombs fit the grid.** The 5× scaling above is the obvious
-first move: on a seed scaled by five, the sweet spot is a lattice point, the
-rhombs close as exact parallelograms there, and everything is back on **Z²** —
-at the cost of a lattice five times finer. Whether that is the same tiling at a
-different scale or a different object is not yet settled, and it is the question
-to settle next.
+Jake, 2026-11-23: *what is the nature of the pentadic set defining the rhombus.
+… What is the smallest pentadic vector set which adds to a sum divisible by 5.
+what happens to the centers of the extrapolations (wheel successors) of such
+"even" pentadicae.*
 
-**The fence is drawn, not enforced.** `nearestOrigin` exists and nothing calls
-it: dragging the origin out of the fence is allowed, and the figure says so by
-going hollow and naming the two points that went out of order. Clamping instead
-is a one-line change if that turns out to be wanted, but being able to *see* the
-illegal state has been more useful than being prevented from reaching it.
+The answer is a decomposition, and once it is written down §4, §5, §7 and §9 stop
+being four findings and become one.
+
+**A wheel has only five Fourier modes.** Ten tenths, but `W[t+5] = −W[t]` kills
+every even one, so a wheel is m = 1, 3, 5, 7, 9 and nothing else. `inflate` is
+the circulant `W[t−1] + W[t] + W[t+1]`, whose multiplier at mode m is
+1 + 2·cos(36m°) — and the three values it takes are the whole story:
+
+| mode | multiplier | what it is | what the ladder does to it |
+| --- | --- | --- | --- |
+| m = ±1 | **φ²** = 2.618034 | the figure: a regular decagon at m = 1 and its counter-rotating twin at m = 9 | both grow by the same factor, so **their ratio never changes** |
+| m = 3, 7 | **φ⁻²** = 0.381966 | the wobble | dies like φ⁻⁴ against the figure — gone by generation 8 |
+| m = 5 | **−1** | **Σ spokes** | flips sign, and never shrinks |
+
+Measured on the quadrille, amplitudes at generations 0, 2, 4, 6:
+
+    m1    3.306   22.659   155.308   1064.497      x phi^2 a generation
+    m9    0.083    0.568     3.896     26.704      x phi^2 a generation
+    m3    0.039    0.006     0.001     0.0001      x phi^-2
+    m5    0.200    0.200     0.200     0.200       constant, sign alternating
+
+    m9/m1   0.02509 at every one of them
+    m3/m1   1.18e-2  2.51e-4  5.33e-6  1.14e-7
+
+### m = 5 is the origin, and §4 is its eigenvalue table
+
+The mode-5 multiplier of a comb Σⱼ sⱼ·D[t + kⱼ] is Σⱼ sⱼ·(−1)^kⱼ — which is
+*exactly* §4's `c_X`. So §4's perturbation law says one thing: **the origin
+handle lives entirely in mode 5.** `E` has c = 0 because `E` annihilates mode 5,
+and that is the whole reason tile edges do not care where you measure from.
+
+The ladder's own rows read the same way. Measured: `inflate` and `deflate` each
+send Σ spokes to −Σ exactly, `halfUp` to −2Σ and `halfDown` to +2Σ, for every
+seed and at every generation.
+
+### The rhombs' failure to close IS the spoke sum
+
+The `classic` spelling opens in `inflate(D)` and runs in `T`, and `W[t+5] =
+−W[t]` makes the third step the second's opposite, so
+
+    e0 + e2  =  inflate(D)[n+9] − T[n+9]
+
+and those two φ² wheels differ by a pure mode-5 term. Therefore
+
+    |e0 + e2|  =  |Σ spokes|     exactly — every tenth, both specs, every generation
+
+| seed | Σ spokes | │Σ│ | worst `│e0 + e2│` |
+| --- | --- | --- | --- |
+| quadrille | (0, 1) | 1 | 1.000000 |
+| asymmetric | (−2, −1) | 2.236068 | 2.236068 |
+| quadrille ×5 at (0,0) | (0, 5) | 5 | 5.000000 |
+| `real` | (0, 0) | 0 | 0 |
+
+§7's kite is this and nothing else, and §5's four statements are the single
+statement **m₅ = 0**.
+
+And see what does *not* happen. The ladder only flips mode 5's sign while the
+figure grows by φ², so the hole is a fixed size in lattice units. **The rhombs
+never close up. They get bigger around a constant gap**, which is why §9's 5×
+scaling made the misfit five times larger rather than five times smaller.
+
+### Even pentads
+
+Jake's word for a seed with m₅ = 0. Four ways of saying it, all the same thing:
+
+- the five spokes sum to **zero**;
+- five lattice points whose sum is **divisible by five**, seen from their own
+  centroid — which is then a lattice point;
+- the centroid and the origin coincide, so §5's sweet spot is *integral*;
+- the five are the edge vectors, in order, of a **convex lattice pentagon with
+  no two sides parallel**.
+
+**The centers of the extrapolations do not move.** m₅ = 0 is carried by an
+eigenvalue, so every wheel successor of an even pentad is even too: the five
+points sum to zero at every generation, up the ladder and down it, and the
+centroid stays on the lattice point it started from. That is the direct answer
+to the question, and it is why an even pentad is worth hunting for — it is not a
+property you arrange at one generation and lose at the next.
+
+Sorting the ten ± by angle puts the five chosen at the **even** positions, which
+reads off as u₀, u₂, u₄, −u₁, −u₃ where u₀..u₄ are the five sorted by direction
+within one half turn. So the condition is an **alternating sum**:
+
+    u0 − u1 + u2 − u3 + u4  =  0
+
+which is what turns the search into a four-deep loop with the fifth *solved*.
+
+**The smallest is Σ│v│² = 14**, reach √5, the pentagon's area exactly 4. There
+are four of them, and they are one shape under the square lattice's own eight
+symmetries:
+
+    (1,0) (1,2) (−1,1) (−1,−1) (0,−2)
+    (1,0) (0,2) (−1,1) (−1,−1) (1,−2)
+    (2,0) (1,1) (−1,1) (−2,−1) (0,−1)
+    (2,0) (0,1) (−2,1) (−1,−1) (1,−1)
+
+It is a terrible pentagon — spokes of 1, √2, √2, 2 and √5 — and that is the
+point of the next part: **smallest is not roundest.**
+
+### The anisotropy is what is left, and it is permanent
+
+With m₅ killed and m₃ dying on its own, one number survives: **m₉ / m₁**, the
+ratio of the counter-rotating twin to the figure. Both grow by φ², so the ratio
+is an exact invariant of the whole tower — it is the anisotropy of the limiting
+**affine** map, which is §7 from the algebra's side: the limit of any seed is an
+affine image of the regular decagon, and it is a *similarity* only if m₉ = 0.
+
+It sets the rhombs' shape directly. Measured over a range of seeds, the limiting
+edge spread obeys
+
+    spread − 1  →  1.80902 × (m9 / m1)        and 1.80902 = 1 + cos 36°
+
+to four figures as the anisotropy goes to zero. The frontier, searched by
+`tools/pentads.mjs` out to reach 9 — each row the roundest even pentad that fits
+inside that reach:
+
+| reach | m₉/m₁ | rhomb spread | acute angles | spokes |
+| --- | --- | --- | --- | --- |
+| √5 = 2.236 | 4.4994% | 1.089391 | 33.21–76.72° | (2,0) (0,2) (−1,1) (−2,−1) (1,−2) |
+| 2√2 = 2.828 | 2.5086% | 1.046657 | 34.34–74.75° | (2,0) (1,2) (−2,2) (−2,−2) (1,−2) |
+| 3 | 1.2782% | 1.023335 | 35.31–73.13° | (3,0) (1,2) (−2,2) (−2,−1) (0,−3) |
+| √13 = 3.606 | **0.2024%** | **1.003668** | **35.89–72.18°** | **(3,2) (0,2) (−3,2) (−2,−3) (2,−3)** |
+| √26 = 5.099 | 0.1032% | 1.001868 | 35.93–72.11° | (5,1) (−2,3) (−3,2) (−1,−5) (1,−1) |
+| √52 = 7.211 | 0.0321% | 1.000580 | 35.98–72.03° | (6,4) (−2,5) (−5,2) (−4,−6) (5,−5) |
+| √73 = 8.544 | 0.0163% | 1.000296 | 35.99–72.02° | (8,3) (0,6) (−8,3) (−2,−6) (2,−6) |
+
+Out to reach 13 — 39,953,870 even pentads — the frontier adds only 0.0122% at
+12.166, 0.0091% at 12.369 and 0.0077% at 13. The returns stop early; √13 is
+where the curve bends.
+
+**The quadrille sits at 2.5086%**, the second row's number exactly — reach 17.205
+once scaled by five to make it even, for a figure the 2√2 pentad draws at a
+twentieth the size. And the √13 pentad, five times smaller again than the scaled
+quadrille, settles **twelve times rounder**: rhombs within 0.37% of equilateral
+and within a fifth of a degree of 72° and 36°, with every vertex on **Z²** and
+the center on a lattice point. A `Sun` patch at generation 2 on it: 136 tiles,
+690 of 690 tile vertices and 1460 of 1460 rhomb corners integral.
+
+Jake: *my classic pentagon was not the ideal because it lacked an integral
+center.* It lacked both. The quadrille is neither the roundest nor the smallest
+lattice seed, and nothing about it was ever chosen for either — it is
+penrose-mosaic's, inherited.
+
+The √13 pentad is the page's `even` preset — `EVEN_PENTAD` in
+`src/math/wheel.js`. Press `centroid` on it and nothing moves: it is already
+there.
+
+Code: `tools/pentads.mjs` (`mode`, `evenPentads`, `settledRhombs`), run as
+`node tools/pentads.mjs [reach]`. Held by `tests/modes.test.mjs`.
+
+---
+
+## 9. Open
+
+### Make the quadrille rhombs fit the grid: the 5× seed
+
+§5's move, carried out. Jake, 2026-11-23, having gone and done it on the page:
+
+> I discovered awfully misshapen Penrose rhombs. My pentas and star centers were
+> off. No big deal for pentas, but every 1x1 tile has to grow by 5x5 to
+> accommodate the new centroid. The rhombs are now very large. Following the
+> decagon, (15, −6), (10, −14), (0, 16), … you can extrapolate wheels and
+> pentagons. I can't see the fit.
+
+**Why he had to.** The rhombs are parallelograms only at the centroid (§5), and
+the quadrille's centroid is (0, ⅕) — not a lattice point. Centering therefore
+takes the whole figure *off* the lattice, which is exactly *my pentas and star
+centers were off*. Scale the five points by five and the centroid becomes the
+lattice point (0, 1), so you can have both at once:
+
+    points    (0,-15) (15,-5) (10,15) (-10,15) (-15,-5)
+    centroid  (0, 1)                  <- a lattice point, which is the whole point
+    spokes    (0,-16) (15,-6) (10,14) (-10,14) (-15,-6)
+
+    decagon   (0,-16) (10,-14) (15,-6) (15,6)   (10,14)
+              (0,16)  (-10,14) (-15,6) (-15,-6) (-10,-14)
+
+Every number he quoted is a tenth of that decagon.
+
+**The scaling buys exactness, and it buys all of it.** Measured on the 5× seed,
+origin on the centroid, at generations 1, 2 and 3: the D, E, P and T wheels, the
+pentagon vertices, the star vertices and all twenty rhombs are **on Z²** at every
+one. Nothing is left over the half-lattice, and nothing drifts with generation,
+because every operator in `wheel.js` is an integer combination of the five.
+
+What it also buys is the shape. Big rhombs (generation 1), `classic` spelling:
+
+| origin | edge lengths | longest/shortest | worst `\|e0 + e2\|` |
+| --- | --- | --- | --- |
+| (0, 0) | 40.00 – 47.17 | 1.179 | **5.00**, 10.6% of the longest edge |
+| the centroid (0, 1) | 42.38 – 44.00 | 1.038 | **0** |
+
+So *awfully misshapen* is measured, and it is the kite of §7, not a rendering
+fault: a tenth of an edge of skew, on a figure 44 lattice units across. The
+centroid removes it exactly.
+
+**What it costs is size, and he is right about the size.** The edge wheel at
+generation 1 is (20,0) (15,10) (5,20) (−5,20) (−15,10) — tile edges of 18.028,
+20.000 and 20.623 lattice units where the seed's own edge used to be 4. Rhomb
+edges run 16.00 – 17.20 for the little ones and 42.38 – 44.00 for the big. That
+is *every 1x1 tile has to grow by 5x5*, said in the figures: the square that
+used to frame a tile now frames a twenty-fifth of one.
+
+**The fit is there. It is arithmetic, which is why it is hard to see.** A `Sun`
+patch at generation 2 on the 5× seed — 136 tiles, 365 little rhombs:
+
+| | |
+| --- | --- |
+| tile vertices on Z² | 690 of 690 |
+| rhomb corners on Z² | 1460 of 1460 |
+| distinct rhomb corners | 411, of which **136 are exactly the tile centers** |
+| rhomb corners on a tile *vertex* | 0 |
+| distinct rhomb edges | 775, of which **685 are shared by two rhombs** |
+| the 90 that are not | all at radius 133 – 178: the patch's rim |
+
+Identical at the origin and at the centroid, which is §7 again — the overlay's
+*combinatorics* does not depend on the origin, only its shape does. So the
+overlay is edge-to-edge, it hangs on the P1 tiles by their centers, and on the
+5× seed every last vertex of it is a lattice point.
+
+**What is not there is a rhomb.** Converged by generation 8 and read off at
+generation 12, the quadrille has **three** thick shapes and **three** thin ones,
+not one each:
+
+| | at how many tenths | longer/shorter edge | acute angle |
+| --- | --- | --- | --- |
+| thick | 2 | 1.000000 | 69.2876° |
+| thick | 4 | 1.046202 | 71.1377° |
+| thick | 4 | 1.028799 | 74.2184° |
+| thin | 2 | 1.000000 | 37.7245° |
+| thin | 4 | 1.028799 | 36.4939° |
+| thin | 4 | 1.016915 | 34.6438° |
+
+§1's two angles are the first and fourth rows: the two tenths of ten at which
+the figure is genuinely equilateral. At the other eight it is a parallelogram up
+to 4.6% off and five degrees away, and that **does not shrink** — the spread
+converges to 1.04620 and stays. It is the seed's three spoke lengths (16.000,
+16.155, 17.205 at 5×) showing through the overlay, so no origin and no scale can
+remove it. *Fit the grid* can mean lattice-exact, and that is now had; it cannot
+also mean equilateral.
+
+**Which leaves three questions actually open.**
+
+1. **Is there a lattice seed whose rhombs are rhombs?** Ten lattice points on
+   one circle is not impossible — radius √65 carries sixteen — so equal spokes
+   are not ruled out by counting, and whether equal spokes in angular order
+   would even give an equilateral T wheel is a second question. Nothing here
+   settles either.
+2. **Is the 5× quadrille the same tiling at a different scale, or a different
+   object?** Open as it was, and now sharper: the figure it draws is
+   combinatorially identical and metrically not.
+3. **It is no longer penrose-mosaic's figure.** The 5× centered rhombs are the
+   parallelograms, and §7's count says the tidy spellings match the oracle at 0
+   of 40. The overlay tiles; it just is not the one the oracle stores. Whether
+   that is a loss is a judgment nobody has made yet.
+
+### The fence is drawn, not enforced
+
+`nearestOrigin` exists and nothing calls it: dragging the origin out of the
+fence is allowed, and the figure says so by going hollow and naming the two
+points that went out of order. Clamping instead is a one-line change if that
+turns out to be wanted, but being able to *see* the illegal state has been more
+useful than being prevented from reaching it.
+
+### The rest of the list
 
 **Arbitrary cyclic pentagons**, functional wheels rather than tabular, and
 deflation inward are step 6 of `PLAN.md` and not this document's business yet.
@@ -360,12 +725,13 @@ The Star patch is still broken and still has a test asserting so.
 
 | | |
 | --- | --- |
-| `src/math/seed.js` | the seed, the check, the fence, the centroid |
+| `src/math/seed.js` | the seed, the check, the fence, the centroid, the floater |
 | `src/math/wheel.js` | the ten directions, the operator family, the ladder |
 | `src/math/walk.js` | tile outlines as tenth-walks, the rhombs, the spellings |
 | `lib/wheels.js` | all of the above, as a pinned public surface |
 | `src/ui/pentadiculum.js` | the instrument: the figure, the handles, the fence drawn |
 | `lib/pentadiculum.js` | the instrument, as a pinned public surface |
-| `tests/seed.test.mjs` | §2, §3, §5 |
-| `tests/walk.test.mjs` | §6, and the mosaic oracle |
+| `tests/seed.test.mjs` | §2, §3, §5, §6 |
+| `tests/walk.test.mjs` | §7, and the mosaic oracle |
+| `tools/pentads.mjs` | §8: the mode amplitudes, and the even-pentad search |
 | `by-your-bootstraps.html` | all of it, with handles on it |

@@ -79,15 +79,18 @@
     <div class="rig">
         <div>
             <canvas id="boot-input" width="340" height="340"></canvas>
-            <p class="hint" style="margin:8px 0 0">scroll to zoom,
-            double-click to fit &mdash; dragging a corner past the frame zooms
-            out slowly rather than all at once</p>
+            <p class="hint" style="margin:8px 0 0">scroll to zoom smoothly,
+            <b>drag the paper to pan</b>, double-click the paper to put both
+            back and fit, double-click a <b>handle</b> to make it the floater
+            &mdash; dragging a corner past the frame zooms out slowly rather
+            than all at once</p>
 
             <div class="ctl">
                 <div><span class="grp">preset</span>
                     <select id="boot-preset">
                         <option value="quadrille" selected>classic</option>
                         <option value="asymmetric">asymmetric</option>
+                        <option value="even">even</option>
                         <option value="real">real</option>
                         <option value="custom">custom</option>
                     </select></div>
@@ -99,10 +102,10 @@
                 <div><span class="grp">snap</span>
                     <select id="boot-snap" title="what a dragged handle lands on">
                         <option value="units" selected>units</option>
-                        <option value="fifths">&#8533;</option>
                         <option value="none">none</option>
                     </select>
                     <label><input type="checkbox" id="boot-vectors" title="the five point-to-point vectors, clockwise, with their values"> vectors</label>
+                    <label><input type="checkbox" id="boot-input-fifths" checked title="rule each unit square into fifths, the grid the center lands on"> 5 space</label>
                     <button id="boot-centroid" title="put the origin on the centroid of the five, where the rhombs close as parallelograms">centroid</button>
                     <button id="boot-reset">reset</button></div>
                 <div><span class="grp">face</span>
@@ -143,7 +146,8 @@
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-3"> 3</label>
                     <label><input type="radio" name="boot-fifths" id="boot-fifths-4"> 4</label></div>
                 <div><span class="grp">grid</span>
-                    <label><input type="checkbox" id="boot-grid-over" title="draw the lattice over the tiles as well as under them"> on top</label></div>
+                    <label><input type="checkbox" id="boot-grid-over" title="draw the lattice over the tiles as well as under them"> on top</label>
+                    <label><input type="checkbox" id="boot-grid-fifths" title="divide each unit square into fifths, as the input's paper is"> 5 space</label></div>
                 <div><span class="grp">gen</span>
                     <button id="boot-gen-down">&minus;</button>
                     <span class="step" id="boot-gen-value">2</span>
@@ -271,10 +275,47 @@
     <p class="hint"><b>Snap</b> is <code>units</code> for the quadrille and
     <code>none</code> for the real preset &mdash; rounding an irrational
     pentagon's corners onto the paper on the first drag would silently turn it
-    back into a quadrille. The third setting, <code>&#8533;</code>, is the grid
-    the <b>centroid</b> lives on: the sweet spot is always in
-    (1/5)&#8484;&sup2;, so fifths are what you need to drag the origin onto it
-    by hand. The dropdown follows the figure and is yours to override.</p>
+    back into a quadrille. Under <code>units</code> each handle lands on the
+    grid it belongs to: the five corners on <b>whole units</b>, because they are
+    Gaussian integers and that is the definition, and the <b>center on
+    fifths</b>, because the sweet spot is always in (1/5)&#8484;&sup2; and a
+    whole-unit center could never reach it. That is what the five lighter lines
+    across each unit square are &mdash; the center's own grid, drawn under the
+    unit lines rather than over them, since the corners sit on the unit
+    vertices. The dropdown follows the figure and is yours to override.</p>
+
+    <p class="hint">When the center reaches the centroid it becomes a
+    <b>bullseye</b>: a white pupil inside the dot, and <i>on the sweet spot</i>
+    in the readout. Nothing about the outline announces it, and it is the state
+    where P&nbsp;=&nbsp;S, <code>inflate(D) = T</code> and all three rhomb
+    spellings close as one exact parallelogram. The <b>centroid</b> button goes
+    there in one press; the fifths grid is how you get there by hand.</p>
+
+    <p class="hint"><b>The floater</b> is one handle driven by the others.
+    Double-click a handle to assign it, double-click it again to release it.
+    What it holds is &Sigma;&thinsp;spokes =
+    5&middot;(centroid &minus; origin) &mdash; the origin's offset from the
+    centroid &mdash; at whatever value that had when you assigned it.</p>
+
+    <p class="hint">By default <b>the center floats</b>, so a corner drag
+    carries the origin with it: pull a point by &delta; and the origin follows
+    by &delta;/5, keeping its relationship to the figure instead of being left
+    behind by it. Press <b>centroid</b> first and the held value is zero, and
+    then <i>no drag can leave the sweet spot</i> &mdash; P&nbsp;=&nbsp;S,
+    <code>inflate(D) = T</code>, all three rhomb spellings one exact
+    parallelogram, however you reshape the pentagon. Choose one of the five
+    instead and the center is <b>fixed</b>: it draws small, the size it already
+    uses off the base rung, because it is not a handle any more. Now the
+    centroid is pinned and the pentagon flexes about it &mdash; drag point 1 by
+    &delta; and the floating point answers with &minus;&delta;. Dragging the
+    floater itself is how you <i>retarget</i>; it is the sum strip, not the
+    locked dial. A driven handle is never snapped, because it is determined
+    rather than chosen, and with the five on units it generally lands on a
+    fifth &mdash; which is the grid the center snaps to anyway. This is the
+    Reticulum's locked &gamma; in this geometry, and the same arithmetic:
+    <code>moveHandle</code> in <code>src/math/seed.js</code> re-derives the
+    dependent handle after every move, and nothing in the interface recomputes
+    any of it.</p>
 
     <h3>The third preset: asymmetric</h3>
 
@@ -308,9 +349,71 @@
     of the five are parallel or antiparallel &mdash; that aims two of the ten
     spokes the same way, and no relabeling of the points can separate them.</p>
 
-    <p><b>Both canvases zoom.</b> The output pans too: scroll over it, drag it,
-    double-click to fit. The input only zooms, about the origin &mdash; the
-    spokes run from there and the wheel is measured about it, so it stays put.
+    <h3>The fourth preset: even</h3>
+
+    <p>The three above were drawn. This one was <b>searched for</b>, and it is
+    better than the quadrille at the two things the quadrille is bad at:</p>
+
+    <pre>  point        0       1       2        3       4
+               (3,2)   (0,2)  (-3,2)  (-2,-3)  (2,-3)       sum (0,0)
+
+  radius        3.606   2.000   3.606    3.606   3.606</pre>
+
+    <p>Its five points <b>sum to zero</b>, so its centroid &mdash; the sweet
+    spot, where the rhombs close as exact parallelograms &mdash; is the lattice
+    point (0,&nbsp;0) rather than a fifth. The quadrille's is (0,&nbsp;&#8533;),
+    which is why putting it on the sweet spot takes the whole figure off the
+    lattice, and why scaling the quadrille by five to fix that makes everything
+    five times larger. This one needs no scaling: press <code>centroid</code>
+    and nothing has to move at all.</p>
+
+    <p>And the property <b>survives the ladder</b>. The sum lives in one Fourier
+    mode of the wheel, and a generation multiplies that mode by &minus;1, so a
+    sum of zero stays zero at every rung up and down. It is not something you
+    arrange once and lose at the next step.</p>
+
+    <p>It also settles <b>twelve times closer to Penrose</b>. What survives
+    inflation besides the figure is one ratio &mdash; the counter-rotating part
+    of the decagon against the rotating part &mdash; and no generation washes it
+    out. The quadrille's is 2.51%, this one's is 0.20%, which is rhombs within
+    0.37% of equilateral and a fifth of a degree of 72&deg; and 36&deg;, against
+    the quadrille's 69.29&ndash;74.22&deg;. At generation 0 it looks
+    <i>worse</i> than the quadrille &mdash; one spoke of 2 among four of
+    &radic;13 &mdash; because that lopsidedness is a different mode, and that
+    mode dies. <code>GEOMETRY.md</code> &sect;8 has the modes, and
+    <code>tools/pentads.mjs</code> is the search.</p>
+
+    <p><b>The output wears the same paper</b>, and the two checkboxes under
+    <code>grid</code> say how. <b>5 space</b> divides its unit squares into
+    fifths, as the input's are, so the two canvases go on reading as one sheet;
+    it is a choice rather than always on, because the output's lattice is where
+    the <i>tiles</i> live and a tile corner is either on a lattice point or it
+    is not &mdash; the fifths are the center's business, not theirs. The input
+    has a <b>5 space</b> box of its own, next to <code>vectors</code>, and it
+    starts on: close in on one corner the fifths become a thicket, and what a
+    corner is being read against is the unit lattice. <b>On top</b>
+    draws that lattice over the tiles instead of only under them, which is the
+    only way to see whether a corner landed on a lattice point, and it has a
+    palette of its own. The pale blues are made to be read through on white
+    paper; over a blue tile, which is the same hue at almost the same value,
+    they were not there at all. The over-grid is <b>teal</b> and deliberately
+    not black &mdash; tile edges are black, and a lattice line you cannot tell
+    from an outline is worse than no lattice line. Over the tiles there is no
+    room left to darken into, so the emphasis every 4 units is carried by a
+    <b>thicker stroke</b> rather than a darker one, and the fifths stay the
+    faintest thing on the sheet.</p>
+
+    <p><b>Both canvases zoom and both pan</b>, and smoothly: the cell is
+    whatever the fit and the wheel make it, with no ladder of allowed sizes.
+    Scroll over either one to zoom; drag where there is <i>nothing to grab</i>
+    to pan. On the input that means anywhere off the six handles &mdash; drag a
+    handle and you move the seed, drag the paper and you move the view &mdash;
+    and a double-click on empty paper puts the zoom, the pan and the fit all
+    back at once, while a double-click on a handle assigns the floater. The pan
+    is kept in <b>lattice units</b> rather than pixels, so zooming in after
+    panning keeps what you panned to in the middle instead of throwing it off
+    the edge. The zoom is about the middle of the canvas and not the pointer,
+    which is what makes that work.
     Its automatic fit holds still while you drag and gives way only when a
     corner reaches the frame, a percent a frame. It used to refit exactly on
     every frame, which fed back through the pointer and made the figure shoot

@@ -485,7 +485,8 @@ tenth, so `P = S` exactly at the barycenter, and there `inflate(D) = T` -- which
 settles the page's own open note, *modes can be unified if the real of d + p ==
 t*. All three rhomb spellings become the same quadrilateral there, an exact
 parallelogram, against a worst kite of 0.277 at the origin. It is always in
-`(1/5)Z^2`, which is why `snap` has a `fifths` setting.
+`(1/5)Z^2`, which is why the center snaps in fifths while the five corners snap
+to whole units.
 
 **What is affine and what is not**, measured rather than assumed: the E wheel is
 the only origin-invariant wheel (its comb coefficients sum to zero); pentagons
@@ -503,6 +504,84 @@ wants four of them on one page, reading four seeds.
 `by-your-bootstraps` was repointed at it and the extraction proven: 4,931
 recorded canvas calls over a scripted drag, preset, ladder, zoom and centroid
 run, identical before and after.
+
+### The `even` preset, and a pan, 2026-11-24
+
+§8's find shipped as a preset: **even**, (3,2) (0,2) (−3,2) (−2,−3) (2,−3),
+whose five sum to zero. Its sweet spot is the lattice point (0, 0) with no
+scaling, the property survives every rung of the ladder, and it settles twelve
+times closer to Penrose than the quadrille at a fifth the reach.
+
+It also **falsified two things §3 asserted**. Its fence is a four-sided kite
+rather than a pentagon — "at most five sides" was right, and the test said
+*exactly* five because only three seeds had ever been asked — and its fence
+ratio is 0.10286 against φ⁻⁴ = 0.14590, so that ratio is a property of round
+seeds and not a law. Both corrected in the doc and in `tests/seed.test.mjs`.
+
+Two tool complaints of Jake's, both his words: *doing close up work, I can't pan
+to move individual points on the pentadiculum* — the input figure now pans by
+dragging anywhere there is no handle, with the pan kept in lattice units so a
+zoom holds what you panned to, and a double-click on empty paper resets zoom,
+pan and fit together. And *the fine grid should be turned off and on easily* —
+a `5 space` box on the input figure beside `vectors`, matching the output's.
+
+### The three modes, and the even pentads, 2026-11-23
+
+Jake, having scaled the quadrille by five to get an integral center: *what is the
+nature of the pentadic set defining the rhombus … what is the smallest pentadic
+vector set which adds to a sum divisible by 5.* The answer turned out to settle
+four earlier findings at once.
+
+A wheel has five Fourier modes, and `inflate` is diagonal on them with three
+eigenvalues: φ² on m = ±1 (the figure and its counter-rotating twin), φ⁻² on
+m = 3, 7 (the wobble, which dies), and −1 on m = 5 — which IS the spoke sum.
+So the origin handle lives entirely in mode 5, §4's perturbation table is that
+mode's eigenvalue table, and the `classic` rhomb's failure to close is exactly
+|Σ spokes|, at every tenth and every generation. It never shrinks: the rhombs
+get bigger around a constant gap.
+
+An **even pentad** is a seed with m₅ = 0 — five lattice points whose sum is
+divisible by five — and the property survives the ladder, so its center stays a
+lattice point at every generation. `tools/pentads.mjs` searches them: the
+smallest is Σ|v|² = 14, and the roundest small one, (3,2) (0,2) (−3,2) (−2,−3)
+(2,−3), settles twelve times closer to Penrose than the quadrille at a fifth the
+size. GEOMETRY.md §8 has it all.
+
+### The floater, and a smooth cell, 2026-11-23
+
+**The Fibonacci cell ladder is out of the drawing path.** Jake: *I was wrong
+about grid size of pentadiculum following fibonacci numbers. At least for manual
+sizing. I want to be able to size it smoothly.* The Pentadiculum draws at
+`fit * zoom`, continuously. Two things the ladder had been credited with were
+not its doing: legibility is `GRID_LEVELS` dropping a level once its gap falls
+under 4px, and the frame is held by `fitStep` returning `min(margin/reach, cap)`
+-- so the claim the test makes is now stronger, the figure being inside the
+margin rather than merely inside the half-canvas. `fibCell` and its reasoning
+stay in `src/ui/fit.js`, exported and tested and called by nothing, because the
+observation under it is real: the wheels' x components are the Fibonacci
+numbers, so a rung up at a cell down lands on the same pixels.
+
+**The floater: one handle driven by the others.** Jake: *analogous to the
+sums/gamma system in the reticulum*, and it is -- the floater is the locked
+index, the held quantity is `Sigma spokes = 5(centroid - origin)`, assigned by
+double-clicking a handle rather than by clicking a gamma label, and released by
+double-clicking it again, which is `locked = -1`. By default the center floats,
+so it keeps its offset from the centroid instead of being left behind by a
+corner drag; choose one of the five instead and the center is **fixed** and the
+centroid is pinned. Dragging the floater itself is the retarget -- the sum strip,
+not the locked dial.
+
+The payoff is `GEOMETRY.md` §5 made into a gesture: press `centroid`, and with
+the center floating at a held value of zero **no drag can leave the sweet spot**.
+`moveHandle` in `src/math/seed.js` is the whole rule, mirroring `relock` in
+`src/geometry/gamma.ts`; the UI reports intent and computes none of it.
+`GEOMETRY.md` §6 has the arithmetic and the three cases.
+
+Found on the way, by a test written for the mount rather than for the page:
+`{ size: 340, ...options }` let a mount that was given no size pass
+`size: undefined` through and win, which in a browser is a **0x0 canvas**. No
+page had met it because every page hands in a canvas of its own -- and the moire
+page, which is why the mounts exist, would have been the first.
 
 ## 6. What this supersedes
 

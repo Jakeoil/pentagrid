@@ -25,11 +25,14 @@ import { BUILD_ID } from "./build-id.js";
 /** @typedef {import("./pentadiculum.js").Seed} Seed */
 /** @typedef {import("./pentadiculum.js").Snap} Snap */
 
-import { EDGE_INK, HOT, INK, TAU, gridLines, paper, poly } from "./draw.js";
+import {
+    EDGE_INK, GRID_FIFTHS, GRID_LEVELS, GRID_OVER, GRID_OVER_ALPHA,
+    GRID_OVER_FIFTHS, HOT, INK, TAU, gridLines, paper, poly,
+} from "./draw.js";
 import { numHTML } from "./numerals.js";
 // The input figure itself -- the five points, the origin and the pointer --
 // lives in the Pentadiculum. See the section below.
-import { SNAPS, createPentadiculum, snapForSeed } from "./pentadiculum.js";
+import { PD_ORIGIN, SNAPS, createPentadiculum, snapForSeed } from "./pentadiculum.js";
 
 /** @type {(id: string) => HTMLElement | null} */
 const byId = (id) => document.getElementById(id);
@@ -73,6 +76,18 @@ const spokes = () => spokesOf({ points, origin });
  * these five are what dragging the origin leaves alone.
  */
 let showVectors = false;
+
+/**
+ * The fifths ruled across each unit square on the INPUT figure. On by default,
+ * because a fifth is where the center lands; Jake, 2026-11-24: *the fine grid
+ * should be turned off and on easily.* Close in on one corner they are a
+ * thicket, and the unit lattice is what a corner is being read against.
+ *
+ * The output canvas has its own `5 space` box, `gridFifths`, because the two
+ * figures are at different scales and wanting it on one is no reason to have it
+ * on the other.
+ */
+let inputFifths = true;
 
 /** The sweet spot: the origin at which all three rhomb spellings coincide. */
 const centroid = () => centroidOf(points);
@@ -137,15 +152,17 @@ const rungOf = (e) => 1 + e;
 /**
  * What the input's handles snap to.
  *
- * It was a checkbox, and the centroid is what made it a dropdown: the sweet
- * spot lands in (1/5)Z^2 and never on an integer unless the five happen to sum
- * to a multiple of five, so "on the lattice or nowhere" could not express it.
- * With `fifths` the origin can be dragged ALONG the fence and landed exactly on
- * the centroid by hand. `none` is for the real preset, whose corners are
- * irrational and would be wrecked by rounding — it still quantizes, at 1/256,
- * because a pointer has pixels and a coordinate that reads to sixteen places is
- * not a coordinate anyone can use. The rounding itself is the Pentadiculum's --
- * it owns the pointer -- and this is only which mode the dropdown is on.
+ * Two settings, and it had three for a day. Jake, 2026-11-23: *I made a mistake
+ * with that 1/5 thing. We don't need it. In snap mode only the centroid need
+ * snap at 1/5.* So `units` now means each handle on the grid it belongs to --
+ * the five corners on whole units, because they are Gaussian integers and that
+ * is the definition, and the center on fifths, because the sweet spot is in
+ * (1/5)Z^2 and a whole-unit center could never reach it. `none` is for the real
+ * preset, whose corners are irrational and would be wrecked by rounding; it
+ * still quantizes, at 1/256, because a pointer has pixels and a coordinate that
+ * reads to sixteen places is not a coordinate anyone can use. The rounding
+ * itself is the Pentadiculum's -- it owns the pointer -- and this is only which
+ * mode the dropdown is on.
  */
 /** @type {Snap} */
 let snap = "units";
@@ -180,6 +197,20 @@ const view = { zoom: 1, panX: 0, panY: 0 };
  * tiling still reads as the figure.
  */
 let gridOver = false;
+/**
+ * Divide the output's unit squares into fifths, as the input's are.
+ *
+ * Jake, 2026-11-23: *use light 5 space grid on units in output grid too.* It is
+ * a checkbox rather than always on because the output's lattice is where the
+ * TILES live, and a tile corner either is on a lattice point or is not -- the
+ * fifths are the center's business, not theirs, and are worth seeing only when
+ * you are asking where the figure sits against them.
+ */
+let gridFifths = false;
+
+/** The output's paper, and the same lattice laid over the tiles. */
+const outLevels = () => (gridFifths ? GRID_FIFTHS : GRID_LEVELS);
+const overLevels = () => (gridFifths ? GRID_OVER_FIFTHS : GRID_OVER);
 let panning = false;
 /** @type {[number, number]} */
 let panFrom = [0, 0];
@@ -208,7 +239,8 @@ const seedNow = () => ({ points, origin });
  * rather than living in the component.
  * @type {() => import("./pentadiculum.js").View}
  */
-const viewNow = () => ({ extrapolate, face, edge, vectors: showVectors, snap });
+const viewNow = () =>
+    ({ extrapolate, face, edge, vectors: showVectors, snap, fifths: inputFifths });
 
 const pd = createPentadiculum({
     canvas: inputCanvas ?? undefined,
@@ -223,7 +255,36 @@ const pd = createPentadiculum({
         drawFlake();
         drawTiling();
     },
+    // A double-click on a handle changes the FLOATER, and the rung readout
+    // names it. The component has already drawn; without this the readout
+    // lagged the canvas by a redraw and said the wrong handle was floating.
+    //
+    // Guarded on the floater, because `onView` also fires on every scroll
+    // click, and a zoom changes nothing this readout shows -- `readouts`
+    // rebuilds the whole wheel table, which is not work to do sixty times a
+    // second for a number that did not move.
+    onView: (v) => {
+        if (v.floater === floaterShown) return;
+        floaterShown = v.floater;
+        readouts(pd.drawn());
+    },
 });
+
+/** The floater the readout is currently naming, so a zoom can be ignored. */
+let floaterShown = PD_ORIGIN;
+
+/**
+ * Which handle the others drive, in words, for the rung readout.
+ *
+ * Double-click assigns it; the component owns it, so this reads it back rather
+ * than keeping a copy that could disagree with the canvas.
+ * @type {(f: number) => string}
+ */
+const floaterLine = (f) => f < 0
+    ? "nothing floats &mdash; all six handles are free"
+    : f === PD_ORIGIN
+        ? "the center floats: it keeps its offset from the centroid"
+        : `point ${f} floats and the center is fixed: the centroid is pinned`;
 
 /** Ask for an exact fit on the next draw. */
 const refitInput = () => pd.refit();
@@ -249,9 +310,13 @@ function readouts(drawn) {
         + (atBaseRung() ? "" : "<b>the five, for reference</b>"
             + `<span>${points.map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`)
         + `<b>origin (${numHTML(origin[0])}, ${numHTML(origin[1])})`
-            + ` &middot; centroid (${numHTML(centroid()[0])}, ${numHTML(centroid()[1])})</b>`
+            + ` &middot; centroid (${numHTML(centroid()[0])}, ${numHTML(centroid()[1])})`
+            + (drawn.sweet ? " &middot; on the sweet spot" : "") + `</b>`
         + `<span>${drawn.verdict.ok ? "the ten spokes are in order"
-            : `&#9888; ${drawn.verdict.why}`}</span>`;
+            : `&#9888; ${drawn.verdict.why}`}</span>`
+        // The floater is a MODE, and an unnamed mode that moves a handle you
+        // never touched is a bug report waiting to be filed.
+        + `<b>floater</b><span>${floaterLine(pd.view().floater)}</span>`;
 }
 
 
@@ -411,8 +476,9 @@ function drawTiling() {
     const cy = h / 2 - my * k + view.panY;
 
     // The same graph paper as the input, at the viewport's scale, so the two
-    // canvases read as the same sheet.
-    paper(ctx, w, h, cx, cy, k);
+    // canvases read as the same sheet -- fifths and all, when they are asked
+    // for, since reading as one sheet is the whole point of matching them.
+    paper(ctx, w, h, cx, cy, k, outLevels());
 
     ctx.lineJoin = "round";
     ctx.lineWidth = edgeWidth(k);
@@ -491,15 +557,18 @@ function drawTiling() {
     }
 
     // Last of all, so it is over everything: the same lattice the paper drew,
-    // at the same scale and the same origin, as a veil.
-    if (gridOver) gridLines(ctx, w, h, cx, cy, k, 0.75);
+    // at the same scale and the same origin. In its own dark palette, because
+    // the pale one is made to be read THROUGH and over a blue tile it was not
+    // there at all. See GRID_OVER in `src/ui/draw.js`.
+    if (gridOver) gridLines(ctx, w, h, cx, cy, k, GRID_OVER_ALPHA, overLevels());
 
     note(`${tiles.length} tiles · generation ${drawnGen}`
         + (drawnGen === gen ? "" : ` (${gen} asked, capped at ${TILE_LIMIT} tiles)`)
         + ` · ${seed}`
         + (rhombSize === "none" ? "" : ` · ${rhombSize} rhombs on ${hostCount}`)
         + (view.zoom === 1 ? "" : ` · ${view.zoom.toFixed(1)}×`)
-        + (gridOver ? " · grid on top" : ""));
+        + (gridOver ? " · grid on top" : "")
+        + (gridFifths ? " · 5 space" : ""));
 }
 
 /** @type {(s: string) => void} */
@@ -833,6 +902,12 @@ if (spellPick) spellPick.addEventListener("change", () => {
     drawTiling();
 });
 
+const gridFifthsBox = /** @type {HTMLInputElement | null} */ (byId("boot-grid-fifths"));
+if (gridFifthsBox) gridFifthsBox.addEventListener("change", () => {
+    gridFifths = gridFifthsBox.checked;
+    drawTiling();
+});
+
 const gridOverBox = /** @type {HTMLInputElement | null} */ (byId("boot-grid-over"));
 if (gridOverBox) gridOverBox.addEventListener("change", () => {
     gridOver = gridOverBox.checked;
@@ -845,12 +920,19 @@ if (vectorBox) vectorBox.addEventListener("change", () => {
     drawInput();
 });
 
+const fifthsBox = /** @type {HTMLInputElement | null} */ (byId("boot-input-fifths"));
+if (fifthsBox) fifthsBox.addEventListener("change", () => {
+    inputFifths = fifthsBox.checked;
+    drawInput();
+});
+
 /**
  * Put the origin on the centroid of the five, which is the one place the three
  * rhomb spellings agree and all of them close as exact parallelograms. It is a
  * fifth of a lattice unit, never an integer unless the five happen to sum to a
- * multiple of five — so snap drops to `fifths` with it, which is exactly the
- * grid the centroid lives on and leaves the origin draggable from there.
+ * multiple of five -- and `units` snap already moves the center in fifths, so
+ * the figure stays on its snap and the center stays draggable from there. The
+ * center draws as a bullseye once it is on it.
  */
 const centroidBtn = byId("boot-centroid");
 if (centroidBtn) centroidBtn.addEventListener("click", () => {

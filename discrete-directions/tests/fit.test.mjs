@@ -125,7 +125,13 @@ test("it never shrinks past the exact fit", () => {
     assert.ok(Math.abs(scale - exact) < 1e-9, `settled at ${scale}, not ${exact}`);
 });
 
-// ── the Fibonacci cell ladder ─────────────────────────────────────────────
+// ── the cell: smooth now, and the ladder it used to climb ────────────────
+//
+// Jake, 2026-11-23: *I was wrong about grid size of pentadiculum following
+// fibonacci numbers. At least for manual sizing. I want to be able to size it
+// smoothly.* So the Pentadiculum draws at `fit * zoom` and the ladder below is
+// exported, tested and uncalled. Both are kept under test: the first test here
+// is the guarantee the PAGE now relies on, and the rest are the ladder's own.
 //
 // Jake, 2026-11-22: *although I want fib values for grid-size, make sure
 // grid-size keeps up with display. I saw (didn't see rather) points outside the
@@ -161,18 +167,43 @@ test("and it is the largest cell on the ladder that fits", () => {
         assert.equal(whole[i], whole[i - 1] + whole[i - 2], `at ${whole[i]}`);
 });
 
-test("every rung of the ladder stays on the canvas", () => {
-    // The bug as the page meets it: fit the figure, quantize the cell, and ask
-    // whether the corners are still inside. `margin` is 40% of a 340px canvas,
-    // and the half-canvas is 170.
+test("every rung stays on the canvas at the smooth cell the page uses", () => {
+    // The bug as the page met it, against the cell the page now draws at. The
+    // claim is stronger than it was: with no ladder to round through, the
+    // figure is inside the MARGIN -- 40% of a 340px canvas -- and not merely
+    // inside the half-canvas it was allowed to reach before. Any zoom at or
+    // below 1 only shrinks it further.
     const CANVAS = 340, MARGIN = CANVAS * 0.40, CAP = 78;
     for (const [name, pts] of [["classic", PENTA_UP], ...Object.entries(PRESETS)]) {
         for (let e = -4; e <= 6; e += 0.5) {
             const shown = pentagon(wheelsAt(pts, 1 + e).d, 0);
             const reach = Math.max(1, ...shown.map((v) => Math.hypot(v[0], v[1])));
-            const k = fibCell(fitStep(reach, 0, MARGIN, CAP));
-            assert.ok(reach * k <= CANVAS / 2,
-                `${name} at rung ${1 + e}: reaches ${(reach * k).toFixed(0)}px of ${CANVAS / 2}`);
+            const fit = fitStep(reach, 0, MARGIN, CAP);
+            for (const zoom of [1, 0.5, 0.1]) {
+                const k = fit * zoom;
+                assert.ok(reach * k <= MARGIN + 1e-9,
+                    `${name} at rung ${1 + e}, zoom ${zoom}: `
+                    + `reaches ${(reach * k).toFixed(1)}px of ${MARGIN}`);
+                assert.ok(k > 0, `${name} at rung ${1 + e}: cell ${k}`);
+            }
         }
     }
+});
+
+test("and the wheel moves it every click, which the ladder did not", () => {
+    // The complaint itself. One scroll notch is exp(-deltaY * 0.0015); at the
+    // 100-unit deltaY a trackpad sends that is about 14%, and from the ladder's
+    // cell 13 the next rung up is 21 -- so three clicks changed nothing and the
+    // fourth jumped 1.6x. Smooth, every click lands.
+    const fit = 13, click = Math.exp(-100 * 0.0015);
+    let zoom = 1, smooth = [], laddered = [];
+    for (let i = 0; i < 4; i++) {
+        zoom /= click;                                  // scrolling up, zooming in
+        smooth.push(fit * zoom);
+        laddered.push(fibCell(fit * zoom));
+    }
+    assert.equal(new Set(smooth).size, 4, `smooth gave ${smooth}`);
+    assert.ok(new Set(laddered).size < 4, `the ladder used to give ${laddered}`);
+    for (let i = 1; i < smooth.length; i++)
+        assert.ok(smooth[i] > smooth[i - 1], "and it is monotonic");
 });

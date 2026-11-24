@@ -417,6 +417,68 @@ test("the rhomb angles converge on the DISCRETE limits, not 72 and 36", () => {
     assert.ok(Math.abs(thin - 36) > 1, "thin should NOT be the Euclidean 36");
 });
 
+// The 5x seed: five points times five, origin on the centroid, which scaling
+// has just made the lattice point (0, 1). GEOMETRY.md section 8.
+const FIVE_X = PENTA_UP.map(([x, y]) => [x * 5, y * 5]);
+const FIVE_X_SPOKES = FIVE_X.map(([x, y]) => [x - 0, y - 1]);
+const isInt = (v) => Math.abs(v - Math.round(v)) < 1e-9;
+const onLattice = (pts) => pts.every(([x, y]) => isInt(x) && isInt(y));
+
+test("scaling the seed by five puts the centroid, and everything else, on Z^2", () => {
+    // The sweet spot is (0, 1/5) and centering therefore takes the figure OFF
+    // the lattice -- Jake's "my pentas and star centers were off". Times five it
+    // is (0, 1), and the whole construction is integral again, because every
+    // operator in wheel.js is an integer combination of the five points.
+    const sum = FIVE_X.reduce((a, p) => [a[0] + p[0], a[1] + p[1]], [0, 0]);
+    assert.deepEqual([sum[0] / 5, sum[1] / 5], [0, 1], "the centroid is a lattice point");
+    assert.deepEqual(FIVE_X_SPOKES, [[0, -16], [15, -6], [10, 14], [-10, 14], [-15, -6]]);
+
+    for (const gen of [1, 2, 3]) {
+        const w = wheelsAt(FIVE_X_SPOKES, gen);
+        const inflated = inflate(w.d);
+        for (const [name, wheel] of Object.entries(w))
+            assert.ok(onLattice(wheel), `wheel ${name} at generation ${gen}`);
+        assert.ok(onLattice(pentagon(w.d, 0)), `pentagon at generation ${gen}`);
+        assert.ok(onLattice(starOutline(STAR, w, 0, [0, 0])), `star at generation ${gen}`);
+        for (let t = 0; t < 10; t++)
+            for (const spec of [THICK, THIN])
+                assert.ok(onLattice(rhombus(spec, w.t, inflated, t, "classic")),
+                    `rhomb at generation ${gen}, tenth ${t}`);
+    }
+});
+
+test("the centroid makes them parallelograms, but never rhombs: six shapes, not two", () => {
+    // Converged by generation 8; read at 12. GEOMETRY.md section 8 has the
+    // table. Section 1's two angles are the only two tenths of ten at which the
+    // figure is equilateral -- the other eight settle into parallelograms up to
+    // 4.6% off, and the spread does not shrink with generation.
+    const w = wheelsAt(FIVE_X_SPOKES, 12);
+    const inflated = inflate(w.d);
+    /** @type {Record<string, number>} */
+    const seen = {};
+    let worst = 1;
+    for (const [name, spec] of [["thick", THICK], ["thin", THIN]])
+        for (let t = 0; t < 10; t++) {
+            const q = rhombus(spec, w.t, inflated, t, "classic");
+            const e = edgesOf(q);
+            assert.ok(Math.hypot(e[0][0] + e[2][0], e[0][1] + e[2][1]) < 1e-9,
+                `${name} tenth ${t} is not a parallelogram`);
+            const s = sidesOf(q).sort((a, b) => a - b);
+            worst = Math.max(worst, s[3] / s[0]);
+            const k = `${name} ${(s[3] / s[0]).toFixed(6)} @ ${acuteOf(q).toFixed(4)}`;
+            seen[k] = (seen[k] ?? 0) + 1;
+        }
+    assert.deepEqual(seen, {
+        "thick 1.000000 @ 69.2876": 2,
+        "thick 1.046202 @ 71.1377": 4,
+        "thick 1.028799 @ 74.2184": 4,
+        "thin 1.000000 @ 37.7245": 2,
+        "thin 1.028799 @ 36.4939": 4,
+        "thin 1.016915 @ 34.6438": 4,
+    });
+    assert.ok(Math.abs(worst - 1.04620) < 1e-4, `worst edge spread ${worst}`);
+});
+
 test("the real preset's rhombs are 72 and 36 at once, with nothing to converge", () => {
     for (const g of [1, 2, 3]) {
         const w = wheelsAt(REAL_PENTA, g);

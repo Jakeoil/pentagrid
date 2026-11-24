@@ -58,6 +58,30 @@ export function fitStep(reach, held, margin, cap) {
 /**
  * The cell sizes the input figure is allowed to use, in pixels.
  *
+ * NOTHING USES THIS ANY MORE, and the reason is worth keeping next to the
+ * reasoning it overturns. Jake, 2026-11-23: *I was wrong about grid size of
+ * pentadiculum following fibonacci numbers. At least for manual sizing. I want
+ * to be able to size it smoothly.* The ladder is notchy where a wheel ought to
+ * be continuous -- from cell 13 the next rung is 21, so several scroll clicks
+ * do nothing and then the figure jumps 1.6x -- and the Pentadiculum now draws
+ * at `fit * zoom` exactly.
+ *
+ * Two things I had backwards, which is why the correction is recorded rather
+ * than the paragraph deleted:
+ *
+ *  - **Legibility was never the ladder's job.** `gridLines` drops a level once
+ *    its gap falls under 4px, so at cell 0.29 the 1s and 4s vanish and the
+ *    paper reads as 20-unit squares. GRID_LEVELS is what keeps it readable, at
+ *    any cell whatsoever.
+ *  - **The frame is safer without it.** `fitStep` returns min(margin/reach,
+ *    cap), so at zoom <= 1 the figure is inside the margin by construction.
+ *    `fibCell`'s rounding down was patching the ladder's own ability to land
+ *    far below the fit, which is exactly what the one-pixel floor bug was.
+ *
+ * What stays true is the observation below, which is real mathematics and the
+ * reason this is exported and tested rather than thrown away: a figure stepped
+ * one rung up at one cell size down lands on the same pixels.
+ *
  * Jake, 2026-11-22: in the spirit of the thing, the grid jumps by Fibonacci —
  * 8×8, then 13×13, then 21×21. Which is not only decorative. The wheels' x
  * components ARE the Fibonacci numbers at every rung, so a figure stepped one

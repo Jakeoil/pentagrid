@@ -23,20 +23,23 @@
  * controls. Nothing here is module-level state, so a page can mount four.
  *
  * This is the UI half. The geometry it presents is `lib/wheels.js` — `seedOf`,
- * `originFence`, `centroidOf` — and nothing under `src/math/` knows a canvas
- * exists.
+ * `originFence`, `centroidOf`, and `moveHandle` for the floater — and nothing
+ * under `src/math/` knows a canvas exists.
  */
 
 export {
     createPentadiculum, mountPentadiculum, mountFloatingPentadiculum,
-    SNAPS, snapped, snapForSeed, PD_ORIGIN,
+    SNAPS, snapped, snapStep, snapForSeed, PD_ORIGIN,
 } from "../src/ui/pentadiculum.js";
 
 // ── the drawing primitives it is built on, for a page drawing beside it ──
 //
 // A moiré page putting four outputs next to four seeds wants the same graph
 // paper and the same cell ladder, or the figures will not read as one sheet.
-export { INK, HOT, EDGE_INK, GRID_LEVELS, TAU, gridLines, paper, poly } from "../src/ui/draw.js";
+export {
+    INK, HOT, EDGE_INK, TAU, gridLines, paper, poly,
+    GRID_LEVELS, GRID_FIFTHS, GRID_OVER, GRID_OVER_FIFTHS, GRID_OVER_ALPHA,
+} from "../src/ui/draw.js";
 export { FIB_CELLS, EDGE_SHRINK, fibCell, fitStep } from "../src/ui/fit.js";
 
 // ── Jake's compact numeral: four cells, the sign carried by color ────────

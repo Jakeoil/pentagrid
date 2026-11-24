@@ -29,14 +29,15 @@ import * as pentadiculum from "../lib/pentadiculum.js";
 
 const SURFACE = {
     "wheels.js": [
-        "ASYMMETRIC", "PENTA_UP", "PRESETS", "REAL_PENTA", "SEEDS",
-        "SEED_GENERATION", "TENTHS",
+        "ASYMMETRIC", "EVEN_PENTAD", "HANDLE_ORIGIN", "PENTA_UP", "PRESETS",
+        "REAL_PENTA",
+        "SEEDS", "SEED_GENERATION", "TENTHS",
         "centered", "centroidOf", "checkSeed", "comb", "deflate", "eWheel",
         "halfDown", "halfUp", "inflate",
-        "ladderTo", "m10", "nearestOrigin", "originFence", "pWheel",
-        "pWheelFromFlake", "pair", "pentaflake", "pointsOf", "sWheel", "seedOf",
-        "sharedEdge", "spokesOf", "stride", "tWheel", "wheelFromPoints",
-        "wheelOf", "wheelsAt", "wheelsOf",
+        "ladderTo", "m10", "moveHandle", "nearestOrigin", "originFence",
+        "pWheel", "pWheelFromFlake", "pair", "pentaflake", "pointsOf", "sWheel",
+        "seedOf", "sharedEdge", "spokeSum", "spokesOf", "stride", "tWheel",
+        "wheelFromPoints", "wheelOf", "wheelsAt", "wheelsOf",
     ],
     "tiles.js": [
         "BOAT", "DIAMOND", "PENTA", "STAR", "THICK", "THIN", "anchorFor", "closes",
@@ -48,12 +49,13 @@ const SURFACE = {
     // Jake's numeral. It is the one entry that needs a DOM, which is why it is
     // not in the all-in-one -- see the test below.
     "pentadiculum.js": [
-        "EDGE_INK", "EDGE_SHRINK", "FIB_CELLS", "GRID_LEVELS", "HOT", "INK",
-        "PD_ORIGIN", "SNAPS", "TAU", "TONE",
+        "EDGE_INK", "EDGE_SHRINK", "FIB_CELLS", "GRID_FIFTHS", "GRID_LEVELS",
+        "GRID_OVER", "GRID_OVER_ALPHA", "GRID_OVER_FIFTHS",
+        "HOT", "INK", "PD_ORIGIN", "SNAPS", "TAU", "TONE",
         "compact", "createPentadiculum", "drawNumeral", "fibCell", "fitStep",
         "gridLines", "mountFloatingPentadiculum", "mountPentadiculum",
         "numHTML", "numeralWidth", "paper", "poly", "ptHTML", "snapForSeed",
-        "snapped",
+        "snapStep", "snapped",
     ],
     "e2.js": [
         "PHI", "QUADRILLE", "SEED_GENERATION", "WHEELS", "deflate",

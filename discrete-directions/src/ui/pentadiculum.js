@@ -42,12 +42,13 @@
 // `createPentadiculum` needs no CSS at all — it is a canvas.
 
 import {
-    PENTA_UP, PRESETS, centroidOf, checkSeed, originFence, spokesOf, wheelsAt,
+    HANDLE_ORIGIN, PENTA_UP, PRESETS, centroidOf, checkSeed, moveHandle,
+    originFence, spokeSum, spokesOf, wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon } from "../../lib/tiles.js";
-import { EDGE_INK, HOT, INK, TAU, paper, poly } from "./draw.js";
+import { EDGE_INK, GRID_FIFTHS, GRID_LEVELS, HOT, INK, TAU, paper, poly } from "./draw.js";
 import { drawNumeral, numeralWidth } from "./numerals.js";
-import { fibCell, fitStep } from "./fit.js";
+import { fitStep } from "./fit.js";
 
 /** @typedef {import("../../lib/wheels.js").Pt} Pt */
 
@@ -59,20 +60,43 @@ import { fibCell, fitStep } from "./fit.js";
 /**
  * What a dragged handle lands on.
  *
- * `fifths` is here because of the centroid: the sweet spot where all three
- * rhomb spellings agree is always in (1/5)Z², so "on the lattice or nowhere"
- * could not reach it. `none` still quantizes, at 1/256 — a pointer has pixels,
- * and a coordinate that reads to sixteen places is not a coordinate anyone can
- * use.
- * @typedef {"units" | "fifths" | "none"} Snap
+ * THERE IS NO `fifths` MODE, and there was one for a day. Jake, 2026-11-23: *I
+ * made a mistake with that 1/5 thing. We don't need it. In snap mode only the
+ * centroid need snap at 1/5. [...] Moving centroid moves 1/5, moving points
+ * moves 5/5.* He is right, and it is the better rule because the two handles
+ * are not the same kind of thing:
+ *
+ *  - the **five** are Gaussian integers. That is the whole definition (see
+ *    `GEOMETRY.md` §1), and a corner on a fifth is not a point of this geometry
+ *    at all.
+ *  - the **center** has to reach the sweet spot, which is always in (1/5)Z² and
+ *    is an integer only by accident. A whole-unit center cannot get there.
+ *
+ * So one setting covers both, each handle on the grid it belongs to, and the
+ * menu is down to the honest two. `none` still quantizes, at 1/256 — a pointer
+ * has pixels, and a coordinate that reads to sixteen places is not a coordinate
+ * anyone can use.
+ * @typedef {"units" | "none"} Snap
  */
 /** @type {readonly Snap[]} */
-export const SNAPS = ["units", "fifths", "none"];
+export const SNAPS = ["units", "none"];
 
-/** One coordinate, snapped. @type {(snap: Snap, v: number) => number} */
-export const snapped = (snap, v) => snap === "units" ? Math.round(v)
-    : snap === "fifths" ? Math.round(v * 5) / 5
-    : Math.round(v * 256) / 256;
+/**
+ * The step a handle lands on, in lattice units: a fifth for the center, a whole
+ * unit for a corner, 1/256 for either when snap is off.
+ * @type {(snap: Snap, handle?: number) => number}
+ */
+export const snapStep = (snap, handle = -1) => snap === "none" ? 1 / 256
+    : handle === PD_ORIGIN ? 1 / 5 : 1;
+
+/**
+ * One coordinate, snapped for the handle that is moving.
+ * @type {(snap: Snap, v: number, handle?: number) => number}
+ */
+export const snapped = (snap, v, handle = -1) => {
+    const step = snapStep(snap, handle);
+    return Math.round(v / step) * step;
+};
 
 /**
  * The finest snap a seed is already on. Anything coarser would wreck it on the
@@ -82,11 +106,22 @@ export const snapped = (snap, v) => snap === "units" ? Math.round(v)
  * @returns {Snap}
  */
 export function snapForSeed(seed) {
-    const all = [...seed.points, seed.origin].flat();
-    return all.every((v) => Number.isInteger(v)) ? "units"
-        : all.every((v) => Number.isInteger(v * 5)) ? "fifths"
-        : "none";
+    // Each handle against its OWN grid: the five on units, the center on
+    // fifths. A seed at its sweet spot is on the snap -- which it had better be,
+    // since the `centroid` button is how you get there.
+    const onUnits = seed.points.flat().every((v) => Number.isInteger(v));
+    const onFifths = seed.origin.every((v) => Math.abs(v * 5 - Math.round(v * 5)) < 1e-9);
+    return onUnits && onFifths ? "units" : "none";
 }
+
+/**
+ * `dragging` and `floater` are a point index, or this for the origin.
+ *
+ * It is `HANDLE_ORIGIN` from `src/math/seed.js` under this page's own name, and
+ * the same number: the rule that drives the floater is arithmetic and lives
+ * with the arithmetic, so there is one constant and the UI borrows it.
+ */
+export const PD_ORIGIN = HANDLE_ORIGIN;
 
 /** @typedef {"none" | "transparent" | "solid"} Face */
 /** @typedef {"none" | "thin" | "thick"} Edge */
@@ -106,12 +141,23 @@ export function snapForSeed(seed) {
  * @property {boolean} [fence] the legal origins, at the base rung
  * @property {boolean} [spokes] origin-to-corner rays
  * @property {Snap} [snap]
+ * @property {boolean} [fifths] rule each unit square into fifths as well
+ * @property {number} [floater] which handle is driven by the others: a point
+ *   index, `PD_ORIGIN`, or -1 for none. See `moveHandle` in `src/math/seed.js`.
  */
 
 /** @type {Required<View>} */
 const VIEW = {
     extrapolate: 0, face: "solid", edge: "thin",
     vectors: false, fence: true, spokes: true, snap: "units",
+    // The fifths are ON by default -- they are the grid the CENTER lands on --
+    // but Jake, 2026-11-24: *the fine grid should be turned off and on easily.*
+    // Close up they are a thicket, and the unit lattice is what you are reading
+    // when you place a corner.
+    fifths: true,
+    // The origin floats by default, so it keeps its offset from the centroid
+    // instead of being left behind by a corner drag. Jake asked for this one.
+    floater: PD_ORIGIN,
 };
 
 /**
@@ -122,6 +168,8 @@ const VIEW = {
  * @property {ReturnType<typeof checkSeed>} verdict
  * @property {readonly Pt[]} shown the figure at the chosen rung, in spoke space
  * @property {readonly Pt[]} fence the legal origins, empty off the base rung
+ * @property {boolean} sweet is the center on the sweet spot -- the centroid,
+ *   where `GEOMETRY.md` §5 happens
  */
 
 /**
@@ -133,7 +181,7 @@ const VIEW = {
  *   is not blown up to fill the frame
  * @property {number} [margin] how much of the canvas the figure may fill
  * @property {(seed: Seed, what: "point" | "origin") => void} [onChange]
- * @property {(view: { zoom: number }) => void} [onView]
+ * @property {(view: { zoom: number, floater: number }) => void} [onView]
  * @property {Document} [document]
  */
 
@@ -163,7 +211,17 @@ function makeCanvas(doc, size) {
  * @param {PentadiculumOptions} [options]
  */
 export function createPentadiculum(options = {}) {
-    const opts = { size: 340, cell: 26, margin: 0.40, ...options };
+    // Written out rather than spread over a defaults object, because
+    // `{ ...{ size: 340 }, ...{ size: undefined } }` is `{ size: undefined }` --
+    // and passing an option through that it was never given is exactly what a
+    // mount does. That made `makeCanvas(doc, undefined)` a 0x0 canvas, which no
+    // page had met only because the pages all adopt a canvas of their own.
+    const opts = {
+        ...options,
+        size: options.size ?? 340,
+        cell: options.cell ?? 26,
+        margin: options.margin ?? 0.40,
+    };
     const doc = opts.document ?? globalThis.document;
     /** The canvas it draws on: an adopted one, or one of its own. */
     const canvas = opts.canvas ?? makeCanvas(doc, opts.size);
@@ -184,6 +242,23 @@ export function createPentadiculum(options = {}) {
     // of a drag. Both are needed.
     let fit = 0;                 // 0 means "refit exactly on the next draw"
     let zoom = 1;
+    /**
+     * Where the lattice origin sits, away from the middle of the canvas, in
+     * LATTICE units. Jake, 2026-11-24: *doing close up work, I can't pan to
+     * move individual points on the pentadiculum.* Zooming about the center was
+     * fine while the whole figure was on screen and useless once it was not.
+     *
+     * Lattice units rather than pixels on purpose: a zoom then keeps whatever
+     * you panned to in the middle instead of throwing it off the edge.
+     * @type {Pt}
+     */
+    let pan = [0, 0];
+    /**
+     * A pan in progress: the pointer where it went down, and the pan it started
+     * from. Null when the paper is not being dragged.
+     * @type {{ x: number, y: number, from: Pt } | null}
+     */
+    let panning = null;
     let overflow = false;
     let settling = 0;
     let scale = opts.cell;       // what `pick` divides by; frozen while dragging
@@ -194,18 +269,50 @@ export function createPentadiculum(options = {}) {
 
     const atBase = () => view.extrapolate === 0;
 
-    /** Coordinates under the pointer, snapped. @type {(ev: { clientX: number, clientY: number }) => Pt} */
-    function pick(ev) {
+    /**
+     * The spoke sum the floater holds -- five times the offset from the origin
+     * to the centroid. Adopted from whatever seed arrives through `sync`, so it
+     * cannot go stale, and held for the length of a drag.
+     * @type {Pt}
+     */
+    let target = spokeSum(seed);
+
+    /**
+     * Is the center FIXED? It is whenever one of the five floats instead, which
+     * is the whole point of choosing another floater -- Jake's *you will be
+     * able to fix the center by choosing another point as the floater*.
+     */
+    const pinned = () => view.floater >= 0 && view.floater !== PD_ORIGIN;
+
+    /**
+     * Coordinates under the pointer, unsnapped -- which is what a hit test
+     * wants: rounding first could move the pointer half a unit before asking
+     * what it is near.
+     * @type {(ev: { clientX: number, clientY: number }) => Pt}
+     */
+    function at(ev) {
         const r = canvas.getBoundingClientRect();
         const sx = canvas.width / (r.width || canvas.width);
         const sy = canvas.height / (r.height || canvas.height);
-        const x = ((ev.clientX - r.left) * sx - canvas.width / 2) / scale;
-        const y = ((ev.clientY - r.top) * sy - canvas.height / 2) / scale;
-        return [snapped(view.snap, x), snapped(view.snap, y)];
+        return [((ev.clientX - r.left) * sx - canvas.width / 2) / scale - pan[0],
+                ((ev.clientY - r.top) * sy - canvas.height / 2) / scale - pan[1]];
     }
 
+    /**
+     * Where a handle being dragged should land: on its own grid, so the center
+     * moves by a fifth and a corner by a whole unit.
+     * @type {(ev: { clientX: number, clientY: number }, handle: number) => Pt}
+     */
+    const pick = (ev, handle) => {
+        const p = at(ev);
+        return [snapped(view.snap, p[0], handle), snapped(view.snap, p[1], handle)];
+    };
+
     /** @type {Drawn} */
-    let last = { cell: opts.cell, verdict: { ok: true, why: "" }, shown: [], fence: [] };
+    let last = {
+        cell: opts.cell, verdict: { ok: true, why: "" },
+        shown: [], fence: [], sweet: false,
+    };
 
     /**
      * Draw the seed as the view says, and report what that took.
@@ -214,14 +321,19 @@ export function createPentadiculum(options = {}) {
      * @returns {Drawn}
      */
     function sync(next, nextView) {
-        if (next) seed = next;
+        if (next) { seed = next; target = spokeSum(next); }
         if (nextView) view = { ...view, ...nextView };
         const ctx = canvas.getContext("2d");
         if (!ctx) return last;
         const w = canvas.width, h = canvas.height;
-        const cx = w / 2, cy = h / 2;
         const spk = spokesOf(seed);
         const base = atBase();
+        // Is the center ON the sweet spot? There P = S, `inflate(D) = T`, and
+        // all three rhomb spellings close as one exact parallelogram -- and
+        // nothing about the figure's outline announces any of it, which is why
+        // Jake asked for it to be said: *indicate when center is in sweet spot.*
+        const mid = centroidOf(seed.points);
+        const sweet = Math.hypot(seed.origin[0] - mid[0], seed.origin[1] - mid[1]) < 1e-9;
 
         const shown = pentagon(wheelsAt(spk, 1 + view.extrapolate).d, 0);
         const verdict = checkSeed(seed);
@@ -236,15 +348,40 @@ export function createPentadiculum(options = {}) {
         const margin = Math.min(w, h) * opts.margin;
         fit = fitStep(reach, fit, margin, opts.cell * CAP_CELLS);
         overflow = reach * fit > margin;
-        // Fibonacci cell sizes, and the ladder runs below 1 as well as above:
-        // rounded DOWN from the fit, so a figure that fitted still fits.
-        const k = fibCell(fit * zoom);
+        // SMOOTH, not laddered. Jake, 2026-11-23: *I was wrong about grid size
+        // of pentadiculum following fibonacci numbers. At least for manual
+        // sizing. I want to be able to size it smoothly.* He is right, and the
+        // ladder was worse than merely notchy: from cell 13 the next rung is
+        // 21, so several scroll clicks did nothing and then the figure jumped
+        // 1.6x. `fibCell` and its reasoning stay in `fit.js`, exported and
+        // tested, and nothing calls them from here.
+        //
+        // Legibility was never the ladder's job either, which is the part I had
+        // backwards. `gridLines` drops a level once its gap falls under 4px, so
+        // at cell 0.29 the 1s and 4s vanish and the paper reads as 20-unit
+        // squares. GRID_LEVELS is what keeps it readable, at any cell at all.
+        //
+        // And the frame is SAFER this way, not looser: `fitStep` returns
+        // min(margin/reach, cap), so at zoom <= 1 the figure is inside the
+        // margin by construction. `fibCell`'s rounding down was patching the
+        // ladder's own ability to land far below the fit -- which is exactly
+        // what the one-pixel floor bug was.
+        const k = fit * zoom;
         if (dragging < 0) scale = k;
+        // Where lattice (0,0) lands: the middle of the canvas, shifted by the
+        // pan. Computed HERE and not with the width, because the pan is in
+        // lattice units and needs `k` to become pixels.
+        const cx = w / 2 + pan[0] * k, cy = h / 2 + pan[1] * k;
 
         // The paper hangs off the ORIGIN, not off the canvas, so its 0,0 axes
         // run through the origin wherever it has been dragged to.
         const ox = cx + seed.origin[0] * k, oy = cy + seed.origin[1] * k;
-        paper(ctx, w, h, ox, oy, k);
+        // GRID_FIFTHS, not GRID_LEVELS: each unit square divided by five
+        // lighter lines, because a fifth is where the center can land. The unit
+        // lines are drawn over them and stay the ones the corners sit on, and
+        // the fifths drop out of their own accord below a cell of 20px, where a
+        // fifth would be the 4px `gridLines` refuses to draw.
+        paper(ctx, w, h, ox, oy, k, view.fifths ? GRID_FIFTHS : GRID_LEVELS);
 
         if (!base) {
             // The five, as a reference, so the ladder step is visible. Dashed
@@ -302,6 +439,23 @@ export function createPentadiculum(options = {}) {
         // Numbered and draggable only at the base rung, where the five
         // actually live. An extrapolated pentagon is a VIEW of them, not a
         // thing to edit — `use` is what turns one into the five.
+        /**
+         * The mark on the handle that FOLLOWS. A dashed ring, because dashed
+         * already means derived on this canvas -- the fence is dashed, so is
+         * the reference pentagon off the base rung -- so there is no new
+         * vocabulary to learn.
+         * @type {(x: number, y: number, r: number) => void}
+         */
+        const ring = (x, y, r) => {
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, TAU);
+            ctx.strokeStyle = "rgba(42,59,107,0.75)";
+            ctx.lineWidth = 1.2;
+            ctx.setLineDash([3, 2.5]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        };
+
         ctx.font = "600 11px ui-monospace, Menlo, monospace";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
@@ -314,6 +468,7 @@ export function createPentadiculum(options = {}) {
                 ctx.fill();
                 ctx.fillStyle = "#fff";
                 ctx.fillText(String(i), x, y + 0.5);
+                if (view.floater === i) ring(x, y, 11.5);
             } else {
                 ctx.fillStyle = HOT;
                 ctx.beginPath();
@@ -325,8 +480,12 @@ export function createPentadiculum(options = {}) {
         // The origin. A handle at the base rung, where moving it means
         // something, and a small dot otherwise. Hollow when the seed it makes
         // is unusable, so the figure says so before it falls apart.
+        // Handle-SIZE means draggable here, so the fixed center draws at the
+        // size it already uses off the base rung, where it is not a handle
+        // either. A refusal you can see before you pull on it.
+        const originHandle = base && !pinned();
         ctx.beginPath();
-        ctx.arc(ox, oy, base ? 6.5 : 3, 0, TAU);
+        ctx.arc(ox, oy, originHandle ? 6.5 : 3, 0, TAU);
         if (verdict.ok) {
             ctx.fillStyle = dragging === PD_ORIGIN ? HOT : INK;
             ctx.fill();
@@ -337,8 +496,20 @@ export function createPentadiculum(options = {}) {
             ctx.lineWidth = 2;
             ctx.stroke();
         }
+        // On the sweet spot the center becomes a bullseye: a white pupil inside
+        // the dot. It composes with the other two things the center says --
+        // hollow for an unusable seed, a dashed ring when it floats -- rather
+        // than competing with either, and after the `centroid` button all three
+        // are true at once, which is the state worth recognizing at a glance.
+        if (verdict.ok && sweet) {
+            ctx.beginPath();
+            ctx.arc(ox, oy, originHandle ? 2.6 : 1.3, 0, TAU);
+            ctx.fillStyle = "#fff";
+            ctx.fill();
+        }
+        if (base && view.floater === PD_ORIGIN) ring(ox, oy, 10);
 
-        last = { cell: k, verdict, shown, fence };
+        last = { cell: k, verdict, shown, fence, sweet };
         return last;
     }
 
@@ -414,7 +585,7 @@ export function createPentadiculum(options = {}) {
      * node.
      */
     function settle() {
-        if (settling || dragging >= 0 || !overflow) return;
+        if (settling || dragging >= 0 || panning || !overflow) return;
         const raf = globalThis.requestAnimationFrame;
         if (typeof raf !== "function") return;
         settling = raf(() => { settling = 0; sync(); settle(); });
@@ -428,41 +599,76 @@ export function createPentadiculum(options = {}) {
         wired.push([type, fn]);
     };
 
-    on("pointerdown", (ev) => {
-        if (!atBase()) return;        // only the five themselves are editable
-        const at = pick(ev);
+    /**
+     * Which handle is at these coordinates, or -1. Split out because the
+     * double-click needs the same answer the drag does.
+     * @param {Pt} where
+     * @returns {number}
+     */
+    function grab(where) {
         let best = -1, bestD = 2.5;
         seed.points.forEach((p, i) => {
-            const d = Math.hypot(p[0] - at[0], p[1] - at[1]);
+            const d = Math.hypot(p[0] - where[0], p[1] - where[1]);
             if (d < bestD) { bestD = d; best = i; }
         });
         // The origin wins a tie: a pentagon dragged in small can bury it, and
         // then there would be no way to get it back.
-        const dOrigin = Math.hypot(seed.origin[0] - at[0], seed.origin[1] - at[1]);
-        if (dOrigin <= bestD) { bestD = dOrigin; best = PD_ORIGIN; }
-        dragging = best;
-        if (best >= 0) {
-            if (typeof canvas.setPointerCapture === "function")
-                canvas.setPointerCapture(ev.pointerId);
+        const dOrigin = Math.hypot(seed.origin[0] - where[0], seed.origin[1] - where[1]);
+        if (dOrigin <= bestD) best = PD_ORIGIN;
+        return best;
+    }
+
+    on("pointerdown", (ev) => {
+        // Off the base rung the figure is derived, so nothing is a handle --
+        // but the paper still pans, because looking is not editing.
+        const best = atBase() ? grab(at(ev)) : -1;
+        // A fixed center is not dragged. The double-click still reaches it --
+        // that is how it is made the floater again -- so the refusal is here
+        // and not in `grab`. Grabbing it pans instead: a handle that will not
+        // move is nothing to hold on to.
+        const holdable = best >= 0 && !(best === PD_ORIGIN && pinned());
+        if (typeof canvas.setPointerCapture === "function")
+            canvas.setPointerCapture(ev.pointerId);
+        if (holdable) {
+            dragging = best;
             sync();
+            return;
         }
+        panning = { x: ev.clientX, y: ev.clientY, from: [pan[0], pan[1]] };
     });
     on("pointermove", (ev) => {
+        if (panning) {
+            const r = canvas.getBoundingClientRect();
+            const sx = canvas.width / (r.width || canvas.width);
+            const sy = canvas.height / (r.height || canvas.height);
+            pan = [panning.from[0] + (ev.clientX - panning.x) * sx / scale,
+                   panning.from[1] + (ev.clientY - panning.y) * sy / scale];
+            sync();
+            return;
+        }
         if (dragging < 0) return;
-        const at = pick(ev);
+        const to = pick(ev, dragging);
         const was = dragging === PD_ORIGIN ? seed.origin : seed.points[dragging];
-        if (at[0] === was[0] && at[1] === was[1]) return;
-        const next = dragging === PD_ORIGIN
-            ? { points: seed.points, origin: at }
-            : { points: seed.points.map((p, i) => (i === dragging ? at : p)), origin: seed.origin };
+        if (to[0] === was[0] && to[1] === was[1]) return;
+        // `moveHandle` is the whole rule, and it is arithmetic, so it lives in
+        // `src/math/seed.js`. With no floater it is the plain move this used to
+        // be; with one it drives that handle to hold `target`.
+        const next = moveHandle(seed, dragging, to, view.floater, target);
         seed = next;
+        // Dragging the floater is what RETARGETS -- the reticulum's sum strip,
+        // not its locked dial -- so the held value follows the hand.
+        if (dragging === view.floater) target = spokeSum(next);
         // Drawn FIRST, then announced: a consumer's `onChange` usually wants to
         // put the new verdict in a readout, and `drawn()` should already be the
         // seed it was handed rather than the one before it.
         sync();
+        // `what` is the handle the HAND was on. With the origin floating a
+        // corner drag moves the origin as well, and the seed says so; this only
+        // ever said which handle was grabbed.
         opts.onChange?.(next, dragging === PD_ORIGIN ? "origin" : "point");
     });
     const drop = () => {
+        if (panning) { panning = null; settle(); return; }
         if (dragging < 0) return;
         dragging = -1;
         sync();
@@ -471,22 +677,40 @@ export function createPentadiculum(options = {}) {
     on("pointerup", drop);
     on("pointercancel", drop);
 
-    // Scroll to zoom, about the CENTER rather than the pointer. The origin is a
-    // real thing on this figure — the spokes run from it and the wheel is
-    // measured about it — so it stays put and there is no pan to go with the
-    // zoom. Double-click puts it back and refits.
+    // Scroll to zoom, about the middle of the CANVAS rather than the pointer.
+    // Which is not the figure's own center any more: the pan moves the lattice
+    // under the frame, and because the pan is kept in lattice units the thing
+    // you panned to stays in the middle as you zoom into it. Double-click on
+    // the paper puts both back and refits.
     on("wheel", (ev) => {
         ev.preventDefault?.();
         const by = Math.exp(-(ev.deltaY ?? 0) * 0.0015);
         zoom = Math.min(ZOOM.max, Math.max(ZOOM.min, zoom * by));
         sync();
-        opts.onView?.({ zoom });
+        opts.onView?.({ zoom, floater: view.floater });
     }, { passive: false });
-    on("dblclick", () => {
+
+    // Double-click splits by WHERE it lands: on a handle it assigns the
+    // floater, on empty paper it fits, which is what it has always done and
+    // what the output canvas does. Jake, 2026-11-23: *I would like to be able
+    // to assign a floater point by double clicking it.*
+    on("dblclick", (ev) => {
+        const hit = atBase() ? grab(at(ev)) : -1;
+        if (hit >= 0) {
+            // Double-clicking the one that already floats RELEASES it: the
+            // reticulum's `locked = -1`, the state where the constraint has
+            // been declined rather than disabled.
+            view = { ...view, floater: view.floater === hit ? -1 : hit };
+            target = spokeSum(seed);
+            sync();
+            opts.onView?.({ zoom, floater: view.floater });
+            return;
+        }
         zoom = 1;
         fit = 0;
+        pan = [0, 0];
         sync();
-        opts.onView?.({ zoom });
+        opts.onView?.({ zoom, floater: view.floater });
     });
 
     return {
@@ -498,11 +722,15 @@ export function createPentadiculum(options = {}) {
         drawn: () => last,
         /** Frame the figure afresh on the next draw: a preset, `use`, a rung. */
         refit: () => { fit = 0; },
-        /** Zoom and the auto-fit, back to where they started. */
-        reset: () => { zoom = 1; fit = 0; },
+        /** Zoom, the pan and the auto-fit, back to where they started. */
+        reset: () => { zoom = 1; fit = 0; pan = [0, 0]; },
         zoom: () => zoom,
+        /** Where lattice (0,0) sits, away from the middle, in lattice units. */
+        pan: () => /** @type {Pt} */ ([pan[0], pan[1]]),
         /** Which handle is under the pointer, or -1. */
         dragging: () => dragging,
+        /** The spoke sum the floater is holding: 5x (centroid - origin). */
+        target: () => /** @type {Pt} */ ([target[0], target[1]]),
         /** The view, as it stands. */
         view: () => ({ ...view }),
         /** The seed it was last given — including a drag's own changes. */
@@ -517,9 +745,6 @@ export function createPentadiculum(options = {}) {
         },
     };
 }
-
-/** `dragging` is a point index, or this for the origin. */
-export const PD_ORIGIN = 5;
 
 /** @typedef {ReturnType<typeof createPentadiculum>} Pentadiculum */
 
@@ -545,6 +770,10 @@ export const PD_ORIGIN = 5;
  * drawing with the seed, so they stay the page's business; `pd.sync` takes them
  * as a view.
  *
+ * The FLOATER has no control of its own on purpose: it is assigned by
+ * double-clicking the handle, which is the gesture Jake asked for, and the
+ * readout names whichever one it is.
+ *
  * @param {HTMLElement} host
  * @param {MountOptions} [options]
  */
@@ -556,6 +785,8 @@ export function mountPentadiculum(host, options = {}) {
         ?? { points: PENTA_UP.map((p) => /** @type {Pt} */ ([p[0], p[1]])), origin: [0, 0] };
     /** @type {View} */
     let view = { ...opts.view, snap: opts.view?.snap ?? snapForSeed(seed) };
+    /** The floater the readout is naming, so a zoom costs nothing. */
+    let floaterShown = view.floater ?? PD_ORIGIN;
 
     /** @type {(tag: string, className?: string, text?: string) => HTMLElement} */
     const el = (tag, className, text) => {
@@ -569,6 +800,15 @@ export function mountPentadiculum(host, options = {}) {
     const pd = createPentadiculum({
         size: opts.size, document: doc,
         onChange: (next) => { seed = next; announce(); },
+        // A double-click can change the floater, and the readout names it, so
+        // the view has to reach here as well as the seed. Only on a CHANGE of
+        // floater: `onView` fires on every scroll click too, and `announce`
+        // tells the page the seed has moved, which a zoom has not.
+        onView: (v) => {
+            if (v.floater === floaterShown) return;
+            floaterShown = v.floater;
+            announce();
+        },
     });
     wrap.appendChild(pd.element);
 
@@ -581,11 +821,18 @@ export function mountPentadiculum(host, options = {}) {
             + `${fmt(seed.origin[0])}, ${fmt(seed.origin[1])})`
             + ` &middot; <b>centroid</b> (${fmt(centroidOf(seed.points)[0])},`
             + ` ${fmt(centroidOf(seed.points)[1])})`
+            + (drawn.sweet ? " &middot; <b>on the sweet spot</b>" : "")
+            + ` &middot; ${floaterSays(pd.view().floater)}`
             + (drawn.verdict.ok ? "" : ` &mdash; ${drawn.verdict.why}`);
         opts.onChange?.(seed);
     }
     /** @type {(v: number) => string} */
     const fmt = (v) => Number.isInteger(v) ? String(v) : v.toFixed(3).replace(/0+$/, "");
+
+    /** Which handle follows the others, in words. @type {(f: number) => string} */
+    const floaterSays = (f) => f < 0 ? "nothing floats"
+        : f === PD_ORIGIN ? "<b>the center floats</b>"
+        : `<b>point ${f} floats</b>, the center is fixed`;
 
     /** @type {(next: Seed, refit?: boolean) => void} */
     const put = (next, refit = true) => {
@@ -621,7 +868,7 @@ export function mountPentadiculum(host, options = {}) {
         for (const name of SNAPS) {
             const o = /** @type {HTMLOptionElement} */ (doc.createElement("option"));
             o.value = name;
-            o.textContent = name === "fifths" ? "⅕" : name;
+            o.textContent = name;
             snapPick.appendChild(o);
         }
         snapPick.value = /** @type {string} */ (view.snap);
@@ -642,9 +889,24 @@ export function mountPentadiculum(host, options = {}) {
         vlabel.append(vectors, doc.createTextNode(" vectors"));
         row.appendChild(vlabel);
 
+        // The fifths, off and on. They are the grid the CENTER lands on and a
+        // thicket when you are close in on a corner, so they get a switch of
+        // their own rather than a rule about when to draw them.
+        const fifths = /** @type {HTMLInputElement} */ (el("input"));
+        fifths.type = "checkbox";
+        fifths.checked = view.fifths !== false;
+        fifths.addEventListener("change", () => {
+            view = { ...view, fifths: fifths.checked };
+            announce();
+        });
+        const flabel = el("label");
+        flabel.append(fifths, doc.createTextNode(" 5 space"));
+        row.appendChild(flabel);
+
         // The centroid: the one origin where all three rhomb spellings agree
-        // and each closes as an exact parallelogram. It is in fifths, so snap
-        // follows it down rather than being switched off.
+        // and each closes as an exact parallelogram. It is in fifths, which is
+        // the grid the center snaps to anyway, so pressing this leaves the
+        // figure on its snap and the center draggable from there.
         const centroid = el("button", "", "centroid");
         centroid.addEventListener("click", () =>
             put({ points: seed.points, origin: centroidOf(seed.points) }));

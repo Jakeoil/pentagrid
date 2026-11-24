@@ -9,8 +9,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    SEEDS, centered, centroidOf, checkSeed, nearestOrigin, originFence, seedOf,
-    spokesOf, wheelOf, wheelsOf,
+    HANDLE_ORIGIN, SEEDS, centered, centroidOf, checkSeed, moveHandle,
+    nearestOrigin, originFence, seedOf, spokeSum, spokesOf, wheelOf, wheelsOf,
 } from "../src/math/seed.js";
 import {
     ASYMMETRIC, PENTA_UP, REAL_PENTA, deflate, inflate, m10, pWheel, sWheel,
@@ -126,13 +126,18 @@ test("every edge of the fence is where two spokes line up", () => {
     };
     for (const [name, seed] of Object.entries(SEEDS)) {
         const fence = originFence(seed.points);
-        assert.equal(fence.length, 5, `${name}: five sides, always`);
+        // AT MOST five, not exactly five. `even` has FOUR: one of the five half
+        // planes is slack, so its fence is a kite. GEOMETRY.md section 3 says
+        // "at most five sides, always" and means it -- this assertion used to
+        // say five and only three seeds had ever been asked.
+        assert.ok(fence.length >= 3 && fence.length <= 5,
+            `${name}: ${fence.length} sides`);
         const mid = [0, 1].map((k) =>
             fence.reduce((t, p) => t + p[k], 0) / fence.length);
         assert.ok(tightest(seed.points, mid) > 0.1,
             `${name}: the middle of the fence is well clear`);
-        for (let i = 0; i < 5; i++) {
-            const a = fence[i], b = fence[(i + 1) % 5];
+        for (let i = 0; i < fence.length; i++) {
+            const a = fence[i], b = fence[(i + 1) % fence.length];
             const on = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
             assert.ok(tightest(seed.points, on) < 1e-12,
                 `${name}: edge ${i} should have two spokes in line`);
@@ -145,12 +150,20 @@ test("every edge of the fence is where two spokes line up", () => {
     }
 });
 
-test("the origin's freedom is one deflation: phi^-4 of the pentagon", () => {
-    for (const [name, seed] of Object.entries(SEEDS)) {
+test("the origin's freedom is one deflation -- on a ROUND seed", () => {
+    // phi^-4 is exact on the regular pentagon, where the fence IS the pentagon
+    // one generation down, and near it on seeds shaped like one. It is not a
+    // law. `even` is lopsided at generation 0 -- one spoke of 2 among four of
+    // sqrt 13 -- and its fence is a four-sided kite at 0.1029, a third short.
+    for (const name of ["quadrille", "asymmetric", "real"]) {
+        const seed = SEEDS[name];
         const ratio = area(originFence(seed.points)) / area(seed.points);
         assert.ok(Math.abs(ratio - PHI ** -4) < 0.002,
             `${name}: ${ratio.toFixed(4)} against ${(PHI ** -4).toFixed(4)}`);
     }
+    const odd = area(originFence(SEEDS.even.points)) / area(SEEDS.even.points);
+    assert.ok(Math.abs(odd - 0.102857) < 1e-5, `even: ${odd}`);
+    assert.ok(PHI ** -4 - odd > 0.04, "and it is not a near miss");
 });
 
 test("on a REGULAR pentagon the fence is the pentagon one generation down", () => {
@@ -324,4 +337,132 @@ test("at the centroid all three spellings are one exact parallelogram", () => {
         }));
         assert.ok(worst > 0.1, `${name}: a kite at the origin, worst ${worst}`);
     }
+});
+
+// ── the floater: one handle driven by the others ──────────────────────────
+//
+// `moveHandle` is the whole rule, and the rule is arithmetic, so it is checked
+// here rather than through a canvas. The gesture that chooses the floater is in
+// `tests/pentadiculum.test.mjs`.
+
+test("the spoke sum is five times the offset from the origin to the centroid", () => {
+    for (const [name, seed] of Object.entries(SEEDS)) {
+        for (const o of [[0, 0], [1, -2], [0.4, 0.2]]) {
+            const moved = { points: seed.points, origin: o };
+            const s = spokeSum(moved);
+            const c = centroidOf(seed.points);
+            assert.ok(Math.hypot(s[0] - 5 * (c[0] - o[0]), s[1] - 5 * (c[1] - o[1])) < 1e-12,
+                `${name} at origin ${o}: ${s} is not 5(centroid - origin)`);
+        }
+    }
+    // and zero is the sweet spot, by definition rather than by coincidence
+    const sweet = spokeSum(centered(SEEDS.quadrille));
+    assert.ok(Math.hypot(sweet[0], sweet[1]) < 1e-12, `centered seed holds ${sweet}`);
+});
+
+test("the center floats: a corner drag carries the origin a fifth of the way", () => {
+    const seed = seedOf(PENTA_UP);
+    const target = spokeSum(seed);
+    const delta = [2, -1];
+    const to = [seed.points[0][0] + delta[0], seed.points[0][1] + delta[1]];
+    const next = moveHandle(seed, 0, to, HANDLE_ORIGIN, target);
+
+    // the origin follows by delta/5
+    assert.ok(Math.hypot(next.origin[0] - delta[0] / 5, next.origin[1] - delta[1] / 5) < 1e-12,
+        `origin went to ${next.origin}`);
+    // the sum is held, which is the point
+    const held = spokeSum(next);
+    assert.ok(Math.hypot(held[0] - target[0], held[1] - target[1]) < 1e-12,
+        `held ${held}, wanted ${target}`);
+    // the dragged spoke moves 4/5 of delta and the other four -1/5 of it
+    const was = spokesOf(seed), now = spokesOf(next);
+    for (let k = 0; k < 5; k++) {
+        const want = k === 0 ? [delta[0] * 4 / 5, delta[1] * 4 / 5]
+            : [-delta[0] / 5, -delta[1] / 5];
+        assert.ok(Math.hypot(now[k][0] - was[k][0] - want[0],
+                             now[k][1] - was[k][1] - want[1]) < 1e-12,
+            `spoke ${k} moved ${[now[k][0] - was[k][0], now[k][1] - was[k][1]]}`);
+    }
+});
+
+test("and holding zero means no drag can leave the sweet spot", () => {
+    // The payoff, and the thing GEOMETRY.md section 5 is about: at the centroid
+    // P = S, inflate(D) = T, and all three rhomb spellings are one exact
+    // parallelogram. Press `centroid` once and the floater keeps you there.
+    let seed = centered(seedOf(PENTA_UP));
+    const target = [0, 0];
+    const moves = [[0, [1, 2]], [3, [-5, 1]], [1, [4, -2]], [4, [-2, -6]]];
+    for (const [k, to] of moves) {
+        seed = moveHandle(seed, k, to, HANDLE_ORIGIN, target);
+        const c = centroidOf(seed.points);
+        assert.ok(Math.hypot(seed.origin[0] - c[0], seed.origin[1] - c[1]) < 1e-12,
+            `after moving ${k}: origin ${seed.origin} is not the centroid ${c}`);
+        // and the two phi wheels coincide there, which is the same fact
+        const { d, p, s, t } = wheelsOf(seed, 1);
+        for (let i = 0; i < 10; i++) {
+            assert.ok(Math.hypot(p[i][0] - s[i][0], p[i][1] - s[i][1]) < 1e-9,
+                `P and S part at tenth ${i}`);
+            const id = inflate(d);
+            assert.ok(Math.hypot(id[i][0] - t[i][0], id[i][1] - t[i][1]) < 1e-9,
+                `inflate(D) is not T at tenth ${i}`);
+        }
+    }
+});
+
+test("a point floats: the centroid is pinned and the center will not move", () => {
+    const seed = seedOf(PENTA_UP, [1, -1]);
+    const target = spokeSum(seed);
+    const was = centroidOf(seed.points);
+    const delta = [3, 2];
+    const to = [seed.points[0][0] + delta[0], seed.points[0][1] + delta[1]];
+    const next = moveHandle(seed, 0, to, 2, target);
+
+    assert.deepEqual(next.origin, [1, -1], "the center is fixed");
+    // point 2 answers with -delta, so the centroid does not move
+    assert.ok(Math.hypot(next.points[2][0] - seed.points[2][0] + delta[0],
+                         next.points[2][1] - seed.points[2][1] + delta[1]) < 1e-12,
+        `point 2 went to ${next.points[2]}`);
+    const now = centroidOf(next.points);
+    assert.ok(Math.hypot(now[0] - was[0], now[1] - was[1]) < 1e-12,
+        `centroid moved from ${was} to ${now}`);
+    // and pulling on the center itself is refused rather than absorbed
+    assert.equal(moveHandle(seed, HANDLE_ORIGIN, [0, 0], 2, target), seed);
+});
+
+test("dragging the floater is a plain move, because that is the retarget", () => {
+    const seed = seedOf(PENTA_UP);
+    const target = spokeSum(seed);
+    // the origin floats and the origin is dragged: it goes where it is put
+    const o = moveHandle(seed, HANDLE_ORIGIN, [0.4, -1], HANDLE_ORIGIN, target);
+    assert.deepEqual(o.origin, [0.4, -1]);
+    assert.deepEqual(o.points, seed.points.map((p) => [p[0], p[1]]));
+    // which is a NEW target, and the caller is the one that re-reads it
+    const after = spokeSum(o);
+    assert.ok(Math.hypot(after[0] - target[0], after[1] - target[1]) > 1,
+        "the held value has genuinely changed");
+    // point 3 floats and point 3 is dragged: likewise
+    const q = moveHandle(seed, 3, [-1, 1], 3, target);
+    assert.deepEqual(q.points[3], [-1, 1]);
+    assert.deepEqual(q.origin, [0, 0]);
+});
+
+test("with no floater it is exactly the move it always was", () => {
+    const seed = seedOf(PENTA_UP, [1, 2]);
+    const plain = moveHandle(seed, 1, [7, -7], -1, [99, 99]);
+    assert.deepEqual(plain.origin, [1, 2], "the target is ignored");
+    assert.deepEqual(plain.points[1], [7, -7]);
+    assert.deepEqual(plain.points[0], seed.points[0]);
+    const o = moveHandle(seed, HANDLE_ORIGIN, [3, 3], -1, [99, 99]);
+    assert.deepEqual(o.origin, [3, 3]);
+    assert.deepEqual(o.points, seed.points.map((p) => [p[0], p[1]]));
+});
+
+test("a driven handle is clean of the division's dust", () => {
+    // It is not snapped -- it is determined -- but the one division by five
+    // leaves a coordinate that ought to read 0.2 a few ulps away from it, and a
+    // readout showing 0.20000000000000004 is a readout nobody can use.
+    const seed = seedOf(PENTA_UP);
+    const next = moveHandle(seed, 0, [1, 3], HANDLE_ORIGIN, [0, 0]);
+    for (const v of [...next.origin, ...next.points.flat()])
+        assert.equal(v, Math.round(v * 5) / 5, `${v} is not a clean fifth`);
 });

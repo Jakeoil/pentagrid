@@ -9,7 +9,7 @@
 
 export {
     // the five points, in and out
-    PENTA_UP, REAL_PENTA, ASYMMETRIC, PRESETS, TENTHS, SEED_GENERATION,
+    PENTA_UP, REAL_PENTA, ASYMMETRIC, EVEN_PENTAD, PRESETS, TENTHS, SEED_GENERATION,
     wheelFromPoints, pointsOf, m10,
     // the operator family
     comb, stride, pair, inflate, deflate, halfUp, halfDown,
@@ -26,9 +26,13 @@ export {
 // where it is allowed to go, exactly -- a convex pentagon, about a seventh of
 // the pentagon's area, and on a REGULAR pentagon exactly the pentagon one
 // generation down.
+// `moveHandle` is the floater rule: one handle driven by the others so that
+// `spokeSum` -- five times the offset from the origin to the centroid -- holds
+// at a target. The reticulum's locked gamma, for this geometry.
 export {
     seedOf, spokesOf, wheelOf, wheelsOf, SEEDS,
     checkSeed, originFence, nearestOrigin, centroidOf, centered,
+    HANDLE_ORIGIN, spokeSum, moveHandle,
 } from "../src/math/seed.js";
 
 export { pentaflake, pWheelFromFlake, sharedEdge } from "../src/math/flake.js";

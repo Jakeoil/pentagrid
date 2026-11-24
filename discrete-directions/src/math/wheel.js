@@ -123,14 +123,55 @@ export const ASYMMETRIC = [
 ];
 
 /**
+ * An **even pentad**, and the best small one there is: five Gaussian integers
+ * that sum to **zero**, found by searching rather than chosen. `GEOMETRY.md` §8.
+ *
+ * Jake, 2026-11-23, having scaled the quadrille by five to drag its centroid
+ * onto the lattice: *my classic pentagon was not the ideal because it lacked an
+ * integral center.* It lacked two things, and this one has both.
+ *
+ *  - **The center is integral**, because the five sum to zero: the centroid is
+ *    (0, 0) and §5's sweet spot is a lattice point with no scaling at all. The
+ *    property survives the ladder — mode 5 has eigenvalue −1, so every wheel
+ *    successor sums to zero too, at every generation up and down.
+ *  - **It settles twelve times rounder than the quadrille.** The anisotropy
+ *    m₉/m₁, which no generation can wash out, is 0.2024% against the
+ *    quadrille's 2.5086%, so its rhombs come out within 0.37% of equilateral
+ *    and within a fifth of a degree of 72° and 36°, against 69.29–74.22°.
+ *
+ * And it is SMALL: reach √13 = 3.606, where the quadrille needs 17.205 once it
+ * has been scaled by five to make its centroid integral at all.
+ *
+ *     point      0       1       2        3        4
+ *              (3,2)   (0,2)  (-3,2)  (-2,-3)  (2,-3)
+ *     radius    3.606   2.000   3.606   3.606    3.606
+ *
+ * Lopsided at generation 0 — one spoke of 2 among four of √13 — and that is the
+ * wobble, mode 3, which dies like φ⁻⁴ a generation and is gone by the eighth.
+ * The seed looks worse than the quadrille and the tiling it makes looks better,
+ * which is the whole lesson of §8: what you see in the input figure is the mode
+ * that does not last.
+ * @type {readonly Pt[]}
+ */
+export const EVEN_PENTAD = [
+    [3, 2],
+    [0, 2],
+    [-3, 2],
+    [-2, -3],
+    [2, -3],
+];
+
+/**
  * The seeds the page offers, by name. Two symmetric and one not, which is the
  * point: the asymmetric one is the only one that can show the construction does
- * not reach for a mirror.
+ * not reach for a mirror — and one whose five sum to zero, which is the one
+ * whose centroid is already where the rhombs want it.
  * @type {Record<string, readonly Pt[]>}
  */
 export const PRESETS = {
     quadrille: PENTA_UP,
     asymmetric: ASYMMETRIC,
+    even: EVEN_PENTAD,
     real: REAL_PENTA,
 };
 
