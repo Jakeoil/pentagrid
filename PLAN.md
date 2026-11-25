@@ -3122,6 +3122,52 @@ speech — it is structural, and it is why the round trip below is stuck:
 - Even the **naming** favors the other side: the *star rhomb group* lives at the
   center of a `Pe5`, which is the sun. See the vocabulary correction above.
 
+**Settled exactly, and all six are powers of φ (2026-11-25).** The ratio above is
+not just a limit the counts creep up on. The full substitution matrix over the six
+P1 types has Perron eigenvalue **φ⁴ = 6.854102**, and its left eigenvector is the
+limiting census:
+
+    Pe1 = φ⁻²        Pe3 = φ⁻³        Pe5 = φ⁻³/√5
+    St1 = φ⁻⁴        St3 = φ⁻⁵        St5 = φ⁻⁵/√5
+
+So `Pe5:St5 = Pe3:St3 = Pe1:St1 = φ²` **per type**, not only in the aggregate —
+and the aggregate is `(φ/√5) : 1/(φ√5)`, which is φ² again. Both families share
+the internal ratio `1 : √5 : √5 φ`. This also finishes the "dominant eigenvalue
+exactly 6" remark above: 6 is the Pe-only block, and φ⁴ is the true rate once the
+St feedback is counted.
+
+**The classic palette collapses the six to three, and the collapse is clean.**
+`Pe3` yellow, `Pe1` orange, `Pe5` *and the whole St family* blue — `p1Palette:
+"classic"` in `view/pentagrid.ts`, painted by `rhombPentagons` in
+`geometry/decor.ts`. Blue is `φ⁻³/√5 + 1/(φ√5)`, which is exactly **φ⁻²**,
+because `φ⁻¹ + φ⁻³ = √5 φ⁻²`:
+
+        blue    Pe5 + St*   38.1966%   φ⁻²
+        yellow  Pe3         23.6068%   φ⁻³
+        orange  Pe1         38.1966%   φ⁻²
+
+**blue : yellow : orange = φ : 1 : φ**, over `2φ + 1 = φ³`. Blue and orange come
+out exactly equal: the ground is as common as the orange pentagons, tile for tile,
+and yellow is 1/φ of either.
+
+Weighted by the rhombs each color's tiles emit — the St family emits none, so blue
+draws only `Pe5`'s star group — the same census in units of 1/φ⁵ is blue **√5**
+thick and **no thin**, yellow **3** thick + **1** thin, orange **φ** thick + **2φ**
+thin, with the columns summing to φ⁴ thick and φ³ thin. So **thick : thin = φ**
+falls out of the palette as well, and **every thin rhomb is yellow or orange**.
+
+By *area* none of it is a power of φ — blue 31.6294%, yellow 26.1153%, orange
+42.2554%, where only `orange:yellow = φ` survives, those being two pentagons of
+one shape. The φ : 1 : φ result is a **count**, and §5.6-a's overhang is a second
+reason not to read it as paint: an orange pentagon straddles two tiles.
+
+Derivation, the matrix and the area weighting:
+[`wieringa-roof/HEXAHEDRA.md` Part 3](https://github.com/Jakeoil/wieringa-roof/blob/main/HEXAHEDRA.md#part-3--the-distribution)
+— subsections *The classic palette* and *The same census by color*. The warning
+there applies here: **a finite patch will not show these numbers.** Convergence is
+boundary-dominated, and a `Pe5` at generation 6 still reads `St3` at 6.25% against
+the limiting 9.02%. Verify against the eigenvector, never against a patch.
+
 **The counterweight, and the way out.** [[penrose-mosaic-rhomb-groups]] records
 that the St family emits no small rhombs "— in the dual it is the other way
 around". So second-class is an artefact of looking from the rhomb side: in the
