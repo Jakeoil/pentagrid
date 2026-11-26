@@ -11,7 +11,7 @@
 // concept. PLAN §12.
 import { createPentagrid } from "../view/pentagrid.js";
 import type { PentagridHandle, View } from "../view/pentagrid.js";
-import { mountFloatingReticulum } from "../view/controls.js";
+import { addSetupButtons, mountFloatingReticulum } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 import { convertView } from "../view/register.js";
 import { BUILD_ID } from "../build-id.js";
@@ -150,13 +150,23 @@ if (aHost && bHost && bar && grid) {
         l.appendChild(document.createTextNode(text));
         return l;
     };
-    const mergeBox = document.createElement("input");
-    mergeBox.type = "checkbox";
-    mergeBox.className = "moire-merge";
-    const mergeLabel = label(" merge");
-    mergeLabel.title = "Stack the two canvases into one of method's size and multiply "
-        + "them together. This is where the moiré is.";
-    mergeLabel.prepend(mergeBox);
+    /**
+     * The merge state. It used to be a checkbox in the bar at the top of the
+     * page, which meant scrolling past two panels to reach it — Jake,
+     * 2026-11-26: *"All I wanted to do is not have to scroll up to the top for
+     * merge split."* Two goes at moving the LINE both broke the layout, which
+     * counts grid rows; this is his third answer and the right one:
+     *
+     * > *"on the split screen, each canvas has a heading... Put the merge
+     * > button on each. Now, when they're merged, put a header on that canvas.
+     * > Put a split button on that. also, on these headers, also put and
+     * > export svg button, which will export it's image."*
+     *
+     * So the control sits ON the heading of the thing it acts on, which is
+     * already in the right place and needs no geometry at all: merge on each
+     * of the two, split on the composite's.
+     */
+    let merged = false;
 
     // Jake: "I lost the reticulae. Maybe a reset button." Nothing ON a panel
     // can rescue it — the thing you would press is the thing that is lost —
@@ -196,14 +206,53 @@ if (aHost && bHost && bar && grid) {
     // panels and their canvases are taller than a screen. Moving it down the
     // page was the wrong fix and broke the merged layout, which counts grid
     // rows; staying put and not scrolling away is the right one.
-    bar.append(mergeLabel, findRet, resetAll, note);
+    bar.append(findRet, resetAll, note);
+
+    /**
+     * One header per canvas, carrying what acts on THAT canvas.
+     *
+     * The caption was text; it is now text plus two buttons, so the class it
+     * names and the things you do to it are in one place. Merged, A's header
+     * becomes the composite's — it spans both columns, says what the two are,
+     * and its button says `split`.
+     */
+    // Kept in a Map rather than found with `querySelector`: the DOM stub hands
+    // back a fresh element for every query, so a lookup would never find the
+    // span it just made and the header would rebuild itself on each draw —
+    // invisible in a browser, and invisible to a test for the opposite reason.
+    const heads = new Map<string, { el: HTMLElement; text: HTMLElement }>();
+    const headerOf = (id: string) => {
+        const had = heads.get(id);
+        if (had) return had;
+        const el = byId(id);
+        if (!el) return null;
+        el.textContent = "";
+        el.className = "moire-head";
+        const text = document.createElement("span");
+        text.className = "cap-text";
+        el.appendChild(text);
+        const made = { el, text };
+        heads.set(id, made);
+        return made;
+    };
+    const headButton = (id: string, cls: string, onClick: () => void) => {
+        const h = headerOf(id);
+        if (!h) return null;
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `head-btn ${cls}`;
+        b.addEventListener("click", onClick);
+        h.el.appendChild(b);
+        return b;
+    };
 
     const say = () => {
         if (!a || !b) return;
         const sa = liClass(a), sb = liClass(b);
         const cap = (id: string, name: string, h: PentagridHandle, s: number) => {
-            const el = byId(id);
-            if (!el) return;
+            const head = headerOf(id);
+            if (!head) return;
+            const el = head.text;
             // λ is the generation AND the normalization — it used to report the
             // generation alone, so a side scaled by n said nothing about it and
             // the shrink from the inflation looked like n's doing. Shown as
@@ -219,8 +268,26 @@ if (aHost && bHost && bar && grid) {
                       : m !== 0 ? `, λ = φ${sup(m)}` : "";
             el.textContent = `${name} — class ${sayClass(s)}${lam}`;
         };
-        cap("moire-a-caption", "A", a, sa);
+        if (merged) {
+            // One header for one picture: what the composite IS, which is the
+            // two classes multiplied together on the page.
+            const head = headerOf("moire-a-caption");
+            if (head) {
+                head.text.textContent =
+                    `A × B — class ${sayClass(sa)} over class ${sayClass(sb)}`;
+            }
+        } else {
+            cap("moire-a-caption", "A", a, sa);
+        }
         cap("moire-b-caption", "B", b, sb);
+        for (const t of toggles) {
+            t.textContent = merged ? "split" : "merge";
+            t.title = merged
+                ? "Unstack them: two canvases side by side again, each with its "
+                + "own header."
+                : "Stack the two canvases into one of method's size and multiply "
+                + "them together. This is where the moiré is.";
+        }
         // What the next deflation would do to A's class, which is the whole
         // arithmetic of the page in one line.
         const next = (-2 * sa) - Math.floor(-2 * sa);
@@ -230,6 +297,50 @@ if (aHost && bHost && bar && grid) {
     // Each side owns itself: a change to either one only re-reads the caption.
     // Nothing is put back, because nothing is held — which is the whole of
     // what retiring the link means.
+    /**
+     * The headers' own buttons.
+     *
+     * Two per canvas: the merge/split toggle, whose word is whichever state
+     * you are not in, and an export that writes THAT picture. Merged, B's
+     * header is hidden by the stylesheet and A's is the composite's, so the
+     * toggle you can see always belongs to what is on screen.
+     */
+    const toggles: HTMLButtonElement[] = [];
+    for (const id of ["moire-a-caption", "moire-b-caption"]) {
+        const t = headButton(id, "head-merge", () => setMerged(!merged));
+        if (t) toggles.push(t);
+    }
+
+    /**
+     * One SVG of the composite: A's document with B's layers laid into it,
+     * multiplied.
+     *
+     * The two canvases are the same size and in register — that is the page's
+     * whole invariant — so their documents share a frame and B's groups can be
+     * dropped into A's between the same coordinates. `mix-blend-mode` on the
+     * group is what the screen is already doing to the pixels.
+     */
+    const compositeSvg = (): { id: string; svg: string }[] => {
+        if (!a || !b) return [];
+        const fa = a.svg()[0], fb = b.svg()[0];
+        if (!fa || !fb) return [];
+        const inner = fb.svg.slice(fb.svg.indexOf(">") + 1, fb.svg.lastIndexOf("</svg>"));
+        const at = fa.svg.lastIndexOf("</svg>");
+        return [{
+            id: "merged",
+            svg: `${fa.svg.slice(0, at)}  <g style="mix-blend-mode: multiply">`
+                + `${inner}</g>\n${fa.svg.slice(at)}`,
+        }];
+    };
+
+    for (const [id, side] of [["moire-a-caption", () => a], ["moire-b-caption", () => b]] as const) {
+        const h = headerOf(id);
+        if (!h) continue;
+        addSetupButtons(h.el, {
+            svg: () => (merged ? compositeSvg() : (side()?.svg() ?? [])),
+        }, ["svg"]);
+    }
+
     A.gamma.onChange(say);
     B.gamma.onChange(say);
 
@@ -238,11 +349,13 @@ if (aHost && bHost && bar && grid) {
     // No rebuild: createPentagrid installs a ResizeObserver whenever the canvas
     // size is not explicit, so moving the viewports into one cell with CSS is
     // enough — both re-measure and redraw on their own.
-    mergeBox.addEventListener("change", () => {
-        grid.classList.toggle("merged", mergeBox.checked);
+    const setMerged = (on: boolean) => {
+        merged = on;
+        grid.classList.toggle("merged", on);
         // The stack only means anything in register.
-        if (mergeBox.checked) relay(() => b, () => a)(A.getView());
-    });
+        if (on) relay(() => b, () => a)(A.getView());
+        say();
+    };
 
     // ── The two panels, laid out the same ─────────────────────────────
     //
@@ -313,8 +426,7 @@ if (aHost && bHost && bar && grid) {
     });
 
     resetAll.addEventListener("click", () => {
-        mergeBox.checked = false;
-        grid.classList.remove("merged");
+        setMerged(false);
         A.reset();
         B.reset();
         aRet.panel.resetPlace();

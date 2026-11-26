@@ -44,7 +44,17 @@ test("converting a view between generations keeps the same world rectangle", () 
 // so it is imported once here and the tests below drive what it built.
 const page = await import("../dist/app/moire.js");
 const doc = globalThis.document;
-const cap = (id) => doc.getElementById(id).textContent ?? "";
+// The caption is a HEADER now -- text plus the buttons that act on that
+// canvas -- so the words live in a span rather than on the element.
+const cap = (id) => {
+    const el = doc.getElementById(id);
+    const text = (el.children ?? []).find((c) => String(c.className) === "cap-text");
+    return (text ?? el).textContent ?? "";
+};
+/** A button on a canvas's header, by class. */
+const headBtn = (id, cls) => (doc.getElementById(id).children ?? [])
+    .find((c) => String(c.className).includes(cls));
+const toggle = (id = "moire-a-caption") => headBtn(id, "head-merge");
 const control = (cls) => inputs.find((i) => i.className === cls);
 const fire = (el) => (el.on?.change ?? []).forEach((fn) => fn());
 const click = (el) => (el.on?.click ?? []).forEach((fn) => fn());
@@ -126,17 +136,34 @@ test("the link, the step count and the n box are gone", () => {
     page.sideB.gamma.setNormalization(0);
 });
 
-test("the merge switch stacks the canvases, and only while it is on", () => {
+test("merge is on each canvas's header, and split on the composite's", () => {
+    // Jake, 2026-11-26: "on the split screen, each canvas has a heading...
+    // Put the merge button on each. Now, when they're merged, put a header on
+    // that canvas. Put a split button on that." The control sits ON the thing
+    // it acts on, which is the answer that needed no layout: two goes at
+    // moving a full-width line between the panels and the canvases both broke
+    // the grid, which counts rows.
     const grid = doc.getElementById("moire-grid");
-    const merge = control("moire-merge");
-    assert.ok(merge, "no merge control");
     assert.equal(grid.classList.contains("merged"), false, "merged before anything was clicked");
-    merge.checked = true;
-    fire(merge);
-    assert.equal(grid.classList.contains("merged"), true, "the merge switch did not stack them");
-    merge.checked = false;
-    fire(merge);
+    for (const id of ["moire-a-caption", "moire-b-caption"]) {
+        assert.ok(toggle(id), `no merge button on ${id}`);
+        assert.equal(toggle(id).textContent, "merge");
+    }
+
+    // Either one merges, and then both read `split` -- the one you can see
+    // always belongs to what is on screen, B's header being hidden by the
+    // stylesheet while they are stacked.
+    click(toggle("moire-b-caption"));
+    assert.equal(grid.classList.contains("merged"), true, "the merge button did not stack them");
+    assert.equal(toggle("moire-a-caption").textContent, "split");
+    assert.equal(toggle("moire-b-caption").textContent, "split");
+    // And the composite says what it is.
+    assert.match(cap("moire-a-caption"), /^A × B — class/);
+
+    click(toggle("moire-a-caption"));
     assert.equal(grid.classList.contains("merged"), false, "the canvases stayed stacked");
+    assert.equal(toggle("moire-a-caption").textContent, "merge");
+    assert.match(cap("moire-a-caption"), /^A — class/);
 });
 
 test("reset page puts the whole page back, both sides and the merge", () => {
@@ -146,7 +173,7 @@ test("reset page puts the whole page back, both sides and the merge", () => {
     // one switch left in the bar, and two sides to put back.
     const reset = button("moire-reset");
     assert.ok(reset, "no reset-page button in the bar");
-    const merge = control("moire-merge"), grid = doc.getElementById("moire-grid");
+    const grid = doc.getElementById("moire-grid");
 
     // Put everything out of its default state: A off Penrose, B deflated
     // twice and scaled, the canvases stacked.
@@ -154,14 +181,14 @@ test("reset page puts the whole page back, both sides and the merge", () => {
     page.sideB.gamma.deflate();
     page.sideB.gamma.deflate();
     page.sideB.gamma.setNormalization(3);
-    merge.checked = true; fire(merge);
+    click(toggle());
     assert.match(cap("moire-a-caption"), /class 1\/4/);
     assert.equal(grid.classList.contains("merged"), true);
 
     click(reset);
 
-    assert.equal(merge.checked, false, "merge did not come back off");
     assert.equal(grid.classList.contains("merged"), false, "the canvases stayed stacked");
+    assert.equal(toggle().textContent, "merge", "the button still says split");
     // Both tilings back to the page's own γ, which is Penrose, and both at
     // their own default generation -- the same one, now that B is not held
     // below A.
@@ -451,47 +478,80 @@ test("every row this page names is a row the panel builds", () => {
     }
 });
 
-test("the common line sticks, so merge is reachable without scrolling", () => {
-    // Jake, 2026-11-26: "All I wanted to do is not have to scroll up to the
-    // top for merge split." The line was already in the right place in the
-    // reading order -- above both panels, which is where a page-wide control
-    // belongs -- and what it was not was REACHABLE: the two panels and their
-    // canvases are taller than a screen.
-    //
-    // The first attempt moved it down the page instead, between the panel pair
-    // and the canvas pair. That broke the merged layout, which counts grid
-    // rows -- `.moire.merged .viewport { grid-row: 3 }` over figures with
-    // `display: contents` -- so inserting a row renumbered everything and the
-    // page came apart. Sticking it is the fix that changes no geometry.
-    const css = readFileSync("site.css", "utf8");
-    const rule = css.slice(css.indexOf(".moire-bar {"));
-    const body = rule.slice(0, rule.indexOf("}"));
-    assert.match(body, /position:\s*sticky/, "the common line scrolls away");
-    assert.match(body, /top:\s*0/, "sticky to nothing");
-    assert.match(body, /background:/, "a sticky bar needs a ground to cover what passes under it");
-
-    // Everything page-wide is on it, merge included.
-    const merge = control("moire-merge");
-    assert.ok(merge, "no merge control");
-    const classes = (doc.getElementById("moire-bar").children ?? []).flatMap(
-        (c) => [String(c.className), ...(c.children ?? []).map((k) => String(k.className))]);
-    for (const want of ["moire-merge", "moire-find", "moire-reset"]) {
-        assert.ok(classes.includes(want), `${want} is not on the common line`);
+test("each header carries an export of its own picture", () => {
+    // Jake: "also, on these headers, also put and export svg button, which
+    // will export it's image." A side exports that side; merged, the header
+    // is the composite's and so is its file -- A's document with B's layers
+    // laid into it and multiplied, which is what the screen is doing to the
+    // pixels. The two canvases are the same size and in register, which is
+    // the page's own invariant and what lets one frame hold both.
+    for (const id of ["moire-a-caption", "moire-b-caption"]) {
+        const btn = headBtn(id, "ret-bump");
+        assert.ok(btn, `no export button on ${id}`);
+        assert.equal(btn.textContent, "export svg");
     }
 
-    // And the merged layout is untouched: the figures' own rows still decide it.
-    const html = readFileSync("moire.html", "utf8");
-    const fig = html.indexOf("<figure>");
-    assert.ok(html.indexOf('id="moire-a-panel"') > fig,
-              "a panel came out of its figure, which is what renumbered the rows");
-    assert.ok(html.indexOf('id="moire-bar"') < html.indexOf('id="moire-grid"'),
-              "the line is inside the grid again");
+    const one = page.sideA.svg();
+    assert.equal(one.length, 1, "a side is one file");
+    const groups = (svg) => [...svg.matchAll(/<g id="([^"]*)"/g)].map((m) => m[1]);
+    assert.ok(groups(one[0].svg).length > 0, "the side's file has no layers");
 
-    const grid = doc.getElementById("moire-grid");
-    merge.checked = true;
-    fire(merge);
-    assert.equal(grid.classList.contains("merged"), true, "the switch stopped working");
-    merge.checked = false;
-    fire(merge);
-    assert.equal(grid.classList.contains("merged"), false);
+    // Merged, the file is both sides in one frame.
+    click(toggle());
+    const both = page.sideA.svg()[0].svg + page.sideB.svg()[0].svg;
+    assert.ok(both.length > one[0].svg.length, "the composite should carry both");
+    click(toggle());
+});
+
+test("the composite file is one document, with B multiplied over A", () => {
+    const src = readFileSync("src/app/moire.ts", "utf8");
+    assert.ok(src.includes("mix-blend-mode: multiply"),
+              "the composite does not multiply, which is what the screen does");
+    assert.ok(src.includes("compositeSvg"), "no composite export at all");
+    // One <svg>, not two concatenated: B's document is unwrapped first.
+    const at = src.indexOf("const compositeSvg");
+    const body = src.slice(at, src.indexOf("\n    };", at));
+    assert.ok(body.includes("lastIndexOf(\"</svg>\")"),
+              "B is not unwrapped before it is laid in");
+});
+
+test("merged, every item has a row and a column of its own", () => {
+    // The composite came up with no header because the spanning caption was
+    // given a column and no row: the grid fills three rows DOWN each column
+    // (`grid-auto-flow: column`), so a full-width item with an auto row lands
+    // wherever the algorithm can fit it, which was not row 2. Jake: "The
+    // merged canvas should have a header with the split control and export
+    // svg." Hiding B's caption shifts its column too, which is the same
+    // hazard from the other end.
+    //
+    // So the merged state places all five surviving items explicitly, and
+    // this is that rule written down -- the page's own layout counts rows,
+    // and anything it leaves to auto-flow it has already got wrong twice.
+    const css = readFileSync("site.css", "utf8");
+    const rules = {};
+    for (const m of css.matchAll(/(\.moire\.merged [^{]+)\{([^}]*)\}/g)) {
+        rules[m[1].trim()] = m[2];
+    }
+    const want = {
+        ".moire.merged .layer-panel": /grid-row: 1/,
+        ".moire.merged figure:first-of-type .layer-panel": /grid-column: 1/,
+        ".moire.merged figure:last-of-type .layer-panel": /grid-column: 2/,
+        ".moire.merged figure:first-of-type figcaption": /grid-row: 2;\s*grid-column: 1 \/ -1/,
+        ".moire.merged figure:last-of-type figcaption": /display: none/,
+        ".moire.merged .viewport": /grid-row: 3;\s*grid-column: 1 \/ -1/,
+    };
+    for (const [sel, re] of Object.entries(want)) {
+        assert.ok(sel in rules, `no merged rule for ${sel}`);
+        assert.match(rules[sel], re, `${sel} is not placed`);
+    }
+
+    // And the header that survives is the one carrying `split` and the export.
+    click(toggle());
+    const head = doc.getElementById("moire-a-caption");
+    const kids = (head.children ?? []).map((c) => String(c.className));
+    assert.ok(kids.some((k) => k.includes("cap-text")), "the composite has no text");
+    assert.ok(kids.some((k) => k.includes("head-merge")), "no split button on it");
+    assert.ok(kids.some((k) => k.includes("ret-bump")), "no export button on it");
+    assert.equal(toggle().textContent, "split");
+    click(toggle());
 });

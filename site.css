@@ -510,6 +510,41 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 .moire-note { font-family: monospace; color: #888; margin-left: auto; }
 .moire-find, .moire-reset { font-size: 11px; padding: 2px 7px; cursor: pointer; }
 
+/* The per-canvas headers. Jake, 2026-11-26: "each canvas has a heading, A
+   class 0 penrose and B class 0 penrose. Put the merge button on each... when
+   they're merged, put a header on that canvas. Put a split button on that.
+   also, on these headers, also put and export svg button."
+
+   The control sits on the thing it acts on, which is the answer that needed
+   no layout at all — two goes at moving a full-width LINE both broke the grid,
+   which counts rows. */
+.moire-head {
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px; flex-wrap: wrap;
+}
+.head-btn {
+    font: inherit; font-size: 11px; padding: 1px 8px;
+    border: 1px solid #ccc; border-radius: 3px;
+    background: #fff; color: #444; cursor: pointer;
+}
+.head-btn:hover { background: #eee; border-color: #999; }
+/* Merged there is one picture, so there is one header: A's, spanning both
+   columns and saying what the composite is. B's goes with its canvas.
+
+   EVERY ITEM IS PLACED HERE, nothing left to auto-flow. The grid fills three
+   rows DOWN each column (`grid-auto-flow: column`), and the first draft gave
+   the spanning header a column and no row — so the algorithm put it wherever
+   a full-width item would fit, which was not row 2, and the composite came up
+   with no header at all. Jake: "The merged canvas should have a header with
+   the split control and export svg." Hiding B's caption shifts its column
+   too, which is the other half of the same hazard. An explicit row and column
+   on each of the five surviving items cannot be shifted by either. */
+.moire.merged .layer-panel { grid-row: 1; }
+.moire.merged figure:first-of-type .layer-panel { grid-column: 1; }
+.moire.merged figure:last-of-type .layer-panel { grid-column: 2; }
+.moire.merged figure:first-of-type figcaption { grid-row: 2; grid-column: 1 / -1; }
+.moire.merged figure:last-of-type figcaption { display: none; }
+
 /* Merged: both viewports in the one grid cell, at method's size, the upper
    one transparent so the lower shows through and multiplied so the overlap
    darkens. The panels keep their columns above it. */
