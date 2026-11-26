@@ -14,9 +14,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
-    PD_ORIGIN, SNAPS, centerMoves, createPentadiculum, gridBoxes,
-    mountFloatingPentadiculum, mountPentadiculum, setBox, snapForSeed,
-    snapStep, snapped,
+    PD_ORIGIN, SNAPS, bindDrops, bindScroll, centerMoves, createPentadiculum,
+    gridBoxes, mountFloatingPentadiculum, mountPentadiculum, setBox,
+    snapForSeed, snapStep, snapped,
 } from "../lib/pentadiculum.js";
 import {
     EDGE_INK, GRID_FIFTHS, GRID_LEVELS, GRID_OVER, GRID_OVER_ALPHA,
@@ -73,6 +73,17 @@ function element(tag = "div") {
     };
     return node;
 }
+
+/** The preset chips, which `reset` is not: it wears the chip class and `pd-verb`
+ *  with it, the way the Reticulum's `restore` sits among its presets. */
+const chips = (m) => m.element.all().filter((c) =>
+    c.className?.startsWith?.("pd-preset") && !c.className.includes("pd-verb"));
+
+/** A control by its text, over the whole mount. */
+const byText = (m, text) => m.element.all().find((c) => c.textContent === text);
+
+/** A dropdown by the class it carries. */
+const dropOf = (m, cls) => m.element.all().find((c) => c.className === cls);
 
 /** A canvas element whose context records. */
 function canvasStub() {
@@ -278,11 +289,13 @@ test("the inline mount builds its own canvas and controls", () => {
     assert.ok(kinds.includes("CANVAS"), kinds.join(" "));
     // face and edges, in the settings fold -- the preset is BUTTONS now
     assert.equal(kinds.filter((k) => k === "SELECT").length, 2, kinds.join(" "));
-    // four presets, reset, and extrapolate's minus, plus and use
-    assert.equal(kinds.filter((k) => k === "BUTTON").length, 8, kinds.join(" "));
+    // presets and settings, four chips and reset inside them, and the two
+    // scrollable boxes -- which are buttons, so that a keyboard can reach them
+    assert.equal(kinds.filter((k) => k === "BUTTON").length, 9, kinds.join(" "));
     // snap, fine, actual, closest, vectors -- three sections of checkboxes
     assert.equal(kinds.filter((k) => k === "INPUT").length, 5, kinds.join(" "));
-    assert.equal(kinds.filter((k) => k === "DETAILS").length, 1, "the settings fold");
+    assert.equal(kinds.filter((k) => k === "DETAILS").length, 0,
+        "no fold: settings is a dropdown now, the Reticulum's way");
     assert.equal(seen.length, 1, "it draws and announces once on mount");
     assert.deepEqual(m.seed().origin, [0, 0]);
 
@@ -365,7 +378,7 @@ test("the presets are a row of buttons, and the current one is marked", () => {
     // button with choices under.* One per choice, built from PRESETS, and
     // `custom` is not a choice -- it is no button being current.
     const m = mountPentadiculum(element(), { document: stubDocument() });
-    const presets = m.element.all().filter((c) => c.className?.startsWith?.("pd-preset"));
+    const presets = chips(m);
     assert.deepEqual(presets.map((b) => b.textContent),
         ["classic", "asymmetric", "even", "real"],
         "the labels, not the keys: Jake calls the quadrille classic");
@@ -389,8 +402,8 @@ test("the presets are a row of buttons, and the current one is marked", () => {
 
 test("reset reloads the preset last chosen, not the one the seed is nearest", () => {
     const m = mountPentadiculum(element(), { document: stubDocument() });
-    const presets = m.element.all().filter((c) => c.className?.startsWith?.("pd-preset"));
-    const reset = m.element.all().find((c) => c.textContent === "reset");
+    const presets = chips(m);
+    const reset = byText(m, "reset");
 
     presets[2].fire("click");                       // even
     assert.deepEqual(m.seed().points.map((p) => [...p]), EVEN_PENTAD.map((p) => [...p]));
@@ -451,6 +464,34 @@ test("the floating mount is a panel on the body, dragged by its bar", () => {
     m.toggle();
     assert.equal(m.panel.hidden, false);
     assert.equal(m.isOpen(), true);
+});
+
+test("the floating panel has no status line, and the mount still can", () => {
+    // Jake, 2026-11-26: *the "origin, centroid" status should not be in the
+    // floating part. It can be moved below the panel button, but it must be
+    // fixed size so the output controls dont jump.* It was the first thing in
+    // the panel, so a decimal in the origin moved every control under it down
+    // a line. The page keeps it now, under the anchored bar, at a fixed
+    // height; the panel starts straight in on the controls.
+    const panel = mountFloatingPentadiculum({ document: stubDocument() });
+    const { body } = panelParts(panel);
+    const reads = body.all().filter((c) => c.className === "pentadiculum-read");
+    assert.equal(reads.length, 0, "no status in the panel");
+    assert.equal(body.children[0].children[1].className, "pentadiculum-ctl",
+        "the row of buttons comes straight after the canvas");
+
+    // the mount itself still carries one unless a host says otherwise, which
+    // is what a page that has nowhere else to put it needs
+    const kept = mountPentadiculum(element(), { document: stubDocument() });
+    assert.ok(kept.element.all().some((c) => c.className === "pentadiculum-read"),
+        "the plain mount keeps its status");
+    const dropped = mountPentadiculum(element(),
+        { document: stubDocument(), read: false });
+    assert.equal(dropped.element.all()
+        .filter((c) => c.className === "pentadiculum-read").length, 0);
+    // and nothing else went with it
+    assert.equal(dropped.element.all().filter((c) => c.tagName === "BUTTON").length,
+        kept.element.all().filter((c) => c.tagName === "BUTTON").length);
 });
 
 test("the panel's bar names the SEED, and says more when it is folded", () => {
@@ -1158,59 +1199,118 @@ test("the draw reports its boxes, so the row cannot disagree with the canvas", (
     assert.equal(pd.view().fifths, false, "and the SETTING was never touched");
 });
 
-test("the extrapolate row walks half generations, and use adopts one", () => {
-    // The floating panel has to be a working alternative to the page's own
-    // column, and the column had this row. `view.extrapolate` was always the
-    // instrument's, so the controls for it belong here too -- under the page's
-    // name for it, because the two rows have to read alike.
-    const rungs = [];
+/** The two scrollable fields on the bottom line, by the order they are built. */
+const fields = (m) => {
+    const boxes = m.element.all().filter((c) => c.className === "pd-box");
+    return { index: boxes[0], order: boxes[1] };
+};
+
+test("the index field MOVES the five, and there is no use button", () => {
+    // Jake, 2026-11-25: *we don't need the use button. Just move the handles to
+    // their appointed area. Just change the output dynamically for both.* So a
+    // step is a new seed, which is how a page hears it, and the handles stay
+    // live because the figure is never derived.
+    //
+    // And the control is a scrollable box rather than a pair of buttons:
+    // *two fields with scrollable values... much like the I, lambda and phi
+    // fields of the reticulum.*
+    const seen = [];
     const m = mountPentadiculum(element(), {
         document: stubDocument(),
-        onViewChange: (v) => rungs.push(v.extrapolate),
+        onChange: (s) => seen.push(copy(s).points),
     });
     const buttons = m.element.all().filter((c) => c.tagName === "BUTTON");
-    const down = buttons.find((b) => b.textContent === "−");
-    const up = buttons.find((b) => b.textContent === "+");
-    const use = buttons.find((b) => b.textContent === "use");
-    const rung = m.element.all().find((c) => c.className === "step");
+    assert.equal(buttons.some((b) => b.textContent === "use"), false,
+        "the button is gone");
+    assert.equal(buttons.some((b) => b.textContent === "−"), false,
+        "and so are the steppers: the box is the control");
+    const { index: rung } = fields(m);
     assert.equal(rung.textContent, "0");
+    assert.equal(m.element.all().some((c) => c.textContent === "index"), true,
+        "`index`, which is what Jake renamed extrapolate to");
 
-    up.fire("click");
-    assert.equal(m.pentadiculum.view().extrapolate, 0.5, "half a generation");
-    assert.equal(rung.textContent, "+0.5", "signed, so +0.5 and -0.5 differ");
-    down.fire("click");
-    down.fire("click");
-    assert.equal(m.pentadiculum.view().extrapolate, -0.5);
-    assert.equal(rung.textContent, "-0.5");
-    assert.deepEqual(rungs, [0.5, 0, -0.5], "and the page was told each time");
-    assert.equal(m.element.all().some((c) => c.textContent === "extrapolate"), true,
-        "the group is called what the page calls it");
-    assert.equal(m.element.all().some((c) => c.textContent === "ladder"), false);
-
-    // bounded at both ends
-    for (let i = 0; i < 20; i++) down.fire("click");
-    assert.equal(m.pentadiculum.view().extrapolate, -4, "as far down as it goes");
-    for (let i = 0; i < 30; i++) up.fire("click");
-    assert.equal(m.pentadiculum.view().extrapolate, 6, "and as far up");
-
-    // `use` adopts the shown figure and comes back to the base rung
     const was = copy(m.seed()).points;
-    up.fire("click");                           // nothing: already at the top
-    use.fire("click");
-    assert.equal(m.pentadiculum.view().extrapolate, 0, "back to the five");
+    rung.fire("click");                          // a click is one step up
+    assert.equal(rung.textContent, "+0.5", "signed, so +0.5 and -0.5 differ");
+    assert.notDeepEqual(m.seed().points, was, "the five moved");
+    assert.equal(m.pentadiculum.view().extrapolate, 0,
+        "and nothing is derived: the view stays on the base rung");
+    assert.deepEqual(seen.at(-1), copy(m.seed()).points,
+        "the page was handed the new five");
+
+    // and back: a walk is reversible, so the figure returns exactly
+    rung.fire("wheel", { deltaY: 1 });            // scroll down
     assert.equal(rung.textContent, "0");
-    assert.notDeepEqual(m.seed().points, was, "and the five are the rung's");
-    assert.equal(rungs.at(-1), 0);
+    assert.deepEqual(m.seed().points, was, "back where it started");
+    rung.fire("keydown", { key: "ArrowDown" });    // and the keys work
+    assert.equal(rung.textContent, "-0.5");
+    rung.fire("wheel", { deltaY: -1 });
+    assert.equal(rung.textContent, "0", "scrolling up is up");
+
+    // bounded at both ends, and the count is the walk
+    for (let i = 0; i < 20; i++) rung.fire("wheel", { deltaY: 1 });
+    assert.equal(rung.textContent, "-4", "as far down as it goes");
+    for (let i = 0; i < 30; i++) rung.fire("wheel", { deltaY: -1 });
+    assert.equal(rung.textContent, "+6", "and as far up");
 });
 
-test("use keeps the adopted figure where it was drawn, not at the origin", () => {
-    // In spoke coordinates the rung is measured from the origin, so adopting it
-    // without putting it back would teleport the pentagon.
+test("the order field is the output's generation, held here for the page", () => {
+    // Jake, 2026-11-25: *we're going to move the gen functionality to the
+    // pentadiculum from the output.* Nothing here draws a patch, so the field
+    // carries the number in the view and the page draws off `onViewChange`.
+    const views = [];
+    const m = mountPentadiculum(element(), {
+        document: stubDocument(),
+        onViewChange: (v) => views.push(v.order),
+    });
+    const { order } = fields(m);
+    assert.equal(order.textContent, "2", "the page's own default");
+    assert.equal(m.pentadiculum.view().order, 2);
+    assert.equal(m.element.all().some((c) => c.textContent === "order"), true);
+
+    order.fire("click");
+    assert.equal(order.textContent, "3");
+    assert.equal(m.pentadiculum.view().order, 3);
+    assert.equal(views.at(-1), 3, "and the page was told");
+
+    order.fire("wheel", { deltaY: 1 });
+    assert.equal(order.textContent, "2");
+    // whole steps, and bounded where the page's slider always stopped
+    for (let i = 0; i < 20; i++) order.fire("wheel", { deltaY: -1 });
+    assert.equal(order.textContent, "6");
+    for (let i = 0; i < 20; i++) order.fire("wheel", { deltaY: 1 });
+    assert.equal(order.textContent, "0");
+
+    // and a walk does not touch it: they are two numbers on one line
+    fields(m).index.fire("click");
+    assert.equal(order.textContent, "0");
+});
+
+test("the count is a walk, so a seed from anywhere else resets it", () => {
+    // "+2" measured from a pentagon that has been replaced is a count of
+    // nothing, so a preset, a drag or a seed handed in puts it back to 0.
+    const m = mountPentadiculum(element(), { document: stubDocument() });
+    const rung = fields(m).index;
+    rung.fire("click");
+    rung.fire("click");
+    assert.equal(rung.textContent, "+1");
+
+    m.set({ points: PENTA_UP.map((p) => [p[0], p[1]]), origin: [0, 0] });
+    assert.equal(rung.textContent, "0", "a seed handed in is a fresh figure");
+
+    rung.fire("click");
+    assert.equal(rung.textContent, "+0.5");
+    byText(m, "reset").fire("click");
+    assert.equal(rung.textContent, "0", "and so is a preset");
+});
+
+test("a walk keeps the figure where it was drawn, not at the origin", () => {
+    // The rung is reached in SPOKE coordinates, so walking without putting the
+    // figure back would teleport it to the origin -- and `walkSeed` pins the
+    // centroid, so it grows in place rather than sliding off.
     const m = mountPentadiculum(element(), { document: stubDocument() });
     m.set({ points: PENTA_UP.map((p) => [p[0] + 3, p[1] - 2]), origin: [3, -2] });
-    const buttons = m.element.all().filter((c) => c.tagName === "BUTTON");
-    buttons.find((b) => b.textContent === "+").fire("click");
-    buttons.find((b) => b.textContent === "use").fire("click");
+    fields(m).index.fire("click");
     assert.deepEqual(m.seed().origin, [3, -2], "the origin did not move");
     const mid = centroidOf(m.seed().points);
     assert.ok(Math.hypot(mid[0] - 3, mid[1] - (-2)) < 1.5,
@@ -1234,16 +1334,14 @@ test("every canvas carries the class its stylesheet styles, adopted or made", ()
 });
 
 
-test("the panel's settings fold carries face and edges", () => {
+test("the settings drop carries face and edges", () => {
     // Jake, 2026-11-24: *settings and its unfold missing.* They were the page's
     // alone, so the floating panel could not reach them and was less than the
-    // column it replaces.
+    // column it replaces. A dropdown since 2026-11-25, the Reticulum's way.
     const m = mountPentadiculum(element(), { document: stubDocument() });
-    const fold = m.element.all().find((c) => c.tagName === "DETAILS");
-    assert.ok(fold, "there is a fold");
-    assert.equal(fold.className, "fold");
-    assert.equal(fold.children[0].tagName, "SUMMARY");
-    assert.equal(fold.children[0].textContent, "settings");
+    const drop = dropOf(m, "pd-drop pd-settings");
+    assert.ok(drop, "there is a settings drop");
+    assert.equal(drop.hidden, true, "folded away until asked for");
 
     const picks = m.element.all().filter((c) => c.tagName === "SELECT");
     assert.equal(picks.length, 2, "face and edges, and nothing else is a select");
@@ -1260,6 +1358,67 @@ test("the panel's settings fold carries face and edges", () => {
     picks[1].value = "none";
     picks[1].fire("change");
     assert.equal(m.pentadiculum.view().edge, "none");
+    assert.deepEqual(drop.all().filter((c) => c.tagName === "SELECT").length, 2,
+        "and they are IN the drop, so folding it puts them away");
+});
+
+test("presets and settings are dropdown buttons, one open at a time", () => {
+    // Jake, 2026-11-25: *when you press either of them dropdown unfolds from
+    // the bottom... push presets or settings again to hide them or another
+    // dropdown button.* The Reticulum's pair, and `bindDrops` is the behavior.
+    const m = mountPentadiculum(element(), { document: stubDocument() });
+    const presetsBtn = byText(m, "presets");
+    const settingsBtn = byText(m, "settings");
+    const presetDrop = dropOf(m, "pd-drop");
+    const settingsDrop = dropOf(m, "pd-drop pd-settings");
+    assert.equal(presetDrop.hidden, true, "both folded to begin with");
+    assert.equal(settingsDrop.hidden, true);
+    assert.equal(presetsBtn.className, "pd-bump");
+
+    presetsBtn.fire("click");
+    assert.equal(presetDrop.hidden, false, "it unfolds");
+    assert.equal(presetsBtn.className, "pd-bump on", "and says so");
+
+    settingsBtn.fire("click");
+    assert.equal(presetDrop.hidden, true, "the other one folds it away");
+    assert.equal(settingsDrop.hidden, false);
+    assert.equal(presetsBtn.className, "pd-bump");
+    assert.equal(settingsBtn.className, "pd-bump on");
+
+    settingsBtn.fire("click");
+    assert.equal(settingsDrop.hidden, true, "and pressing it again folds it");
+    assert.equal(settingsBtn.className, "pd-bump");
+
+    // the chips are inside the presets drop, so folding it puts them away too
+    assert.equal(presetDrop.all().filter((c) =>
+        c.className?.startsWith?.("pd-preset")).length, 5, "four and reset");
+});
+
+test("bindScroll gives a box all three gestures, and bindDrops needs no document", () => {
+    // Both are exported, because the anchored column builds its own row out of
+    // page HTML and must not grow a second idea about either gesture.
+    const box = element("button");
+    const steps = [];
+    bindScroll(box, (by) => steps.push(by));
+    box.fire("wheel", { deltaY: -1 });
+    box.fire("wheel", { deltaY: 1 });
+    box.fire("click");
+    box.fire("keydown", { key: "w" });
+    box.fire("keydown", { key: "s" });
+    box.fire("keydown", { key: "ArrowUp" });
+    box.fire("keydown", { key: "q" });            // not a step
+    assert.deepEqual(steps, [1, -1, 1, 1, -1, 1]);
+
+    const b1 = element("button"), d1 = element();
+    const b2 = element("button"), d2 = element();
+    bindDrops([[b1, d1], [b2, d2]]);
+    assert.deepEqual([d1.hidden, d2.hidden], [true, true]);
+    b2.fire("click");
+    assert.deepEqual([d1.hidden, d2.hidden], [true, false]);
+    b1.fire("click");
+    assert.deepEqual([d1.hidden, d2.hidden], [false, true]);
+    b1.fire("click");
+    assert.deepEqual([d1.hidden, d2.hidden], [true, true]);
 });
 
 test("every control in the row tells the page what it changed", () => {

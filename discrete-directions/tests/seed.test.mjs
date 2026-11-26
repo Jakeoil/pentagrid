@@ -11,7 +11,8 @@ import assert from "node:assert/strict";
 import {
     HANDLE_ORIGIN, SEEDS, centered, centroidOf, checkSeed, integralCentroid,
     moveHandle,
-    nearestOrigin, originFence, seedOf, spokeSum, spokesOf, wheelOf, wheelsOf,
+    nearestOrigin, originFence, seedOf, spokeSum, spokesOf, walkSeed, wheelOf,
+    wheelsOf,
 } from "../src/math/seed.js";
 import {
     ASYMMETRIC, EVEN_PENTAD, PENTA_UP, REAL_PENTA, deflate, inflate, m10,
@@ -21,6 +22,90 @@ import {
 import { THICK, THIN, pentagon, rhombus } from "../src/math/walk.js";
 
 const PHI = (1 + Math.sqrt(5)) / 2;
+
+// ── walkSeed: a rung is a move, not a view ────────────────────────────────
+//
+// The control that used to need `use` now moves the five, so the walk has to
+// behave like an action a hand can undo: nothing at 0, back where it came from,
+// and a count that means what it says. All three come from pinning the figure's
+// centroid, and all three fail without it -- which is why they are tested on
+// every preset and on a seed with no symmetry at all.
+const WALK_SEEDS = {
+    quadrille: PENTA_UP,
+    asymmetric: ASYMMETRIC,
+    even: EVEN_PENTAD,
+    real: REAL_PENTA,
+    skew: [[-1, -3], [3, -1], [2, 3], [-2, 3], [-3, -1]],
+};
+const nearly = (a, b, eps = 1e-7) =>
+    a.length === b.length
+    && a.every((p, i) => Math.hypot(p[0] - b[i][0], p[1] - b[i][1]) < eps);
+
+test("walking nowhere moves nothing, on every seed", () => {
+    for (const [name, pts] of Object.entries(WALK_SEEDS)) {
+        const seed = seedOf(pts, [1, -2]);
+        assert.ok(nearly(walkSeed(seed, 0).points, seed.points), name);
+        assert.deepEqual(walkSeed(seed, 0).origin, [1, -2], name);
+    }
+});
+
+test("a walk is reversible, and the origin never moves", () => {
+    for (const [name, pts] of Object.entries(WALK_SEEDS)) {
+        const seed = seedOf(pts, [1, -2]);
+        for (const by of [0.5, 1, 1.5, 2, -0.5, -1]) {
+            const there = walkSeed(seed, by);
+            assert.deepEqual(there.origin, [1, -2], `${name} ${by}`);
+            assert.ok(nearly(walkSeed(there, -by).points, seed.points),
+                `${name} ${by}: and back`);
+        }
+    }
+});
+
+test("a walk composes, so the control can just count", () => {
+    // k steps of a half equal one step of k halves. Without the centroid pin
+    // this is false everywhere from rung 1 up -- the figure slides a little on
+    // each half step and the slides compound -- and that was the caveat the page
+    // used to carry about halfUp twice not being one generation. It was the
+    // placement, not the shape.
+    for (const [name, pts] of Object.entries(WALK_SEEDS)) {
+        const seed = seedOf(pts, [1, -2]);
+        let inc = seed;
+        for (let k = 1; k <= 8; k++) {
+            inc = walkSeed(inc, 0.5);
+            assert.ok(nearly(inc.points, walkSeed(seed, k * 0.5).points),
+                `${name} at +${k * 0.5}`);
+        }
+    }
+});
+
+test("a walked lattice seed is still on the lattice", () => {
+    // The pin is a difference of two ROUNDED centroids, so it is integral, so
+    // the corners stay Gaussian integers and `snap: units` stays honest.
+    for (const name of ["quadrille", "asymmetric", "even", "skew"]) {
+        let seed = seedOf(WALK_SEEDS[name], [1, -2]);
+        for (let k = 0; k < 8; k++) {
+            seed = walkSeed(seed, 0.5);
+            for (const p of seed.points)
+                assert.ok(Number.isInteger(p[0]) && Number.isInteger(p[1]),
+                    `${name} at +${(k + 1) * 0.5}: (${p})`);
+        }
+    }
+});
+
+test("the walk keeps the figure around its centroid, which is what the pin buys", () => {
+    // Taken at face value, `pentagon(d, 0)` places the figure by its own first
+    // spoke and the quadrille drifts (0,-1) per half step -- 13107 units after
+    // eight up and eight back. Pinned, the centroid stays put to the rounding.
+    const seed = seedOf(PENTA_UP, [0, 0]);
+    let w = seed;
+    for (let k = 0; k < 8; k++) w = walkSeed(w, 0.5);
+    const mid = centroidOf(w.points);
+    assert.ok(Math.hypot(mid[0], mid[1]) < 1.5,
+        `the centroid stayed near the origin: (${mid})`);
+    // and the figure really did grow -- phi^4 over four generations
+    const reach = (s) => Math.max(...s.points.map((p) => Math.hypot(p[0], p[1])));
+    assert.ok(reach(w) / reach(seed) > 5, `it grew: ${reach(w) / reach(seed)}`);
+});
 const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
 const area = (poly) => Math.abs(poly.reduce((a, p, i) => {
     const q = poly[(i + 1) % poly.length];

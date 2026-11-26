@@ -43,7 +43,8 @@
 
 import {
     HANDLE_ORIGIN, PENTA_UP, PRESETS, centroidOf, checkSeed, moveHandle,
-    integralCentroid, originFence, presetName, spokeSum, spokesOf, wheelsAt,
+    integralCentroid, originFence, presetName, spokeSum, spokesOf, walkSeed,
+    wheelsAt,
 } from "../../lib/wheels.js";
 import { pentagon } from "../../lib/tiles.js";
 import { EDGE_INK, GRID_FIFTHS, GRID_LEVELS, HOT, INK, TAU, paper, poly } from "./draw.js";
@@ -179,6 +180,70 @@ export const centerMoves = (dragging, floater) =>
 export const presetLabel = (name) => (name === "quadrille" ? "classic" : name);
 
 /**
+ * Make an element a scrollable value box -- the Reticulum's `.exp-box`.
+ *
+ * Jake, 2026-11-25: *two fields with scrollable values... much like the I,
+ * lambda and phi fields of the reticulum.* Which means three gestures, because
+ * a box you can only scroll is a box a trackpad user can only fight: the wheel,
+ * a click for one step up, and the arrows or w/s when it has focus.
+ *
+ * `preventDefault` is the load-bearing one. Without it the wheel scrolls the
+ * page (or the floating panel) out from under the pointer while the value
+ * changes, which reads as the control being broken.
+ *
+ * Exported because the anchored row and the panel both need it, and because a
+ * test can call `step` without a browser.
+ * @param {HTMLElement} box
+ * @param {(by: number) => void} step called with +1 or -1
+ */
+export function bindScroll(box, step) {
+    box.addEventListener("wheel", (ev) => {
+        /** @type {WheelEvent} */ (ev).preventDefault?.();
+        step(/** @type {WheelEvent} */ (ev).deltaY < 0 ? 1 : -1);
+    }, { passive: false });
+    box.addEventListener("click", () => step(1));
+    box.addEventListener("keydown", (ev) => {
+        const k = /** @type {KeyboardEvent} */ (ev).key;
+        const by = k === "ArrowUp" || k === "w" || k === "W" ? 1
+            : k === "ArrowDown" || k === "s" || k === "S" ? -1 : 0;
+        if (!by) return;
+        ev.preventDefault?.();
+        step(by);
+    });
+}
+
+/**
+ * Wire button-and-drop pairs so that pressing one unfolds it and folds the
+ * others.
+ *
+ * Jake, 2026-11-25: *when you press either of them dropdown unfolds from the
+ * bottom... push presets or settings again to hide them, or another dropdown
+ * button.* So: a toggle, and at most one open. The Reticulum does exactly this
+ * with two lines per button; this is those two lines for n buttons, so the page
+ * and the panel cannot grow different ideas about it.
+ *
+ * The open button is marked `on`, which the Reticulum's is not -- see the
+ * stylesheet for why.
+ * @param {readonly (readonly [HTMLElement, HTMLElement])[]} pairs
+ */
+export function bindDrops(pairs) {
+    const mark = () => {
+        for (const [btn, drop] of pairs)
+            btn.className = drop.hidden ? "pd-bump" : "pd-bump on";
+    };
+    for (const [btn, drop] of pairs) {
+        drop.hidden = true;
+        btn.addEventListener("click", () => {
+            const show = drop.hidden;
+            for (const [, d] of pairs) d.hidden = true;
+            drop.hidden = !show;
+            mark();
+        });
+    }
+    mark();
+}
+
+/**
  * Put a box's state on a real checkbox: checked, and grayed when it is locked.
  *
  * `disabled` is the whole mechanism -- it grays the box, grays a check inside
@@ -231,8 +296,22 @@ export function gridBoxes(seed, state = {}) {
  * off the base rung the figure shown is derived, so its corners stop being
  * handles and the fence stops being drawn.
  *
+ * **Neither control row sets it any more.** Jake, 2026-11-25: *we don't need
+ * the use button. Just move the handles to their appointed area.* So the
+ * `extrapolate` row walks the SEED (`walkSeed`) and leaves this at 0, which is
+ * why the handles are always live. Deriving a figure without moving the five is
+ * still what this field does, and `sync` still honors it, for a page that wants
+ * to look at a rung without taking it.
+ *
+ * `order` is the OUTPUT's generation, which is not the instrument's business
+ * to draw and is the instrument's business to hold. Jake, 2026-11-25: *we're
+ * going to move the gen functionality to the pentadiculum from the output.* It
+ * rides in the view so the anchored row and the floating panel cannot disagree
+ * about it, and the page reads it back through `onViewChange`.
+ *
  * @typedef {object} View
  * @property {number} [extrapolate]
+ * @property {number} [order] the output's generation, for the page to draw at
  * @property {Face} [face]
  * @property {Edge} [edge]
  * @property {boolean} [vectors] the five point-to-point arrows, with values
@@ -258,7 +337,7 @@ export function gridBoxes(seed, state = {}) {
  * @type {Required<View>}
  */
 const VIEW = {
-    extrapolate: 0, face: "transparent", edge: "thin",
+    extrapolate: 0, order: 2, face: "transparent", edge: "thin",
     vectors: false, fence: true, spokes: true, snap: "units",
     // The fifths are OFF by default. Jake, 2026-11-24: *fine off by default,
     // unchecked if possible, checked (grayed) if centroid is not on a unit.*
@@ -308,6 +387,17 @@ const VIEW = {
  */
 const LADDER_UP = 6;
 const LADDER_DOWN = -4;
+
+/**
+ * How far the `order` field will climb and fall: the output's generation.
+ *
+ * The page's own bounds, moved here with the control. 6 is where the page's
+ * slider always stopped, and it is a bound on the NUMBER rather than on the
+ * work -- the page still clamps the generation down until the tile count is
+ * drawable, because at generation 5 a Pe5 is 12,161 tiles and a Sun is 42,376.
+ */
+const ORDER_UP = 6;
+const ORDER_DOWN = 0;
 
 /** The largest cell the fit will use, as a multiple of `cell`. */
 const CAP_CELLS = 3;
@@ -922,6 +1012,10 @@ export function createPentadiculum(options = {}) {
  * @property {(seed: Seed) => void} [onChange] called for every change, from a
  *   drag, a preset, the centroid button or `use`
  * @property {boolean} [controls] false mounts the canvas alone
+ * @property {boolean} [read] false leaves the origin/centroid status line out.
+ *   The floating panel passes it: Jake, 2026-11-26, *the "origin, centroid"
+ *   status should not be in the floating part.* It was the first thing in the
+ *   panel, so a decimal in the origin moved every control under it.
  * @property {() => void} [onClose] the floating panel's close button was
  *   pressed. The panel hides itself either way.
  * @property {(view: View) => void} [onViewChange] a control in the row changed
@@ -970,7 +1064,9 @@ export function mountPentadiculum(host, options = {}) {
     const wrap = el("div", "pentadiculum-wrap");
     const pd = createPentadiculum({
         size: opts.size, document: doc,
-        onChange: (next) => { seed = next; announce(); },
+        // A drag re-anchors the walk: the five are where the hand put them now,
+        // so "+2" would be measuring from a pentagon that no longer exists.
+        onChange: (next) => { seed = next; setWalk?.(0); announce(); },
         // A double-click can change the floater, and the readout names it, so
         // the view has to reach here as well as the seed. Only on a CHANGE of
         // floater: `onView` fires on every scroll click too, and `announce`
@@ -1013,20 +1109,33 @@ export function mountPentadiculum(host, options = {}) {
         : f === PD_ORIGIN ? "<b>the center floats</b>"
         : `<b>point ${f} floats</b>, the center is fixed`;
 
-    /** @type {(next: Seed, refit?: boolean) => void} */
-    const put = (next, refit = true) => {
+    /**
+     * A new seed, drawn and announced.
+     *
+     * `walk` is where the extrapolate counter should read afterwards, and it
+     * defaults to 0 because every OTHER way a seed arrives here -- a preset,
+     * `reset`, the centroid buttons, the page handing one in -- is a fresh
+     * figure, and a count of half generations from a figure that is gone would
+     * be a count of nothing. Only `stepRung` passes a number.
+     * @type {(next: Seed, refit?: boolean, walk?: number) => void}
+     */
+    const put = (next, refit = true, walk = 0) => {
         seed = next;
         // Snap follows the FIGURE, not the box: anything coarser than the five
         // already are would wreck them on the first drag. `announce` puts the
         // answer back on the box.
         view = { ...view, snap: snapForSeed(seed) };
         if (refit) pd.refit();
+        setWalk?.(walk);
         announce();
     };
 
     /** Set the control row from a draw; null until there is a row to set.
      *  @type {((boxes: GridBoxes) => void) | null} */
     let applyBoxes = null;
+    /** Put the extrapolate counter somewhere; null until the row exists.
+     *  @type {((walk: number) => void) | null} */
+    let setWalk = null;
     /**
      * Has the mount finished building?
      *
@@ -1051,8 +1160,9 @@ export function mountPentadiculum(host, options = {}) {
         // from `PRESETS` so it cannot fall out of step with the presets.
         //
         // `pd-preset` and not `preset`: `button.preset` in `site.css` is the
-        // Reticulum's, and the Reticulum's panel is dark. This is light paper,
-        // so the metrics are borrowed and the colors are not.
+        // Reticulum's, and this project cannot import that stylesheet. Same
+        // values, own name -- Jake, 2026-11-25: *use the same styles and
+        // colors.*
         const presetRow = el("span", "pentadiculum-presets");
         /** @type {Map<string, HTMLElement>} */
         const presetBtns = new Map();
@@ -1087,55 +1197,101 @@ export function mountPentadiculum(host, options = {}) {
         // which for every preset here also puts the origin back at (0, 0) --
         // so the old `origin` button was this one under another name and one
         // fewer thing it did.
-        const reset = el("button", "", "reset");
+        //
+        // It sits IN the presets drop, dashed and italic, which is where the
+        // Reticulum keeps `restore`: a verb among nouns, and the only thing in
+        // that drop that does not name a figure.
+        const reset = el("button", "pd-preset pd-verb", "reset");
         reset.title = "load the chosen preset again";
         reset.addEventListener("click", () => loadPreset(chosen));
-        row.append(el("span", "grp", "preset"), presetRow, reset);
 
-        // ── extrapolate: half a generation at a time, and `use` to adopt one ──
+        // ── presets and settings: two buttons, two drops ──────────────────
+        //
+        // Jake, 2026-11-25: *make presets and settings into buttons. When you
+        // press either of them dropdown unfolds from the bottom... push presets
+        // or settings again to hide them or another dropdown button.* Which is
+        // the Reticulum's `presets`/`settings` pair exactly -- `.ret-bump` over
+        // `.ret-presets` -- so `bindDrops` above is that behavior, shared.
+        //
+        // The drops are appended straight after the row that opens them, so one
+        // unfolds downward and pushes the rest of the rows down rather than
+        // floating over them. Nothing in a 372px panel wants to be covered.
+        const presetsBtn = el("button", "pd-bump", "presets");
+        presetsBtn.title = "the four seeds, and reset";
+        const settingsBtn = el("button", "pd-bump", "settings");
+        settingsBtn.title = "how the figure itself is drawn";
+        row.append(presetsBtn, settingsBtn);
+
+        const presetDrop = el("div", "pd-drop");
+        presetDrop.append(reset, presetRow);
+        const settingsDrop = el("div", "pd-drop pd-settings");
+        bindDrops([[presetsBtn, presetDrop], [settingsBtn, settingsDrop]]);
+
+        // ── extrapolate: a step MOVES the five ───────────────────────────
+        //
+        // Jake, 2026-11-25: *we don't need the use button. Just move the
+        // handles to their appointed area. Just change the output dynamically
+        // for both.* So a step is no longer a view of a derived figure that a
+        // second click had to adopt -- it walks the seed itself, `walkSeed` in
+        // `src/math/seed.js`. The handles stay live, the fence stays drawn, and
+        // a page hears it as what it is: a new seed.
         //
         // `extrapolate`, not `ladder`: it is the page's name for the same
-        // number and the two rows have to read alike. Half generations, 0 being
-        // the five themselves. It belongs to the instrument rather than to a
-        // page, because off the base rung the corners stop being handles --
-        // which is the Pentadiculum's own rule, not the page's.
-        const ladderRow = el("div", "pentadiculum-ctl");
-        const rungOut = el("span", "step", "0");
+        // number and the two rows have to read alike. The number is how far
+        // THIS instrument has walked the figure it holds, so it goes back to 0
+        // whenever a seed arrives from anywhere else -- see `put`.
+        //
+        // `index`, not `extrapolate`: Jake, 2026-11-25, renaming both fields
+        // when they became boxes -- *extrapolate is now `index` and gen is
+        // `order`.*
+        let walked = 0;
+        setWalk = (walk) => { walked = walk; };
         /** @type {(by: number) => void} */
         const stepRung = (by) => {
-            const next = Math.min(LADDER_UP, Math.max(LADDER_DOWN,
-                (view.extrapolate ?? 0) + by));
-            view = { ...view, extrapolate: next };
-            rungOut.textContent = next > 0 ? `+${next}` : String(next);
+            const next = Math.min(LADDER_UP, Math.max(LADDER_DOWN, walked + by));
+            if (next === walked) return;
             // A rung is a different figure at a different size, so frame it
-            // afresh rather than leaving it half out of the frame.
-            pd.refit();
+            // afresh rather than leaving it half out of the frame. `put` draws,
+            // sets the row and tells the page.
+            put(walkSeed(seed, by), true, next);
+        };
+
+        /** The output's generation, which this instrument holds for the page.
+         *  @type {(by: number) => void} */
+        const stepOrder = (by) => {
+            const was = view.order ?? VIEW.order;
+            const next = Math.min(ORDER_UP, Math.max(ORDER_DOWN, was + by));
+            if (next === was) return;
+            view = { ...view, order: next };
+            // Nothing here draws a patch -- the page does, off `onViewChange`.
             announce();
         };
-        const down = el("button", "", "−");
-        down.title = "half a generation down";
-        down.addEventListener("click", () => stepRung(-0.5));
-        const up = el("button", "", "+");
-        up.title = "half a generation up";
-        up.addEventListener("click", () => stepRung(0.5));
 
-        // `use`: adopt the figure being shown as the five. It is in SPOKE
-        // coordinates, so it goes back on the paper where it was being drawn --
-        // adopting a rung must not teleport the figure to the origin.
-        const use = el("button", "", "use");
-        use.title = "adopt this pentagon as the five";
-        use.addEventListener("click", () => {
-            const taken = pentagon(
-                wheelsAt(spokesOf(seed), 1 + (view.extrapolate ?? 0)).d, 0);
-            view = { ...view, extrapolate: 0 };
-            rungOut.textContent = "0";
-            put({
-                points: taken.map((q) => /** @type {Pt} */ (
-                    [q[0] + seed.origin[0], q[1] + seed.origin[1]])),
-                origin: seed.origin,
-            });
-        });
-        ladderRow.append(el("span", "grp", "extrapolate"), down, rungOut, up, use);
+        // ── the bottom line: two scrollable fields ───────────────────────
+        //
+        // *The bottom line will contain the extrapolate and gen functionality.
+        // It will be in the form of two fields with scrollable values... much
+        // like the I, lambda and phi fields of the reticulum.* So: a word and a
+        // fixed-width box each, scroll or click or arrow them. `index` walks the
+        // five; `order` is the output's generation, moved off the output column
+        // because this is the instrument that makes the figure it counts.
+        const lineRow = el("div", "pentadiculum-ctl");
+        /** A label and its box, the Reticulum's `.exp-term`.
+         *  @type {(label: string, box: HTMLElement) => HTMLElement} */
+        const term = (label, box) => {
+            const t = el("span", "pd-term");
+            t.append(el("span", "grp", label), box);
+            return t;
+        };
+        const rungOut = el("button", "pd-box", "0");
+        rungOut.title = "index: half generations the five have been walked. "
+            + "Scroll it, click it, or use the arrows or w/s.";
+        bindScroll(rungOut, (by) => stepRung(by * 0.5));
+        const orderOut = el("button", "pd-box", String(view.order ?? VIEW.order));
+        orderOut.title = "order: the generation the patch is expanded to. "
+            + "Scroll it, click it, or use the arrows or w/s.";
+        bindScroll(orderOut, stepOrder);
+        lineRow.append(term("index", rungOut), term("order", orderOut));
 
         /** Each checkbox's label, so a section can append the pair.
          *  @type {Map<HTMLInputElement, HTMLElement>} */
@@ -1200,18 +1356,18 @@ export function mountPentadiculum(host, options = {}) {
         });
         displayRow.append(el("span", "grp", "display"), labelOf(vectors));
 
-        // ── settings: the figure's own face and edges, folded away ──
+        // ── settings: the figure's own face and edges ──
         //
         // Jake, 2026-11-24: *settings and its unfold missing.* They were the
         // page's, on the reasoning that a face is how a page draws a thing
         // rather than anything about the thing -- and then the panel could not
         // reach them, which made the instrument less than the column it
         // replaces. They are the instrument's now, and the page follows through
-        // `onViewChange`. A native `<details>`, closed, no script: they are set
-        // once and then in the way of the handles.
-        const fold = el("details", "fold");
-        const sum = el("summary", "", "settings");
-        fold.appendChild(sum);
+        // `onViewChange`.
+        //
+        // In the drop rather than a `<details>` as of 2026-11-25: the fold was
+        // a second idea about what a disclosure looks like, two rows above the
+        // Reticulum's. One pattern, two buttons.
         /** @type {(label: string, values: readonly string[], now: string,
          *          set: (v: string) => void) => void} */
         const picker = (label, values, now, set) => {
@@ -1226,7 +1382,7 @@ export function mountPentadiculum(host, options = {}) {
             pick.value = now;
             pick.addEventListener("change", () => { set(pick.value); announce(); });
             line.append(el("span", "grp", label), pick);
-            fold.appendChild(line);
+            settingsDrop.appendChild(line);
         };
         picker("face", ["transparent", "solid", "none"],
             /** @type {string} */ (view.face ?? VIEW.face),
@@ -1241,13 +1397,21 @@ export function mountPentadiculum(host, options = {}) {
             setBox(actualBox, boxes.actual);
             setBox(closestBox, boxes.closest);
             vectors.checked = view.vectors === true;
-            rungOut.textContent = (view.extrapolate ?? 0) > 0
-                ? `+${view.extrapolate}` : String(view.extrapolate ?? 0);
+            rungOut.textContent = walked > 0 ? `+${walked}` : String(walked);
+            orderOut.textContent = String(view.order ?? VIEW.order);
             markPreset();
         };
 
-        wrap.append(read, row, ladderRow, gridRow, centroidRow, displayRow, fold);
-    } else {
+        // The drops come straight after the buttons, so they unfold downward.
+        //
+        // The status goes FIRST or not at all. A host that keeps its own --
+        // this project's page does, at a fixed height under the panel's bar --
+        // passes `read: false`, and the controls then start at the top of the
+        // body where nothing above them can move them.
+        if (opts.read !== false) wrap.appendChild(read);
+        wrap.append(row, presetDrop, settingsDrop,
+            gridRow, centroidRow, displayRow, lineRow);
+    } else if (opts.read !== false) {
         wrap.appendChild(read);
     }
 
@@ -1434,6 +1598,11 @@ export function mountFloatingPentadiculum(options = {}) {
     let ready = false;
     const mounted = mountPentadiculum(body, {
         ...options,
+        // The panel does not carry the status: it is the page's, under the
+        // anchored bar, where it has a fixed height and cannot move the
+        // controls. The bar here still shows the origin when folded, which is
+        // the one moment the panel has no row to show it in.
+        read: false,
         // The bar names the seed, so it has to hear about every change the
         // instrument makes -- and then pass it on, because the page asked
         // first.

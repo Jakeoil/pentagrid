@@ -505,6 +505,176 @@ wants four of them on one page, reading four seeds.
 recorded canvas calls over a scripted drag, preset, ladder, zoom and centroid
 run, identical before and after.
 
+### The left column IS the panel, 2026-11-26
+
+Jake, five things in one note: *the left panel containing the controls should
+be fixed to it's size when pentadiculum is anchored. The left panel should
+behave like left panel, everything on the right is output. The pentadiculum
+button should behave like the header line on the anchor. Same display. Panel
+width. Status text should not cause anything below it to jump. The "origin,
+centroid" status should not be in the floating part. It can be moved below the
+panel button, but it must be fixed size so the output controls dont jump.
+Finally: although the index/order boxes on the anchored are correct, they are
+still misaligned on the floating.*
+
+**One panel in two places.** The left column is now the floating panel standing
+still: `.pentadiculum-anchor` is its border and its width, `#boot-float` wears
+`.pentadiculum-bar` as the header line, and the instrument hangs under it in a
+`.pentadiculum-body`. The values are shared rather than copied -- both classes
+live in `lib/css/pentadiculum.css` beside the panel's own, and the width is
+`--pd-panel-w`, which the page sets to the 372px the mount floats at -- so the
+two cannot drift. The bar says what the panel's bar says, down to the seed's
+name: `pentadiculum -- classic`, `-- custom` once you drag it off a preset.
+
+**The column does not resize, in either state.** It was `1fr 2fr`, and `auto
+1fr` while floating, so the output and every control in it moved sideways
+whenever the instrument left or came back. Now it is `var(--pd-panel-w) 1fr`
+in both. The output canvas goes from 733px to 728px and stops changing.
+
+**The status is the page's, at a fixed height.** It was the first thing in the
+floating panel, which is the worst place for a line that grows: a decimal in
+the origin, or a verdict, pushed every control under it down a line. The panel
+has none now (`read: false`, a mount option so a droppable mount still has
+one), and the page keeps it under the bar as three lines -- origin, centroid,
+floater -- each one line tall and elided rather than wrapped. 51px of status
+whatever it says, so nothing below it can move. It sits outside
+`#boot-seed-inline`, so it stays while the instrument floats, naming the same
+seed.
+
+**The boxes on the floating were the same trap as before, one file over.**
+`.pentadiculum-ctl button` is (0,1,1) and `.pd-box` is (0,1,0), so inside the
+panel the generic rule won: the index and order boxes came out at 11px in the
+system font with 7px of side padding, against 12px tabular with none on the
+page -- where the host's rule already excluded them. Measured in headless
+Chrome rather than guessed at, before and after:
+
+| | anchored | floating, before | floating, after |
+|---|---|---|---|
+| box font | 12px ui-monospace | 11px system | 12px ui-monospace |
+| box padding | 0 | 2px 7px | 0 |
+| box width | 30.34px | 29.09px | 30.33px |
+| `presets` height | 21.6px | 23.6px | 21.6px |
+
+The fix is the one the page already had, in the stylesheet that owns the
+classes: `:not(.pd-box):not(.pd-bump):not(.pd-preset)`. Worth saying once more
+in general: **a stylesheet that sets metrics for every button it contains has
+to name the exceptions it ships**, or the next one it ships breaks silently.
+
+### A step moves the five, 2026-11-25
+
+Jake: *we don't need the use button. Just move the handles to their appointed
+area. Just change the output dynamically for both.*
+
+So `extrapolate` stopped being a view of a derived figure that a second click
+had to adopt. A step walks the seed -- `walkSeed` in `src/math/seed.js` -- the
+handles land on the rung and stay live, the fence stays drawn, and a page hears
+it as what it is: a new seed. `use` is gone from both instruments.
+
+**The walk is pinned on the integral centroid, and that is the whole trick.**
+`pentagon(d, 0)` places a figure by its own first spoke, and a half rung's wheel
+starts somewhere else, so taking it at face value slides the pentagon on every
+half step: (0, -1) a step for the quadrille, (2, 1) for the asymmetric, and
+nothing at all for the even pentad -- evenness again, since the half-step wheel
+closes integrally only when the five sum to a multiple of five. The slides
+compound: eight halves up and eight back left the quadrille **13107 units** from
+where it started. Pinning the centroid instead makes the walk
+
+- exact at rung 0, so stepping nowhere moves nothing;
+- reversible, up and back to the point;
+- **composable** -- k steps of a half equal one step of k halves, at every rung
+  and on every seed tried, which is what lets the control just count.
+
+That third one **supersedes a caveat `page.js` used to carry**, that composing
+two half rungs is not one generation on an irregular pentagon. The discrepancy
+was the placement, not the shape; with the centroid pinned, `halfUp` twice and
+`inflate` once land on the same five. Measured in `tests/seed.test.mjs`.
+
+**What the output does, measured, because it is less than it sounds.** The patch
+is grown from the five, so walking them rebuilds it -- but the output fits the
+patch to its canvas, so the scale cancels and only the shape change survives.
+Max vertex shift against rung 0, as a fraction of the patch's span, quadrille:
+9.2% at rung -1 and 1.4% at +1 for a one-generation patch, 3.2% and 0.5% at
+generation 2, 0.4% and 0.06% at generation 4. On the `real` preset it is
+**exactly zero** (1.7e-16): that pentagon's inflation is an exact similarity, so
+an offset ladder is a pure zoom and the fit undoes it. The effect exists at all
+only because the discrete inflation is not a similarity, and it shrinks as the
+patch grows because the lattice wheels converge on the irrational limit. Open:
+whether the rung should drive the output's scale as well, which would make it
+visible and is one line.
+
+### The Reticulum's controls, wholesale, 2026-11-25
+
+Jake: *make the pentadiculum more similar action to the reticulum. Make presets
+and settings into buttons. When you press either of them dropdown unfolds from
+the bottom... push presets or settings again to hide them or another dropdown
+button.* And: *the bottom line will contain the extrapolate and gen
+functionality... two fields with scrollable values. Again, much like the I,
+lambda and phi fields of the reticulum. Exact parity is not required in the
+anchored version. just the functionality. Use the same styles and colors.*
+
+Four things, and the fourth is the interesting one.
+
+1. **`presets` and `settings` are dropdown buttons.** One open at a time,
+   pressing the open one folds it, and each drop is appended straight after the
+   row that opens it so it unfolds downward rather than covering anything --
+   nothing in a 372px panel wants to be covered. `reset` moved INTO the presets
+   drop, dashed and italic, which is where the Reticulum keeps `restore`: a verb
+   among nouns. The `<details>` fold is gone; it was a second idea about what a
+   disclosure looks like, two rows above the Reticulum's.
+2. **`index` and `order`, two scrollable boxes on the bottom line.** The
+   Reticulum's `.exp-box`, which Jake asked for there because an exponent at 8px
+   could not be read: fixed width in `ch` and tabular figures, so a minus sign
+   cannot shift the digits under the pointer. Three gestures, not one -- wheel,
+   click for a step up, arrows or w/s -- because a box you can only scroll is a
+   box a trackpad user can only fight. `preventDefault` on the wheel is
+   load-bearing: without it the page scrolls out from under the pointer while
+   the value changes, which reads as the control being broken.
+3. **`gen` moved off the output column** and became `order` on the instrument's
+   bottom line. It rides in the `View`, so the anchored row and the floating
+   panel cannot disagree about it, and the page draws the patch off
+   `onViewChange`. Nothing in the instrument draws a patch; it holds the number
+   for whoever does.
+4. **The behavior is two exported functions, not two copies.** `bindScroll` and
+   `bindDrops` in `lib/pentadiculum.js`. The anchored column is page HTML and
+   the panel is built in JavaScript, and Jake has already caught this project
+   once with *floating settings don't match with anchored when I flip back and
+   forth* -- so the one thing they must not each have is their own idea of what
+   a dropdown or a scrollable box does. The styles are the same way:
+   `lib/css/pentadiculum.css` carries `.ret-bump`, `.ret-presets` and the
+   `.exp-*` boxes' values under `pd-` names, for the same reason it carries
+   `panel.css`'s -- the two instruments read as one site while this project stays
+   droppable onto a page that has never heard of it.
+
+**Lined up, after a look.** Jake: *the index and order boxes are not lined up
+nice.* They were not, and neither was anything else: measured in a headless
+Chrome, every row started its controls wherever its own label happened to end --
+46px after `grid`, 71 after `centroid`, 64 after `display`, 53 after `index`.
+A checkbox gets away with that and a bordered box does not, because a box has
+edges and the eye measures them. The labels now share a 4em column, so every
+first control starts at x = 72 in the column and at the same place in the panel,
+and `.pd-term` has a `min-height` so the line keeps the 21px row rhythm instead
+of sagging to 19. The box is 18px rather than 16 for the same reason.
+
+**And the look turned up a real cost.** Driving the page headless at order 6
+takes seconds a redraw, and the reason is in `drawTiling`: the clamp used to
+expand at the asked-for generation and throw the result away if it was too big.
+At order 6 that is a 289,991-tile Sun built and discarded, then 42,376, then
+6,201 -- **404ms** before a single tile is drawn, for a picture identical to
+order 4's, on every redraw. The count is a property of the seed type and the
+generation alone, so it is remembered now (`countAt`) and the clamp costs
+nothing the second time. What remains is the drawing itself: at order 4 and up a
+redraw is 6,201 tiles or more, which is the page being asked for a lot rather
+than the page being wrong. Measured, so it is not a guess: `tools/pagecheck.mjs`
+drives this page in about four minutes, and it did before this round too -- 226s
+against the committed page, 232s against this one. The clamp fix is a real
+saving inside that, not a fix for it.
+
+One gotcha worth recording: the page's own `.ctl select, .ctl button` rule was
+overriding the boxes' fixed width, because `.ctl button` outspecifies `.pd-box`
+and the page's `<style>` comes after the linked stylesheet. The row's rule now
+says `:not(.pd-box):not(.pd-bump):not(.pd-preset)`, which is the honest fix: a
+page that hosts the instrument's controls has to let their metrics alone.
+
 ### The Pentadiculum floats, 2026-11-24
 
 Jake: *what is the plan you have to make the Pentadiculum float? Kind of like

@@ -29,21 +29,30 @@
         .wrap > blockquote { max-width: 68ch; }
         .log { border-top: 1px solid var(--rule); padding-top: 12px;
                margin: 0 0 26px; display: grid; gap: 4px; }
-        .rig { display: grid; grid-template-columns: 1fr 2fr; gap: 20px;
-               align-items: start; margin: 8px 0 20px; }
+        /* A LEFT PANEL and an output, and the panel does not resize. Jake,
+           2026-11-26: *the left panel containing the controls should be fixed
+           to it's size when pentadiculum is anchored. The left panel should
+           behave like left panel, everything on the right is output.* So the
+           left column is the floating panel's own width -- `--pd-panel-w`,
+           which `lib/css/pentadiculum.css` also builds the anchored panel from
+           -- and the output takes the rest. It is fixed in BOTH states: a
+           column that narrowed when the instrument floated moved the output
+           and everything in it, and nothing here is worth a jump that size. */
+        .wrap { --pd-panel-w: 372px; }
+        .rig { display: grid; grid-template-columns: var(--pd-panel-w) 1fr;
+               gap: 20px; align-items: start; margin: 8px 0 20px; }
         @media (max-width: 760px) { .rig { grid-template-columns: 1fr; } }
         /* Floating hides the SEED half of the left column -- the canvas and its
-           own controls. The column itself stays, because the output's controls
-           are the rest of it. Jake, 2026-11-24: *the output controls should be
-           on the left of the output.* With the canvas gone the column needs
-           only its controls' width, so `auto` rather than `1fr`. */
-        .rig.solo { grid-template-columns: auto 1fr; }
+           own controls. The bar, the status and the output's controls stay,
+           because they are the rest of the column. Jake, 2026-11-24: *the
+           output controls should be on the left of the output.* */
         .rig.solo #boot-seed-inline { display: none; }
-        /* The toggle sits directly above the instrument, which is where you
-           look for it -- it was under the output, which is not. */
-        .seedbar { margin: 18px 0 0; }
-        .seedbar button { font: inherit; font-size: 12px; padding: 3px 9px;
-                          white-space: nowrap; }
+        /* The toggle IS the panel's header line, so it sits at the top of the
+           panel and not above the rig. `button.pentadiculum-bar` in
+           `lib/css/pentadiculum.css` dresses it. */
+        #boot-seed-panel { margin: 18px 0 0; }
+        /* The output's controls hang under the panel, not inside it. */
+        #boot-seed-col > .ctl { margin-top: 12px; }
         .rig canvas { border: 1px solid var(--rule); border-radius: 6px;
                       display: block; touch-action: none; width: 100%; height: auto; }
         /* The Reticulum's metrics: 11px type, 2px by 7px of padding, 4px
@@ -52,24 +61,23 @@
         .ctl { font-size: 12px; line-height: 1.6; margin: 8px 0 0; }
         .ctl > div { white-space: nowrap; display: flex; align-items: center;
                      gap: 4px; flex-wrap: wrap; }
-        .ctl select, .ctl button { font: inherit; font-size: 11px; padding: 2px 7px; }
-        .ctl .step { font-family: ui-monospace, Menlo, monospace; min-width: 3.2em;
-                     display: inline-block; text-align: center; }
+        /* The instrument's own controls carry the Reticulum's metrics from
+           `lib/css/pentadiculum.css` -- a fixed-width scrollable box among
+           them -- so this row's generic rule has to let them alone. */
+        .ctl select,
+        .ctl button:not(.pd-box):not(.pd-bump):not(.pd-preset) {
+            font: inherit; font-size: 11px; padding: 2px 7px;
+        }
         .ctl .grp { color: var(--ink-faint); }
+        /* The instrument's rows share a label column, so every first control --
+           checkbox or scrollable box -- starts at the same x. The output's
+           column is left ragged: its labels run to `rhomb wheels`, and a column
+           wide enough for that one would be a column of white space. */
+        #boot-seed-inline .ctl .grp { display: inline-block; min-width: 4em; }
         /* A locked box says so twice: the browser grays the box (and any check
            in it), and the word beside it fades to match. */
         .ctl label:has(input:disabled) { color: var(--ink-faint); }
-        .ctl hr { border: 0; border-top: 1px solid var(--rule); margin: 12px 0; }
 
-        /* A fold: settings that are set once and then in the way. Closed by
-           default, native <details>, so it needs no script to work. */
-        .ctl .fold > div { white-space: nowrap; display: flex;
-                           align-items: center; gap: 4px; }
-        .ctl .fold > summary { color: var(--ink-faint); cursor: pointer;
-                               list-style: none; display: inline-block; }
-        .ctl .fold > summary::-webkit-details-marker { display: none; }
-        .ctl .fold > summary::before { content: "\25B8\00A0"; }
-        .ctl .fold[open] > summary::before { content: "\25BE\00A0"; }
         .pair { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; margin: 18px 0 8px; }
         .pair figure { margin: 0; }
         .pair canvas { border: 1px solid var(--rule); border-radius: 6px; display: block; touch-action: none; }
@@ -114,41 +122,42 @@
     <p class="hint">Left: the five points, draggable, with the controls that make
     them and the patch. Right: the tiling they generate. Scroll either canvas to
     zoom, drag the paper to pan, double-click the paper to put both back and fit,
-    and double-click a <b>handle</b> to make it the floater. <b>Extrapolate</b>
-    walks the pentagon up and down the wheel ladder in half generations &mdash; 0
-    is the five themselves &mdash; and <b>use</b> adopts whatever is shown as the
-    new five. Everything below is how it works.</p>
-
-    <p class="seedbar"><button id="boot-float"
-        title="float the seed instrument over the output">&#9662;&nbsp;pentadiculum</button></p>
+    and double-click a <b>handle</b> to make it the floater. The bottom line
+    holds two scrollable fields: <b>index</b> walks the five up and down the
+    wheel ladder in half generations &mdash; the handles move to the rung, so
+    they stay yours to drag and everything on the right follows at once &mdash;
+    and <b>order</b> is the generation the patch is expanded to. Scroll either,
+    click it, or point at it and use the arrows. Everything below is how it
+    works.</p>
 
     <div class="rig" id="boot-rig">
         <div id="boot-seed-col">
-            <div id="boot-seed-inline">
-            <canvas id="boot-input" width="340" height="340"></canvas>
+            <!-- The panel, standing still: the same bar, the same width, the
+                 same status under it whether the instrument is in here or
+                 floating over the output. -->
+            <div class="pentadiculum-anchor" id="boot-seed-panel">
+            <button id="boot-float" class="pentadiculum-bar"
+                title="float the seed instrument over the output">&#9662;&nbsp;pentadiculum</button>
+            <!-- Three lines, each one line tall, filled by `readouts` in
+                 src/ui/page.js. Fixed height on purpose: this used to be the
+                 first thing in the floating panel, where a decimal in the
+                 origin pushed every control under it down a line. -->
+            <p class="pentadiculum-stat" id="boot-stat"><span></span><span></span><span></span></p>
+            <div id="boot-seed-inline" class="pentadiculum-body">
+            <canvas id="boot-input" width="350" height="350"></canvas>
 
             <div class="ctl">
-                <div><span class="grp">preset</span>
-                    <!-- Built from PRESETS by the script, one button per
-                         choice, as the Reticulum does it. `custom` is not a
-                         choice any more: it is no button being current. -->
-                    <span id="boot-presets" class="pentadiculum-presets"></span>
-                    <button id="boot-reset" title="load the chosen preset again">reset</button></div>
-                <div><span class="grp">extrapolate</span>
-                    <button id="boot-extrapolate-down" title="half a generation down">&minus;</button>
-                    <span class="step" id="boot-extrapolate-value">0</span>
-                    <button id="boot-extrapolate-up" title="half a generation up">+</button>
-                    <button id="boot-use" title="adopt this pentagon as the five">use</button></div>
-                <div><span class="grp">grid</span>
-                    <label><input type="checkbox" id="boot-snap" checked title="a dragged corner lands on a whole unit, the center on a fifth"> snap</label>
-                    <label><input type="checkbox" id="boot-fine" title="rule each unit square into fifths, the grid the center lands on"> fine</label></div>
-                <div><span class="grp">centroid</span>
-                    <label><input type="checkbox" id="boot-actual" title="put the center on the centroid itself, where every rhomb closes as an exact parallelogram"> actual</label>
-                    <label><input type="checkbox" id="boot-closest" title="put the center on the nearest whole unit to the centroid, which keeps the spokes integral"> closest</label></div>
-                <div><span class="grp">display</span>
-                    <label><input type="checkbox" id="boot-vectors" title="the five point-to-point vectors, clockwise, with their values"> vectors</label></div>
-                <details class="fold">
-                    <summary>settings</summary>
+                <!-- Two dropdown buttons, the Reticulum's pattern: press one to
+                     unfold it underneath, press it again or press the other to
+                     fold it away. `bindDrops` in lib/pentadiculum.js. -->
+                <div><button id="boot-presets-btn" class="pd-bump" title="the four seeds, and reset">presets</button>
+                    <button id="boot-settings-btn" class="pd-bump" title="how the input figure itself is drawn">settings</button></div>
+                <div class="pd-drop" id="boot-presets-drop" hidden>
+                    <button id="boot-reset" class="pd-preset pd-verb" title="load the chosen preset again">reset</button>
+                    <!-- Built from PRESETS by the script, one chip per choice.
+                         `custom` is not a choice: it is no chip being current. -->
+                    <span id="boot-presets" class="pentadiculum-presets"></span></div>
+                <div class="pd-drop pd-settings" id="boot-settings-drop" hidden>
                     <div><span class="grp">face</span>
                         <select id="boot-face" title="the input figure's own fill; the output has its own">
                             <option value="transparent" selected>transparent</option>
@@ -160,11 +169,25 @@
                             <option value="thin" selected>thin</option>
                             <option value="thick">thick</option>
                             <option value="none">none</option>
-                        </select></div>
-                </details>
+                        </select></div></div>
+                <div><span class="grp">grid</span>
+                    <label><input type="checkbox" id="boot-snap" checked title="a dragged corner lands on a whole unit, the center on a fifth"> snap</label>
+                    <label><input type="checkbox" id="boot-fine" title="rule each unit square into fifths, the grid the center lands on"> fine</label></div>
+                <div><span class="grp">centroid</span>
+                    <label><input type="checkbox" id="boot-actual" title="put the center on the centroid itself, where every rhomb closes as an exact parallelogram"> actual</label>
+                    <label><input type="checkbox" id="boot-closest" title="put the center on the nearest whole unit to the centroid, which keeps the spokes integral"> closest</label></div>
+                <div><span class="grp">display</span>
+                    <label><input type="checkbox" id="boot-vectors" title="the five point-to-point vectors, clockwise, with their values"> vectors</label></div>
+                <!-- The bottom line: two scrollable fields, the Reticulum's
+                     exponent boxes. `index` walks the five up and down the
+                     wheel ladder; `order` is the generation the patch on the
+                     right is expanded to, which used to be `gen` over there. -->
+                <div><span class="pd-term"><span class="grp">index</span>
+                        <button class="pd-box" id="boot-index" title="index: half generations the five have been walked. Scroll it, click it, or use the arrows or w/s.">0</button></span>
+                    <span class="pd-term"><span class="grp">order</span>
+                        <button class="pd-box" id="boot-order" title="order: the generation the patch is expanded to. Scroll it, click it, or use the arrows or w/s.">2</button></span></div>
             </div>
-
-            <hr>
+            </div>
             </div>
 
             <div class="ctl">
@@ -191,10 +214,6 @@
                 <div><span class="grp">grid</span>
                     <label><input type="checkbox" id="boot-grid-over" title="draw the lattice over the tiles as well as under them"> on top</label>
                     <label><input type="checkbox" id="boot-grid-fifths" title="divide each unit square into fifths, as the input's paper is"> 5 space</label></div>
-                <div><span class="grp">gen</span>
-                    <button id="boot-gen-down">&minus;</button>
-                    <span class="step" id="boot-gen-value">2</span>
-                    <button id="boot-gen-up">+</button></div>
                 <div><span class="grp">penta face</span>
                     <select id="boot-tile-face">
                         <option value="solid" selected>solid</option>
@@ -502,11 +521,10 @@
     faintest thing on the sheet.</p>
 
     <p><b>Each canvas styles itself.</b> The input figure's <code>face</code>
-    and <code>edges</code> govern the input figure and nothing else; they are
-    folded away under <code>settings</code>, since they are set once and then
-    in the way of the handles. The output has its own pair,
-    <code>penta face</code> and <code>penta edges</code>, between
-    <code>gen</code> and <code>rhombs</code>. One pair used to govern
+    and <code>edges</code> govern the input figure and nothing else; they are in
+    the <code>settings</code> drop, since they are set once and then in the way
+    of the handles. The output has its own pair, <code>penta face</code> and
+    <code>penta edges</code>, above <code>rhombs</code>. One pair used to govern
     both, on the reasoning that a pentagon is a face like any other — but the
     two figures are doing different jobs. The input is a thing you are
     <b>placing on a lattice</b>, so it starts <b>transparent</b> and the fifths,
@@ -515,36 +533,42 @@
     starts solid. Wanting one of them see-through was never an argument about
     the other.</p>
 
-    <p><b>The seed is in one place or the other.</b> The
-    <code>&#9662;&nbsp;pentadiculum</code> button above the rig is the toggle:
-    the instrument is either in the left column, where it starts, or
-    <b>floating</b> as a panel at the output's top-right corner. When it floats,
-    the input canvas and its own controls go with it and the
-    <b>output's</b> controls stay where they are, on the left of the output.
-    Drag the panel by its bar, fold it to just the bar with
+    <p><b>The seed is in one place or the other.</b> The left column <i>is</i>
+    the panel, standing still: its <b>header line</b> &mdash;
+    <code>&#9662;&nbsp;pentadiculum &mdash; even</code> &mdash; is the toggle,
+    and the instrument is either under it, where it starts, or <b>floating</b>
+    as a panel at the output's top-right corner. The column is the panel's own
+    width either way and nothing in it moves when you flip: when it floats, the
+    input canvas and its own controls go with it, and the header line, the
+    status under it and the <b>output's</b> controls stay where they are, on
+    the left of the output. Drag the panel by its bar, fold it to just the bar
+    with
     <span style="color:#888">&#9662;</span>, resize it from the grip in its
     bottom-right corner, and close it with
     <span style="color:#888">&times;</span> &mdash; closing it is the same as
     pressing the toggle, and puts it back in the column.</p>
 
-    <p>The panel is a <b>complete instrument</b> &mdash; the same preset,
-    extrapolate, grid, centroid and display rows, and the same
-    <code>settings</code> fold for <code>face</code> and <code>edges</code>
-    &mdash; under the same names, so flipping between the two is not a
-    translation. There is only ever one seed and one set of settings: whichever
-    row you touched is the one that is right, and the other follows. Where you
-    leave the panel, how wide you made it and whether you folded it are
-    remembered between visits.</p>
+    <p>The panel is a <b>complete instrument</b> &mdash; the same
+    <code>presets</code> and <code>settings</code> dropdowns, the same grid,
+    centroid and display rows, and the same <code>index</code> and
+    <code>order</code> fields &mdash; under the same names, so flipping between
+    the two is not a translation. There is only ever one seed and one set of
+    settings: whichever row you touched is the one that is right, and the other
+    follows. Where you leave the panel, how wide you made it and whether you
+    folded it are remembered between visits.</p>
 
-    <p class="hint">The bar <b>names the seed</b>, not the panel:
+    <p class="hint">Either bar <b>names the seed</b>, not the panel:
     <code>pentadiculum &mdash; even</code>, or <code>&mdash; custom</code> once
-    you have dragged it off a preset. Folded, it adds the origin and
-    <i>sweet</i> when the center is on the sweet spot, so folding it to a bar
-    costs you nothing you were reading. The one thing the panel does not carry
-    is the input figure's <code>face</code> and <code>edges</code> &mdash; those
-    are how <i>this page</i> draws the seed rather than anything about the seed,
-    they keep whatever you last set, and the <code>settings</code> fold that
-    sets them comes back with the column.</p>
+    you have dragged it off a preset. Folded, the floating one adds the origin
+    and <i>sweet</i> when the center is on the sweet spot, so folding it to a
+    bar costs you nothing you were reading. The <b>origin</b>, the
+    <b>centroid</b> and the floater are three fixed lines under the anchored
+    bar &mdash; fixed because they used to be the first thing inside the
+    floating panel, where a decimal in the origin moved every control under it
+    down a line. The panel carries every setting the
+    column has, <code>face</code> and <code>edges</code> among them: they used
+    to be the page's alone, which made the panel less than the column it
+    replaces.</p>
 
     <p><b>Both canvases zoom and both pan</b>, and smoothly: the cell is
     whatever the fit and the wheel make it, with no ladder of allowed sizes.

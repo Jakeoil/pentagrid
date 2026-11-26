@@ -12,14 +12,15 @@
 import {
     PENTA_UP, PRESETS, centroidOf, eWheel, inflate, integralCentroid, ladderTo,
     m10, presetName,
-    pentaflake, sharedEdge, spokesOf, wheelFromPoints, wheelsAt,
+    pentaflake, sharedEdge, spokesOf, walkSeed, wheelFromPoints, wheelsAt,
 } from "../../lib/wheels.js";
-import { pentagon, rhombGroup, rhombus } from "../../lib/tiles.js";
+import { rhombGroup, rhombus } from "../../lib/tiles.js";
 import { expand, isSeedType, outlineOf } from "../../lib/patch.js";
 import { BUILD_ID } from "./build-id.js";
 
 /** @typedef {import("../../lib/wheels.js").Pt} Pt */
 /** @typedef {import("../../lib/wheels.js").Wheel} Wheel */
+/** @typedef {import("../../lib/wheels.js").WheelSet} WheelSet */
 /** @typedef {import("../../lib/tiles.js").Spelling} Spelling */
 /** @typedef {import("../../lib/patch.js").Placement} Placement */
 /** @typedef {import("../../lib/patch.js").SeedType} SeedType */
@@ -34,8 +35,8 @@ import { numHTML } from "./numerals.js";
 // The input figure itself -- the five points, the origin and the pointer --
 // lives in the Pentadiculum. See the section below.
 import {
-    PD_ORIGIN, createPentadiculum, mountFloatingPentadiculum, presetLabel,
-    setBox, snapForSeed,
+    PD_ORIGIN, bindDrops, bindScroll, createPentadiculum,
+    mountFloatingPentadiculum, presetLabel, setBox, snapForSeed,
 } from "./pentadiculum.js";
 
 /** @type {(id: string) => HTMLElement | null} */
@@ -170,12 +171,15 @@ const FACES = ["none", "transparent", "solid"];
 const EDGES = ["none", "thin", "thick"];
 
 /**
- * How far the input figure is extrapolated from the five points, in half
- * generations. 0 is the five themselves; the wheel ladder calls that rung 1.
+ * How far the five have been WALKED, in half generations.
+ *
+ * Jake, 2026-11-25: *we don't need the use button. Just move the handles to
+ * their appointed area.* So this is no longer a rung the figure is derived at --
+ * `walkSeed` moves the five themselves and they are always what is drawn. It is
+ * a count, kept because it says where you have got to, and it goes back to 0
+ * whenever the five arrive some other way: a drag, a preset, the panel.
  */
 let extrapolate = 0;
-/** @type {(e: number) => number} */
-const rungOf = (e) => 1 + e;
 /**
  * What the input's handles snap to.
  *
@@ -266,8 +270,11 @@ const seedNow = () => ({ points, origin });
  * rather than living in the component.
  * @type {() => import("./pentadiculum.js").View}
  */
+// `extrapolate` is NOT in here. It is a count of walks, not a rung to derive a
+// figure at, and handing it to the instrument as one would extrapolate a
+// pentagon that has already been walked.
 const viewNow = () =>
-    ({ extrapolate, face: seedFace, edge: seedEdge,
+    ({ face: seedFace, edge: seedEdge, order: gen,
         vectors: showVectors, snap, fifths: inputFifths });
 
 const pd = createPentadiculum({
@@ -278,6 +285,10 @@ const pd = createPentadiculum({
     onChange: (next) => {
         points = next.points.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
         origin = next.origin;
+        // The five are where the hand put them now, so a count of half
+        // generations from the figure they were walked out of means nothing.
+        extrapolate = 0;
+        showExtrapolate();
         syncPreset();
         readouts(pd.drawn());
         drawFlake();
@@ -314,6 +325,16 @@ const floaterLine = (f) => f < 0
         ? "the center floats: it keeps its offset from the centroid"
         : `point ${f} floats and the center is fixed: the centroid is pinned`;
 
+/**
+ * The same thing in four words, for the panel's status line, which is 328px
+ * wide and elides rather than wraps. The long form above is the readout's,
+ * under the rig, where there is a column to say it in.
+ * @type {(f: number) => string}
+ */
+const floaterShort = (f) => f < 0 ? "nothing floats"
+    : f === PD_ORIGIN ? "<b>the center floats</b>"
+    : `<b>point ${f} floats</b>, the center is fixed`;
+
 /** Ask for an exact fit on the next draw. */
 const refitInput = () => pd.refit();
 
@@ -329,15 +350,16 @@ function drawInput() {
 function readouts(drawn) {
     syncBoxes(drawn);
     report(eWheel(wheelFromPoints(spokes())));
+    seedStat(drawn);
 
     const rungOut = byId("boot-rung-read");
     if (!rungOut) return;
-    const d = wheelsAt(spokes(), rungOf(extrapolate)).d;
+    // Generation 1, always: a step moves the five, so the five on the paper are
+    // the figure and there is no derived copy to print beside them.
+    const d = wheelsAt(spokes(), 1).d;
     rungOut.innerHTML = `<b>extrapolate ${extrapolate > 0 ? "+" : ""}${extrapolate}`
-        + ` &middot; wheel generation ${rungOf(extrapolate)}</b>`
+        + ` &middot; the five are the figure</b>`
         + `<span>${d.slice(0, 3).map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`
-        + (atBaseRung() ? "" : "<b>the five, for reference</b>"
-            + `<span>${points.map((v) => `(${numHTML(v[0])}, ${numHTML(v[1])})`).join("  ")}</span>`)
         + `<b>origin (${numHTML(origin[0])}, ${numHTML(origin[1])})`
             + ` &middot; centroid (${numHTML(centroid()[0])}, ${numHTML(centroid()[1])})`
             + (drawn.sweet ? " &middot; on the sweet spot" : "") + `</b>`
@@ -346,6 +368,55 @@ function readouts(drawn) {
         // The floater is a MODE, and an unnamed mode that moves a handle you
         // never touched is a bug report waiting to be filed.
         + `<b>floater</b><span>${floaterLine(pd.view().floater)}</span>`;
+}
+
+
+/**
+ * The panel's own status, under its bar: three lines, one thing each.
+ *
+ * Jake, 2026-11-26: *the "origin, centroid" status should not be in the
+ * floating part. It can be moved below the panel button, but it must be fixed
+ * size so the output controls dont jump.* It was the first thing in the
+ * floating panel, where a decimal in the origin or a verdict pushed every
+ * control under it down a line; the panel has none now and this is where it
+ * went. One line per fact, each elided rather than wrapped, so the box is 51px
+ * tall no matter what it says and the output's controls below cannot move.
+ *
+ * It is OUTSIDE `#boot-seed-inline`, so it stays on the page while the
+ * instrument floats -- and it is the same seed either way.
+ * @param {import("./pentadiculum.js").Drawn} drawn
+ */
+function seedStat(drawn) {
+    const stat = byId("boot-stat");
+    if (!stat) return;
+    const c = centroid();
+    stat.innerHTML =
+        `<span><b>origin</b> (${numHTML(origin[0])}, ${numHTML(origin[1])})`
+            + `${drawn.verdict.ok ? "" : ` &#9888; ${drawn.verdict.why}`}</span>`
+        + `<span><b>centroid</b> (${numHTML(c[0])}, ${numHTML(c[1])})`
+            + `${drawn.sweet ? " &middot; <b>on the sweet spot</b>" : ""}</span>`
+        + `<span>${floaterShort(pd.view().floater)}</span>`;
+}
+
+/**
+ * The bar over the panel: the fold marker, the instrument's name, and the
+ * seed's -- which is exactly what the floating panel's title bar says, because
+ * Jake, 2026-11-26: *the pentadiculum button should behave like the header line
+ * on the anchor. Same display.*
+ *
+ * `byId` each time rather than the `seedBtn` below it: this is called from
+ * `syncPreset`, which runs while the module is still being set up, and a
+ * `const` declared further down is in its temporal dead zone until then.
+ */
+function showSeedBar() {
+    const bar = byId("boot-float");
+    if (!bar) return;
+    const open = seedFloat?.isOpen() ?? false;
+    bar.innerHTML = `${open ? "&#9656;" : "&#9662;"}&nbsp;pentadiculum`
+        + ` &mdash; ${presetLabel(presetName(seedNow()))}`;
+    bar.title = open
+        ? "put the seed instrument back in the left column"
+        : "float the seed instrument over the output";
 }
 
 
@@ -464,13 +535,17 @@ function drawTiling() {
     const ladder = ladderTo(spokes(), Math.min(gen, MAX_GEN) + 1);
     /** @type {Placement[]} */
     let tiles = [];
-    let drawnGen = gen;
+    let drawnGen = Math.min(gen, MAX_GEN);
     try {
-        tiles = expand(seed, seedTenth(), [0, 0], gen, ladder, heads);
-        while (tiles.length > TILE_LIMIT && drawnGen > 1) {
-            drawnGen -= 1;
-            tiles = expand(seed, seedTenth(), [0, 0], drawnGen, ladder, heads);
-        }
+        // Find the generation to DRAW before building it. The clamp used to
+        // expand at the asked-for generation and throw the result away if it
+        // was too big, which at order 6 is a 289,991-tile Sun built and
+        // discarded, then 42,376, then 6,201 -- 404ms for a picture identical
+        // to order 4's, on every redraw. `countAt` remembers the count instead,
+        // so the clamp costs nothing the second time and the walk and the patch
+        // can share a control without the page stalling.
+        while (drawnGen > 1 && countAt(drawnGen, ladder) > TILE_LIMIT) drawnGen -= 1;
+        tiles = expand(seed, seedTenth(), [0, 0], drawnGen, ladder, heads);
     } catch {
         tiles = [];
     }
@@ -608,8 +683,6 @@ const note = (s) => {
 
 // ── readouts ──────────────────────────────────────────────────────────────
 
-const atBaseRung = () => extrapolate === 0;
-
 /** Integers print as integers; the real preset needs decimals. @type {(v: number) => string} */
 const num = (v) => Number.isInteger(v) ? String(v) : v.toFixed(3);
 
@@ -644,23 +717,46 @@ function report(e) {
 
 const redraw = () => { drawInput(); drawFlake(); drawTiling(); };
 
-const rungOutValue = byId("boot-extrapolate-value");
-/** Show the current extrapolation, signed, so +0.5 and -0.5 read differently. */
+const rungOutValue = byId("boot-index");
+/** Show the current index, signed, so +0.5 and -0.5 read differently. */
 function showExtrapolate() {
     if (rungOutValue)
         rungOutValue.textContent = extrapolate > 0 ? `+${extrapolate}` : String(extrapolate);
 }
-/** Steps of a HALF generation, because a generation is phi^2 and phi is the half.
- *  @type {(by: number) => void} */
+/**
+ * Walk the five half a generation, because a generation is phi^2 and phi is the
+ * half.
+ *
+ * The step MOVES the handles -- Jake, 2026-11-25: *we don't need the use button.
+ * Just move the handles to their appointed area. Just change the output
+ * dynamically for both.* `walkSeed` does the move and says why it is pinned on
+ * the centroid; the short of it is that the walk is exact at 0, reversible, and
+ * composable, so this control can just count.
+ *
+ * `redraw`, not `drawInput`: the five really changed, so the pentaflake and the
+ * patch are both out of date. That is the whole point of dropping `use`.
+ * @type {(by: number) => void} */
 const stepExtrapolate = (by) => {
-    extrapolate = Math.min(6, Math.max(-4, extrapolate + by));
+    const next = Math.min(6, Math.max(-4, extrapolate + by));
+    if (next === extrapolate) return;
+    const moved = walkSeed(seedNow(), by);
+    points = moved.points.map((p) => /** @type {Pt} */ ([p[0], p[1]]));
+    origin = moved.origin;
+    extrapolate = next;
     showExtrapolate();
     // A rung is a different figure at a different size, so frame it afresh.
     refitInput();
-    drawInput();
+    // Snapping a walked pentagon that is not on the lattice would wreck it on
+    // the first drag, so follow what was actually taken.
+    setSnapFromPoints();
+    syncPreset();
+    redraw();
 };
-byId("boot-extrapolate-down")?.addEventListener("click", () => stepExtrapolate(-0.5));
-byId("boot-extrapolate-up")?.addEventListener("click", () => stepExtrapolate(0.5));
+// A scrollable box, not a pair of buttons. Jake, 2026-11-25: *the bottom line
+// will contain the extrapolate and gen functionality... two fields with
+// scrollable values. Again, much like the I, lambda and phi fields of the
+// reticulum.* `bindScroll` is that gesture set, shared with the panel's row.
+if (rungOutValue) bindScroll(rungOutValue, (by) => stepExtrapolate(by * 0.5));
 
 // ── the output's viewport ─────────────────────────────────────────────────
 
@@ -787,45 +883,6 @@ for (const [id, v] of UP_DOWN)
     byId(id)?.addEventListener("change", () => { isDown = v; drawTiling(); });
 
 /**
- * Adopt the pentagon currently shown on the input figure as the new five.
- *
- * Derived rungs are real pentagons in their own right, so the ladder is a
- * generator and not only a view: walk to a rung, take it, and carry on from
- * there. Re-basing is exact — the adopted five read back at rung 1 give exactly
- * the wheel they were taken from, at every rung and on every preset.
- *
- * One caveat, recorded because it will look like a bug otherwise: stepping on
- * from an adopted pentagon lands on `taken + then − 1` of the original ladder
- * **unless both the adoption and the step are half rungs**, on an *irregular*
- * pentagon. Then it composes `halfUp` twice, which is not one generation.
- *
- * That it depends on regularity is the interesting part. `halfUp²` and `inflate`
- * are genuinely different operators, but `2cos72° + 2 = 1 + 2cos36° = φ²`, so on
- * a regular wheel both scale by φ² and agree exactly; on the quadrille they
- * cannot, and differ by My's λ = −1 term. The gap belongs to the geometry, not
- * to the operators — which is also why `wheelsAt` anchors every rung on the seed
- * rather than composing half steps.
- */
-const useShown = () => {
-    const taken = pentagon(wheelsAt(spokes(), rungOf(extrapolate)).d, 0);
-    // `taken` is in spoke coordinates, so put it back on the paper where it is
-    // being shown -- adopting it must not teleport the figure to the origin.
-    points = taken.map((p) =>
-        /** @type {Pt} */ ([p[0] + origin[0], p[1] + origin[1]]));
-    extrapolate = 0;
-    refitInput();
-    showExtrapolate();
-    // Snapping an adopted pentagon that is not on the lattice would wreck it on
-    // the first drag, so follow what was actually taken.
-    setSnapFromPoints();
-    syncPreset();
-    redraw();
-};
-
-const useBtn = byId("boot-use");
-if (useBtn) useBtn.addEventListener("click", useShown);
-
-/**
  * Keep the preset picker honest. Once the five have been dragged or adopted they
  * are usually no longer either preset, and leaving the old name selected meant
  * having to toggle away and back to reload one.
@@ -838,8 +895,11 @@ function syncPreset() {
     const now = presetName(seedNow());
     for (const [name, b] of presetBtns)
         b.className = name === now ? "pd-preset on" : "pd-preset";
-    // The panel's title bar names the seed too, and a preset loaded from this
-    // page is a seed the panel has not heard about yet.
+    // Both title bars name the seed: the panel's, and the anchored one, which
+    // is the same line in the same place.
+    showSeedBar();
+    // And a preset loaded from this page is a seed the panel has not heard
+    // about yet.
     pushSeed();
 }
 
@@ -982,7 +1042,7 @@ const loadPreset = (name) => {
     redraw();
 };
 
-const genOut = byId("boot-gen-value");
+const genOut = byId("boot-order");
 /**
  * The slider stops at 6, but what actually matters is the tile COUNT, and that
  * depends on the seed as much as the generation: at generation 5 a Pe5 is 12,161
@@ -994,14 +1054,59 @@ const genOut = byId("boot-gen-value");
  */
 const MAX_GEN = 6;
 const TILE_LIMIT = 15000;
+
+/**
+ * How many tiles a generation holds, remembered.
+ *
+ * The count is a property of the seed type and the generation alone -- the
+ * tenth is a rotation and `heads` is a parity, and neither adds or removes a
+ * tile -- so it is the same answer every redraw, and `tests/patch.test.mjs`
+ * holds it to that. Worth remembering because the answer at order 6 costs
+ * 313ms to work out and the page asks for it on every draw.
+ * @type {Map<string, number>}
+ */
+const COUNTS = new Map();
+/** @type {(g: number, ladder: readonly WheelSet[]) => number} */
+const countAt = (g, ladder) => {
+    const key = `${seed}:${g}`;
+    let n = COUNTS.get(key);
+    if (n === undefined) {
+        n = expand(seed, 0, [0, 0], g, ladder, true).length;
+        COUNTS.set(key, n);
+    }
+    return n;
+};
 /** @type {(by: number) => void} */
 const stepGen = (by) => {
-    gen = Math.min(MAX_GEN, Math.max(0, gen + by));
-    if (genOut) genOut.textContent = String(gen);
+    const next = Math.min(MAX_GEN, Math.max(0, gen + by));
+    if (next === gen) return;
+    gen = next;
+    showGen();
     drawTiling();
+    // The panel's own `order` box is the same number, so it has to hear it.
+    seedFloat?.update(viewNow());
 };
-byId("boot-gen-down")?.addEventListener("click", () => stepGen(-1));
-byId("boot-gen-up")?.addEventListener("click", () => stepGen(1));
+/** Put the order on its box, wherever the instrument currently is. */
+function showGen() {
+    if (genOut) genOut.textContent = String(gen);
+}
+// `order`, on the instrument's bottom line rather than in the output's column.
+// Jake, 2026-11-25: *we're going to move the gen functionality to the
+// pentadiculum from the output.* The number still belongs to the patch; the
+// control belongs beside the figure the patch is grown from.
+if (genOut) bindScroll(genOut, stepGen);
+
+// The two dropdown buttons, the Reticulum's pattern -- one open at a time, and
+// pressing the open one folds it. The behavior is `bindDrops`, shared with the
+// panel so the column and the panel cannot grow different ideas about it.
+{
+    const presetsBtn = byId("boot-presets-btn");
+    const presetsDrop = byId("boot-presets-drop");
+    const settingsBtn = byId("boot-settings-btn");
+    const settingsDrop = byId("boot-settings-drop");
+    if (presetsBtn && presetsDrop && settingsBtn && settingsDrop)
+        bindDrops([[presetsBtn, presetsDrop], [settingsBtn, settingsDrop]]);
+}
 
 const seedPick = /** @type {HTMLSelectElement | null} */ (byId("boot-seed"));
 if (seedPick) seedPick.addEventListener("change", () => {
@@ -1132,17 +1237,21 @@ function adoptView(v) {
     if (typeof v.vectors === "boolean") showVectors = v.vectors;
     if (v.face) seedFace = v.face;
     if (v.edge) seedEdge = v.edge;
-    if (typeof v.extrapolate === "number" && v.extrapolate !== extrapolate) {
-        extrapolate = v.extrapolate;
-        showExtrapolate();
-        // A rung is a different figure at a different size.
-        refitInput();
+    // `order` is the output's generation, which the instrument now holds. It is
+    // the one setting in here that the INPUT does not draw, so it gets its own
+    // redraw rather than riding on `drawInput` below.
+    let orderMoved = false;
+    if (typeof v.order === "number" && v.order !== gen) {
+        gen = Math.min(MAX_GEN, Math.max(0, v.order));
+        showGen();
+        orderMoved = true;
     }
     // The column's own controls are set from the draw, so this is also what
     // puts the checkboxes and the two dropdowns where the panel left them.
     if (facePick) facePick.value = seedFace;
     if (edgePick) edgePick.value = seedEdge;
     drawInput();
+    if (orderMoved) drawTiling();
 }
 
 /** Hand the panel the seed the page is holding, if it is not already on it. */
@@ -1172,14 +1281,9 @@ function floatSeed(on) {
     // column moves that edge. `getBoundingClientRect` below forces the layout,
     // so the measurement is of the page as it will be, not as it was.
     rigEl?.classList.toggle("solo", on);
-    if (seedBtn) {
-        seedBtn.innerHTML = on ? "&#9656;&nbsp;pentadiculum" : "&#9662;&nbsp;pentadiculum";
-        seedBtn.title = on
-            ? "put the seed instrument back in the left column"
-            : "float the seed instrument over the output";
-    }
     if (!on) {
         seedFloat?.hide();
+        showSeedBar();
         drawInput();
         drawTiling();
         return;
@@ -1205,6 +1309,13 @@ function floatSeed(on) {
                 if (sameSeed(next, seedNow())) return;
                 points = next.points.map((q) => /** @type {Pt} */ ([q[0], q[1]]));
                 origin = next.origin;
+                // The panel's extrapolate row walks the seed, so a step there
+                // arrives HERE, as a new figure of a different size: refit, and
+                // let the column's own counter go back to 0, because the walk
+                // was measured in the panel and not from this figure.
+                extrapolate = 0;
+                showExtrapolate();
+                refitInput();
                 setSnapFromPoints();
                 syncPreset();
                 redraw();
@@ -1219,8 +1330,9 @@ function floatSeed(on) {
             onClose: () => floatSeed(false),
         });
     }
-    // The output's width changed, so its fit has -- and the folded-away input
-    // canvas still feeds the readouts under the rig, so it is drawn either way.
+    showSeedBar();
+    // The folded-away input canvas still feeds the readouts under the rig and
+    // the status under the bar, so it is drawn either way.
     drawInput();
     drawTiling();
 }
@@ -1239,6 +1351,7 @@ if (seedBtn) seedBtn.addEventListener("click", () =>
 
 if (genOut) genOut.textContent = String(gen);
 showExtrapolate();
+showSeedBar();
 redraw();
 
 // The build stamp goes ON THE PAGE, in the top nav, as well as to the console.

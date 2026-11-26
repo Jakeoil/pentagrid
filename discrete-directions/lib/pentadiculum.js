@@ -34,6 +34,9 @@ export {
     // which are grayed, given the figure. A host page building its own row gets
     // the same answers the mounts do -- `gridBoxes` decides, `setBox` applies.
     gridBoxes, setBox, centerMoves, presetLabel,
+    // And the two gestures the Reticulum's controls are made of: a fixed-width
+    // box you scroll for a value, and dropdown buttons of which one is open.
+    bindScroll, bindDrops,
 } from "../src/ui/pentadiculum.js";
 
 // ── the drawing primitives it is built on, for a page drawing beside it ──

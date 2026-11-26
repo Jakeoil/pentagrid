@@ -57,6 +57,7 @@
 // a wheel with two spokes in one direction has nine, not ten.
 
 import { PRESETS, m10, wheelFromPoints, wheelsAt } from "./wheel.js";
+import { pentagon } from "./walk.js";
 
 /** @typedef {import("./wheel.js").Pt} Pt */
 /** @typedef {import("./wheel.js").Wheel} Wheel */
@@ -69,6 +70,56 @@ import { PRESETS, m10, wheelFromPoints, wheelsAt } from "./wheel.js";
 
 /** @type {(a: Pt, b: Pt) => number} */
 const cross = (a, b) => a[0] * b[1] - a[1] * b[0];
+
+/**
+ * The five, walked `by` half generations along the wheel ladder.
+ *
+ * Jake, 2026-11-25: *we don't need the use button. Just move the handles to
+ * their appointed area.* So a rung is not a view of a derived figure any more
+ * -- it is a MOVE, and this is the move. The origin stays where it is and the
+ * five land on the rung, which is why the handles stay live and a page's output
+ * follows without a second click.
+ *
+ * **Pinned on the integral centroid, and that is the whole trick.**
+ * `pentagon(d, 0)` places a figure by its own first spoke, and a half rung's
+ * wheel starts somewhere else, so taking it at face value slides the pentagon a
+ * little on every half step -- (0, -1) for the quadrille, (2, 1) for the
+ * asymmetric, nothing at all for the even pentad (evenness again: the half-step
+ * wheel closes integrally only when the five sum to a multiple of five). Those
+ * slides compound: eight halves up and eight back left the quadrille 13107
+ * units away from where it started. Pinning the centroid instead makes the walk
+ *
+ *   - **exact at rung 0**, so stepping nowhere moves nothing;
+ *   - **reversible**, up and back to the point;
+ *   - **composable** -- k steps of a half equal one step of k halves, at every
+ *     rung and on every preset, which is what lets the control just count.
+ *
+ * That last one supersedes a caveat this page used to carry, that composing two
+ * half rungs is not one generation on an irregular pentagon. The discrepancy was
+ * the placement, not the shape; with the centroid pinned, `halfUp` twice and
+ * `inflate` once land on the same five. Measured in `tests/seed.test.mjs`.
+ *
+ * The centroid is ROUNDED (`integralCentroid`), so a lattice seed stays on the
+ * lattice: the shift is a difference of two lattice points. On an irrational
+ * figure both centroids round the same way and the shift is zero, which is what
+ * the unpinned take already did there.
+ *
+ * @param {Seed} seed
+ * @param {number} by half generations, positive up
+ * @returns {Seed}
+ */
+export function walkSeed(seed, by) {
+    const spk = spokesOf(seed);
+    const taken = pentagon(wheelsAt(spk, 1 + by).d, 0);
+    const was = integralCentroid(spk);
+    const now = integralCentroid(taken);
+    const dx = was[0] - now[0] + seed.origin[0];
+    const dy = was[1] - now[1] + seed.origin[1];
+    return {
+        points: taken.map((q) => /** @type {Pt} */ ([q[0] + dx, q[1] + dy])),
+        origin: seed.origin,
+    };
+}
 
 /**
  * A seed from five points, origin at (0, 0) unless given.
