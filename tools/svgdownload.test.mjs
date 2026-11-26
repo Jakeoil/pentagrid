@@ -7,6 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { makeStub } from "./domstub.mjs";
 import { createPentagrid } from "../dist/view/pentagrid.js";
+import { createGrowthView } from "../dist/view/growth.js";
 import { downloadText, svgFilename } from "../dist/svg/download.js";
 import { readFileSync } from "node:fs";
 
@@ -148,13 +149,89 @@ test("the page closes the raster gap, because it has the live canvas", () => {
 });
 
 test("the button is in the panel, beside the other three", () => {
-    const src = readFileSync("src/view/pentagrid.ts", "utf8");
-    assert.ok(src.includes('svgBtn.textContent = "export svg"'), "no export button");
-    assert.ok(src.includes("svgBtn.addEventListener"), "the export button is inert");
-    // It reports like the others, and falls back to the console.
-    const at = src.indexOf('svgBtn.addEventListener');
-    const body = src.slice(at, src.indexOf("copyRow.appendChild(svgBtn)", at));
-    assert.ok(body.includes("say("), "the export button says nothing");
-    assert.ok(body.includes("console.log"), "no fallback when a save is refused");
-    assert.ok(body.includes("svgFilename"), "the file is not named");
+    // Behavior, not source: the four buttons moved into `view/controls.ts`
+    // on 2026-11-26 so roof and grow could have them too.
+    const panel = makeStub({ children: [] });
+    panel.appendChild = (c) => { panel.children.push(c); return c; };
+    const stage = makeStub({
+        children: [],
+        getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }),
+        getAttribute: () => null, getAttributeNames: () => [],
+    });
+    stage.appendChild = (c) => { stage.children.push(c); return c; };
+    createPentagrid({ container: stage, panel, features: { penroseTiles: true } });
+    let btn = null;
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (c.tagName === "button" && c.textContent === "export svg") btn = c;
+            walk(c);
+        }
+    };
+    walk(panel);
+    assert.ok(btn, "no export button");
+    assert.ok((btn.on?.click ?? []).length > 0, "the export button is inert");
+
+    // It saves, and says so in the panel.
+    const saved = [];
+    globalThis.__downloads = saved;
+    btn.on.click[0]();
+    let said = null;
+    const findSaid = (el) => {
+        for (const c of el.children ?? []) {
+            if (String(c.className) === "copy-said" && c.textContent) said = c.textContent;
+            findSaid(c);
+        }
+    };
+    findSaid(panel);
+    assert.ok(said, "the export button said nothing");
+});
+
+test("roof and grow can export too, and copy their setup", () => {
+    // Jake, 2026-11-26: "Add the export svg and copy setup buttons to roof and
+    // grow." They had neither -- the buttons were the panel's and the growth
+    // pages have no panel -- so the two pages that most want a vector file
+    // were the two that could not ask for one.
+    //
+    // The growth layers draw into the pentagrid's own stack, which is what
+    // makes the export one call: `view.svg()` is `pentagrid.svg()`, with
+    // `growth` and `vertex-index` in it.
+    const host = () => {
+        const el = makeStub({
+            children: [],
+            getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }),
+            getAttribute: () => null, getAttributeNames: () => [],
+        });
+        el.appendChild = (c) => { el.children.push(c); return c; };
+        return el;
+    };
+    for (const lift of [true, false]) {
+        const v = createGrowthView({ container: host(), lift });
+        v.set({ grow: 1, fold: lift ? 1 : 0 });
+        assert.equal(typeof v.svg, "function", "the growth handle cannot export");
+        const files = v.svg();
+        assert.equal(files.length, 1, "one file per viewport");
+        const groups = [...files[0].svg.matchAll(/<g id="([^"]*)"/g)].map((m) => m[1]);
+        assert.ok(groups.includes("growth"),
+                  `the growth layer is not in the file: ${groups.join(" ")}`);
+        assert.ok(files[0].svg.startsWith("<svg"), "not an SVG document");
+        // And the markup the other button copies carries the growth slice.
+        assert.match(v.embed(), /^<div/);
+    }
+});
+
+test("the setup buttons are shared code, not a second copy", () => {
+    // One `addSetupButtons` in view/controls.ts, used by the panel and by the
+    // three growth pages. A second clipboard dance is exactly what this
+    // project keeps deleting.
+    const controls = readFileSync("src/view/controls.ts", "utf8");
+    assert.ok(controls.includes("export function addSetupButtons"), "the helper moved");
+    const pg = readFileSync("src/view/pentagrid.ts", "utf8");
+    assert.ok(pg.includes("addSetupButtons("), "the panel builds its own buttons again");
+    for (const page of ["roof", "grow", "grow7"]) {
+        const src = readFileSync(`src/app/${page}.ts`, "utf8");
+        assert.ok(src.includes("addSetupButtons("), `${page} has no setup buttons`);
+        assert.ok(src.includes(`"${page}-setup"`), `${page} does not name its slot`);
+        const html = readFileSync(`${page}.html`, "utf8");
+        assert.ok(html.includes(`id="${page}-setup"`), `${page}.html has no slot for them`);
+    }
 });

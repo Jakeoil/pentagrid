@@ -197,9 +197,23 @@ test("the pages that opt in are the exploration ones, not the narratives", () =>
 
 test("reset page and copy setup are both in the panel's settings", () => {
     // A page that remembers where you left it and offers no way home is a
-    // trap, so the reset button landed with the session.
-    const src = readFileSync("src/view/pentagrid.ts", "utf8");
-    assert.ok(src.includes('resetBtn.textContent = "reset page"'), "no reset button");
-    assert.ok(src.includes('copyBtn.textContent = "copy setup"'), "no copy button");
-    assert.ok(src.includes("resetBtn.addEventListener"), "the reset button is inert");
+    // trap, so the reset button landed with the session. Asked of the PANEL
+    // rather than of the source: the four buttons moved into
+    // `view/controls.ts` on 2026-11-26 so the growth pages could have them
+    // too, and a test that reads pentagrid.ts for a variable name would have
+    // called that a regression.
+    const panel = host();
+    const h = createPentagrid({ container: host(), panel });
+    const labels = [];
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (c.tagName === "button" && c.textContent) labels.push(c.textContent);
+            walk(c);
+        }
+    };
+    walk(panel);
+    for (const want of ["reset page", "copy setup", "copy link", "export svg"]) {
+        assert.ok(labels.includes(want), `no "${want}" button: ${labels.join(", ")}`);
+    }
+    assert.equal(typeof h.reset, "function");
 });

@@ -11,6 +11,7 @@
 // code. See README, "Canvas containers".
 
 import { createPentagrid } from "./pentagrid.js";
+import type { SvgExportOptions, SvgFile } from "../svg/export.js";
 import type { PentagridHandle } from "./pentagrid.js";
 import { RISE, vertexIndex } from "../geometry/roof.js";
 import { tileCorner, outlineCorner } from "../geometry/growth.js";
@@ -283,6 +284,15 @@ export interface GrowthHandle {
     reset: () => void;
     /** This page as markup — §9.8. The pentagrid's share plus the growth slice. */
     embed: (opts?: { tag?: string; id?: string }) => string;
+    /**
+     * This page as vector — §5.99.
+     *
+     * The growth layers live in the pentagrid's own stack (that is how they
+     * are drawn at all), so the export is the pentagrid's with the growth
+     * layers in it. Checked before it was offered: the roof records clean,
+     * `growth` and `vertex-index` as their own groups, nothing dropped.
+     */
+    svg: (opts?: SvgExportOptions) => SvgFile[];
     /** The pentagrid underneath, for pan/zoom, γ and the layer stack. */
     pentagrid: PentagridHandle;
 }
@@ -1901,6 +1911,9 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
          * `owner === "growth"` deliberately, because that state is here — so
          * this adds those fields and splices them into the same element.
          */
+        // The pentagrid's export: the growth layers are in its stack, so one
+        // call carries both halves of the picture.
+        svg: (opts) => pentagrid.svg(opts),
         embed: (opts) => {
             const base = pentagrid.embed(opts);
             const mine: string[] = [];

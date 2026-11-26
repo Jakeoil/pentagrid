@@ -79,3 +79,8 @@
     color: #555;
 }
 .reopen-panel:hover { background: #eee; }
+
+/* What `addSetupButtons` says after a copy or a save. It moved here from
+   site.css when the buttons moved into `view/controls.ts`: a class the
+   library assigns is a class the library has to dress. */
+.copy-said { font-size: 11px; color: #777; margin-left: 6px; }

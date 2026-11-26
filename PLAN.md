@@ -4581,6 +4581,43 @@ per-container composite with z sorting, `<g>` opacity and the visibility filter;
 `measureText` by approximation or by dropping the backing boxes; and the
 `background` layer as an embedded PNG or omitted.
 
+### 5.99a The buttons reach roof and grow (Jake, 2026-11-26)
+
+Jake, after a status review: *"Add the export svg and copy setup buttons to
+roof and grow."* They had neither. The four — copy setup, reset page, copy
+link, export svg — were built inside `createPentagrid`'s settings row, and the
+growth pages have no panel at all: their controls are the page's own bar. So
+the two pages that most want a vector file were the two that could not ask for
+one.
+
+**One helper, not a second copy.** `addSetupButtons` in `view/controls.ts` —
+the seam between a page and a module — builds whichever of the four a host
+offers, with the clipboard dance and the in-place report that `copy setup`
+already had. `createPentagrid`'s settings row now calls it, and so do
+`roof.ts`, `grow.ts` and `grow7.ts` with `["setup", "svg"]`.
+
+Two details worth the note:
+
+- **Thunks, not methods.** The panel is built before the handle exists, so
+  `{ embed: (o) => embedNow(o) }` rather than `{ embed: embedNow }` — the
+  latter reads a `const` still in its temporal dead zone.
+- **A named slot in the markup.** The pages got `<span class="bar-setup"
+  id="roof-setup">` and so on, rather than `querySelector(".bar")`. The
+  reticulum's reopen button takes the `querySelector` route and is invisible
+  to the DOM stub because of it: the stub hands back a fresh element per call,
+  so the button lands on a throwaway and no test can see it. An id is stable
+  there, which is what let this be tested at all.
+
+**The export needed nothing new.** The growth layers draw into the pentagrid's
+own stack — that is how they are drawn at all — so `view.svg()` is
+`pentagrid.svg()` with `growth` and `vertex-index` in it. Checked before it
+was offered: the roof records clean, 2.7 MB lifted and 1.3 MB flat, nothing
+dropped.
+
+And `.copy-said` moved from `site.css` to `lib/css/panel.css` with the code:
+a class the library assigns is a class the library has to dress, which
+`tools/surface.test.mjs` enforces.
+
 ## 6. Not built
 
 Thought about, recorded, not started. None is scheduled.

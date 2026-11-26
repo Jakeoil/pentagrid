@@ -6,7 +6,7 @@
 
 import { createGrowthView } from "../view/growth.js";
 import {
-    bindSliders, bindToggles, bindSelects, mountGammaControls, mountFloatingReticulum,
+    bindSliders, bindToggles, bindSelects, mountGammaControls, mountFloatingReticulum, addSetupButtons,
 } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 
@@ -51,4 +51,19 @@ if (host) {
         sliders: gammaHost ?? undefined,
         foldSliders: true,
     });
+
+    // The page's own machinery, in the bar: this picture as markup, and as a
+    // vector file. Jake, 2026-11-26: "Add the export svg and copy setup
+    // buttons to roof and grow." They were the panel's, and the growth pages
+    // have no panel — so the two pages that most want a vector file were the
+    // two that could not ask for one. `addSetupButtons` is the panel's own
+    // code, not a second copy.
+    const setupBar = document.getElementById("grow-setup");
+    if (setupBar) {
+        addSetupButtons(setupBar, {
+            embed: (o) => view.embed(o),
+            svg: () => view.svg(),
+        }, ["setup", "svg"]);
+    }
+
 }

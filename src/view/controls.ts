@@ -3,6 +3,116 @@
 import type { GrowthHandle, GrowthState } from "./growth.js";
 import type { GammaSet } from "../geometry/gamma.js";
 import { describeSum } from "../geometry/gamma.js";
+import { downloadText, svgFilename } from "../svg/download.js";
+
+/**
+ * The page's own machinery, as buttons: copy setup, reset page, copy link,
+ * export svg.
+ *
+ * Here rather than in `view/pentagrid.ts` because the growth pages want them
+ * too — Jake, 2026-11-26: *"Add the export svg and copy setup buttons to roof
+ * and grow."* They had neither, while the canvas under them had both, so the
+ * two pages that most want a vector file were the two that could not ask for
+ * one. A second copy of the clipboard dance is not the way to fix that.
+ *
+ * The host is structural — whatever has these methods — so a `PentagridHandle`
+ * and a `GrowthHandle` both satisfy it, and a page passes only the buttons it
+ * wants. **Pass thunks, not the methods**: a panel is built before a handle
+ * exists, so `embed: (o) => embedNow(o)` defers the lookup to the click, where
+ * `embed: embedNow` would read a `const` still in its temporal dead zone.
+ */
+export interface SetupHost {
+    embed?: (opts?: { tag?: string; id?: string }) => string;
+    link?: () => string;
+    svg?: () => { id: string; svg: string }[];
+    reset?: () => void;
+}
+
+export type SetupButton = "setup" | "reset" | "link" | "svg";
+
+export function addSetupButtons(
+    parent: HTMLElement, host: SetupHost,
+    which: readonly SetupButton[] = ["setup", "reset", "link", "svg"],
+): HTMLElement {
+    const said = document.createElement("span");
+    said.className = "copy-said";
+    /**
+     * Report in place. The clipboard is asynchronous and can be refused
+     * outright, and a button that says nothing leaves you unsure whether it
+     * worked; so does a download that silently does not happen.
+     */
+    const say = (what: string) => {
+        said.textContent = what;
+        setTimeout(() => { said.textContent = ""; }, 2400);
+    };
+    const copyText = (text: string) => {
+        const clip = (navigator as Navigator | undefined)?.clipboard;
+        if (clip?.writeText) {
+            clip.writeText(text).then(() => say("copied"), () => say("blocked"));
+        } else {
+            // No clipboard: say so and leave it in the console, which is the
+            // one place a user can still get at it.
+            console.log(text);
+            say("in the console");
+        }
+    };
+    const button = (text: string, title: string, onClick: () => void) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "ret-bump";
+        b.textContent = text;
+        b.title = title;
+        b.addEventListener("click", onClick);
+        parent.appendChild(b);
+        return b;
+    };
+
+    for (const kind of which) {
+        if (kind === "setup" && host.embed) {
+            button("copy setup",
+                "This canvas as a line of markup: everything that differs from "
+                + "the page's own defaults, as data- attributes. Paste it into a "
+                + "page to rebuild exactly this.",
+                () => copyText(host.embed!()));
+        } else if (kind === "reset" && host.reset) {
+            button("reset page",
+                "Back to this page's own defaults: the dressings, the layers, "
+                + "the view and γ. Not the view's defaults — the page's, "
+                + "including anything its markup asked for.",
+                () => host.reset!());
+        } else if (kind === "link" && host.link) {
+            button("copy link",
+                "This page as a URL, with the settings as query parameters. "
+                + "Opening it shows exactly this, and a link outranks whatever "
+                + "the recipient was last looking at.",
+                () => copyText(host.link!()));
+        } else if (kind === "svg" && host.svg) {
+            button("export svg",
+                "This canvas as vector, one file per viewport, with every layer "
+                + "as a group an editor can switch off. It scales to any size "
+                + "without resampling, which is the point of it over a PNG.",
+                () => {
+                    const files = host.svg!();
+                    const page = (globalThis.location?.pathname ?? "pentagrid")
+                        .replace(/^.*\//, "").replace(/\.html?$/, "") || "pentagrid";
+                    let saved = 0, blocked = 0;
+                    for (const f of files) {
+                        const how = downloadText(svgFilename(page, f.id), f.svg);
+                        if (how === "unavailable") blocked++; else saved++;
+                    }
+                    if (blocked && !saved) {
+                        // Nowhere to put it: the console is the one place left.
+                        for (const f of files) console.log(f.svg);
+                        say("in the console");
+                    } else {
+                        say(saved > 1 ? `saved ${saved} files` : "saved");
+                    }
+                });
+        }
+    }
+    parent.appendChild(said);
+    return said;
+}
 
 /** For the φ box's own readout: λ in figures, not just as an exponent. */
 const PHI = (1 + Math.sqrt(5)) / 2;

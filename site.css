@@ -269,6 +269,19 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
    hidden row has to be told to go. /* The system fold: a line per color system, each with a face switch and its
    own opacity. They stack rather than excluding each other, which is why the
    row is a fold of lines and not a dropdown. */
+/* The page's own machinery in a bar: `copy setup` and `export svg` on the
+   growth pages, which have no panel to put them in.
+   NOT `margin-left: auto`, which the first draft used: `.bar` wraps, so that
+   strands the group at the right-hand end of whatever line it lands on, half a
+   bar away from everything else. Jake: "I'm looking for the buttons. can't
+   find them." It flows with the controls now, with a rule and a word in front
+   of it so it reads as a group rather than two more switches. */
+.bar-setup {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding-left: 14px; border-left: 1px solid #ddd; align-self: center;
+}
+.bar-setup::before { content: "this page"; font-size: 11px; color: #888; }
+
 .system-lines { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
 .system-line { display: flex; align-items: center; gap: 6px; }
 .system-name { min-width: 84px; color: #444; }
@@ -371,7 +384,6 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
 .panel-group::after { content: ":"; }
 /* What the copy-setup button says after you press it: the clipboard is async
    and can be refused, so the button reports rather than leaving you guessing. */
-.copy-said { font-size: 11px; color: #777; margin-left: 6px; }
 .settings {
     margin-top: 6px;
     font-size: 12px;

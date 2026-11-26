@@ -24,7 +24,7 @@ import { sessionKey, saveSession, loadSession, debounce, SAVE_AFTER_MS }
 import { pageQuery, hasQuerySetup, readQuery, queryFor } from "../state/query.js";
 import { exportSvg } from "../svg/export.js";
 import type { SvgExportOptions, SvgFile } from "../svg/export.js";
-import { downloadText, svgFilename } from "../svg/download.js";
+import { addSetupButtons } from "./controls.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
@@ -5609,107 +5609,16 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
          * nothing leaves you unsure whether it worked.
          */
         const copyRow = row(det, "");
-        const copyBtn = document.createElement("button");
-        copyBtn.type = "button";
-        copyBtn.className = "ret-bump";
-        copyBtn.textContent = "copy setup";
-        copyBtn.title = "This canvas as a line of markup: everything that differs "
-            + "from the page's own defaults, as data- attributes. Paste it into a "
-            + "page to rebuild exactly this.";
-        const copySaid = document.createElement("span");
-        copySaid.className = "copy-said";
-        /**
-         * Put something on the clipboard and say so.
-         *
-         * Shared by `copy setup` and `copy link`. It reports in place because
-         * the clipboard is asynchronous and can be refused outright, and a
-         * button that says nothing leaves you unsure whether it worked.
-         */
-        const say = (what: string) => {
-            copySaid.textContent = what;
-            setTimeout(() => { copySaid.textContent = ""; }, 2400);
-        };
-        const copyText = (text: string) => {
-            const clip = (navigator as Navigator | undefined)?.clipboard;
-            if (clip?.writeText) {
-                clip.writeText(text).then(() => say("copied"), () => say("blocked"));
-            } else {
-                // No clipboard: say so and leave it in the console, which is
-                // the one place a user can still get at it.
-                console.log(text);
-                say("in the console");
-            }
-        };
-        copyBtn.addEventListener("click", () => { copyText(embedNow()); });
-        copyRow.appendChild(copyBtn);
-        /**
-         * Back to this page's own setup — PLAN §9.6, Jake's want #5.
-         *
-         * Beside the copy button, and added at the same time as the session
-         * (§9.4) on purpose: a page that remembers where you left it and offers
-         * no way home is a trap, since the only escape would be clearing site
-         * data. The reset throws the session away too — it returns to the
-         * markup, and the next draw saves that.
-         */
-        const resetBtn = document.createElement("button");
-        resetBtn.type = "button";
-        resetBtn.className = "ret-bump";
-        resetBtn.textContent = "reset page";
-        resetBtn.title = "Back to this page's own defaults: the dressings, the "
-            + "layers, the view and γ. Not the view's defaults — the page's, "
-            + "including anything its markup asked for.";
-        resetBtn.addEventListener("click", () => { resetNow(); });
-        copyRow.appendChild(resetBtn);
-        /**
-         * The same setup as a link — §9.4, Jake's want #2.
-         *
-         * Beside `copy setup` because they are one idea in two spellings: the
-         * markup rebuilds the canvas inside a page you are writing, the link
-         * reopens this page as it is now. Neither writes the address bar.
-         */
-        const linkBtn = document.createElement("button");
-        linkBtn.type = "button";
-        linkBtn.className = "ret-bump";
-        linkBtn.textContent = "copy link";
-        linkBtn.title = "This page as a URL, with the settings as query "
-            + "parameters. Opening it shows exactly this, and a link outranks "
-            + "whatever the recipient was last looking at.";
-        linkBtn.addEventListener("click", () => { copyText(linkNow()); });
-        copyRow.appendChild(linkBtn);
-        /**
-         * The SVG, saved — §5.99 step 3.
-         *
-         * One file per container, so split downloads two. It reports in the
-         * same place the copy buttons do, and says `blocked` when the browser
-         * refuses a download, because a save that silently does not happen is
-         * the worst outcome of the three.
-         */
-        const svgBtn = document.createElement("button");
-        svgBtn.type = "button";
-        svgBtn.className = "ret-bump";
-        svgBtn.textContent = "export svg";
-        svgBtn.title = "This canvas as vector, one file per viewport, with every "
-            + "layer as a group an editor can switch off. It scales to any size "
-            + "without resampling, which is the point of it over a PNG.";
-        svgBtn.addEventListener("click", () => {
-            const files = svgNow();
-            const page = (globalThis.location?.pathname ?? "pentagrid")
-                .replace(/^.*\//, "").replace(/\.html?$/, "") || "pentagrid";
-            let saved = 0, blocked = 0;
-            for (const f of files) {
-                const how = downloadText(svgFilename(page, f.id), f.svg);
-                if (how === "unavailable") blocked++; else saved++;
-            }
-            if (blocked && !saved) {
-                // Nowhere to put it: the console is the one place left.
-                for (const f of files) console.log(f.svg);
-                say("in the console");
-            } else {
-                say(saved > 1 ? `saved ${saved} files` : "saved");
-            }
+        // The four, built by `view/controls.ts` so the growth pages can have
+        // the same ones — see `addSetupButtons`. Thunks rather than the
+        // methods themselves: these `const`s are declared below, after the
+        // panel, so naming them here would read a temporal dead zone.
+        addSetupButtons(copyRow, {
+            embed: (o) => embedNow(o),
+            reset: () => resetNow(),
+            link: () => linkNow(),
+            svg: () => svgNow(),
         });
-        copyRow.appendChild(svgBtn);
-        copyRow.appendChild(copySaid);
 
         const sRow = row(det, "");
         // "force regular" used to be here. Off on every page since the presets
