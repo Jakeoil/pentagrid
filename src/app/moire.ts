@@ -42,6 +42,14 @@ const ROWS = [
     // above the canvases." `for groups` still appears only when the system is
     // rhomb groups — that is its own condition, not this list.
     "pentaplex", "next-rhomb", "kites", "misc", "band", "for groups", "outlines",
+    // `settings` carries copy setup, reset page, copy link and export svg.
+    // It was trimmed away here, so each side BUILT all four and then hid them
+    // — the page had none of them but the bar's own `reset page`, and asking
+    // for this page as a link or a file was impossible. Jake, 2026-11-26: "I
+    // would like a copy url button on all those pages." A side's buttons act
+    // on that side, which is what you want when the two differ: two canvases,
+    // two files, two links.
+    "settings",
 ];
 
 /** Σγ mod 1 — the LI class, and the only thing about γ this page is about. */
@@ -178,6 +186,16 @@ if (aHost && bHost && bar && grid) {
     const note = document.createElement("span");
     note.className = "moire-note";
 
+    // One line for everything that acts on BOTH sides: merge first, then the
+    // two ways back, then the note.
+    //
+    // It STICKS to the top of the viewport — `.moire-bar`, like `.bar` on
+    // every other page. Jake, 2026-11-26: "All I wanted to do is not have to
+    // scroll up to the top for merge split." The line was already in the right
+    // place in the reading order; what it was not was reachable, since the two
+    // panels and their canvases are taller than a screen. Moving it down the
+    // page was the wrong fix and broke the merged layout, which counts grid
+    // rows; staying put and not scrolling away is the right one.
     bar.append(mergeLabel, findRet, resetAll, note);
 
     const say = () => {

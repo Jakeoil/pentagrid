@@ -235,3 +235,51 @@ test("the setup buttons are shared code, not a second copy", () => {
         assert.ok(html.includes(`id="${page}-setup"`), `${page}.html has no slot for them`);
     }
 });
+
+test("a growth page's link carries the growth slice, not just the tiling", () => {
+    // Jake, 2026-11-26: "I would like a copy url button on all those pages."
+    // The point of it on roof and grow is that the URL has to reopen THE ROOF
+    // -- the fold, the camera, the index marks -- and not the flat tiling
+    // underneath, which is all the pentagrid's own `link` would know about.
+    const host = () => {
+        const el = makeStub({
+            children: [],
+            getBoundingClientRect: () => ({ left: 0, top: 0, width: 400, height: 400 }),
+            getAttribute: () => null, getAttributeNames: () => [],
+        });
+        el.appendChild = (c) => { el.children.push(c); return c; };
+        return el;
+    };
+    const v = createGrowthView({ container: host(), lift: true });
+    v.markBaseline();
+    v.set({ grow: 0.5, fold: 0, indexStyle: "pool", paths: "high" });
+
+    const url = v.link();
+    assert.ok(url.includes("?"), `no query in ${url}`);
+    for (const want of ["grow=0.5", "index-style=pool", "paths=high"]) {
+        assert.ok(url.includes(want), `the link lacks ${want}: ${url}`);
+    }
+    assert.ok(!url.includes("data-"), "the link uses the long spelling");
+
+    // And it says the same thing the markup does, which is the whole claim:
+    // one idea in two spellings.
+    const markup = v.embed();
+    for (const want of ["data-grow=", "data-index-style=", "data-paths="]) {
+        assert.ok(markup.includes(want), `the markup lacks ${want}: ${markup}`);
+    }
+    // A field at its baseline is in neither.
+    assert.ok(!url.includes("azimuth"), `an unchanged field got into ${url}`);
+});
+
+test("moire shows the four buttons instead of building them hidden", () => {
+    // `settings` was trimmed from moire's exposed rows, so each side BUILT
+    // copy setup, reset page, copy link and export svg and then hid them --
+    // the page had none of them but the bar's own reset, and asking for this
+    // page as a link or a file was impossible.
+    const src = readFileSync("src/app/moire.ts", "utf8");
+    const rows = [...(src.match(/const ROWS = \[([\s\S]*?)\n\];/)?.[1] ?? "")
+        .split("\n").filter((l) => !l.trimStart().startsWith("//")).join("\n")
+        .matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    assert.ok(rows.includes("settings"),
+              `moire still hides its settings row: ${rows.join(", ")}`);
+});

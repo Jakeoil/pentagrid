@@ -30,6 +30,7 @@ import { wallView, skewbCode } from "../geometry/walls.js";
 import { readAttributes, watchAttributes } from "../state/attributes.js";
 import { DEFAULTS } from "../state/defaults.js";
 import { FIELDS, format } from "../state/inventory.js";
+import { queryFor } from "../state/query.js";
 // Re-exported from where it has always been imported.
 export { DEFAULTS } from "../state/defaults.js";
 import type { Paths } from "../geometry/walls.js";
@@ -284,6 +285,14 @@ export interface GrowthHandle {
     reset: () => void;
     /** This page as markup — §9.8. The pentagrid's share plus the growth slice. */
     embed: (opts?: { tag?: string; id?: string }) => string;
+    /**
+     * This page as a URL — §9.4.
+     *
+     * The same attributes `embed` writes, as query parameters: the
+     * pentagrid's share plus the growth slice, so a roof link reopens the
+     * roof rather than the tiling under it.
+     */
+    link: () => string;
     /**
      * This page as vector — §5.99.
      *
@@ -1896,6 +1905,31 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         Object.assign(state, DEFAULTS, readAttributes(config.container).growth);
         handle!.redraw();
     });
+    /**
+     * This page as markup — the pentagrid's share plus the growth slice.
+     *
+     * A local rather than only a handle method, because `link` wants the
+     * same answer and the two are "one idea in two spellings" (§9.4):
+     * asking the handle from inside the handle would be a self-reference
+     * where a function will do.
+     */
+    const embedNow = (opts?: { tag?: string; id?: string }): string => {
+            const base = pentagrid.embed(opts);
+            const mine: string[] = [];
+            for (const f of FIELDS) {
+                if (f.owner !== "growth") continue;
+                const here = (state as unknown as Record<string, unknown>)[f.key];
+                const home = (baseline as unknown as Record<string, unknown>)[f.key];
+                if (here === home) continue;
+                const v = format(f, here);
+                mine.push(v === "" ? f.attr : `${f.attr}="${v}"`);
+            }
+            if (!mine.length) return base;
+            // Before the closing `>` of the opening tag, which is the first one.
+            const cut = base.indexOf(">");
+            return `${base.slice(0, cut)} ${mine.join(" ")}${base.slice(cut)}`;
+        };
+
     return {
         set: (patch) => { Object.assign(state, patch); handle!.redraw(); },
         get: () => ({ ...state }),
@@ -1914,22 +1948,27 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         // The pentagrid's export: the growth layers are in its stack, so one
         // call carries both halves of the picture.
         svg: (opts) => pentagrid.svg(opts),
-        embed: (opts) => {
-            const base = pentagrid.embed(opts);
-            const mine: string[] = [];
-            for (const f of FIELDS) {
-                if (f.owner !== "growth") continue;
-                const here = (state as unknown as Record<string, unknown>)[f.key];
-                const home = (baseline as unknown as Record<string, unknown>)[f.key];
-                if (here === home) continue;
-                const v = format(f, here);
-                mine.push(v === "" ? f.attr : `${f.attr}="${v}"`);
+        /**
+         * The markup read back as a query string.
+         *
+         * Off `embed()` rather than off a second walk of the fields: the two
+         * are "one idea in two spellings" (§9.4), and the one that already
+         * knows about the growth slice is the one to ask. A parse of our own
+         * output is cheap and cannot disagree with it.
+         */
+        link: () => {
+            const here = globalThis.location
+                ? globalThis.location.origin + globalThis.location.pathname
+                : "";
+            const markup = embedNow();
+            const attrs: Record<string, string> = {};
+            for (const m of markup.matchAll(/\s(data-[\w-]+)(?:="([^"]*)")?/g)) {
+                if (m[1] === "data-width" || m[1] === "data-height") continue;
+                attrs[m[1]] = m[2] ?? "";
             }
-            if (!mine.length) return base;
-            // Before the closing `>` of the opening tag, which is the first one.
-            const cut = base.indexOf(">");
-            return `${base.slice(0, cut)} ${mine.join(" ")}${base.slice(cut)}`;
+            return here + queryFor(attrs);
         },
+        embed: (opts) => embedNow(opts),
         reset: () => {
             // The pentagrid first: its own reset redraws, and the growth state
             // should be the thing that lands last.

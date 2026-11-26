@@ -4618,6 +4618,52 @@ And `.copy-said` moved from `site.css` to `lib/css/panel.css` with the code:
 a class the library assigns is a class the library has to dress, which
 `tools/surface.test.mjs` enforces.
 
+### 5.99b Where the four buttons actually are (Jake, 2026-11-26)
+
+Jake: *"What about method, split and moire. Is it deployed there?, and also, I
+would like a copy url button on all those pages."* Audited by building each
+page and asking it:
+
+| page | copy setup | reset page | copy link | export svg | where |
+|---|---|---|---|---|---|
+| method | ✓ | ✓ | ✓ | ✓ | the panel's `settings` fold |
+| split | ✓ | ✓ | ✓ | ✓ | the LEFT panel's `settings` |
+| moiré | built but **hidden** | — | built but **hidden** | built but **hidden** | — |
+| roof, grow, grow7 | ✓ | — | ✓ | ✓ | the bar, as `this page` |
+
+**method and split had all four all along**, inside the `settings` fold — which
+is why they were easy to miss rather than missing.
+
+**Moiré was the real gap.** Its `exposeRows` list left `settings` out, so each
+side BUILT the four and then hid them: the page had none of them but the bar's
+own `reset page`, and asking for this page as a link or a file was impossible.
+`settings` is on the list now, so each side has its own four — which is what
+you want when the two sides differ: two canvases, two files, two links.
+
+**Moiré's common line sticks now.** Jake: *"All I wanted to do is not have to
+scroll up to the top for merge split."* The line was already in the right
+place in the reading order — above both panels, where a page-wide control
+belongs — and what it was not was REACHABLE: two panels and their canvases are
+taller than a screen, and `.moire-bar` was the one bar on the site without
+`position: sticky`.
+
+The first attempt moved it down the page instead, between the panel pair and
+the canvas pair, which meant taking the panels out of their figures so a
+full-width row could sit between them. That **broke the merged layout**:
+`.moire.merged .viewport` is `grid-row: 3` over figures with `display:
+contents`, so inserting a row renumbered everything and the page came apart —
+Jake: *"The page is all screwed up."* Reverted. Sticking it is the fix that
+changes no geometry, and a test now pins both halves: the bar is sticky with a
+ground, and the panels are still inside their figures.
+
+**And the growth pages got `copy link`.** `GrowthHandle.link()` is new, and it
+reads its own `embed()` back rather than walking the fields a second time —
+the two are *"one idea in two spellings"* (§9.4), so a parse of our own markup
+is cheap and cannot disagree with it. The point is that the URL reopens the
+ROOF: measured, a roof link carries `grow`, `growth-band`, `direction`,
+`paths`, `index-style` and `edge-style`, none of which the pentagrid's own
+`link` knows about.
+
 ## 6. Not built
 
 Thought about, recorded, not started. None is scheduled.

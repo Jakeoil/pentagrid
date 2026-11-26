@@ -114,8 +114,9 @@ if (host) {
     if (setupBar) {
         addSetupButtons(setupBar, {
             embed: (o) => view.embed(o),
+            link: () => view.link(),
             svg: () => view.svg(),
-        }, ["setup", "svg"]);
+        }, ["setup", "link", "svg"]);
     }
 
 }

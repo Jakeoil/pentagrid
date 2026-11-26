@@ -450,3 +450,48 @@ test("every row this page names is a row the panel builds", () => {
         assert.ok(named.includes(r), `moire does not expose "${r}"`);
     }
 });
+
+test("the common line sticks, so merge is reachable without scrolling", () => {
+    // Jake, 2026-11-26: "All I wanted to do is not have to scroll up to the
+    // top for merge split." The line was already in the right place in the
+    // reading order -- above both panels, which is where a page-wide control
+    // belongs -- and what it was not was REACHABLE: the two panels and their
+    // canvases are taller than a screen.
+    //
+    // The first attempt moved it down the page instead, between the panel pair
+    // and the canvas pair. That broke the merged layout, which counts grid
+    // rows -- `.moire.merged .viewport { grid-row: 3 }` over figures with
+    // `display: contents` -- so inserting a row renumbered everything and the
+    // page came apart. Sticking it is the fix that changes no geometry.
+    const css = readFileSync("site.css", "utf8");
+    const rule = css.slice(css.indexOf(".moire-bar {"));
+    const body = rule.slice(0, rule.indexOf("}"));
+    assert.match(body, /position:\s*sticky/, "the common line scrolls away");
+    assert.match(body, /top:\s*0/, "sticky to nothing");
+    assert.match(body, /background:/, "a sticky bar needs a ground to cover what passes under it");
+
+    // Everything page-wide is on it, merge included.
+    const merge = control("moire-merge");
+    assert.ok(merge, "no merge control");
+    const classes = (doc.getElementById("moire-bar").children ?? []).flatMap(
+        (c) => [String(c.className), ...(c.children ?? []).map((k) => String(k.className))]);
+    for (const want of ["moire-merge", "moire-find", "moire-reset"]) {
+        assert.ok(classes.includes(want), `${want} is not on the common line`);
+    }
+
+    // And the merged layout is untouched: the figures' own rows still decide it.
+    const html = readFileSync("moire.html", "utf8");
+    const fig = html.indexOf("<figure>");
+    assert.ok(html.indexOf('id="moire-a-panel"') > fig,
+              "a panel came out of its figure, which is what renumbered the rows");
+    assert.ok(html.indexOf('id="moire-bar"') < html.indexOf('id="moire-grid"'),
+              "the line is inside the grid again");
+
+    const grid = doc.getElementById("moire-grid");
+    merge.checked = true;
+    fire(merge);
+    assert.equal(grid.classList.contains("merged"), true, "the switch stopped working");
+    merge.checked = false;
+    fire(merge);
+    assert.equal(grid.classList.contains("merged"), false);
+});

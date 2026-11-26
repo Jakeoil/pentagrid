@@ -57,15 +57,18 @@ test("a stored session does not kill the page on the way in", () => {
     const doc = globalThis.document;
     assert.match(doc.getElementById("moire-a-caption").textContent ?? "", /^A — class/);
     assert.match(doc.getElementById("moire-b-caption").textContent ?? "", /^B — class/);
-    // and the bar got its controls, which is what "no control buttons" meant.
-    // Four of them now: the link, the step count and the n box were retired
-    // 2026-11-15, the reticula having carried that state all along.
+    // and the controls got built, which is what "no control buttons" meant.
+    // The link, the step count and the n box were retired 2026-11-15, the
+    // reticula having carried that state all along; and `merge` moved out of
+    // the bar on 2026-11-26, onto its own line above the canvases, since it is
+    // the one control that acts on BOTH sides.
     const bar = doc.getElementById("moire-bar");
-    assert.ok((bar.children ?? []).length >= 4, "the bar is missing its controls");
-    const classes = (bar.children ?? []).flatMap(
+    const classesOf = (el) => (el?.children ?? []).flatMap(
         (c) => [c.className, ...(c.children ?? []).map((k) => k.className)]);
+    const classes = classesOf(bar);
+    assert.ok((bar.children ?? []).length >= 4, "the bar is missing its controls");
     for (const want of ["moire-merge", "moire-find", "moire-reset"]) {
-        assert.ok(classes.includes(want), `no ${want} in the bar`);
+        assert.ok(classes.includes(want), `no ${want} on the common line`);
     }
     for (const gone of ["moire-link", "moire-steps", "moire-norm"]) {
         assert.ok(!classes.includes(gone), `${gone} is back in the bar`);

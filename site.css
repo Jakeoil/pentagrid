@@ -484,14 +484,27 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 
 /* ── moire.html ────────────────────────────────────────────────────────
    Two pentagrids side by side, with a switch that stacks them. */
+/* The common line: everything that acts on both sides.
+   STICKY, like `.bar` on every other page and unlike this one until now —
+   the two panels and their canvases are taller than a screen, so `merge` was
+   a scroll away from wherever you were working. Jake: "All I wanted to do is
+   not have to scroll up to the top for merge split." Moving it down the page
+   instead was the wrong fix: the merged layout counts grid rows, so putting a
+   row between the panels and the canvases broke it. */
 .moire-bar {
+    position: sticky;
+    top: 0;
+    z-index: 5;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 14px;
-    margin: 16px 0 4px;
+    padding: 8px 0;
+    margin: 8px 0 4px;
     font-size: 12px;
     color: var(--ink-faint);
+    background: var(--panel);
+    border-bottom: 1px solid var(--rule, #e6e6e6);
 }
 .moire-opt { display: flex; align-items: center; gap: 4px; cursor: pointer; }
 .moire-note { font-family: monospace; color: #888; margin-left: auto; }
