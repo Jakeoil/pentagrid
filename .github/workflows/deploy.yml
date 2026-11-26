@@ -13,12 +13,23 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# TWO JOBS, AND THE SPLIT IS THE POINT. These were one `build-and-deploy` job
+# until 2026-11-26, and every deploy from 2026-11-24 20:14 on failed at the
+# last step with `Found 0 artifact(s)`:
+#
+#     15:59:47.399  Artifact github-pages successfully finalized. ID 15136500189
+#     15:59:47.759  Fetching artifact metadata … Found 0 artifact(s)
+#
+# `upload-pages-artifact` finalizes a 14 MB artifact and `deploy-pages` asks
+# the artifact API for it 360ms later, before the listing has caught up. It was
+# intermittent for a while -- the run that succeeded on the 24th had the same
+# 0.36s gap and found it -- and then it stopped working at all; re-running
+# changed nothing. A job boundary is the fix, because a second runner has to
+# start before the lookup happens, and it is also the shape GitHub's own Pages
+# template ships. Do not merge them back into one job to save twenty seconds.
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
 
@@ -35,5 +46,12 @@ jobs:
         with:
           path: .
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5
