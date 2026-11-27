@@ -27,6 +27,11 @@ export interface LayerSpec {
     visible?: () => boolean;
     /** Default: 1. Applied as CSS opacity, so it costs no redraw. */
     opacity?: () => number;
+    // A per-layer blend operation would go here, the same shape and the same
+    // cost: `canvas.style.mixBlendMode` set beside the opacity, no redraw.
+    // PLAN section 12.10 has the algebra -- order matters iff the blend is
+    // non-commutative, so the control is one operation and `z` is the sequence
+    // -- and names the isolation trap to test for first.
 }
 
 export interface Layer extends LayerSpec {

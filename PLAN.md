@@ -7479,6 +7479,165 @@ by s ↦ −2s, 1/2 into Penrose, 1/8 needing three steps, 1/5 running its
 four-cycle — only now the test drives it the way a reader does, on B's own
 deflation rather than through a link.
 
+### 12.10 Merge order, and the blend algebra (Jake, 2026-11-27)
+
+Jake: *"What is the current treatment of merge. Render A first, then B on top?
+or the other way around."* Then: *"since we have two switches, one for panel A
+and one for panel B, the final product can show one of two different states. A
+then B or B then A. Does that buy us anything?"* And the ruling: *"Leave it as
+one switch then, But document that little course you gave me about commutative
+and non commutative rules. This relates to layers too. Perhaps in the future,
+each layer may be able to select it's own merge operation."*
+
+**What it does today: A under, B over.** The order is pure DOM order. The grid
+holds figure A then figure B, and merged puts both viewports in the one cell —
+`.moire.merged .viewport { grid-row: 3; grid-column: 1 / -1 }` — so they overlap
+and paint in source order, with no `z-index` on either to say otherwise. B is
+the one treated:
+
+```css
+.moire.merged figure:last-of-type .viewport {
+    background: transparent;
+    mix-blend-mode: multiply;
+}
+```
+
+`last-of-type` is B because the figures are the grid's children — `display:
+contents` moves only their *contents* into the grid, the figure elements stay in
+order.
+
+**The background is A's `--panel`, which is `#ffffff`.** The canvases paint no
+ground: they are cleared, so every pixel that is not ink is transparent, and the
+white comes entirely from A's viewport div. White is the right ground under
+multiply because white is multiply's identity — the overlap is exactly A's ink ×
+B's ink, with no overall darkening. B's `background: transparent` is therefore
+belt-and-braces while `--panel` is pure white, and it is what keeps the merge
+honest if the panel ever stops being white (a dark theme, a tinted paper).
+
+The export is built the same way round: `compositeSvg()` takes A's whole
+document and splices B's groups in before `</svg>`, inside
+`<g style="mix-blend-mode: multiply">`.
+
+**One switch, by ruling.** Both headers' buttons call `setMerged(!merged)` — one
+shared boolean — the class goes on the grid, and the order is *structural*
+(`figure:last-of-type`), not state. So merging from A's header and merging from
+B's header produce the identical composite; there has never been a second state
+to choose. The question was whether there should be. The answer is no, and the
+reason is the algebra.
+
+#### The theorem
+
+**Order matters if and only if the blend function is non-commutative.** Nothing
+else enters it — not opacity, not which one you call the background.
+
+W3C compositing-and-blending composites a source over a backdrop as
+
+```
+Co = (1 − αb)·αs·Cs  +  (1 − αs)·αb·Cb  +  αs·αb·B(Cb, Cs)
+αo = αs + αb·(1 − αs)
+```
+
+Swap the roles of backdrop and source: the first two terms exchange, `αo` is
+already symmetric, and the third becomes `αs·αb·B(Cs, Cb)`. So the whole
+expression is invariant under the swap *exactly* when `B(x, y) = B(y, x)`.
+
+**Partial alpha does not break it.** Worth stating, because the intuition says
+opacity is what makes order matter, and it is not: a half-transparent layer
+blended with a commutative `B` lands in the same place from either side. The one
+thing that makes order matter is the blend function.
+
+Commutative — the order is a no-op:
+
+| mode | B(a, b) |
+| --- | --- |
+| multiply | a·b |
+| screen | a + b − ab |
+| darken | min(a, b) |
+| lighten | max(a, b) |
+| difference | \|a − b\| |
+| exclusion | a + b − 2ab |
+
+Non-commutative — the order is a real choice:
+
+| mode | why it is asymmetric |
+| --- | --- |
+| normal | B = Cs; the source simply wins. Maximally asymmetric. |
+| overlay, hard-light | multiply or screen *depending on which operand is dark* |
+| soft-light | the source steers a curve applied to the backdrop |
+| color-dodge | Cb / (1 − Cs) |
+| color-burn | 1 − (1 − Cb) / Cs |
+| hue, saturation, color, luminosity | non-separable: some attributes from one operand, the rest from the other |
+
+And one identity that settles the design question before it is asked:
+
+```
+overlay(a, b) = hard-light(b, a)
+```
+
+Swapping the operands of a non-commutative blend is the same as **naming a
+different blend**. So an order switch is never an independent control: where both
+members of such a pair are on the list, order is redundant, and where only one
+is, the swap is just the missing name. The thing to expose is *the operation*,
+not the sequence.
+
+#### Why multiply is right here anyway
+
+Three places the order could have touched, all empty:
+
+1. **The ground.** Whoever is bottom supplies the white. Swap them and the other
+   supplies the same white.
+2. **Pointer capture.** The top viewport catches the drag — but each side relays
+   view changes to the other (`onViewChange: relay(other, self)`), so panning
+   either moves both.
+3. **The blend.** Multiply is commutative; pixel-identical either way.
+
+Multiply is also the *honest* operation for what this page claims. A × B is
+symmetric in A and B, and the page's claim — that two deflation levels of one
+class make a moiré — is symmetric too. Neither tiling is the subject with the
+other as its overlay. An asymmetric blend would assert a hierarchy the
+mathematics does not have.
+
+The one asymmetry that does exist is not a rendering one: `setMerged(true)`
+pushes A's view onto B (`relay(() => b, () => a)(A.getView())`), so A is the
+authority on which rectangle of the plane you are looking at, and the merged
+header reads `A × B — class … over class …`.
+
+#### Where this goes: a blend per layer
+
+Jake: *"This relates to layers too. Perhaps in the future, each layer may be
+able to select it's own merge operation."* The stack is already built for it.
+
+Every layer is its own canvas with its own `zIndex` (`view/layers.ts`), and
+`LayerSpec` already carries `opacity?: () => number`, *"applied as CSS opacity,
+so it costs no redraw"*. A `blend?: () => BlendMode` is the same shape at the
+same cost: set `canvas.style.mixBlendMode` alongside the opacity, no redraw, no
+change to any `draw` function. Canvas 2D's `globalCompositeOperation` takes the
+same sixteen mode names, so a stack that is ever flattened into one canvas has
+the same vocabulary; and the SVG recorder already emits `mix-blend-mode` on a
+`<g>`, which is how the moiré composite is exported. Three vocabularies, one
+list of names.
+
+Three things to settle when it is built, and not before:
+
+1. **Isolation is the failure mode to test for.** `mix-blend-mode` blends with
+   the backdrop *within the layer's stacking context*. `.viewport` sets
+   `z-index: 0` deliberately — *"its own stacking context, or the layer canvases
+   would paint straight over the sticky bar"* — so a blended layer sees the
+   viewport's background and the layers below it, which is what is wanted, and
+   nothing of the page behind. But any future wrapper that creates a stacking
+   context, or an `isolation: isolate`, cuts a layer off from the layers below
+   it, and the blend then silently degrades to `normal` against white. It looks
+   like the feature was never wired rather than like a CSS mistake.
+2. **The control is one dropdown, not two.** By the theorem, the useful
+   per-layer control is an operation; `z` already fixes the sequence.
+3. **Which operations to offer.** The commutative six are safe — a layer
+   carrying one of them reads the same wherever in the stack it sits, which is
+   the right property for a layer whose order the user can change. The
+   non-commutative ones make a layer's appearance depend on its `z`: more
+   expressive, and much easier to make incomprehensible. Start with multiply,
+   screen, darken, lighten; add a non-commutative one when a specific picture
+   asks for it.
+
 ### 12.8 For Jake
 
 1. **Which classes should the presets offer?** 1/2 is the one with the clean
