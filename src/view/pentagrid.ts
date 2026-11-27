@@ -25,6 +25,7 @@ import { pageQuery, hasQuerySetup, readQuery, queryFor } from "../state/query.js
 import { exportSvg } from "../svg/export.js";
 import type { SvgExportOptions, SvgFile } from "../svg/export.js";
 import { addSetupButtons } from "./controls.js";
+import type { SetupButton } from "./controls.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
@@ -600,6 +601,18 @@ export interface PentagridConfig {
      */
     query?: string;
     /**
+     * Which of the `settings` fold's four buttons to build.
+     *
+     * All four, by default. A page that mounts TWO canvases has to think about
+     * this: `copy setup` and `reset page` act on one canvas and belong to it,
+     * but `copy link` is the whole page's — two of them would each write a URL
+     * describing half the page — and `export svg` can sit on the canvas's own
+     * header instead. Moiré passes `["setup", "reset"]` and owns the other two.
+     * Jake, 2026-11-27: *"copy-link is common and should be removed from the
+     * settings and moved to a single button."*
+     */
+    setupButtons?: readonly SetupButton[];
+    /**
      * A slice of state the view does not own, to go in the same session record.
      *
      * The growth view's `GrowthState` lives in its own closure, so the
@@ -758,6 +771,17 @@ export interface PentagridHandle {
     embed: (opts?: { tag?: string; id?: string }) => string;
     /** This setup as a URL, settings as query parameters — §9.4, want #2. */
     link: () => string;
+    /**
+     * The same setup as the raw attribute map, before it is spelled as markup
+     * or as a query.
+     *
+     * For a page that owns more than one canvas and has to write ONE link for
+     * all of them: it prefixes each map with the canvas's name and joins them,
+     * which neither `embed` nor `link` can do from the outside. Moiré's
+     * `?a-gamma=…&b-gamma=…` is the only caller. Carries only what differs
+     * from the baseline, like the other two.
+     */
+    attrs: () => Record<string, string>;
     /**
      * This view as SVG — §5.99. One `SvgFile` per container, so method gives
      * one and split two. Vector, every layer a group, and the raster embedded
@@ -5618,7 +5642,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             reset: () => resetNow(),
             link: () => linkNow(),
             svg: () => svgNow(),
-        });
+        }, config.setupButtons);
 
         const sRow = row(det, "");
         // "force regular" used to be here. Off on every page since the presets
@@ -6647,6 +6671,7 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
          */
         embed: (opts) => embedNow(opts),
         link: () => linkNow(),
+        attrs: () => embedAttrs(),
         svg: (opts) => svgNow(opts),
 
         reset: () => resetNow(),

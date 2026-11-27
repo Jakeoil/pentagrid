@@ -528,6 +528,14 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
     background: #fff; color: #444; cursor: pointer;
 }
 .head-btn:hover { background: #eee; border-color: #999; }
+/* Where that canvas is looking. Tabular figures so the numbers do not shuffle
+   sideways while you drag, and faint because it is a readout rather than part
+   of what the header says the canvas IS. */
+.cap-view {
+    font-variant-numeric: tabular-nums;
+    font-size: 11px; color: var(--ink-faint);
+    white-space: nowrap;
+}
 /* Merged there is one picture, so there is one header: A's, spanning both
    columns and saying what the composite is. B's goes with its canvas.
 

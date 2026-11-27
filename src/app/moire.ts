@@ -14,6 +14,7 @@ import type { PentagridHandle, View } from "../view/pentagrid.js";
 import { addSetupButtons, mountFloatingReticulum } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 import { convertView } from "../view/register.js";
+import { pageQuery, queryFor } from "../state/query.js";
 import { BUILD_ID } from "../build-id.js";
 
 const byId = (id: string) => document.getElementById(id) ?? undefined;
@@ -42,13 +43,18 @@ const ROWS = [
     // above the canvases." `for groups` still appears only when the system is
     // rhomb groups — that is its own condition, not this list.
     "pentaplex", "next-rhomb", "kites", "misc", "band", "for groups", "outlines",
-    // `settings` carries copy setup, reset page, copy link and export svg.
-    // It was trimmed away here, so each side BUILT all four and then hid them
-    // — the page had none of them but the bar's own `reset page`, and asking
-    // for this page as a link or a file was impossible. Jake, 2026-11-26: "I
-    // would like a copy url button on all those pages." A side's buttons act
-    // on that side, which is what you want when the two differ: two canvases,
-    // two files, two links.
+    // `settings` carries the two buttons that act on ONE side: copy setup and
+    // reset page. It was trimmed away here at first, so each side BUILT all
+    // four and then hid them — the page had none of them but the bar's own
+    // `reset page`, and asking for this page as a link or a file was
+    // impossible. Jake, 2026-11-26: "I would like a copy url button on all
+    // those pages."
+    //
+    // The other two are gone from here, 2026-11-27. `copy link` was ambiguous
+    // and `export svg` redundant — §12.11. Jake: "A and B settings copy-link
+    // is common and should be removed from the settings and moved to a single
+    // button 'copy-link' on the status line. A and B settings export-svg are
+    // redundant and are currently in the current canvas headers."
     "settings",
 ];
 
@@ -67,6 +73,49 @@ function sayClass(s: number): string {
         }
     }
     return s.toFixed(5);
+}
+
+/**
+ * One URL, two canvases — PLAN §12.11.
+ *
+ * Every other page mounts one pentagrid, so `?gamma=…` has one possible
+ * meaning. Here it has two, and the flat spelling reached BOTH sides: each
+ * side defaults its `query` to `location.search`, so a link copied from A
+ * described A and then arrived setting B to A's γ as well. Jake: *"There's
+ * ambiguity in some of the moire saves."* There was, and this is it.
+ *
+ * So the page namespaces them. `a-` and `b-` carry one side each; a flat
+ * parameter still reaches both, which is how you ask for two sides dressed
+ * alike in one word; and a prefixed one wins over a flat one on its own side.
+ * No attribute in the inventory begins `a-` or `b-`, which `tools/moire.test
+ * .mjs` pins so a future one cannot collide silently.
+ */
+/** The page's own parameter: which of the two layouts to arrive in. */
+export const MERGE_PARAM = "merge";
+
+export function sideQuery(search: string, who: "a" | "b"): string {
+    if (!search) return "";
+    const src = new URLSearchParams(search);
+    const mine = `${who}-`, theirs = who === "a" ? "b-" : "a-";
+    const out = new URLSearchParams();
+    // Flat first — shared by both sides — then the prefixed ones over the top,
+    // so `?scale=60&a-scale=90` gives A 90 and B 60.
+    for (const [k, v] of src) {
+        if (k === MERGE_PARAM || k.startsWith(mine) || k.startsWith(theirs)) continue;
+        out.set(k, v);
+    }
+    for (const [k, v] of src) {
+        if (k.startsWith(mine)) out.set(k.slice(mine.length), v);
+    }
+    const q = out.toString();
+    return q ? `?${q}` : "";
+}
+
+/** HTML's kind of boolean, the same reading `state/attributes` gives one. */
+export function mergeFromQuery(search: string): boolean {
+    if (!search) return false;
+    const v = new URLSearchParams(search).get(MERGE_PARAM);
+    return v !== null && v !== "false" && v !== "0";
 }
 
 if (aHost && bHost && bar && grid) {
@@ -116,6 +165,71 @@ if (aHost && bHost && bar && grid) {
             t.setView(convertView(v, lam(f), lam(t)));
         };
 
+    // Kept in a Map rather than found with `querySelector`: the DOM stub hands
+    // back a fresh element for every query, so a lookup would never find the
+    // span it just made and the header would rebuild itself on each draw —
+    // invisible in a browser, and invisible to a test for the opposite reason.
+    const heads = new Map<string,
+        { el: HTMLElement; text: HTMLElement; view: HTMLElement }>();
+    const headerOf = (id: string) => {
+        const had = heads.get(id);
+        if (had) return had;
+        const el = byId(id);
+        if (!el) return null;
+        el.textContent = "";
+        el.className = "moire-head";
+        const text = document.createElement("span");
+        text.className = "cap-text";
+        const view = document.createElement("span");
+        view.className = "cap-view";
+        el.append(text, view);
+        const made = { el, text, view };
+        heads.set(id, made);
+        return made;
+    };
+    const headButton = (id: string, cls: string, onClick: () => void) => {
+        const h = headerOf(id);
+        if (!h) return null;
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `head-btn ${cls}`;
+        b.addEventListener("click", onClick);
+        h.el.appendChild(b);
+        return b;
+    };
+
+    /**
+     * Where each canvas is looking, on its own header — Jake, 2026-11-27:
+     * *"Canvas headers should show their current position and zoom."*
+     *
+     * Its own span, not part of the caption's text: this is rewritten on every
+     * frame of a drag, and the caption costs an Σγ and a fraction search.
+     *
+     * The numbers are a side's OWN — scale in pixels per tiling unit, center
+     * in tiling units — and the two sides do not share them, because a tiling
+     * unit is λ world units and their λ differ by φ per generation. Two
+     * headers reading different numbers for the same rectangle of the plane is
+     * therefore right, and is the clearest place on the page to see what
+     * `convertView` is for. Merged, A's header is the composite's and A is the
+     * view's authority, so A's numbers are the ones shown.
+     */
+    const VIEW_TITLE = "Zoom in pixels per tiling unit, and the center of the "
+        + "viewport in tiling units. The two sides show the same rectangle of the "
+        + "plane but not the same numbers: a tiling unit is λ world units, and "
+        + "their λ differ by φ per generation.";
+    const showView = () => {
+        const put = (id: string, h: PentagridHandle | null) => {
+            const head = heads.get(id) ?? headerOf(id);
+            if (!head || !h) return;
+            const v = h.getView();
+            head.view.textContent = `${Math.round(v.scale * 10) / 10} px/u`
+                + ` · (${v.x.toFixed(2)}, ${v.y.toFixed(2)})`;
+            head.view.title = VIEW_TITLE;
+        };
+        put("moire-a-caption", a);
+        put("moire-b-caption", b);
+    };
+
     const make = (host: HTMLElement, panel: HTMLElement | undefined, session: string,
                   other: () => PentagridHandle | null, self: () => PentagridHandle | null) =>
         createPentagrid({
@@ -127,7 +241,13 @@ if (aHost && bHost && bar && grid) {
                 gridLines: false, axes: false, center: true,
                 penroseTiles: true, penroseEdges: true,
             },
-            onViewChange: relay(other, self),
+            // Its own half of the URL. Without this each side reads
+            // `location.search` and a flat parameter lands on both — the
+            // ambiguity §12.11 is about.
+            query: sideQuery(pageQuery(), host === aHost ? "a" : "b"),
+            // `copy link` and `export svg` are the page's and the header's.
+            setupButtons: ["setup", "reset"],
+            onViewChange: (v) => { relay(other, self)(v); showView(); },
         });
 
     const A = make(aHost, byId("moire-a-panel"), "moire-a", () => b, () => a);
@@ -193,11 +313,53 @@ if (aHost && bHost && bar && grid) {
         + "views, the switches here, and the two reticula. This also throws away "
         + "what the page remembered of your last visit.";
 
+    /**
+     * The whole page as one URL — Jake, 2026-11-27: *"copy-link is common and
+     * should be removed from the settings and moved to a single button
+     * 'copy-link' on the status line."*
+     *
+     * It lives here because there is one of it. Each side's `copy link` wrote
+     * `?gamma=…` flat, which on this page means *both sides*, so A's link
+     * arrived setting B to A's γ and B's did the reverse — two buttons, each
+     * describing half the page and lying about the other half. One button,
+     * both halves, namespaced: `?merge&a-gamma=…&b-gamma=…`.
+     *
+     * The view is written ALWAYS, not only when it differs from the baseline,
+     * for two reasons. Jake asked for it — *"also restore the position and
+     * zoom of the viewports that were currently displayed"* — and it is what
+     * makes the link outrank the session on BOTH sides: a side whose query
+     * carries nothing of ours falls back to what that browser remembers, and a
+     * link that honors one side and the recipient's last visit on the other is
+     * the worst of the three possible answers.
+     */
+    const pageLink = (): string => {
+        const here = globalThis.location
+            ? globalThis.location.origin + globalThis.location.pathname
+            : "";
+        const num = (x: number) => String(Math.round(x * 1e6) / 1e6);
+        const q: Record<string, string> = {};
+        if (merged) q[MERGE_PARAM] = "";          // first, so a person can read it
+        const side = (who: "a" | "b", h: PentagridHandle | null) => {
+            if (!h) return;
+            for (const [name, v] of Object.entries(h.attrs())) {
+                q[`${who}-${name.replace(/^data-/, "")}`] = v;
+            }
+            const v = h.getView();
+            q[`${who}-scale`] = num(v.scale);
+            q[`${who}-view-x`] = num(v.x);
+            q[`${who}-view-y`] = num(v.y);
+        };
+        side("a", a);
+        side("b", b);
+        return here + queryFor(q);
+    };
+
     const note = document.createElement("span");
     note.className = "moire-note";
 
-    // One line for everything that acts on BOTH sides: merge first, then the
-    // two ways back, then the note.
+    // One line for everything that acts on BOTH sides: the two ways back, the
+    // page's one link, then the note. Merge is not here — it sits on the
+    // header of the canvas it acts on, which is where Jake put it.
     //
     // It STICKS to the top of the viewport — `.moire-bar`, like `.bar` on
     // every other page. Jake, 2026-11-26: "All I wanted to do is not have to
@@ -206,7 +368,12 @@ if (aHost && bHost && bar && grid) {
     // panels and their canvases are taller than a screen. Moving it down the
     // page was the wrong fix and broke the merged layout, which counts grid
     // rows; staying put and not scrolling away is the right one.
-    bar.append(findRet, resetAll, note);
+    bar.append(findRet, resetAll);
+    // And the page's one link, built by the same helper the panels use so it
+    // is the same button with the same reporting — it just has the whole page
+    // to describe rather than one canvas.
+    addSetupButtons(bar, { link: () => pageLink() }, ["link"]);
+    bar.append(note);
 
     /**
      * One header per canvas, carrying what acts on THAT canvas.
@@ -216,36 +383,6 @@ if (aHost && bHost && bar && grid) {
      * becomes the composite's — it spans both columns, says what the two are,
      * and its button says `split`.
      */
-    // Kept in a Map rather than found with `querySelector`: the DOM stub hands
-    // back a fresh element for every query, so a lookup would never find the
-    // span it just made and the header would rebuild itself on each draw —
-    // invisible in a browser, and invisible to a test for the opposite reason.
-    const heads = new Map<string, { el: HTMLElement; text: HTMLElement }>();
-    const headerOf = (id: string) => {
-        const had = heads.get(id);
-        if (had) return had;
-        const el = byId(id);
-        if (!el) return null;
-        el.textContent = "";
-        el.className = "moire-head";
-        const text = document.createElement("span");
-        text.className = "cap-text";
-        el.appendChild(text);
-        const made = { el, text };
-        heads.set(id, made);
-        return made;
-    };
-    const headButton = (id: string, cls: string, onClick: () => void) => {
-        const h = headerOf(id);
-        if (!h) return null;
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = `head-btn ${cls}`;
-        b.addEventListener("click", onClick);
-        h.el.appendChild(b);
-        return b;
-    };
-
     const say = () => {
         if (!a || !b) return;
         const sa = liClass(a), sb = liClass(b);
@@ -292,6 +429,10 @@ if (aHost && bHost && bar && grid) {
         // arithmetic of the page in one line.
         const next = (-2 * sa) - Math.floor(-2 * sa);
         note.textContent = `deflate A again → class ${sayClass(next)}`;
+        // λ moves the view numbers under us — a generation or a normalization
+        // rescales a side — so the readout is refreshed here as well as on a
+        // gesture.
+        showView();
     };
 
     // Each side owns itself: a change to either one only re-reads the caption.
@@ -438,6 +579,10 @@ if (aHost && bHost && bar && grid) {
         relay(() => b, () => a)(A.getView());
         say();
     });
+
+    // The layout the URL asked for, applied last: `setMerged` relays A's view
+    // onto B, so it wants both sides built and their scales paired.
+    if (mergeFromQuery(pageQuery())) setMerged(true);
 
     // The stamp, under the canvases. Only roof carried one; method gets its
     // tag from the narrative step bar, which this page has no reason to have.

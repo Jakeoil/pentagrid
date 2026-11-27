@@ -7638,6 +7638,121 @@ Three things to settle when it is built, and not before:
    screen, darken, lighten; add a non-commutative one when a specific picture
    asks for it.
 
+### 12.11 One link for two canvases (Jake, 2026-11-27) — BUILT
+
+Jake: *"We have to nail some stuff down. There's ambiguity in some of the moire
+saves."* And then the vocabulary, which is worth keeping because the page has
+six places a button can be and no name for any of them:
+
+| his name | what it is |
+| --- | --- |
+| **status line** | `#moire-bar`, the sticky line at the top |
+| **A settings** / **B settings** | the `settings` fold in each side's panel |
+| **canvas header A** / **B** | the two `figcaption`s, split |
+| **canvas header A+B** | A's caption, spanning, merged |
+
+#### The ambiguity
+
+Every other page mounts one pentagrid, so `?gamma=…` has one possible meaning.
+Here it has two. Each side defaults its `query` to `location.search`
+(`config.query ?? pageQuery()`), so **both sides read the same flat
+parameters** — and each side's own `copy link` wrote exactly those. A link
+copied from A described A and then arrived setting B to A's γ as well; B's did
+the reverse. Two buttons, each describing half the page and lying about the
+other half.
+
+So the page namespaces them, and owns the link itself:
+
+- **`a-` and `b-`** carry one side each: `?a-gamma=…&b-gamma=…`.
+- **A flat parameter still reaches both**, which is how you ask for two sides
+  dressed alike in one word — `?p1-palette=patriotic`.
+- **A prefixed parameter wins on its own side**: `?scale=60&a-scale=90` gives A
+  90 and B 60.
+- **`?merge`** is the page's own, a bare boolean, and is handed to neither side.
+
+`sideQuery(search, who)` does the splitting and `mergeFromQuery` the layout. No
+attribute in the inventory begins `a-` or `b-`, and `tools/moire.test.mjs` pins
+that so a future one fails loudly instead of quietly stealing a side's
+namespace.
+
+#### What moved
+
+| was | is |
+| --- | --- |
+| `copy link` in A settings **and** B settings | one `copy link` on the status line |
+| `export svg` in A settings and B settings | gone — the canvas headers already have it |
+| `copy setup`, `reset page` per side | unchanged: these act on one canvas and belong to it |
+
+Jake: *"A and B settings copy-link is common and should be removed from the
+settings and moved to a single button 'copy-link' on the status line. A and B
+settings export-svg are redundant and are currently in the current canvas
+headers. they can be removed."*
+
+`createPentagrid` grew `setupButtons?: readonly SetupButton[]` for this — moiré
+passes `["setup", "reset"]` — and the handle grew `attrs()`, the raw attribute
+map behind `embed()` and `link()`, which is what lets the page prefix two of
+them and join them into one query. Neither `embed` nor `link` can be composed
+from outside; `attrs` can.
+
+#### What the link carries
+
+`?merge` when merged, then every attribute of each side that differs from its
+baseline under its own prefix, then **both views unconditionally**. The view is
+written even when it equals the baseline, for two reasons:
+
+1. Jake asked for it — *"copy-link contents should restore the status: merge or
+   split and also restore the position and zoom of the viewports that were
+   currently displayed."*
+2. It is what makes the link outrank the session on **both** sides. A side
+   whose query names nothing of ours falls back to what that browser
+   remembers, and a link that honors one side and the recipient's last visit on
+   the other is the worst of the three possible answers.
+
+B's view is *read* back for that suppression and for a reader's eye, but it is
+not what decides B's view: the view is a function of A's and the two λ, and the
+page puts the pair in register on the way in. One generation down, B arrives at
+A's scale over φ. `tools/moire-link.test.mjs` is a whole page built from a URL
+— its own file, because ESM caches the module and `location.search` has to be
+in place before the import.
+
+#### A hole this found, which was never moiré's
+
+`hasQuerySetup` — the gate that decides whether a query suppresses the session
+— walked `BY_ATTR` only. That is the **fields**: one attribute, one value. γ,
+the view and the hidden layers are **slices**, in `SLICE_ATTRS`, read by their
+own code and therefore invisible to the gate.
+
+So a link carrying nothing but `?gamma=…&gamma-den=…&scale=…` — the commonest
+kind of link there is, and the only kind moiré writes — had its γ applied and
+was then **not** allowed to suppress the session. The γ in the URL took; the
+view came from the recipient's last visit. Every page with a session was
+affected: method, split, roof, grow, grow7. A link honoring half of itself is
+worse than one honoring none, because nothing on screen says which half.
+
+Fixed in `state/query.ts`: the gate walks the fields and the slices both.
+`tools/query.test.mjs` pins it from the gate's end and from the view's.
+
+#### The headers read their view
+
+Jake: *"Canvas headers should show their current position and zoom."* A second
+span, `.cap-view`, beside the caption text — its own element because it is
+rewritten on every frame of a drag and the caption costs an Σγ and a fraction
+search.
+
+The numbers are each side's **own**: scale in pixels per tiling unit, center in
+tiling units. The two sides do not share them, because a tiling unit is λ world
+units and their λ differ by φ per generation. Two headers reading different
+numbers for the same rectangle of the plane is therefore correct, and is the
+clearest place on the page to see what `convertView` is for. Merged, A's header
+is the composite's and A is the view's authority, so A's numbers are the ones
+shown. Tabular figures, so they do not shuffle sideways while you drag.
+
+It is refreshed from two places, which is the one subtlety: on a gesture
+(`onViewChange`), and from `say()`. The second is needed because `setView` does
+**not** fire `onViewChange` — that is what keeps two linked views from looping
+— so the relayed side would never hear about its own new numbers, and because a
+generation or a normalization rescales a side without any gesture at all.
+
 ### 12.8 For Jake
 
 1. **Which classes should the presets offer?** 1/2 is the one with the clean

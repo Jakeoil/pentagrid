@@ -64,11 +64,15 @@
 
     <p class="hint">Drag to pan, scroll to zoom &mdash; the two stay in
     register, converting between their scales, so B shows the same region of
-    the plane as A however many times it has been deflated. With <em>link</em>
-    on, B is A deflated, and anything you do to A's &gamma; lands on B &mdash;
-    including anything you do to <em>B</em>, which snaps straight back, reset
-    included. Turn <em>link</em> off for two free reticula. <em>merge</em> stacks the two canvases into one
-    and multiplies them together, which is where the moir&eacute; is.</p>
+    the plane as A however many times it has been deflated. Each header reports
+    its own canvas's zoom and center, and the two read different numbers for
+    the same patch of plane: a tiling unit is &lambda; world units, and the two
+    &lambda; differ by &phi; per generation. The sides are otherwise
+    independent &mdash; two free reticula, each with its own
+    &Sigma;&gamma;, inflation and sizing. <em>merge</em>, on either header,
+    stacks the two canvases into one and multiplies them together, which is
+    where the moir&eacute; is; <em>copy link</em> on the line above writes both
+    sides, the layout and both views into one URL.</p>
 
     <p>Every parent vertex is either exactly on a child vertex or exactly
     &phi;<sup>&minus;2</sup> away, never anything between. On Penrose it is

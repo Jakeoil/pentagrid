@@ -55,6 +55,37 @@ test("hasQuerySetup sees ours and ignores everyone else's", () => {
     assert.equal(hasQuerySetup("?data-penta-face"), true);
 });
 
+test("a slice alone counts as a setup, which is most links", () => {
+    // The hole found 2026-11-27. `hasQuerySetup` walked the FIELDS only, and γ,
+    // the view and the hidden layers are SLICES -- read by their own code and
+    // so invisible to it. The effect was quiet and bad: a link carrying only
+    // `?gamma=…&gamma-den=…&scale=…` -- the commonest kind, and the only kind
+    // moiré writes -- had its γ applied and was then not allowed to suppress
+    // the session, so the view came from the recipient's last visit. A link
+    // honoring half of itself is worse than one honoring none.
+    assert.equal(hasQuerySetup("?gamma=6000,6000,6000,6000,6000&gamma-den=30000"), true);
+    assert.equal(hasQuerySetup("?data-gamma=1,2,3,4,5"), true);
+    assert.equal(hasQuerySetup("?scale=72"), true);
+    assert.equal(hasQuerySetup("?view-x=1.5"), true);
+    assert.equal(hasQuerySetup("?gamma-gen=-1"), true);
+    assert.equal(hasQuerySetup("?hide=klabels"), true);
+    // Still nobody else's.
+    assert.equal(hasQuerySetup("?utm_source=x&gclid=y&ref=z"), false);
+});
+
+test("a link of nothing but a view outranks the session", () => {
+    // The same thing from the view's end, which is what the hole actually cost.
+    const id = "test.query.sliceonly";
+    forgetSession(id);
+    saveSession(id, { v: 1, view: { scale: 44, x: 0.5, y: -0.25 } });
+    const plain = build("", { session: id });
+    assert.equal(plain.getView().scale, 44, "the session did not apply");
+    const linked = build("?scale=55&view-x=0.25&view-y=-0.5", { session: id });
+    assert.deepEqual(linked.getView(), { scale: 55, x: 0.25, y: -0.5 },
+                     "the stored view beat the one in the link");
+    forgetSession(id);
+});
+
 test("a query reaches the view, flat fields and slices alike", () => {
     const h = build("?penrose-tiles&p1-palette=patriotic&band=0.3&penta-face"
                     + "&gamma=2000,2000,2000,2000,2000&gamma-den=10000"

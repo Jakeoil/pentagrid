@@ -555,3 +555,168 @@ test("merged, every item has a row and a column of its own", () => {
     assert.equal(toggle().textContent, "split");
     click(toggle());
 });
+
+// ── One URL for two canvases — PLAN §12.11 ────────────────────────────
+//
+// Jake, 2026-11-27: "There's ambiguity in some of the moire saves." There was.
+// Every other page mounts one pentagrid, so `?gamma=...` has one meaning; here
+// it reached BOTH sides, and each side's own `copy link` wrote the flat
+// spelling -- so A's link arrived setting B to A's γ, and B's did the reverse.
+// Two buttons, each describing half the page and lying about the other half.
+
+/** Every `ret-bump` button inside a panel, by its label. */
+const panelButtons = (id) => {
+    const out = [];
+    const walk = (el) => {
+        for (const c of el.children ?? []) {
+            if (c.tagName === "button" && c.textContent) out.push(c.textContent);
+            walk(c);
+        }
+    };
+    walk(doc.getElementById(id));
+    return out;
+};
+
+/** What a click put on the clipboard. There is none in the stub, so the
+ *  button falls back to the console, which is the one place a user could still
+ *  get at it -- and the one place a test can. */
+const copied = (btn) => {
+    const was = console.log;
+    let got = "";
+    console.log = (s) => { got = String(s); };
+    try { click(btn); } finally { console.log = was; }
+    return got;
+};
+
+test("copy link is the page's, once, on the status line", () => {
+    // Jake: "A and B settings copy-link is common and should be removed from
+    // the settings and moved to a single button 'copy-link' on the status
+    // line. A and B settings export-svg are redundant and are currently in
+    // the current canvas headers. they can be removed."
+    const onBar = (doc.getElementById("moire-bar").children ?? [])
+        .filter((c) => c.tagName === "button").map((c) => c.textContent);
+    assert.deepEqual(onBar, ["reset γ panels", "reset page", "copy link"],
+                     `the status line carries ${onBar.join(", ")}`);
+    for (const id of ["moire-a-panel", "moire-b-panel"]) {
+        const labels = panelButtons(id);
+        // What a side still owns: its own setup and its own way back.
+        assert.ok(labels.includes("copy setup"), `${id} lost copy setup`);
+        assert.ok(labels.includes("reset page"), `${id} lost reset page`);
+        // What it does not: the page's link, and an export the header has.
+        assert.ok(!labels.includes("copy link"),
+                  `${id} still has a copy link, which would describe half the page`);
+        assert.ok(!labels.includes("export svg"),
+                  `${id} still has an export svg, which its header already carries`);
+    }
+});
+
+test("the link namespaces the two sides, and carries the layout", () => {
+    const reset = button("moire-reset");
+    click(reset);
+    setA([0.21, 0.19, 0.07, 0.13, 0.4]);        // A off Penrose
+    page.sideB.gamma.deflate();                 // B a generation down
+    wheel("moire-a", -1, 300, 250);             // and somewhere off center
+    const link = copied(button("ret-bump"));
+    assert.ok(link.includes("?"), `no query in ${link}`);
+    const q = new URLSearchParams(link.slice(link.indexOf("?")));
+
+    // Every parameter belongs to one side, or is the page's own.
+    for (const k of q.keys()) {
+        assert.ok(k === "merge" || k.startsWith("a-") || k.startsWith("b-"),
+                  `"${k}" is flat, so it would land on both sides`);
+    }
+    // Both sides are described, and differently -- which is the whole point.
+    assert.ok(q.has("a-gamma"), "A's γ is not in the link");
+    assert.ok(q.has("b-gamma"), "B's γ is not in the link");
+    assert.notEqual(q.get("a-gamma-gen") ?? "0", q.get("b-gamma-gen") ?? "0",
+                    "the two generations came out the same");
+    assert.notEqual(q.get("a-gamma"), q.get("b-gamma"),
+                    "one link, one γ, and the page is about two");
+    // And the view, always -- "restore the position and zoom of the viewports
+    // that were currently displayed". Written even at the baseline, because a
+    // side whose query says nothing of ours falls back to the session, and a
+    // link that honors one side and the recipient's last visit on the other is
+    // the worst of the three answers.
+    for (const who of ["a", "b"]) {
+        for (const part of ["scale", "view-x", "view-y"]) {
+            assert.ok(q.has(`${who}-${part}`), `the link has no ${who}-${part}`);
+        }
+    }
+    // To six places, the same rounding `copy setup` uses: a link is for
+    // reading as well as for opening, and φ⁻¹ is not a decimal.
+    const six = (x) => Math.round(x * 1e6) / 1e6;
+    assert.equal(Number(q.get("a-scale")), six(page.sideA.getView().scale));
+    assert.equal(Number(q.get("b-scale")), six(page.sideB.getView().scale));
+    assert.equal(Number(q.get("a-view-x")), six(page.sideA.getView().x));
+    assert.ok(!q.has("merge"), "split, but the link says merge");
+
+    // Merged is a layout, so it is the page's parameter and not a side's.
+    click(toggle());
+    const asMerged = new URLSearchParams(
+        copied(button("ret-bump")).replace(/^[^?]*\?/, ""));
+    assert.equal(asMerged.get("merge"), "", "merged, and the link does not say so");
+    assert.equal(page.mergeFromQuery(`?${asMerged}`), true);
+    click(toggle());
+    click(reset);
+});
+
+test("a link splits back into two, prefixed winning over flat", () => {
+    // The read half of the same rule. A flat parameter still reaches both --
+    // that is how you ask for two sides dressed alike in one word -- and a
+    // prefixed one wins on its own side.
+    const q = "?merge&scale=60&p1-palette=patriotic&a-scale=90&b-gamma=1,2,3,4,5";
+    const a = new URLSearchParams(page.sideQuery(q, "a"));
+    const b = new URLSearchParams(page.sideQuery(q, "b"));
+    assert.equal(a.get("scale"), "90", "A's own scale lost to the flat one");
+    assert.equal(b.get("scale"), "60", "B did not take the flat scale");
+    assert.equal(a.get("p1-palette"), "patriotic", "a flat parameter missed A");
+    assert.equal(b.get("p1-palette"), "patriotic", "a flat parameter missed B");
+    assert.equal(a.get("gamma"), null, "B's γ reached A");
+    assert.equal(b.get("gamma"), "1,2,3,4,5", "B's own γ did not reach B");
+    // The page's parameter is the page's: neither side is handed it.
+    for (const side of [a, b]) assert.equal(side.has("merge"), false);
+    // And nothing of ours in the query means nothing passed on, so a plain
+    // visit keeps its session.
+    assert.equal(page.sideQuery("", "a"), "");
+    assert.equal(page.mergeFromQuery(""), false);
+});
+
+test("no attribute can collide with the a- and b- prefixes", async () => {
+    // The prefix scheme is only safe while no real parameter begins `a-` or
+    // `b-`. None of the 84 does. This is here so that adding one fails loudly
+    // instead of quietly stealing a side's namespace.
+    const { BY_ATTR } = await import("../dist/state/inventory.js");
+    const bad = [...BY_ATTR.keys()].filter((n) => /^data-[ab]-/.test(n));
+    assert.deepEqual(bad, [],
+        `${bad.join(", ")} would be read as a moiré side prefix — rename it, `
+        + "or change the prefixes in src/app/moire.ts");
+});
+
+test("each header says where its canvas is looking", () => {
+    // Jake: "Canvas headers should show their current position and zoom."
+    const readout = (id) => (doc.getElementById(id).children ?? [])
+        .find((c) => String(c.className) === "cap-view")?.textContent ?? "";
+    const reset = button("moire-reset");
+    click(reset);
+    for (const id of ["moire-a-caption", "moire-b-caption"]) {
+        assert.match(readout(id), /^[\d.]+ px\/u · \(-?\d+\.\d\d, -?\d+\.\d\d\)$/,
+                     `${id} reads "${readout(id)}"`);
+    }
+    // It follows a gesture: the zoom is the handle's own, rounded.
+    wheel("moire-a", -1, 300, 250);
+    const want = Math.round(page.sideA.getView().scale * 10) / 10;
+    assert.ok(readout("moire-a-caption").startsWith(`${want} px/u`),
+              `A reads "${readout("moire-a-caption")}", not ${want} px/u`);
+    // Both headers follow, though only one was touched -- `setView` does not
+    // fire `onViewChange`, so the relayed side would never hear about it if
+    // the readout were wired to the gesture rather than to the pair.
+    const bWant = Math.round(page.sideB.getView().scale * 10) / 10;
+    assert.ok(readout("moire-b-caption").startsWith(`${bWant} px/u`),
+              `B reads "${readout("moire-b-caption")}", not ${bWant} px/u`);
+    // And the two are NOT the same numbers at the same generation apart: a
+    // tiling unit is λ world units. Same rectangle, different arithmetic.
+    page.sideB.gamma.deflate();
+    assert.notEqual(readout("moire-a-caption"), readout("moire-b-caption"),
+                    "one generation apart and both headers read the same");
+    click(reset);
+});

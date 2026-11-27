@@ -26,6 +26,7 @@
 import { collect } from "./attributes.js";
 import type { AttributePatch } from "./attributes.js";
 import { BY_ATTR } from "./inventory.js";
+import { SLICE_ATTRS } from "./embed.js";
 
 /** The page's query string, or "" where there is no location (node, a test). */
 export function pageQuery(): string {
@@ -42,11 +43,27 @@ function spellings(attr: string): string[] {
     return [attr, attr.replace(/^data-/, "")];
 }
 
+/**
+ * Every parameter name a query may carry: the flat fields AND the slices.
+ *
+ * The slices were missing, and that was a real hole rather than a tidy-up.
+ * `BY_ATTR` is the FIELDS — one attribute, one value — while γ, the view and
+ * the hidden layers live in `SLICE_ATTRS` and are read separately. So a link
+ * carrying only `?gamma=…&gamma-den=…&scale=…` — which is the commonest kind
+ * of link there is, and the only kind moiré writes — was read for its setup
+ * and then NOT allowed to suppress the session, because nothing it named was
+ * recognized as a setting. The γ in the URL applied; the view came from
+ * whatever that browser remembered. Found 2026-11-27 while giving moiré one
+ * link for its two canvases; it was never moiré's bug.
+ */
+const ALL_ATTRS: string[] =
+    [...BY_ATTR.keys(), ...Object.values(SLICE_ATTRS)];
+
 /** Does this query carry any setting of ours? */
 export function hasQuerySetup(search: string): boolean {
     if (!search) return false;
     const q = new URLSearchParams(search);
-    for (const attr of BY_ATTR.keys()) {
+    for (const attr of ALL_ATTRS) {
         for (const name of spellings(attr)) if (q.has(name)) return true;
     }
     return false;
