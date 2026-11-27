@@ -4059,6 +4059,68 @@ of looking at the picture.
 
 ---
 
+### 5.29 A preset is γ; the double click is the catalog's own picture (Jake, 2026-11-27)
+
+Jake: *"Setting a new preset currently changes the I-lambda-gamma settings on
+the reticulums. This is usually not the intension. Make it so those settings do
+not get reset **unless** the preset is double clicked. This applies to method,
+grow, moire etc. all the reticulums."*
+
+**The row the presets were resetting.** The reticulum's exponent row is one
+identity in three terms — ℐ^m · λ^q with φ^t where **m + q = t** — and only two
+of them are stored: `m` is the generation and `q` the normalization, `t` never
+is. So "the ℐ-λ-φ settings" is two numbers wearing three boxes, and homing them
+means setting both to zero. Homing only the generation would move φ by exactly
+the leftover `q`, which is not "as the catalog writes it" either.
+
+**What it used to do, and why that was half right.** Every preset click called
+`setGeneration(0)` — added 2026-10-23 on Jake's own report, *"reloading preset
+does not set phi back to 0 either."* That argument still holds for what the
+catalog *is*: every entry is written at λ = φ⁰, so a preset loaded at φ⁻³ and
+drawn at that spacing is not the picture the catalog describes.
+
+What it got wrong is which **gesture** that belongs to. Running through the
+catalog while looking at one generation is the common act, and having the
+exponents snap back under you each time makes the two controls fight: you set
+the generation, pick the next preset, and the generation is gone. One intent was
+being served at the cost of the other, with no way to ask for the first.
+
+**So each reading gets a gesture.** A click sets γ and nothing else. A double
+click means *the catalog's own picture* — both exponents to zero, and so φ with
+them. Everything else a preset did is unchanged on both: the lock goes to γ₀ so
+Σγ is what survives a dial (§5.11's rule), symmetry and the mirror go off, the
+popup stays up, and the title bar takes the preset's name.
+
+Two notes on the mechanics:
+
+- **A double click arrives as click, click, dblclick.** The γ is therefore
+  applied twice before the homing, which costs nothing because `load` is
+  idempotent in γ and reads no history — the only difference the third call
+  makes is the two exponents. No timer, no suppressed first click, and a
+  single click is never delayed waiting to see whether a second arrives.
+- **`setGeneration` is right here and nowhere else.** A step of the generation
+  is a map on γ that happens to rescale, which is why the exponent boxes move
+  it through `inflate`/`deflate` and never by assignment. In `load` the γ is
+  overwritten wholesale on the very next line, so there is no γ to carry and
+  the jump is exactly what is wanted.
+
+One fix covers every page: all seven reticula are mounted through
+`view/controls.ts`, and no page overrides `onPreset`. `restore` is unaffected
+and was always the exception — it takes the generation out of the slot, so a
+reticulum carried from a deflated page arrives deflated, which is the point of
+carrying it. As of this change it is no longer an exception at all: a single
+click on a catalog preset leaves the generation alone too.
+
+The retired test is worth recording. `tools/gamma.test.mjs` pinned the old rule
+by **reading the source** for a `setGeneration(0)` call and checking it came
+before `setValues`. It could only ever have said that one line was present, not
+that the behavior was right, and it had to be deleted rather than updated. Its
+replacement, in `tools/reticulum.test.mjs`, mounts a reticulum, puts the
+exponents at (−3, 1), and drives the buttons: a click holds them, a run through
+the catalog holds them, and a double click homes them with γ unmoved.
+
+---
+
 ## 5.99 An SVG renderer, alongside the canvas (Jake, 2026-10-24 — BUILT 2026-10-26)
 
 > **Status.** Built and usable, as the open-items list above records: a
@@ -5754,10 +5816,12 @@ Four things the building settled:
   promises and locks γ₀. `restore` does neither, correctly: it restores the
   lock that was saved. Keeping it out of that class is the honest reading, not
   a workaround.
-- **And it must not reset the generation**, which every catalog preset now does
-  (2026-10-23, so a preset lands at λ = φ⁰ where the catalog is written).
-  `restoreGamma` takes the generation out of the slot, so a reticulum carried
-  from a deflated page arrives deflated — which is the point of carrying it.
+- **And it must not reset the generation.** `restoreGamma` takes the generation
+  out of the slot, so a reticulum carried from a deflated page arrives deflated
+  — which is the point of carrying it. Between 2026-10-23 and 2026-11-27 this
+  made `restore` the exception, every catalog preset homing λ to φ⁰ on a plain
+  click; §5.29 moved that to the double click, so a single click on a preset
+  now leaves the generation alone as well.
 - **Written on the way out, not when γ changes.** Writing on change would be
   more robust against a missed unload, and would be wrong: arriving somewhere
   and nudging γ before clicking `restore` would overwrite the very thing you

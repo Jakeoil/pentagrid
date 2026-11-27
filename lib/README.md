@@ -92,7 +92,7 @@ and the TypeScript behind them. Do not edit between the markers.
 | `dist/geometry/pentagrid.js` | `src/geometry/pentagrid.ts` | 383 | no | The construction itself: directions, crossings, K-tuples, rhombs. |
 | `dist/view/pentagrid.js` | `src/view/pentagrid.ts` | 6709 | yes | Re-exported where they have always been imported from. |
 | `dist/state/defaults.js` | `src/state/defaults.ts` | 97 | no | The defaults literals, in a module of their own. |
-| `dist/view/controls.js` | `src/view/controls.ts` | 995 | yes | Sliders wired to a view's state. |
+| `dist/view/controls.js` | `src/view/controls.ts` | 1034 | yes | Sliders wired to a view's state. |
 | `dist/ui/reticulum.js` | `src/ui/reticulum.ts` | 499 | yes | The reticulum: n grid directions inside a regular decagon. |
 | `dist/ui/sumstrip.js` | `src/ui/sumstrip.ts` | 254 | yes | Sigma's handle: one turn of phase, laid out flat. |
 | `dist/ui/dials.js` | `src/ui/dials.ts` | 233 | yes | A bank of linked sliders, one of which is computed from the others. |

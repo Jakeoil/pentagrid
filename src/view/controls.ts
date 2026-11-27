@@ -511,11 +511,12 @@ export function mountReticulum(
      * Hidden rather than disabled, since a control for a thing that is not
      * there is noise.
      *
-     * And it does NOT reset the generation, which every other preset does
-     * (2026-10-23, so a preset lands at λ = φ⁰ where the catalog is written).
-     * `restoreGamma` takes the generation out of the slot: a reticulum carried
-     * from a deflated page arrives deflated, which is the whole point of
-     * carrying it.
+     * And it does NOT reset the generation. `restoreGamma` takes the
+     * generation out of the slot: a reticulum carried from a deflated page
+     * arrives deflated, which is the whole point of carrying it. A single
+     * click on a catalog preset now behaves the same way — see `load` below —
+     * so restore is no longer the exception it was between 2026-10-23 and
+     * 2026-11-27.
      */
     const restoreBtn = document.createElement("button");
     restoreBtn.type = "button";
@@ -557,8 +558,37 @@ export function mountReticulum(
         b.type = "button";
         b.className = p.penrose ? "preset" : "preset not-penrose";
         b.textContent = p.name;
-        b.title = p.note;
-        b.addEventListener("click", () => {
+        b.title = p.note
+            + " — click for its γ alone, leaving ℐ, λ and φ where they are; "
+            + "double-click to load it as the catalog writes it, at λ = φ⁰.";
+        /**
+         * Load a preset. `home` is the double click.
+         *
+         * **A click is γ and nothing else.** Jake, 2026-11-27: *"Setting a new
+         * preset currently changes the I-lambda-gamma settings on the
+         * reticulums. This is usually not the intension. Make it so those
+         * settings do not get reset unless the preset is double clicked."*
+         *
+         * It used to reset the generation on every click (2026-10-23, *"reloading
+         * preset does not set phi back to 0 either"*), and the argument for that
+         * still holds for what the catalog IS: every entry is written at λ = φ⁰,
+         * so a preset loaded at φ⁻³ and drawn at that spacing is not the picture
+         * the catalog describes. What it got wrong is which gesture that belongs
+         * to. Running through the catalog while looking at one generation is the
+         * common act, and having the exponents snap back under you each time
+         * makes the two settings fight: you set the generation, pick the next
+         * preset, and the generation is gone.
+         *
+         * So the two readings get a gesture each. A click changes γ. A double
+         * click says *the catalog's own picture*, which means both exponents to
+         * zero — ℐ and λ, and so φ with them.
+         *
+         * A double click arrives as click, click, dblclick, so the γ is applied
+         * twice before the homing. That is why `load` is idempotent in γ and
+         * takes no history: the only difference the third call makes is the
+         * exponents.
+         */
+        const load = (home: boolean) => {
             symmetric = false;
             symInput.checked = false;
             mirror = false;
@@ -570,12 +600,19 @@ export function mountReticulum(
             // preserve while exploring around one is the total. Locked at −1
             // the first dial you touch moved the sum and left the class.
             set.setLocked(-1);
-            // Back to the unit grid. A preset is a point in the catalog and
-            // the catalog is written at λ = φ⁰, so loading one after a few
-            // deflations and leaving the spacing where it was described
-            // neither the preset nor the generation. Jake, 2026-10-23:
-            // "reloading preset does not set phi back to 0 either."
-            set.setGeneration(0);
+            if (home) {
+                // Both exponents, not just the generation: the row is one
+                // identity in three terms, m + q = t, so leaving the
+                // normalization behind would home ℐ and move φ by exactly the q
+                // left over — which is not "as the catalog writes it" either.
+                //
+                // `setGeneration` rather than deflate/inflate, which is right
+                // HERE and nowhere else: a step of the generation is a map on γ
+                // that happens to rescale, but the γ is about to be overwritten
+                // wholesale on the next line, so there is no γ to carry.
+                set.setGeneration(0);
+                set.setNormalization(0);
+            }
             set.setValues(p.gamma.map((q) => q / p.den));
             set.setLocked(0);
             label = p.name;                 // what the slot will carry out
@@ -583,7 +620,9 @@ export function mountReticulum(
             // so a run through the catalog is one click per entry. Jake.
             opts.onPreset?.(p.name);
             render();
-        });
+        };
+        b.addEventListener("click", () => load(false));
+        b.addEventListener("dblclick", () => load(true));
         popup.appendChild(b);
     }
     presetBtn.addEventListener("click", () => {

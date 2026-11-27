@@ -8,7 +8,6 @@ import { createGammaSet, describeSum, penroseCondition } from "../dist/geometry/
 import { singularTriples } from "../dist/geometry/regularity.js";
 import { captureGamma, restoreGamma } from "../dist/state/baseline.js";
 import { collectRhombs, computeKTuple, makeDirections } from "../dist/geometry/pentagrid.js";
-import { readFileSync } from "node:fs";
 import { liftLocal } from "../dist/geometry/roof.js";
 
 const near = (a, b, eps = 1e-12) => Math.abs(a - b) < eps;
@@ -752,19 +751,6 @@ test("the uniform integer shift deflation needs is invisible to the tiling", () 
         .sort().join("|");
     assert.equal(at(0.2), at(-0.8), "a unit shift moved the tiling");
     assert.equal(at(0.2), at(3.2), "three units moved the tiling");
-});
-
-test("a preset goes back to the unit grid", () => {
-    // Jake: "reloading preset does not set phi back to 0 either." The catalog
-    // is written at lambda = phi^0, so a preset that leaves the spacing where
-    // it was describes neither the preset nor the generation.
-    const html = readFileSync("src/view/controls.ts", "utf8");
-    const click = html.slice(html.indexOf('b.title = p.note;'),
-                             html.indexOf('popup.appendChild(b);'));
-    assert.ok(click.includes("set.setGeneration(0)"),
-              "the preset handler does not reset the generation");
-    assert.ok(click.indexOf("set.setGeneration(0)") < click.indexOf("set.setValues"),
-              "the generation is reset after the values, so lambda lags one draw");
 });
 
 test("the deflation map's spectrum, and why inflate is its inverse", () => {

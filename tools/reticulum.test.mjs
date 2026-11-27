@@ -640,6 +640,57 @@ test("the rim takes the shape of whatever directions it is given, and the labels
     }
 });
 
+test("a preset is γ alone; the double click is what homes ℐ, λ and φ", () => {
+    // Jake, 2026-11-27: "Setting a new preset currently changes the
+    // I-lambda-gamma settings on the reticulums. This is usually not the
+    // intension. Make it so those settings do not get reset unless the preset
+    // is double clicked."
+    //
+    // The old rule (2026-10-23, "reloading preset does not set phi back to 0
+    // either") was right about what the catalog IS -- every entry is written at
+    // λ = φ⁰ -- and wrong about which gesture that belongs to. Running the
+    // catalog while holding one generation is the common act, and having the
+    // exponents snap back each time makes the two settings fight.
+    const set = createGammaSet({ guard: false });
+    const container = host();
+    mountReticulum(set, container, { colors: ["#000", "#000", "#000", "#000", "#000"] });
+    const presets = [];
+    walk(container, (c) => {
+        if (String(c.className).includes("preset") && c.textContent) presets.push(c);
+    });
+    const star = presets.find((b) => b.textContent === "star");
+    const deca = presets.find((b) => b.textContent === "deca");
+    assert.ok(star && deca, "the catalog is missing star or deca");
+
+    // Somewhere that is neither home: three deflations down, normalized up one.
+    set.setGeneration(-3);
+    set.setNormalization(1);
+
+    star.on.click.forEach((f) => f({}));
+    assert.equal(set.getGeneration(), -3, "a click moved the generation");
+    assert.equal(set.getNormalization(), 1, "a click moved the normalization");
+    const gammaOnce = set.exact().join(",");
+
+    // And a run through the catalog holds them, which is the point: the
+    // exponents are a place you are standing, not part of a catalog entry.
+    deca.on.click.forEach((f) => f({}));
+    star.on.click.forEach((f) => f({}));
+    assert.equal(set.getGeneration(), -3);
+    assert.equal(set.getNormalization(), 1);
+    assert.equal(set.exact().join(","), gammaOnce, "γ did not come back to star");
+
+    // The double click is the catalog's own picture: both exponents to zero,
+    // and so φ with them. It arrives as click, click, dblclick -- the two
+    // clicks apply the same γ, and only the third touches the exponents.
+    star.on.click.forEach((f) => f({}));
+    star.on.click.forEach((f) => f({}));
+    star.on.dblclick.forEach((f) => f({}));
+    assert.equal(set.getGeneration(), 0, "the double click did not home ℐ");
+    assert.equal(set.getNormalization(), 0, "the double click did not home λ");
+    assert.equal(set.exact().join(","), gammaOnce, "the double click moved γ as well");
+    assert.equal(set.getLocked(), 0, "the double click left the lock elsewhere");
+});
+
 test("a preset locks gamma 0, so the sum is what survives a dial", () => {
     // Jake, 2026-10-17: "We want to preserve the sum in those cases, so set
     // gamma 0 to float instead of sum. In fact, this should be done for sun
