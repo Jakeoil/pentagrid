@@ -12,3 +12,7 @@ Penrose_LI_classes.svg
 # Working scratch and reference figures, some third-party (the AMS feature
 # column gif among them). Stays untracked: Pages publishes the repo root.
 jake/
+
+# Pasted notes and transcripts kept beside the work. Untracked, like jake/ --
+# Pages publishes the repo root, so anything here is published.
+Past-from-new-chat.txt
