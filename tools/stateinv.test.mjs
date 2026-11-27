@@ -231,3 +231,28 @@ test("pixel size and scale are independent, and together they are a no-op", () =
     assert.ok(view.includes("viewX - (cx - viewMargin) / scale"),
               "the visible rect no longer derives from W and scale");
 });
+
+test("the build is pinned to this project's own types", () => {
+    // Every local build of this project had Node's type declarations silently
+    // in scope, and CI did not. TypeScript's default `typeRoots` walks UP the
+    // directory tree and takes every `node_modules/@types` it passes --
+    // /Users/jakeoil/node_modules/@types/node, in this case, four levels above
+    // the repo. So `URLSearchParams` came with an iterator locally (Node's
+    // declaration has one; lib.dom's does not without `dom.iterable`), the
+    // local build passed, and the GitHub build failed:
+    //
+    //   src/app/moire.ts(104,26): error TS2488: Type 'URLSearchParams' must
+    //   have a '[Symbol.iterator]()' method that returns an iterator.
+    //
+    // Four deploys in a row failed that way and nobody noticed, because a
+    // local `npm run build` could not reproduce it. The pin is what makes
+    // `npx tsc -p .` a faithful check; `dom.iterable` is the honest
+    // declaration of a browser lib this code actually uses.
+    const cfg = JSON.parse(readFileSync("tsconfig.json", "utf8"));
+    assert.deepEqual(cfg.compilerOptions.typeRoots, ["./node_modules/@types"],
+        "typeRoots is not pinned, so a local build sees @types from any "
+        + "ancestor directory and CI does not -- they stop agreeing");
+    assert.ok(cfg.compilerOptions.lib.includes("dom.iterable"),
+        "the code iterates URLSearchParams, which needs dom.iterable; without "
+        + "it only a machine with @types/node above it can compile this");
+});

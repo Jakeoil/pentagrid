@@ -37,6 +37,15 @@ jobs:
         with:
           node-version: 22
 
+      # `npm install`, and the build that follows it, is the ONLY faithful
+      # check of this project's types. A local `npx tsc -p .` was not, until
+      # tsconfig pinned `typeRoots`: TypeScript's default walks UP the
+      # directory tree and takes every `node_modules/@types` it passes, and
+      # there is an `@types/node` four levels above the repo on the author's
+      # machine. So `URLSearchParams` came with an iterator locally and did not
+      # here, and four deploys in a row failed on one line that compiled
+      # cleanly at home (2026-11-27, 19:16 to 22:18 UTC -- the site sat at
+      # 15:27:20 through all of it). tools/stateinv.test.mjs pins the pin.
       - run: npm install
       - run: npm run build
 

@@ -6,9 +6,13 @@
     "target": "esnext",
     "lib": [
       "esnext",
-      "dom"
+      "dom",
+      "dom.iterable"
     ],
     "moduleResolution": "bundler",
+    "typeRoots": [
+      "./node_modules/@types"
+    ],
     "sourceMap": true,
     "strict": true,
     "isolatedModules": true,
