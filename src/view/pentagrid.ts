@@ -26,6 +26,8 @@ import { exportSvg } from "../svg/export.js";
 import type { SvgExportOptions, SvgFile } from "../svg/export.js";
 import { addSetupButtons } from "./controls.js";
 import type { SetupButton } from "./controls.js";
+import { createStage, wantsShow, SHOW_PARAM } from "./present.js";
+import type { Stage } from "./present.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
 // Re-exported where they have always been imported from.
@@ -771,6 +773,17 @@ export interface PentagridHandle {
     embed: (opts?: { tag?: string; id?: string }) => string;
     /** This setup as a URL, settings as query parameters — §9.4, want #2. */
     link: () => string;
+    /**
+     * The picture, filling the window — §5.100. `show(false)` comes back.
+     *
+     * Not the Fullscreen API: that needs a user gesture, so a LINK could never
+     * reproduce it and the two routes would mean different things.
+     */
+    show: (on?: boolean) => void;
+    /** Whether it is showing now. */
+    showing: () => boolean;
+    /** A URL that opens this setup straight into `show`. */
+    imageLink: () => string;
     /**
      * The same setup as the raw attribute map, before it is spelled as markup
      * or as a query.
@@ -5642,6 +5655,8 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             reset: () => resetNow(),
             link: () => linkNow(),
             svg: () => svgNow(),
+            show: () => showNow(),
+            imageLink: () => imageLinkNow(),
         }, config.setupButtons);
 
         const sRow = row(det, "");
@@ -6321,26 +6336,57 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         redraw: () => draw(),
     });
 
+    /**
+     * Re-lay the canvas at a new size. The one path, whoever asks.
+     *
+     * Shared by the `ResizeObserver` below and by `show` — which needs it,
+     * since a container with no height of its own has a zero rect and the
+     * observer skips those (§5.100).
+     */
+    const resizeTo = (w: number, h: number): boolean => {
+        if (!(w > 0 && h > 0)) return false;        // hidden, or not laid out yet
+        if (w === canvas.w && h === canvas.h) return false;
+        canvas.w = w;
+        canvas.h = h;
+        canvas.margin = canvas.fixedMargin ?? Math.round(Math.min(w, h) * 0.05);
+        viewW = w; viewH = h; viewMargin = canvas.margin;
+        layerPanelDiv.style.maxWidth = `${w}px`;
+        if (config.panelP) config.panelP.style.maxWidth = `${w}px`;
+        stack.resize(w, h);
+        rhombCache = null;                           // the visible rect moved
+        draw();
+        return true;
+    };
+
     // Follow the container when the page did not name a size. Setting a canvas's
     // width clears it, so every resize is followed by a redraw.
     if (!canvas.explicit && typeof ResizeObserver !== "undefined") {
         const ro = new ResizeObserver(() => {
             const r = container.getBoundingClientRect();
-            const w = Math.round(r.width), h = Math.round(r.height);
-            if (!(w > 0 && h > 0)) return;          // hidden, or not laid out yet
-            if (w === canvas.w && h === canvas.h) return;
-            canvas.w = w;
-            canvas.h = h;
-            canvas.margin = canvas.fixedMargin ?? Math.round(Math.min(w, h) * 0.05);
-            viewW = w; viewH = h; viewMargin = canvas.margin;
-            layerPanelDiv.style.maxWidth = `${w}px`;
-            if (config.panelP) config.panelP.style.maxWidth = `${w}px`;
-            stack.resize(w, h);
-            rhombCache = null;                       // the visible rect moved
-            draw();
+            resizeTo(Math.round(r.width), Math.round(r.height));
         });
         ro.observe(container);
     }
+
+    /**
+     * Full-window this picture — §5.100, Jake's *"show a canvas full screen"*.
+     *
+     * The size to come back to is the CANVAS's, taken on the way in, not the
+     * container's rect: method's container is zero tall by design, so its rect
+     * is not a size at all and restoring from it would strand the picture at
+     * window size.
+     */
+    let wasSize: { w: number; h: number } | null = null;
+    const stage: Stage = createStage(container, {
+        fit: (w, h) => {
+            if (!wasSize) wasSize = { w: canvas.w, h: canvas.h };
+            resizeTo(w, h);
+        },
+        restore: () => {
+            if (wasSize) resizeTo(wasSize.w, wasSize.h);
+            wasSize = null;
+        },
+    });
 
     // The default is the sun — uniform 1/5, total 1 — not the singular Gamma = 0
     // the set starts on. Jake: "the default preset is decagon. Not a good one."
@@ -6512,6 +6558,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         draw();
     }
 
+    // A link that opens straight into the full-window picture — §5.100. Last,
+    // after the session and the link have both had their say, so what is shown
+    // is the setup the URL carries rather than a half-built default.
+    if (wantsShow(query, container.id)) stage.enter();
+
     /** What to remember. The page scope of §9.3, and only the page scope. */
     const saveNow = () => {
         if (!sessionId) return;
@@ -6585,6 +6636,21 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
             ? globalThis.location.origin + globalThis.location.pathname
             : "";
         return here + queryFor(embedAttrs());
+    };
+
+    /** Full-window this picture, and a link that opens it that way — §5.100. */
+    const showNow = () => stage.enter();
+    const imageLinkNow = (): string => {
+        // The same URL plus the one presentation parameter. Named with the
+        // container's id, so a page with two canvases says WHICH — a bare
+        // `?show` is accepted on the way in but is not what we write.
+        const attrs = { ...embedAttrs() };
+        const q = queryFor(attrs);
+        const here = globalThis.location
+            ? globalThis.location.origin + globalThis.location.pathname
+            : "";
+        const show = `${SHOW_PARAM}=${encodeURIComponent(container.id)}`;
+        return here + (q ? `${q}&${show}` : `?${show}`);
     };
 
     /**
@@ -6672,6 +6738,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         embed: (opts) => embedNow(opts),
         link: () => linkNow(),
         attrs: () => embedAttrs(),
+        show: (on = true) => (on ? stage.enter() : stage.leave()),
+        showing: () => stage.showing(),
+        imageLink: () => imageLinkNow(),
         svg: (opts) => svgNow(opts),
 
         reset: () => resetNow(),

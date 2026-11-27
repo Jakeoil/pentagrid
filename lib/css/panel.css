@@ -84,3 +84,28 @@
    site.css when the buttons moved into `view/controls.ts`: a class the
    library assigns is a class the library has to dress. */
 .copy-said { font-size: 11px; color: #777; margin-left: 6px; }
+
+/* The `image` menu that `addSetupButtons` builds: export svg, show, image
+   link. Same shape as the reticulum's presets popup, which is the pattern on
+   every other page. Here rather than in the site's own stylesheet because the
+   module that assigns these classes ships in `lib/reticulum.js` -- an
+   instrument that comes up bare in somebody else's page is the one failure
+   this project cannot see from the inside. */
+.img-menu { position: relative; display: inline-block; }
+.img-pop {
+    position: absolute;
+    top: calc(100% + 4px); left: 0;
+    z-index: 40;
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 6px;
+    background: var(--panel, #fff);
+    border: 1px solid var(--rule, #ddd);
+    border-radius: 5px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+/* `display` on the popup overrides the browser's own `[hidden]` rule, so the
+   menu came up OPEN and pressing `image` did nothing visible. Jake: "It
+   shouldn't show the drop down buttons unless I push image." Any rule that
+   gives an element a display needs this beside it. */
+.img-pop[hidden] { display: none !important; }
+.img-pop button { text-align: left; white-space: nowrap; }

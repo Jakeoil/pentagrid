@@ -26,8 +26,21 @@ export interface SetupHost {
     link?: () => string;
     svg?: () => { id: string; svg: string }[];
     reset?: () => void;
+    /** Full-window this picture — PLAN §5.100. */
+    show?: () => void;
+    /** A URL that opens straight into that. */
+    imageLink?: () => string;
 }
 
+/**
+ * `svg` builds the whole **image** menu, not one button.
+ *
+ * Jake, 2026-11-27: *"Wherever there is an export-svg, make a button/dropdown
+ * called image. pressing image will allow three choices. export-svg, show, and
+ * image-link."* So the name stays `svg` — every caller already asks for it by
+ * that name, and what they are asking for is still *the picture* — and which
+ * of the three items appear depends on which methods the host has.
+ */
 export type SetupButton = "setup" | "reset" | "link" | "svg";
 
 export function addSetupButtons(
@@ -86,28 +99,70 @@ export function addSetupButtons(
                 + "Opening it shows exactly this, and a link outranks whatever "
                 + "the recipient was last looking at.",
                 () => copyText(host.link!()));
-        } else if (kind === "svg" && host.svg) {
-            button("export svg",
-                "This canvas as vector, one file per viewport, with every layer "
-                + "as a group an editor can switch off. It scales to any size "
-                + "without resampling, which is the point of it over a PNG.",
-                () => {
-                    const files = host.svg!();
-                    const page = (globalThis.location?.pathname ?? "pentagrid")
-                        .replace(/^.*\//, "").replace(/\.html?$/, "") || "pentagrid";
-                    let saved = 0, blocked = 0;
-                    for (const f of files) {
-                        const how = downloadText(svgFilename(page, f.id), f.svg);
-                        if (how === "unavailable") blocked++; else saved++;
-                    }
-                    if (blocked && !saved) {
-                        // Nowhere to put it: the console is the one place left.
-                        for (const f of files) console.log(f.svg);
-                        say("in the console");
-                    } else {
-                        say(saved > 1 ? `saved ${saved} files` : "saved");
-                    }
-                });
+        } else if (kind === "svg" && (host.svg || host.show || host.imageLink)) {
+            // The menu, in the popup shape the reticulum's presets use: a bump
+            // button and a panel that opens under it. One `image` where there
+            // were two of the three things it holds and no home for the third.
+            const menu = document.createElement("div");
+            menu.className = "img-menu";
+            parent.appendChild(menu);
+            const head = document.createElement("button");
+            head.type = "button";
+            head.className = "ret-bump";
+            head.textContent = "image";
+            head.title = "This picture: as a vector file, full window, or as a "
+                + "link that opens it full window.";
+            const pop = document.createElement("div");
+            pop.className = "img-pop";
+            pop.hidden = true;
+            head.addEventListener("click", () => { pop.hidden = !pop.hidden; });
+            menu.append(head, pop);
+            /** An item of the menu. Choosing one closes it: these are verbs. */
+            const item = (text: string, title: string, onClick: () => void) => {
+                const b = document.createElement("button");
+                b.type = "button";
+                b.className = "ret-bump";
+                b.textContent = text;
+                b.title = title;
+                b.addEventListener("click", () => { pop.hidden = true; onClick(); });
+                pop.appendChild(b);
+            };
+            if (host.svg) {
+                item("export svg",
+                    "This canvas as vector, one file per viewport, with every "
+                    + "layer as a group an editor can switch off. It scales to any "
+                    + "size without resampling, which is the point of it over a PNG.",
+                    () => {
+                        const files = host.svg!();
+                        const page = (globalThis.location?.pathname ?? "pentagrid")
+                            .replace(/^.*\//, "").replace(/\.html?$/, "") || "pentagrid";
+                        let saved = 0, blocked = 0;
+                        for (const f of files) {
+                            const how = downloadText(svgFilename(page, f.id), f.svg);
+                            if (how === "unavailable") blocked++; else saved++;
+                        }
+                        if (blocked && !saved) {
+                            // Nowhere to put it: the console is the one place left.
+                            for (const f of files) console.log(f.svg);
+                            say("in the console");
+                        } else {
+                            say(saved > 1 ? `saved ${saved} files` : "saved");
+                        }
+                    });
+            }
+            if (host.show) {
+                item("show",
+                    "The picture, filling the window, with the page's furniture "
+                    + "covered over. Escape or the exit button comes back.",
+                    () => host.show!());
+            }
+            if (host.imageLink) {
+                item("image link",
+                    "A URL that opens this setup straight into the full-window "
+                    + "picture — the same link as `copy link` with the showing "
+                    + "asked for.",
+                    () => copyText(host.imageLink!()));
+            }
         }
     }
     parent.appendChild(said);

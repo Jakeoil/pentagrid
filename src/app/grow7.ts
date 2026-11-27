@@ -55,7 +55,11 @@ if (host) {
         addSetupButtons(setupBar, {
             embed: (o) => view.embed(o),
             link: () => view.link(),
+            // `svg` is the whole `image` menu now — the file, the full-window
+            // picture, and a link that opens it that way. §5.100.
             svg: () => view.svg(),
+            show: () => view.show(),
+            imageLink: () => view.imageLink(),
         }, ["setup", "link", "svg"]);
     }
 

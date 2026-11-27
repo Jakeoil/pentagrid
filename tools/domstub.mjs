@@ -151,7 +151,12 @@ const [SW, SH] = (process.env.PAGECHECK_SIZE || "800x800").split("x").map(Number
 const USE_ATTR = process.env.PAGECHECK_ATTR === "1";
 globalThis.document = makeStub({
     getElementById: (id) => {
-        if (!elements.has(id)) elements.set(id, makeStub());
+        // With its `id` on it, as the real DOM has. Left off, the Proxy handed
+        // back a stub for `el.id` -- truthy, equal to nothing, and stringifying
+        // to "" -- so code that asks a container its own name (`show` names
+        // which container a link should open) silently got nothing while
+        // looking like it worked.
+        if (!elements.has(id)) elements.set(id, makeStub({ id }));
         return elements.get(id);
     },
     // SVG needs createElementNS, and it has to build the same kind of stub —

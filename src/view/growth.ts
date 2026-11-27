@@ -31,6 +31,7 @@ import { readAttributes, watchAttributes } from "../state/attributes.js";
 import { DEFAULTS } from "../state/defaults.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { queryFor } from "../state/query.js";
+import { SHOW_PARAM } from "./present.js";
 // Re-exported from where it has always been imported.
 export { DEFAULTS } from "../state/defaults.js";
 import type { Paths } from "../geometry/walls.js";
@@ -293,6 +294,11 @@ export interface GrowthHandle {
      * roof rather than the tiling under it.
      */
     link: () => string;
+    /** The picture, filling the window — §5.100. `show(false)` comes back. */
+    show: (on?: boolean) => void;
+    showing: () => boolean;
+    /** A URL that opens this setup straight into `show`. */
+    imageLink: () => string;
     /**
      * This page as vector — §5.99.
      *
@@ -1930,6 +1936,27 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
             return `${base.slice(0, cut)} ${mine.join(" ")}${base.slice(cut)}`;
         };
 
+    /**
+     * The markup read back as a query string.
+     *
+     * Off `embed()` rather than off a second walk of the fields: the two are
+     * "one idea in two spellings" (§9.4), and the one that already knows about
+     * the growth slice is the one to ask. A parse of our own output is cheap
+     * and cannot disagree with it.
+     */
+    const linkNow = (): string => {
+        const here = globalThis.location
+            ? globalThis.location.origin + globalThis.location.pathname
+            : "";
+        const markup = embedNow();
+        const attrs: Record<string, string> = {};
+        for (const m of markup.matchAll(/\s(data-[\w-]+)(?:="([^"]*)")?/g)) {
+            if (m[1] === "data-width" || m[1] === "data-height") continue;
+            attrs[m[1]] = m[2] ?? "";
+        }
+        return here + queryFor(attrs);
+    };
+
     return {
         set: (patch) => { Object.assign(state, patch); handle!.redraw(); },
         get: () => ({ ...state }),
@@ -1948,25 +1975,22 @@ export function createGrowthView(config: GrowthConfig): GrowthHandle {
         // The pentagrid's export: the growth layers are in its stack, so one
         // call carries both halves of the picture.
         svg: (opts) => pentagrid.svg(opts),
+        link: () => linkNow(),
         /**
-         * The markup read back as a query string.
+         * Full-window this picture, and a link that opens it that way — §5.100.
          *
-         * Off `embed()` rather than off a second walk of the fields: the two
-         * are "one idea in two spellings" (§9.4), and the one that already
-         * knows about the growth slice is the one to ask. A parse of our own
-         * output is cheap and cannot disagree with it.
+         * Straight through to the pentagrid: a growth page IS a pentagrid in
+         * the same container — `createPentagrid({ container: config.container })`
+         * — so there is one stage and one canvas to resize, not two.
          */
-        link: () => {
-            const here = globalThis.location
-                ? globalThis.location.origin + globalThis.location.pathname
-                : "";
-            const markup = embedNow();
-            const attrs: Record<string, string> = {};
-            for (const m of markup.matchAll(/\s(data-[\w-]+)(?:="([^"]*)")?/g)) {
-                if (m[1] === "data-width" || m[1] === "data-height") continue;
-                attrs[m[1]] = m[2] ?? "";
-            }
-            return here + queryFor(attrs);
+        show: (on = true) => pentagrid.show(on),
+        showing: () => pentagrid.showing(),
+        // And off THIS link, not the pentagrid's: `imageLink` there would drop
+        // the growth slice, which is most of what these two pages are.
+        imageLink: () => {
+            const url = linkNow();
+            const show = `${SHOW_PARAM}=${encodeURIComponent(config.container.id)}`;
+            return url + (url.includes("?") ? `&${show}` : `?${show}`);
         },
         embed: (opts) => embedNow(opts),
         reset: () => {

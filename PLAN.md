@@ -4726,6 +4726,110 @@ ROOF: measured, a roof link carries `grow`, `growth-band`, `direction`,
 `paths`, `index-style` and `edge-style`, none of which the pentagrid's own
 `link` knows about.
 
+## 5.100 The `image` menu: a file, a full window, and a link to it (Jake, 2026-11-27) — BUILT
+
+Jake: *"I want to be able to show a canvas full screen as well as export the
+svg. I also want to create a copyable link that will simply show the full
+screen. Wherever there is an export-svg, make a button/dropdown called image.
+pressing image will allow three choices. export-svg, show, and image-link."*
+
+So `export svg` is no longer a button; it is the first item of the menu that
+replaced it, in the same popup shape the reticulum's `presets` uses. Built once,
+in `addSetupButtons`, so it appeared in all six places that had the old button
+at once: the panel's `settings` fold on method, split and multigrid, the setup
+bar on roof, grow and grow7, and both of moiré's canvas headers. The `svg` entry
+in `SetupButton` kept its name — every caller already asks for the picture by
+that name, and which of the three items appear depends on which methods the host
+has.
+
+### What "full screen" means here, and what it deliberately does not
+
+The picture fills the browser's **window**: the canvas's container is lifted to
+`position: fixed; inset: 0` and the view is told its new size, so the drawing is
+re-laid out at the window's shape rather than scaled up from a smaller one.
+
+It is **not** the Fullscreen API, and that is the whole design. `requestFullscreen`
+needs a user gesture, so a LINK could never reproduce it — and then the menu
+item and the URL would mean two different things, which is the one thing a
+shareable link must not do. One mode, reachable by click or by address bar,
+behaving identically either way. Real fullscreen is still one `F11` away, and it
+composes with this rather than competing: `?show` inside fullscreen is the
+picture and nothing else at all.
+
+### Nothing is hidden
+
+The first design hid the page's furniture — nav, prose, panels, bars. That means
+knowing what furniture each page has, and the eight pages do not agree: method
+has a narrative bar and a stage outside the wrap, moiré has two panels in a
+three-row grid, the growth pages have a setup bar. Every one would have needed
+its own rule, and a new page would come up with its chrome showing through.
+
+A fixed box over the whole window covers all of it without naming any of it.
+`body.showing { overflow: hidden }` stops the page behind from scrolling under
+the picture, and that is the entire mechanism. The floating reticulum and the
+loupe sit at `z-index: 200`; the stage is 9000 and the exit button 9100, so they
+are covered — *the picture and nothing else* is the point.
+
+### Why the view has to be TOLD its size
+
+A `ResizeObserver` is not enough, and this is the trap worth recording. Two of
+the pages give their container no height of its own: method's `#canvas-container`
+is a `position: relative` box holding absolutely positioned canvases, so its own
+rect is **zero tall**, and the observer skips a zero rect by design (`if (!(w > 0
+&& h > 0)) return`). Entering would have worked — fixed inset 0 gives it a real
+rect — and *leaving* would have stranded the canvas at window size, because the
+rect it went back to is not a size.
+
+So `resizeTo(w, h)` is now the one path, shared by the observer and by `show`,
+and the size to come back to is **the view's idea of its canvas**, taken on the
+way in, not the container's rect. `present.ts` holds no sizes at all; it calls
+`fit(w, h)` and `restore()`.
+
+### One exit for however many stages are up
+
+Moiré merged is two containers in one grid cell, so showing the composite raises
+**both** — and the stylesheet's merged rules still match at full window
+(`.moire.merged figure:last-of-type .viewport` is still B), so B stays
+transparent and multiplied over A and the composite survives going full window
+with no second set of rules. §12.10 is why that works: the blend is commutative
+and the order is structural, so nothing about the composite depends on the
+geometry it was laid out in.
+
+Two exit buttons, or a stage that only knew about itself, would both be wrong.
+The live stages are a module-level `Set`; the exit button and the Escape key are
+made once and leave all of them, and `body.showing` comes off when the last one
+goes. Escape is bound on `document`, in the capture phase — a canvas is not
+focusable, so a keydown on it never arrives.
+
+### The link
+
+`?show=<container id>`, appended to the same URL `copy link` writes. Named rather
+than bare, because two of the pages have two canvases and a link has to say
+which; a bare `?show` is still *accepted* on the way in, claimed by the first
+asker, so a hand-typed URL does something sensible.
+
+It is read **last**, after the session and the query have both had their say, so
+what comes up showing is the setup the link carries rather than a half-built
+default. And it is deliberately **not** an inventory attribute: `show` is how the
+picture is presented, not part of the setup, so `?show` alone does not suppress
+the session — a bare image link must still come up as the page the visitor left,
+or the link would be quietly resetting their work to the defaults.
+
+Moiré's two image links are the page's link plus `show=moire-a` or
+`show=moire-b` — the PAGE's, per §12.11, since a side's own would describe half
+the page. `?merge&show=moire-a` is the composite: A raises its own stage from
+inside its view, before the merge is applied and so before anyone could know the
+picture was two containers, and the page raises B itself on the line after
+`setMerged`.
+
+### What is still missing
+
+No PNG, and this does not change that — §5.99's remainder stands. What `show`
+does give is the cheapest honest route to one: full-window the picture and use
+the operating system's own screenshot, at whatever the window's pixel ratio is.
+That was always available in principle and was never reachable, because the
+picture was 800 px in the middle of a page of furniture.
+
 ## 6. Not built
 
 Thought about, recorded, not started. None is scheduled.

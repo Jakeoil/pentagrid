@@ -1,0 +1,29 @@
+Ah, so you're trying to insert the missing odd generations into what is currently a double-deflation construction.
+
+The full four-step cycle is
+
+\\[ \boxed{ P\\;\longrightarrow\\;S\_\pi \\;\longrightarrow\\;P\_\pi \\;\longrightarrow\\;S \\;\longrightarrow\\;P } \\]
+
+Each arrow represents one deflation, rather than two.
+
+| Step | Primitive    | Fibonacci index | Order              |
+| ---- | ------------ | --------------- | ------------------ |
+| 0    | \\(P\\)      | \\(\kappa\\)    | \\(\nu\\)          |
+| 1    | \\(S\_\pi\\) | \\(\kappa+1\\)  | \\(\nu+\tfrac12\\) |
+| 2    | \\(P\_\pi\\) | \\(\kappa+2\\)  | \\(\nu+1\\)        |
+| 3    | \\(S\\)      | \\(\kappa+3\\)  | \\(\nu+\tfrac32\\) |
+| 4    | \\(P\\)      | \\(\kappa+4\\)  | \\(\nu+2\\)        |
+
+This makes the half-order notation natural, but there's an interesting alternative: keep the order integral and use a separate phase to distinguish \\(P\\) from \\(S\\).
+
+For example, a single deflation step \\(j\in\mathbb Z\\) determines both:
+
+\\[ \kappa_j=\kappa_0+j, \qquad \nu_j=\nu_0+\frac j2. \\]
+
+And \\(j\bmod4\\) determines the primitive and its orientation.
+
+The crucial point is that your existing construction only realizes every second member of this cycle. The missing \\(S\_\pi\\) and \\(S\\) stages are precisely the single-deflation intermediates you're trying to construct.
+
+The challenge is geometric, not notational: finding the star partition that connects the two known pentagonal stages while preserving the exact Gaussian-lattice construction.
+
+One subtlety: because \\(P\_\pi\\) and \\(P\\) are distinct orientations, the full primitive-and-orientation cycle takes four deflations, even though the primitive type alternates every step.

@@ -15,6 +15,7 @@ import { addSetupButtons, mountFloatingReticulum } from "../view/controls.js";
 import { FAMILY_COLORS } from "../view/growth.js";
 import { convertView } from "../view/register.js";
 import { pageQuery, queryFor } from "../state/query.js";
+import { SHOW_PARAM } from "../view/present.js";
 import { BUILD_ID } from "../build-id.js";
 
 const byId = (id: string) => document.getElementById(id) ?? undefined;
@@ -474,11 +475,40 @@ if (aHost && bHost && bar && grid) {
         }];
     };
 
-    for (const [id, side] of [["moire-a-caption", () => a], ["moire-b-caption", () => b]] as const) {
+    /**
+     * Full-window the picture this header names — §5.100.
+     *
+     * Merged, that is BOTH containers: the composite is two viewports in one
+     * grid cell, and `show` lifts each to `position: fixed; inset: 0`, which
+     * puts them in one place again. The stylesheet's merged rules still match
+     * — `.moire.merged figure:last-of-type .viewport` is still B — so B stays
+     * transparent and multiplied over A, and the composite survives going full
+     * window without a second set of rules. One exit leaves both, because the
+     * live stages are a set and the exit button leaves all of them.
+     */
+    const showPicture = () => {
+        if (merged) { A.show(); B.show(); } else return false;
+        return true;
+    };
+    for (const [id, side, host] of [
+        ["moire-a-caption", () => a, "moire-a"],
+        ["moire-b-caption", () => b, "moire-b"],
+    ] as const) {
         const h = headerOf(id);
         if (!h) continue;
         addSetupButtons(h.el, {
             svg: () => (merged ? compositeSvg() : (side()?.svg() ?? [])),
+            show: () => { if (!showPicture()) side()?.show(); },
+            // The PAGE's link — both sides and the layout, as `copy link`
+            // writes it — plus which container to show. A side's own
+            // `imageLink` would describe half the page, which is the whole of
+            // what §12.11 was about.
+            imageLink: () => {
+                const base = pageLink();
+                const which = merged ? "moire-a" : host;
+                return base + (base.includes("?") ? "&" : "?")
+                    + `${SHOW_PARAM}=${encodeURIComponent(which)}`;
+            },
         }, ["svg"]);
     }
 
@@ -583,6 +613,10 @@ if (aHost && bHost && bar && grid) {
     // The layout the URL asked for, applied last: `setMerged` relays A's view
     // onto B, so it wants both sides built and their scales paired.
     if (mergeFromQuery(pageQuery())) setMerged(true);
+    // `?merge&show=moire-a` is the composite as a link. A raised its own stage
+    // from inside its view, before the merge was applied and so before anyone
+    // could know the picture was two containers; this is the other half.
+    if (merged && A.showing()) B.show();
 
     // The stamp, under the canvases. Only roof carried one; method gets its
     // tag from the narrative step bar, which this page has no reason to have.

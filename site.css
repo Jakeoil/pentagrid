@@ -510,6 +510,52 @@ nav.site a.aside { border-left: 1px solid var(--rule); padding-left: 18px;
 .moire-note { font-family: monospace; color: #888; margin-left: auto; }
 .moire-find, .moire-reset { font-size: 11px; padding: 2px 7px; cursor: pointer; }
 
+/* ── Show: the picture and nothing else — PLAN §5.100 ──────────────────
+   A fixed box over the whole window. Nothing is hidden and nothing is moved:
+   the stage covers the page's furniture without this stylesheet having to know
+   what furniture that page has, and the pages do not agree about that.
+
+   THE GEOMETRY IS NOT HERE. `position`, the insets and the size are written as
+   INLINE STYLE by `view/present.ts`, because a stylesheet cannot win this
+   argument: `view/layers.ts` sets `style.position = "relative"` on a container
+   whose computed position is static, and an inline style beats any class. On
+   method that left the stage in the flow of the page with `height: auto`, so
+   the canvas hung out of a zero-tall box and took the bottom half of the
+   screen under the text — Jake: "a half text half image that only took the
+   bottom half of the view." What is left here is what inline style must NOT
+   own: the background, which moiré's merged rule has to be able to override on
+   the upper canvas to keep the multiply. */
+.show-stage {
+    border: 0;
+    border-radius: 0;
+    background: var(--panel);
+}
+body.showing { overflow: hidden; }
+/* And the page behind is made INVISIBLE, not hidden — `visibility` costs no
+   layout, so nothing moves and nothing is renumbered. Two reasons it is worth
+   the two lines on top of a box that already covers the window:
+
+   - moiré's grid counts rows (§12.11's hazard, hit twice). A viewport lifted
+     to `position: fixed` leaves the flow, so the grid has one item fewer and
+     the rest re-place — a scramble behind the picture, which is what Jake saw
+     when the stage came up zero-tall: "a page with just the text".
+   - it is the belt to the stage's braces. If a page ever sizes its container
+     in a way the inline pin does not beat, the failure is a small picture on
+     an empty ground rather than the page showing through it. */
+body.showing > * { visibility: hidden; }
+body.showing .show-stage,
+body.showing .show-exit { visibility: visible; }
+.show-exit {
+    position: fixed;
+    top: 10px; right: 12px;
+    z-index: 9100;
+    font: inherit; font-size: 12px; padding: 3px 12px;
+    border: 1px solid #bbb; border-radius: 4px;
+    background: #fff; color: #333; cursor: pointer;
+    opacity: 0.55;
+}
+.show-exit:hover { opacity: 1; background: #eee; }
+
 /* The per-canvas headers. Jake, 2026-11-26: "each canvas has a heading, A
    class 0 penrose and B class 0 penrose. Put the merge button on each... when
    they're merged, put a header on that canvas. Put a split button on that.

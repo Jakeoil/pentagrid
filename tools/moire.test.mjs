@@ -55,6 +55,17 @@ const cap = (id) => {
 const headBtn = (id, cls) => (doc.getElementById(id).children ?? [])
     .find((c) => String(c.className).includes(cls));
 const toggle = (id = "moire-a-caption") => headBtn(id, "head-merge");
+/** The `image` menu on a header: its head button and its items by label. */
+const imageMenu = (id) => {
+    const menu = (doc.getElementById(id).children ?? [])
+        .find((c) => String(c.className).includes("img-menu"));
+    if (!menu) return null;
+    const head = (menu.children ?? []).find((c) => c.textContent === "image");
+    const pop = (menu.children ?? []).find((c) => String(c.className).includes("img-pop"));
+    const items = {};
+    for (const b of pop?.children ?? []) if (b.textContent) items[b.textContent] = b;
+    return { menu, head, pop, items };
+};
 const control = (cls) => inputs.find((i) => i.className === cls);
 const fire = (el) => (el.on?.change ?? []).forEach((fn) => fn());
 const click = (el) => (el.on?.click ?? []).forEach((fn) => fn());
@@ -485,10 +496,12 @@ test("each header carries an export of its own picture", () => {
     // laid into it and multiplied, which is what the screen is doing to the
     // pixels. The two canvases are the same size and in register, which is
     // the page's own invariant and what lets one frame hold both.
+    // Behind the `image` menu since 2026-11-27 -- Jake: "Wherever there is an
+    // export-svg, make a button/dropdown called image."
     for (const id of ["moire-a-caption", "moire-b-caption"]) {
-        const btn = headBtn(id, "ret-bump");
-        assert.ok(btn, `no export button on ${id}`);
-        assert.equal(btn.textContent, "export svg");
+        const m = imageMenu(id);
+        assert.ok(m?.head, `no image menu on ${id}`);
+        assert.ok(m.items["export svg"], `no export svg in ${id}'s menu`);
     }
 
     const one = page.sideA.svg();
@@ -551,7 +564,7 @@ test("merged, every item has a row and a column of its own", () => {
     const kids = (head.children ?? []).map((c) => String(c.className));
     assert.ok(kids.some((k) => k.includes("cap-text")), "the composite has no text");
     assert.ok(kids.some((k) => k.includes("head-merge")), "no split button on it");
-    assert.ok(kids.some((k) => k.includes("ret-bump")), "no export button on it");
+    assert.ok(kids.some((k) => k.includes("img-menu")), "no image menu on it");
     assert.equal(toggle().textContent, "split");
     click(toggle());
 });
@@ -718,5 +731,56 @@ test("each header says where its canvas is looking", () => {
     page.sideB.gamma.deflate();
     assert.notEqual(readout("moire-a-caption"), readout("moire-b-caption"),
                     "one generation apart and both headers read the same");
+    click(reset);
+});
+
+test("the image menu shows this canvas, and the composite when merged", () => {
+    // PLAN §5.100. Merged, the picture is two containers in one cell, so
+    // showing it raises both -- and the stylesheet's merged rules still match,
+    // so B stays transparent and multiplied over A at full window.
+    const exitBtn = () => (doc.body.children ?? [])
+        .find((c) => String(c.className).includes("show-exit"));
+    const showing = () => [page.sideA.showing(), page.sideB.showing()];
+
+    click(imageMenu("moire-a-caption").items["show"]);
+    assert.deepEqual(showing(), [true, false], "split, and showing A raised B too");
+    click(exitBtn());
+    assert.deepEqual(showing(), [false, false]);
+
+    click(imageMenu("moire-b-caption").items["show"]);
+    assert.deepEqual(showing(), [false, true], "B's header showed the wrong canvas");
+    click(exitBtn());
+
+    click(toggle());                                  // merge
+    click(imageMenu("moire-a-caption").items["show"]);
+    assert.deepEqual(showing(), [true, true],
+                     "the composite went full window as one canvas, not two");
+    click(exitBtn());
+    assert.deepEqual(showing(), [false, false], "one exit did not leave both");
+    click(toggle());                                  // and back to split
+});
+
+test("a moiré image link is the whole page plus which canvas", () => {
+    const reset = button("moire-reset");
+    click(reset);
+    setA([0.21, 0.19, 0.07, 0.13, 0.4]);        // A off Penrose
+    page.sideB.gamma.deflate();                 // B a generation down
+    const link = copied(imageMenu("moire-a-caption").items["image link"]);
+    const q = new URLSearchParams(link.slice(link.indexOf("?")));
+    // Both sides, as §12.11 requires of every link this page writes -- a
+    // side's own `imageLink` would describe half the page.
+    assert.ok(q.has("a-gamma") && q.has("b-gamma"), `one-sided: ${link}`);
+    assert.notEqual(q.get("a-gamma"), q.get("b-gamma"));
+    assert.equal(q.get("show"), "moire-a");
+    assert.ok(!q.has("merge"), "split, and the link says merge");
+
+    // Merged, the link carries the layout and still names A: the composite's
+    // header is A's, and the page raises B itself once the merge is applied.
+    click(toggle());
+    const merged = new URLSearchParams(
+        copied(imageMenu("moire-a-caption").items["image link"]).replace(/^[^?]*\?/, ""));
+    assert.equal(merged.get("merge"), "");
+    assert.equal(merged.get("show"), "moire-a");
+    click(toggle());
     click(reset);
 });
