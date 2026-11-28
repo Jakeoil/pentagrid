@@ -64,6 +64,10 @@ export const TILE_DEFAULTS: TileStyle = {
     // are switched on.
     outline1: false, outline2: false, outline3: false,
     outline4: false, outline5: false,
+    // How those edges are drawn: a heavy line, or §11.16's circular cut lines.
+    // The width is SIGNED and in tiling units — negative is the concave band,
+    // 0 is the pinch at the inscribed circle, positive is the convex lens.
+    outlineCut: false, cutWidth: -0.12,
 };
 
 /**

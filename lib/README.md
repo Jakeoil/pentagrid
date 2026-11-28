@@ -90,8 +90,8 @@ and the TypeScript behind them. Do not edit between the markers.
 | `dist/geometry/growth.js` | `src/geometry/growth.ts` | 171 | no | The growth law: where the tiling's points are at a partial grow and fold. |
 | `dist/geometry/roof.js` | `src/geometry/roof.ts` | 91 | no | The Wieringa lift: the tiling stood up into golden rhombi. |
 | `dist/geometry/pentagrid.js` | `src/geometry/pentagrid.ts` | 383 | no | The construction itself: directions, crossings, K-tuples, rhombs. |
-| `dist/view/pentagrid.js` | `src/view/pentagrid.ts` | 6778 | yes | Re-exported where they have always been imported from. |
-| `dist/state/defaults.js` | `src/state/defaults.ts` | 97 | no | The defaults literals, in a module of their own. |
+| `dist/view/pentagrid.js` | `src/view/pentagrid.ts` | 6960 | yes | Re-exported where they have always been imported from. |
+| `dist/state/defaults.js` | `src/state/defaults.ts` | 101 | no | The defaults literals, in a module of their own. |
 | `dist/view/controls.js` | `src/view/controls.ts` | 1089 | yes | Sliders wired to a view's state. |
 | `dist/ui/reticulum.js` | `src/ui/reticulum.ts` | 499 | yes | The reticulum: n grid directions inside a regular decagon. |
 | `dist/ui/sumstrip.js` | `src/ui/sumstrip.ts` | 254 | yes | Sigma's handle: one turn of phase, laid out flat. |

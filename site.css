@@ -283,6 +283,13 @@ button.preset.not-penrose::after { content: " *"; color: #e0894f; }
 .bar-setup::before { content: "this page"; font-size: 11px; color: #888; }
 
 .system-lines { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+/* The outlines fold's `circular cut` line — PLAN §11.16. Laid out like a
+   system row but deliberately not one: those classes say "this is a system",
+   and a test reads them to check which systems the fold offers. */
+.cut-line { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.cut-name { min-width: 92px; font-size: 12px; color: var(--ink-soft); }
+.cut-box { width: 56px; }
+
 .system-line { display: flex; align-items: center; gap: 6px; }
 .system-name { min-width: 84px; color: #444; }
 /* The opacity box: fixed width and tabular digits, so 5 becoming 100 cannot

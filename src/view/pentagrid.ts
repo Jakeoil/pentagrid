@@ -27,6 +27,9 @@ import type { SvgExportOptions, SvgFile } from "../svg/export.js";
 import { addSetupButtons } from "./controls.js";
 import type { SetupButton } from "./controls.js";
 import { createStage, wantsShow, SHOW_PARAM } from "./present.js";
+import { buildCuts, outlineChords, CUT_WIDTH_MIN, CUT_WIDTH_MAX }
+    from "../geometry/cuts.js";
+import type { CutArc } from "../geometry/cuts.js";
 import type { Stage } from "./present.js";
 import { FIELDS, format } from "../state/inventory.js";
 import { NO_FEATURES, TILE_DEFAULTS, GRID_DEFAULTS } from "../state/defaults.js";
@@ -463,6 +466,24 @@ export interface TileStyle {
     outline3: boolean;
     outline4: boolean;
     outline5: boolean;
+    /**
+     * Draw those edges as circular cut lines rather than heavy lines — §11.16.
+     *
+     * Every selected edge is a unit chord of two decagon circles, one each
+     * side, and the shape between them is the edge. Figure 6 of the starfish /
+     * ivy-leaf / hexagon paper, fourth panel.
+     */
+    outlineCut: boolean;
+    /**
+     * The cut band's width at its middle, SIGNED, in tiling units.
+     *
+     * Negative is the concave band (the circles disjoint), 0 the pinch where
+     * they are tangent at the inscribed circle, positive the convex lens. The
+     * radius is derived: R = apothem + width/2. The width is the control
+     * because the radius is not one — its whole positive range is the top 4.8%
+     * of its travel.
+     */
+    cutWidth: number;
     /** Strength of the ramp, 0..1. wieringa-roof's `shade` slider. */
     ramp: number;
     /** Tile edges as real lines rather than a hairline, as grow.html's setting. */
@@ -1688,8 +1709,11 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         // that is the visibility test rather than a feature flag of its own.
         id: "penrose-outlines", label: "Outlines", z: PENROSE_Z_FRONT + 1, group: "Penrose",
         visible: () => anyOutline(),
-        draw: (c) => drawOutlines(
-            c.ctx, currentRhombs().filter((r) => !isStacked(r)), c.cx, c.cy),
+        draw: (c) => {
+            const laid = currentRhombs().filter((r) => !isStacked(r));
+            if (tileStyle.outlineCut) drawCuts(c.ctx, laid, c.cx, c.cy);
+            else drawOutlines(c.ctx, laid, c.cx, c.cy);
+        },
     });
     stack.add({
         // The superposed tiles' edges, dotted, on their own switch. See Features.
@@ -3951,6 +3975,95 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
         tc.restore();
     }
 
+    /** The green of the figure's fourth panel. */
+    const CUT_FILL = "#3f7d5f";
+
+    /**
+     * The same edges as circular cut lines — PLAN §11.16.
+     *
+     * Every selected edge is a unit chord of two decagon circles, one each
+     * side, and the shape between those two arcs is the edge. The arcs run to
+     * the ends `geometry/cuts.ts` worked out: straight through a 144° joint,
+     * where the neighbor is a chord of the SAME circle and there is no joint to
+     * draw, and stopping at the neighbor's circle anywhere else.
+     *
+     * A first version tried to get this by clipping to the complement of every
+     * disk, which is wrong and worth recording: the centers are dense — a
+     * chord's midpoint is 0.36 from the nearest center that is not one of its
+     * own two — so foreign circles run straight through the band and the green
+     * came out at 0.1% of the patch. A band is bounded by ITS OWN two circles.
+     */
+    function drawCuts(
+        tc: CanvasRenderingContext2D, rhombs: readonly Rhomb[], cx: number, cy: number,
+    ) {
+        const { lo } = indexRange();
+        const cuts = buildCuts(
+            outlineChords(rhombs, (K) => outlineOn(vertexIndex(K) - lo + 1)),
+            tileStyle.cutWidth);
+        if (!cuts.bands.length) return;
+        const R = cuts.r * scale;
+        if (R <= 0) return;
+
+        /** Where an arc's center is on screen. */
+        const seat = (a: CutArc): [number, number] => {
+            const c = cuts.circles[a.ci];
+            return mathToScreen(c[0], c[1], cx, cy);
+        };
+        /** A point on an arc, at a math angle. */
+        const at = (a: CutArc, t: number): [number, number] => {
+            const c = cuts.circles[a.ci];
+            return mathToScreen(c[0] + cuts.r * Math.cos(t),
+                                c[1] + cuts.r * Math.sin(t), cx, cy);
+        };
+        /**
+         * Append one arc, a0 → a1.
+         *
+         * Screen y is flipped, so a math angle θ is screen angle −θ and a
+         * math-increasing sweep runs the other way round the dial.
+         */
+        const run = (a: CutArc, back = false) => {
+            const [sx, sy] = seat(a);
+            const t0 = back ? a.a1 : a.a0, t1 = back ? a.a0 : a.a1;
+            tc.arc(sx, sy, R, -t0, -t1, t1 > t0);
+        };
+
+        tc.save();
+        // The bands, filled. Nonzero over the lot, so the joints merge rather
+        // than showing a seam where two bands meet.
+        tc.beginPath();
+        for (const b of cuts.bands) {
+            const [x0, y0] = at(b.left, b.left.a0);
+            tc.moveTo(x0, y0);
+            run(b.left);
+            const [x1, y1] = at(b.right, b.right.a1);
+            tc.lineTo(x1, y1);
+            run(b.right, true);
+            tc.closePath();
+        }
+        tc.fillStyle = CUT_FILL;
+        tc.globalAlpha = tileStyle.opacity;
+        tc.fill();
+        tc.globalAlpha = 1;
+
+        // And the two arcs that bound each one. A LITERAL width, like every
+        // other stroke here — §5.99 route B applies one export scale in the
+        // recording context, and a call site that scales itself breaks that.
+        tc.strokeStyle = "#141414";
+        tc.lineWidth = 1.4;
+        tc.lineCap = "round";
+        tc.lineJoin = "round";
+        tc.beginPath();
+        for (const b of cuts.bands) {
+            for (const a of [b.left, b.right]) {
+                const [x, y] = at(a, a.a0);
+                tc.moveTo(x, y);
+                run(a);
+            }
+        }
+        tc.stroke();
+        tc.restore();
+    }
+
     function drawRhombs(
         tc: CanvasRenderingContext2D, rhombs: Rhomb[], cx: number, cy: number,
         fill: boolean, dotted = false,
@@ -5374,8 +5487,9 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                     `outline${m}` as "outline1" | "outline2"
                         | "outline3" | "outline4" | "outline5";
                 const oRow = dressFold("outlines",
-                    () => INDEXES.filter((m) => tileStyle[outlineKey(m)])
-                        .map((m) => String(m)));
+                    () => [...INDEXES.filter((m) => tileStyle[outlineKey(m)])
+                        .map((m) => String(m)),
+                        ...(tileStyle.outlineCut ? ["cut"] : [])]);
                 for (const m of INDEXES) {
                     const box = checkbox(oRow, String(m), tileStyle[outlineKey(m)], (v) => {
                         tileStyle[outlineKey(m)] = v;
@@ -5394,6 +5508,74 @@ export function createPentagrid(config: PentagridConfig): PentagridHandle {
                         + " edges running between those two levels and nothing else.";
                     panelSyncs.push(() => { box.checked = tileStyle[outlineKey(m)]; });
                 }
+
+                // How those edges are drawn — PLAN §11.16. On its own line
+                // under the index switches, because it is about the treatment
+                // and they are about which edges get it.
+                // Its own classes, not the systems fold's: `system-line` and
+                // `system-name` are what a SYSTEM row is, and a test enumerates
+                // them to check the fold offers thick/thin, rhomb groups and
+                // Kowalewski and nothing else. Borrowing the look would have
+                // made this line a fourth system.
+                const cutLine = document.createElement("div");
+                cutLine.className = "cut-line";
+                const cutName = document.createElement("span");
+                cutName.className = "cut-name";
+                cutName.textContent = "circular cut";
+                cutLine.appendChild(cutName);
+                const cutBox = checkbox(cutLine, "on", tileStyle.outlineCut, (v) => {
+                    tileStyle.outlineCut = v;
+                    syncPanel();
+                    draw();
+                });
+                cutBox.title = "Draw the switched-on edges as circular cut lines "
+                    + "instead of heavy lines: every edge is a unit chord of two "
+                    + "decagon circles, one each side, and the shape between them "
+                    + "is the edge. Figure 6 of the starfish / ivy-leaf / hexagon "
+                    + "paper, fourth panel.";
+                /**
+                 * The band's width at its middle, signed and in tiling units.
+                 *
+                 * The radius is what the geometry uses and a bad thing to
+                 * scroll: its whole positive-lens range is the top 4.8% of its
+                 * travel. The width runs smoothly from a fat concave band,
+                 * through 0 where the two circles are tangent, to a thin convex
+                 * lens — and it is the thing you can see.
+                 */
+                const wBox = document.createElement("input");
+                wBox.type = "number";
+                wBox.className = "pct-box cut-box";
+                wBox.min = CUT_WIDTH_MIN.toFixed(2);
+                wBox.max = CUT_WIDTH_MAX.toFixed(2);
+                wBox.step = "0.01";
+                wBox.title = "The band's width at its middle, in tiling units. "
+                    + "Negative is the concave band, 0 the pinch where an edge's "
+                    + "two circles are tangent at the inscribed circle, positive "
+                    + "the convex lens — at most "
+                    + `${CUT_WIDTH_MAX.toFixed(3)}, where the arc tips reach the `
+                    + "two vertices. Scroll it.";
+                const showW = () => CUT_WIDTH_MIN > tileStyle.cutWidth
+                    ? CUT_WIDTH_MIN.toFixed(2) : tileStyle.cutWidth.toFixed(2);
+                wBox.value = showW();
+                const setW = (v: number) => {
+                    const c = Math.max(CUT_WIDTH_MIN, Math.min(CUT_WIDTH_MAX, v));
+                    tileStyle.cutWidth = Math.round(c * 1000) / 1000;
+                    wBox.value = showW();
+                    syncPanel();
+                    draw();
+                };
+                wBox.addEventListener("input", () => setW(Number(wBox.value) || 0));
+                wBox.addEventListener("wheel", (e) => {
+                    const ev = e as WheelEvent;
+                    ev.preventDefault();
+                    setW(tileStyle.cutWidth + (ev.deltaY < 0 ? 0.01 : -0.01));
+                }, { passive: false });
+                cutLine.appendChild(wBox);
+                oRow.appendChild(cutLine);
+                panelSyncs.push(() => {
+                    cutBox.checked = tileStyle.outlineCut;
+                    if (wBox.value !== showW()) wBox.value = showW();
+                });
 
                 const mRow = dressFold("misc",
                     () => onOf(["ammann", "ammann"], ["curves", "curves"],

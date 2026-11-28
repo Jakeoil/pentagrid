@@ -379,7 +379,7 @@ field takes its default — so an older embed meets a newer page without
 rotting. An attribute that is absent is a default too, which is why
 `copy setup` emits only what differs from the page's own baseline.
 
-**84 fields** in all: 58 booleans, 9 enums, 17 numbers.
+**86 fields** in all: 59 booleans, 9 enums, 18 numbers.
 
 ### Features — which layers exist
 
@@ -452,6 +452,8 @@ The Penrose side's dressings: colors, the decorations, the shading.
 | `data-outline3` | present / `false` | `false` |
 | `data-outline4` | present / `false` | `false` |
 | `data-outline5` | present / `false` | `false` |
+| `data-outline-cut` | present / `false` | `false` |
+| `data-cut-width` | a number | `-0.12` |
 
 ### Grid — how the gridlines themselves draw
 

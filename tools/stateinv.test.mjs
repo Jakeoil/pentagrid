@@ -31,11 +31,11 @@ test("the state is the size PLAN 9.2 says it is", () => {
     }
     const say = (c) => `${c.bool} bool, ${c.enum} enum, ${c.number} number`;
     assert.equal(say(by.features), "19 bool, 0 enum, 0 number");
-    assert.equal(say(by.tileStyle), "26 bool, 6 enum, 7 number");
+    assert.equal(say(by.tileStyle), "27 bool, 6 enum, 8 number");
     assert.equal(say(by.grid), "0 bool, 0 enum, 2 number");
     assert.equal(say(by.growth), "13 bool, 3 enum, 8 number");
 
-    // 58 booleans, ten base64url characters, and 84 fields in all.
+    // 59 booleans, ten base64url characters, and 86 fields in all.
     // `coloredArrows` became the `arrowStyle` enum when the edge style turned
     // into a dropdown, and `afterimage` the `p1Palette` enum when the flag
     // joined it; `shading` went away entirely when the ramp became its
@@ -44,13 +44,16 @@ test("the state is the size PLAN 9.2 says it is", () => {
     // them; and on 2026-11-21 the `color` enum became four face switches with
     // four opacities, the systems having stopped being alternatives -- of
     // which `pair` lasted a day: a band at 100% width is that same coloring,
-    // so it went and `bandOpacity` arrived in its place.
+    // so it went and `bandOpacity` arrived in its place. `outlineCut` and
+    // `cutWidth` arrived 2026-11-28 with the circular cut lines, §11.16 --
+    // the outline fold's edges drawn as chords of decagon circles, and the
+    // signed width of the band between each edge's two circles.
     const bits = FIELDS.filter((f) => f.kind === "bool").length;
-    assert.equal(bits, 58, `${bits} booleans, not 58`);
+    assert.equal(bits, 59, `${bits} booleans, not 59`);
     assert.equal(Math.ceil(bits / 6), 10);
     assert.equal(FIELDS.filter((f) => f.kind === "enum").length, 9, "nine enums");
-    assert.equal(FIELDS.filter((f) => f.kind === "number").length, 17, "seventeen numbers");
-    assert.equal(FIELDS.length, 84, `${FIELDS.length} fields, not 84`);
+    assert.equal(FIELDS.filter((f) => f.kind === "number").length, 18, "eighteen numbers");
+    assert.equal(FIELDS.length, 86, `${FIELDS.length} fields, not 86`);
 });
 
 test("the read side PLAN 9.1 asks for is on the handle, paired with every setter", () => {

@@ -265,14 +265,19 @@ export class SvgRecorder {
      * matching `restore` — deduplicated by the path, since the inlay clips
      * every pentagon to a tile and a tile carries several.
      */
-    clip() {
+    clip(rule?: CanvasFillRule) {
         const d = this.path.join(" ");
         if (!d) return;
-        let id = this.clips.get(d);
+        // The rule is part of the key: the same outline clipped nonzero and
+        // clipped evenodd are two different regions, and the cut lines use the
+        // second — a rectangle with every circle punched out of it.
+        const key = rule === "evenodd" ? `eo|${d}` : d;
+        let id = this.clips.get(key);
         if (!id) {
             id = this.id();
-            this.clips.set(d, id);
-            this.out.defs.push(`<clipPath id="${id}"><path d="${d}"/></clipPath>`);
+            this.clips.set(key, id);
+            const cr = rule === "evenodd" ? ' clip-rule="evenodd"' : "";
+            this.out.defs.push(`<clipPath id="${id}"><path d="${d}"${cr}/></clipPath>`);
         }
         this.st.clip = id;
     }
@@ -295,11 +300,12 @@ export class SvgRecorder {
         return s;
     }
 
-    fill() {
+    fill(rule?: CanvasFillRule) {
         const d = this.path.join(" ");
         if (!d) return;
+        const fr = rule === "evenodd" ? ' fill-rule="evenodd"' : "";
         this.out.body.push(
-            `<path d="${d}" fill="${esc(this.st.fillStyle)}"${this.common()}/>`);
+            `<path d="${d}" fill="${esc(this.st.fillStyle)}"${fr}${this.common()}/>`);
     }
     stroke() {
         const d = this.path.join(" ");

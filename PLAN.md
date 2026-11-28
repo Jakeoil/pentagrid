@@ -7302,6 +7302,132 @@ against the ordinary edge's 2.2. `tools/stateinv.test.mjs` holds the premise —
 while no call site has scaled itself — and the first draft of this scaled with
 the view and was caught by that test.
 
+### 11.16 Circular cut lines (Jake, 2026-11-28)
+
+Jake, from Figure 6 of the starfish / ivy-leaf / hexagon paper — its fourth
+panel, *"used representation … with circular cut lines"*: *"Adding this option
+to the 2 3 outline fold. An alternative outline 'edge'. An edge will actually be
+a shape consisting of two opposing arcs, each centered on a respective circle of
+a radius of the obvious decagon."*
+
+The second panel of that same figure — *"rhombus tiling with labels 1 and 4
+removed"* — **is** §11.13's outline fold at 2, 3. That is why this belongs here
+and not in a section of its own: the graph is already on screen, and this is a
+way of drawing its edges.
+
+#### The construction, and why it is the tiling's own and not a free parameter
+
+The circles are centered at **decagon centers**, and every 2–3 edge is a chord of
+two of them, one each side. Measured on a Penrose patch, ±9, 623 edges:
+
+| | |
+| --- | --- |
+| distinct 2–3 edge lengths | **exactly one: 1.000000** |
+| the unit-edge decagon's circumradius | φ = 1.618034 |
+| its apothem, center → edge midpoint | **a = 1.538842** = √(φ² − ¼) |
+| angle a chord subtends at its own center | **36.000000°** — ten tile a circle |
+| distance center → either endpoint of its chord | **φ**, exactly |
+| neighbor pairs at 144° that share a circle | **794 / 804** |
+| neighbor pairs at 72° that share a circle | **0 / 449** |
+| distinct centers | 339, of which **40 carry a full ten edges** |
+
+Those last three lines are the whole behavior of the figure, measured rather
+than assumed. Jake: *"one side of the lens is usually collinear because its
+neighbor shares the same circle, the other side's edge must end when it reaches
+its neighbor's circle."* It is not *usually* — it is **every** 144° joint and
+**no** 72° joint. The forty full decagons are the drawn decagon in his second
+picture; the other 299 centers are partial, where no decagon is there but the
+curvature still is. His third picture is exactly that case: *"the center of the
+circle/decagon's point is not defined here, but is obviously the same
+curvature."*
+
+So only the radius is free, and it has a named range:
+
+| R | shape of the edge | width at the middle |
+| --- | --- | --- |
+| R < a | **negative lens** — the two circles are disjoint | 2(a − R) |
+| R = a = 1.538842 (inscribed) | **tangent** — pinched to a point | 0 |
+| a < R ≤ φ | **positive lens** — the circles overlap | 2(R − a) |
+| R = φ (circumscribed) | the maximum: the arc tips land on the two vertices | 0.1584 |
+
+And the sign change is the same number from two directions: an edge's own two
+centers are 2a = 3.0777 apart, so its two circles begin to overlap at exactly
+R > a. Jake: *"if the R is the inscribed circle it is tangent to its other
+circle… circumscribed circle. This is the maximum size R… Smaller values will
+start have negative lenses until intersection, then positive lenses in the
+overlap."*
+
+#### The control is a signed width, not the radius
+
+R is a bad thing to scroll. The entire positive-lens range is 1.5388 … 1.6180 —
+the top 4.8% of the travel — so 95% of the box would be negative lenses and the
+interesting sign change would be a sliver at one end. The control is therefore
+**w = 2(R − a)**, signed: negative for the concave band, 0 at tangency, positive
+for the convex lens, with R derived. Scrolling runs smoothly from fat filigree
+through the pinch to a thin lens, and the number on the box is the thing on
+screen. Range −3.0777 … +0.1584; default **−0.12**, which is Jake's fourth panel.
+
+#### How it draws — and the wrong turn, which is worth keeping
+
+Not per edge in the obvious sense. The structure the numbers point at is a
+**circle registry**: centers deduplicated *by tolerance* — 8 pairs of computed
+centers came out 0.0000 apart under a 1e-5 string key, which is float noise and
+would have split one circle into two — each carrying the chords that lie on it.
+334 circles for 623 chords, where nothing shared would give 1246.
+
+**The wrong turn.** The first implementation drew the green as *everything
+outside every disk*, clipped with an even-odd path of the view rectangle minus
+all the circles. It is a beautiful idea: a 72° joint ends where the neighbor's
+circle cuts in, automatically; the starfish at a five-fold vertex is what is
+left between five disks; nothing is computed per joint. It is also wrong, and
+the measurement that killed it is worth writing down:
+
+```
+distance from a chord's midpoint to the nearest center
+   0.3633  ×87      ← not one of its own two, which are at 1.5388
+over the plane: mean nearest-center distance 0.5457, minimum 0.0048
+```
+
+The centers are **dense**. A disk of radius ~1.48 swallows almost every point,
+so foreign circles run straight through the band, and the green came out at
+**0.1%** of the patch — a few specks. A band is bounded by **its own two
+circles** and trimmed only by its *neighbors'*; the global complement is a
+different object entirely.
+
+So what it actually does, per band, is two arcs with worked-out ends:
+
+- **At a 144° joint**, the neighbor is a chord of the same circle, the two
+  sectors are adjacent, and the arc simply continues. There is no joint.
+- **Anywhere else**, the two facing circles are different, and the arc stops at
+  their intersection nearest the shared vertex. Both arcs stop at the *same*
+  point, so the bands abut exactly instead of leaving a notch. Measured, those
+  arcs run a little past their 36° sector — up to about 40° — which is the
+  overlap at a 72° joint made visible.
+- **Past the apothem** the band is the lens where an edge's own two circles
+  cross, with tips at ±√(R² − a²) along the edge: 0.279 at w = 0.05, and
+  exactly ±0.5 — the vertices — at R = φ. The lens is strictly inside its own
+  edge, so in that regime nothing trims anything.
+
+Two passes on the layer's own canvas: fill every band path (nonzero, so joints
+merge rather than showing a seam), then stroke the arcs at a literal 1.4.
+Measured green on a ±9 patch: **17.6%** at the default width, 33% at −0.30,
+13.1% at the maximum lens. Exported, the layer is two paths and about two
+thousand `A` commands.
+
+The SVG recorder gained `fill-rule` / `clip-rule` along the way. The clip is no
+longer used, but the fill rule is a real gap closed — it had no way to say
+even-odd at all.
+
+#### Scope
+
+General in the index pair, used at 2–3. Jake: *"This is a general edge
+treatment, but we are only using this target 2,3 at the moment."* So it reads
+the outline fold's switches like the line style does, and an LI class other than
+0 gets the same treatment for free.
+
+Not in this piece: filling the **starfish and ivy-leaf holes** as faces, which is
+face extraction from an arc arrangement and a real job of its own.
+
 ## 12. Moiré — what deflation does off the Penrose class (Jake, 2026-10-27)
 
 > Non zero LI classes do not deflate when gridlines are divided by Phi, but what
